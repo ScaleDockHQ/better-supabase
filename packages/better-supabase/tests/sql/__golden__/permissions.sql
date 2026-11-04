@@ -1797,7 +1797,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:f68171eb35d2ab9c696277432e0384f49e36c55f94db750ccbc68785786a8446
+-- @bsb-hash sha256:fe659d483c61794fded5087e971470a974b3fc42235a213946ea83456cb59fa4
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2229,6 +2229,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."tenant_disabled"(tenant uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tenant_disabled"($1) $$;
@@ -2238,6 +2239,7 @@ grant execute on function "api"."tenant_disabled"(uuid) to service_role;
 create or replace function "api"."user_disabled"(user_id uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."user_disabled"($1) $$;
@@ -2247,6 +2249,7 @@ grant execute on function "api"."user_disabled"(uuid) to service_role;
 create or replace function "api"."role_permissions"(role text)
 returns text[]
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."role_permissions"($1) $$;
@@ -2256,6 +2259,7 @@ grant execute on function "api"."role_permissions"(text) to service_role;
 create or replace function "api"."role_grants"(role text, permission text)
 returns boolean
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."role_grants"($1, $2) $$;
@@ -2265,6 +2269,7 @@ grant execute on function "api"."role_grants"(text, text) to service_role;
 create or replace function "api"."permission_matches"(granted text, wanted text)
 returns boolean
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."permission_matches"($1, $2) $$;
@@ -2274,6 +2279,7 @@ grant execute on function "api"."permission_matches"(text, text) to anon, authen
 create or replace function "api"."scope_permissions"(scope text)
 returns text[]
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."scope_permissions"($1) $$;
@@ -2283,6 +2289,7 @@ grant execute on function "api"."scope_permissions"(text) to anon, authenticated
 create or replace function "api"."cap_allows"(permission text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."cap_allows"($1) $$;
@@ -2292,6 +2299,7 @@ grant execute on function "api"."cap_allows"(text) to anon, authenticated, servi
 create or replace function "api"."operation_permission"(op text)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."operation_permission"($1) $$;
@@ -2301,6 +2309,7 @@ grant execute on function "api"."operation_permission"(text) to anon, authentica
 create or replace function "api"."can"(scope text, scope_id uuid, permission text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."can"($1, $2, $3) $$;
@@ -2310,6 +2319,7 @@ grant execute on function "api"."can"(text, uuid, text) to anon, authenticated, 
 create or replace function "api"."tenant_ids_with"(permission text)
 returns setof uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."tenant_ids_with"($1) $$;
@@ -2319,6 +2329,7 @@ grant execute on function "api"."tenant_ids_with"(text) to anon, authenticated, 
 create or replace function "api"."is_platform"(permission text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."is_platform"($1) $$;
@@ -2328,6 +2339,7 @@ grant execute on function "api"."is_platform"(text) to anon, authenticated, serv
 create or replace function "api"."can_assign"(tenant uuid, role text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."can_assign"($1, $2) $$;
@@ -2337,6 +2349,7 @@ grant execute on function "api"."can_assign"(uuid, text) to anon, authenticated,
 create or replace function "api"."my_permissions"(tenant uuid, keys text[] default null)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_permissions"($1, $2) $$;
@@ -2346,6 +2359,7 @@ grant execute on function "api"."my_permissions"(uuid, text[]) to anon, authenti
 create or replace function "api"."member_can"(member uuid, tenant uuid, permission text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."member_can"($1, $2, $3) $$;
@@ -2355,6 +2369,7 @@ grant execute on function "api"."member_can"(uuid, uuid, text) to service_role;
 create or replace function "api"."member_can_while_deleting"(member uuid, tenant uuid, permission text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."member_can_while_deleting"($1, $2, $3) $$;
@@ -2364,6 +2379,7 @@ grant execute on function "api"."member_can_while_deleting"(uuid, uuid, text) to
 create or replace function "api"."member_permissions"(member uuid, tenant uuid)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."member_permissions"($1, $2) $$;
@@ -2373,6 +2389,7 @@ grant execute on function "api"."member_permissions"(uuid, uuid) to service_role
 create or replace function "api"."platform_can"(member uuid, permission text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."platform_can"($1, $2) $$;
@@ -2382,6 +2399,7 @@ grant execute on function "api"."platform_can"(uuid, text) to service_role;
 create or replace function "api"."can_user"(member uuid, scope text, scope_id uuid, permission text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."can_user"($1, $2, $3, $4) $$;
@@ -2391,6 +2409,7 @@ grant execute on function "api"."can_user"(uuid, text, uuid, text) to service_ro
 create or replace function "api"."permission_claims"(user_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."permission_claims"($1) $$;
@@ -2400,6 +2419,7 @@ grant execute on function "api"."permission_claims"(uuid) to service_role;
 create or replace function "api"."permission_claims"(user_id uuid, tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."permission_claims"($1, $2) $$;
@@ -2409,6 +2429,7 @@ grant execute on function "api"."permission_claims"(uuid, uuid) to service_role;
 create or replace function "api"."can_assign_as"(member uuid, tenant uuid, role text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."can_assign_as"($1, $2, $3) $$;

@@ -688,7 +688,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
--- @bsb-hash sha256:a79baf182571a91969e6fe63639a38e283ac2ee40c74281a9a3e6eb2f8d74f0c
+-- @bsb-hash sha256:f41e9d8f99ebb8614c2c21ff8eb5529d0bb7a22b5820a25f6c6ad96cdadef271
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -906,6 +906,7 @@ grant execute on function "api"."field_decrypt"(text, text) to service_role;
 create or replace function "api"."field_lookup"(owner text, value text)
 returns bytea
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."field_lookup"($1, $2) $$;

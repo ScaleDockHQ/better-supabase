@@ -1427,7 +1427,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:c8dadd1793be493c1545f001637df0f59684074bda4fc72d0e8e350cbd0d227d
+-- @bsb-hash sha256:e48b5c60e8a95a3e41134bc1c2c3011e452463c852514c80ff009f170558bdc8
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1863,6 +1863,7 @@ drop function if exists "api"."sync_number_sequences"(uuid, text);
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -1872,6 +1873,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1890,6 +1892,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."format_assigned_number"(template text, n bigint, at timestamptz)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."format_assigned_number"($1, $2, $3) $$;
@@ -1899,6 +1902,7 @@ grant execute on function "api"."format_assigned_number"(text, bigint, timestamp
 create or replace function "api"."number_at"(value timestamptz)
 returns timestamptz
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."number_at"($1) $$;
@@ -1908,6 +1912,7 @@ grant execute on function "api"."number_at"(timestamptz) to service_role;
 create or replace function "api"."number_at"(value timestamp)
 returns timestamptz
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."number_at"($1) $$;
@@ -1917,6 +1922,7 @@ grant execute on function "api"."number_at"(timestamp) to service_role;
 create or replace function "api"."number_at"(value date)
 returns timestamptz
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."number_at"($1) $$;
@@ -1926,6 +1932,7 @@ grant execute on function "api"."number_at"(date) to service_role;
 create or replace function "api"."number_format_period"(p_format text, p_at timestamptz)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."number_format_period"($1, $2) $$;
@@ -1935,6 +1942,7 @@ grant execute on function "api"."number_format_period"(text, timestamptz) to ser
 create or replace function "api"."number_period_kind"(p_period text, p_format text)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."number_period_kind"($1, $2) $$;
@@ -1944,6 +1952,7 @@ grant execute on function "api"."number_period_kind"(text, text) to service_role
 create or replace function "api"."number_format_pattern"(p_format text)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."number_format_pattern"($1) $$;
@@ -1962,6 +1971,7 @@ grant execute on function "api"."next_number"(uuid, text, timestamptz, text) to 
 create or replace function "api"."number_scope"(p_tenant uuid, p_legal_entity uuid)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."number_scope"($1, $2) $$;
@@ -1989,6 +1999,7 @@ grant execute on function "api"."set_fixed_number"(text, text) to service_role;
 create or replace function "api"."number_format"(p_tenant uuid, p_entity text)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."number_format"($1, $2) $$;
@@ -1998,6 +2009,7 @@ grant execute on function "api"."number_format"(uuid, text) to service_role;
 create or replace function "api"."number_period"(p_tenant uuid, p_entity text)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."number_period"($1, $2) $$;
@@ -2007,6 +2019,7 @@ grant execute on function "api"."number_period"(uuid, text) to service_role;
 create or replace function "api"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now(), p_scope text default '')
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."preview_number"($1, $2, $3, $4) $$;

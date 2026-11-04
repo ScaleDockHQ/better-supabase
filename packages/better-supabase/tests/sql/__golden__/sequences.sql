@@ -2986,7 +2986,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:ebdfb8d1a679996a433694aaef3e536bd0ed6a3b21e52313f76a3f6856e1d1d0
+-- @bsb-hash sha256:f1f85332fa784f29b45cc5991975222a2facf2f42754ff54600ab8e0a91709e0
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3918,6 +3918,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3945,6 +3946,7 @@ grant execute on function "api"."save_sequence"(uuid, jsonb) to authenticated, s
 create or replace function "api"."list_sequences"(tenant uuid, status text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_sequences"($1, $2) $$;
@@ -3954,6 +3956,7 @@ grant execute on function "api"."list_sequences"(uuid, text) to authenticated, s
 create or replace function "api"."get_sequence"(sequence_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_sequence"($1) $$;
@@ -3990,6 +3993,7 @@ grant execute on function "api"."change_sequence_enrollment"(uuid, text) to auth
 create or replace function "api"."list_sequence_enrollments"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_sequence_enrollments"($1, $2) $$;

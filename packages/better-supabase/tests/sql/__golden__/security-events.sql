@@ -1592,7 +1592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:8fbccb2baa48efe89dafc32f81cab3563762a0e4f27b5d497a3ef9542f1ab94a
+-- @bsb-hash sha256:9a1229596431a00c78ad9ff13443a889b71e39405836e1464a3217dae76face4
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2094,6 +2094,7 @@ grant execute on function "api"."create_ssf_stream"(uuid, text, text, text[], te
 create or replace function "api"."ssf_stream"(id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ssf_stream"($1) $$;
@@ -2103,6 +2104,7 @@ grant execute on function "api"."ssf_stream"(uuid) to service_role;
 create or replace function "api"."ssf_streams"(receiver text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ssf_streams"($1) $$;
@@ -2148,6 +2150,7 @@ grant execute on function "api"."set_ssf_stream_status"(uuid, text, text) to ser
 create or replace function "api"."ssf_streams_for_event"(tenant text, event_type text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ssf_streams_for_event"($1, $2) $$;

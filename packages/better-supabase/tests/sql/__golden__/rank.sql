@@ -510,7 +510,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:536b2ec6c1cc4629bdf6b9f7fc9e2cb75516d214972bb0d18375593a8b738796
+-- @bsb-hash sha256:ffcc04728d08330cd0c32116b698846ad316bc5b1db4c4f7a80a7e168d7410ad
 -- Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -655,6 +655,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."rank_between"(previous text, next text)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rank_between"($1, $2) $$;
@@ -664,6 +665,7 @@ grant execute on function "api"."rank_between"(text, text) to authenticated, ser
 create or replace function "api"."rank_key"(nth bigint, total bigint)
 returns text
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rank_key"($1, $2) $$;

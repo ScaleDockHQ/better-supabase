@@ -2671,7 +2671,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:41c491ecea9950a75b86da7a7d1e4acb9448a52aa90aa3db89c57b19132bbf01
+-- @bsb-hash sha256:c66787a6c4587b4b0c2c247ce4ab50731bc66cc5eff5e4bf704a2cef7a7428c0
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3526,6 +3526,7 @@ drop function if exists "api"."billing_platform_customers"();
 create or replace function "api"."billing_plan_price"(plan text, billing_interval text default null, variant text default null)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_plan_price"($1, $2, $3) $$;
@@ -3541,6 +3542,7 @@ returns table (
   created timestamptz
 )
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."billing_platform_customers"() $$;
@@ -3550,6 +3552,7 @@ grant execute on function "api"."billing_platform_customers"() to authenticated,
 create or replace function "api"."billing_all_customers"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_all_customers"() $$;
@@ -3577,6 +3580,7 @@ returns table (
   created timestamptz
 )
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."billing_platform_subscriptions"() $$;
@@ -3607,6 +3611,7 @@ returns table (
   updated_at timestamptz
 )
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."billing_platform_invoices"() $$;
@@ -3616,6 +3621,7 @@ grant execute on function "api"."billing_platform_invoices"() to authenticated, 
 create or replace function "api"."billing_stripe_rows"(tenant uuid, source text, max_rows integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_stripe_rows"($1, $2, $3) $$;
@@ -3625,6 +3631,7 @@ grant execute on function "api"."billing_stripe_rows"(uuid, text, integer) to au
 create or replace function "api"."billing_invoices"(tenant uuid, max_rows integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_invoices"($1, $2) $$;
@@ -3634,6 +3641,7 @@ grant execute on function "api"."billing_invoices"(uuid, integer) to authenticat
 create or replace function "api"."billing_payment_methods"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_payment_methods"($1) $$;
@@ -3643,6 +3651,7 @@ grant execute on function "api"."billing_payment_methods"(uuid) to authenticated
 create or replace function "api"."billing_customer_details"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_customer_details"($1) $$;
@@ -3652,6 +3661,7 @@ grant execute on function "api"."billing_customer_details"(uuid) to authenticate
 create or replace function "api"."billing_tax_ids"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_tax_ids"($1) $$;
@@ -3661,6 +3671,7 @@ grant execute on function "api"."billing_tax_ids"(uuid) to authenticated, servic
 create or replace function "api"."billing_all_invoices"(for_status text default null, max_rows integer default 100, before_created bigint default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_all_invoices"($1, $2, $3) $$;
@@ -3670,6 +3681,7 @@ grant execute on function "api"."billing_all_invoices"(text, integer, bigint) to
 create or replace function "api"."billing_subscription"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_subscription"($1) $$;
@@ -3679,6 +3691,7 @@ grant execute on function "api"."billing_subscription"(uuid) to authenticated, s
 create or replace function "api"."billing_all_subscriptions"(for_status text default null, max_rows integer default 100, before_created bigint default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_all_subscriptions"($1, $2, $3) $$;
@@ -3688,6 +3701,7 @@ grant execute on function "api"."billing_all_subscriptions"(text, integer, bigin
 create or replace function "api"."billing_customer"(tenant uuid)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_customer"($1) $$;
@@ -3697,6 +3711,7 @@ grant execute on function "api"."billing_customer"(uuid) to authenticated, servi
 create or replace function "api"."billing_account"(tenant uuid)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_account"($1) $$;
@@ -3715,6 +3730,7 @@ grant execute on function "api"."link_billing_account"(uuid, text) to service_ro
 create or replace function "api"."billing_customer_tenant"(customer text)
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_customer_tenant"($1) $$;
@@ -3733,6 +3749,7 @@ grant execute on function "api"."link_billing_customer"(uuid, text) to service_r
 create or replace function "api"."billing_seat_count"(tenant uuid)
 returns integer
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_seat_count"($1) $$;
@@ -3742,6 +3759,7 @@ grant execute on function "api"."billing_seat_count"(uuid) to service_role;
 create or replace function "api"."billing_subscription_item"(tenant uuid, price text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_subscription_item"($1, $2) $$;
@@ -3751,6 +3769,7 @@ grant execute on function "api"."billing_subscription_item"(uuid, text) to servi
 create or replace function "api"."billing_status"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_status"($1) $$;
@@ -3760,6 +3779,7 @@ grant execute on function "api"."billing_status"(uuid) to authenticated, service
 create or replace function "api"."billing_overview"(tenant uuid, invoice_limit integer default 10)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."billing_overview"($1, $2) $$;

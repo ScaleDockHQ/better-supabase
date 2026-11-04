@@ -1972,7 +1972,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:c7b156ab7b87da6aade377e562004e3778a2b6a9dbc82cb134a29a5ca6960df0
+-- @bsb-hash sha256:c92afa0985a2205849ad06f591654030b2b7ab5e4c858f41ca09ea9f0361986b
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2602,6 +2602,7 @@ drop function if exists "api"."apply_to_job"(uuid, jsonb, text, uuid, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2665,6 +2666,7 @@ grant execute on function "api"."schedule_interview"(uuid, timestamptz, timestam
 create or replace function "api"."application_detail"(application uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."application_detail"($1) $$;
@@ -2674,6 +2676,7 @@ grant execute on function "api"."application_detail"(uuid) to authenticated, ser
 create or replace function "api"."list_jobs"(tenant uuid, status text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_jobs"($1, $2) $$;
@@ -2683,6 +2686,7 @@ grant execute on function "api"."list_jobs"(uuid, text) to authenticated, servic
 create or replace function "api"."list_applications"(job uuid, state text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_applications"($1, $2) $$;

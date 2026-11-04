@@ -2966,7 +2966,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:e207d1ae3b8427d29a0078dcf81fb9bdc0a88ed1977664d61e017d3eb2255e31
+-- @bsb-hash sha256:db9271489870d205ee4ca7d8792b0e00c0c0cb8366dfc036ecc94a6458bbe926
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3924,6 +3924,7 @@ drop function if exists "api"."log_time"(uuid, timestamptz, timestamptz, text, t
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3942,6 +3943,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."time_week"(at timestamptz)
 returns date
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."time_week"($1) $$;
@@ -3969,6 +3971,7 @@ grant execute on function "api"."stop_timer"(uuid, uuid) to authenticated, servi
 create or replace function "api"."running_timer"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."running_timer"($1) $$;
@@ -3978,6 +3981,7 @@ grant execute on function "api"."running_timer"(uuid) to authenticated, service_
 create or replace function "api"."running_timers"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."running_timers"($1) $$;
@@ -4014,6 +4018,7 @@ grant execute on function "api"."delete_time_entry"(uuid) to authenticated, serv
 create or replace function "api"."list_time_entries"(tenant uuid, user_id uuid default null, starts timestamptz default null, ends timestamptz default null, subject_type text default null, subject_id text default null, everyone boolean default false, page_size integer default 200)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_time_entries"($1, $2, $3, $4, $5, $6, $7, $8) $$;
@@ -4023,6 +4028,7 @@ grant execute on function "api"."list_time_entries"(uuid, uuid, timestamptz, tim
 create or replace function "api"."get_timesheet"(tenant uuid, week date, user_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_timesheet"($1, $2, $3) $$;
@@ -4050,6 +4056,7 @@ grant execute on function "api"."reopen_timesheet"(uuid) to authenticated, servi
 create or replace function "api"."list_timesheets"(tenant uuid, user_id uuid default null, status text default null, page_size integer default 50, before date default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_timesheets"($1, $2, $3, $4, $5) $$;

@@ -1375,7 +1375,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:d9dcbd2a34dbae65c1a2571768556f51c870f7d2a417090ec4a04535b23a25c2
+-- @bsb-hash sha256:f3dae062d02c0b021002f028690b08ea44f348bbc0a2cc44d2c495979dc22fdc
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1809,6 +1809,7 @@ drop function if exists "api"."update_tag"(uuid, text, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1881,6 +1882,7 @@ grant execute on function "api"."untag"(uuid, text, text, uuid) to authenticated
 create or replace function "api"."list_tags"(tenant uuid, kind text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_tags"($1, $2) $$;
@@ -1890,6 +1892,7 @@ grant execute on function "api"."list_tags"(uuid, text) to authenticated, servic
 create or replace function "api"."subject_tags"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."subject_tags"($1, $2, $3) $$;
@@ -1899,6 +1902,7 @@ grant execute on function "api"."subject_tags"(uuid, text, text) to authenticate
 create or replace function "api"."subjects_tags"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."subjects_tags"($1, $2, $3) $$;

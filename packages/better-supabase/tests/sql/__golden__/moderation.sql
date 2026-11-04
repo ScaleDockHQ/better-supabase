@@ -4232,7 +4232,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:650f7b75feb71579e10ec76de37ff23b5265d0e70584cfbf2f173f9ef530f15b
+-- @bsb-hash sha256:88a3644edf915a63e8e3175088c0e5c9e18aa6848dc745674f7db8f68b2731ba
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5583,6 +5583,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -5619,6 +5620,7 @@ grant execute on function "api"."moderate"(uuid, text, text) to authenticated, s
 create or replace function "api"."moderation_queue"(tenant uuid, status text default null, subject_type text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."moderation_queue"($1, $2, $3, $4, $5) $$;
@@ -5628,6 +5630,7 @@ grant execute on function "api"."moderation_queue"(uuid, text, text, integer, ti
 create or replace function "api"."moderation_item"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."moderation_item"($1, $2, $3) $$;
@@ -5637,6 +5640,7 @@ grant execute on function "api"."moderation_item"(uuid, text, text) to authentic
 create or replace function "api"."moderation_statuses"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."moderation_statuses"($1, $2, $3) $$;
@@ -5664,6 +5668,7 @@ grant execute on function "api"."unban_user"(uuid) to authenticated, service_rol
 create or replace function "api"."list_bans"(tenant uuid, active boolean default true, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_bans"($1, $2, $3) $$;
@@ -5682,6 +5687,7 @@ grant execute on function "api"."submit_notice"(uuid, text, text, text, text, te
 create or replace function "api"."list_notices"(tenant uuid, status text default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_notices"($1, $2, $3) $$;
@@ -5709,6 +5715,7 @@ grant execute on function "api"."issue_statement"(uuid, text, text, text, text, 
 create or replace function "api"."list_statements"(item_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_statements"($1) $$;
@@ -5745,6 +5752,7 @@ grant execute on function "api"."decide_appeal"(uuid, text, text) to authenticat
 create or replace function "api"."transparency_report"(tenant uuid, period_start timestamptz, period_end timestamptz)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."transparency_report"($1, $2, $3) $$;

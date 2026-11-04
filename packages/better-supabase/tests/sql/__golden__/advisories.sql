@@ -4118,7 +4118,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_178_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:0e946986b00fb6e75ddeb7c8a5c54721611056f504423823c8683460229ab860
+-- @bsb-hash sha256:53cb6613847b398fed77326f7c62daf6cad31bace4c232e2c9f8a2c9a37b388c
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5428,6 +5428,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;

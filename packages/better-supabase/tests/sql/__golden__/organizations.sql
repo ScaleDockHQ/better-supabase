@@ -2548,7 +2548,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:01cd28350c7f5406fd03e2e3e50a9fa9a215241de2ca24f540b4772319e58207
+-- @bsb-hash sha256:7a953e39177185421f6df4045f78b28e9a0b091aa4b26c4803437affb8f775de
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3337,6 +3337,7 @@ drop function if exists "api"."list_members"(uuid);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3355,6 +3356,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."organization_slug_problem"(value text, except_organization uuid default null)
 returns text
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."organization_slug_problem"($1, $2) $$;
@@ -3451,6 +3453,7 @@ returns table (
   disabled_at timestamptz
 )
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_my_organizations"() $$;
@@ -3460,6 +3463,7 @@ grant execute on function "api"."list_my_organizations"() to authenticated, serv
 create or replace function "api"."list_members"(organization uuid)
 returns table (user_id uuid, role text, disabled_at timestamptz)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_members"($1) $$;
@@ -3469,6 +3473,7 @@ grant execute on function "api"."list_members"(uuid) to authenticated, service_r
 create or replace function "api"."organization_overview"(organization uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."organization_overview"($1) $$;

@@ -3505,7 +3505,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:fbe33d72e13b3b73223d0a17e4e2cedf6ee951a3864ce99fae371a32453264a8
+-- @bsb-hash sha256:92f87c5635d297c4cdf5fbcdc46e8db81609e429ec716c424d35fcfcbeba870c
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4599,6 +4599,7 @@ drop function if exists "api"."update_leave_request"(uuid, date, date, text, num
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4617,6 +4618,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."leave_balances"($1, $2, $3) $$;
@@ -4626,6 +4628,7 @@ grant execute on function "api"."leave_balances"(uuid, uuid, integer) to authent
 create or replace function "api"."leave_ledger_entries"(tenant uuid, user_id uuid default null, period integer default null, type_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."leave_ledger_entries"($1, $2, $3, $4) $$;
@@ -4662,6 +4665,7 @@ grant execute on function "api"."close_leave_year"(uuid, integer) to authenticat
 create or replace function "api"."leave_working_days"(starts_on date, ends_on date)
 returns integer
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."leave_working_days"($1, $2) $$;
@@ -4689,6 +4693,7 @@ grant execute on function "api"."archive_leave_type"(uuid) to authenticated, ser
 create or replace function "api"."list_leave_types"(tenant uuid, archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_leave_types"($1, $2) $$;
@@ -4734,6 +4739,7 @@ grant execute on function "api"."split_leave_request"(uuid, date, date) to authe
 create or replace function "api"."list_leave_requests"(tenant uuid, user_id uuid default null, status text default null, starts date default null, ends date default null, everyone boolean default false, page_size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_leave_requests"($1, $2, $3, $4, $5, $6, $7) $$;

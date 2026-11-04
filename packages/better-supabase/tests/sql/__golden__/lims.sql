@@ -2438,7 +2438,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_164_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:2c76c8232ca1c8c025821bb5616a47c6ba2706226e87533030a21d1db8da4dd7
+-- @bsb-hash sha256:eb5f0c116435103b95f42e2e130fd1cca8cba546e4461b66b38bb946e510f36e
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3191,6 +3191,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -3200,6 +3201,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -3236,6 +3238,7 @@ grant execute on function "api"."archive_lims_method"(uuid) to authenticated, se
 create or replace function "api"."list_lims_methods"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_lims_methods"($1, $2) $$;
@@ -3254,6 +3257,7 @@ grant execute on function "api"."register_sample"(uuid, jsonb) to authenticated,
 create or replace function "api"."get_sample"(sample_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_sample"($1) $$;
@@ -3263,6 +3267,7 @@ grant execute on function "api"."get_sample"(uuid) to authenticated, service_rol
 create or replace function "api"."list_samples"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_samples"($1, $2) $$;
@@ -3308,6 +3313,7 @@ grant execute on function "api"."record_lims_result"(uuid, uuid, jsonb) to authe
 create or replace function "api"."instrument_status"(tenant uuid, asset_id uuid, on_date date default current_date)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."instrument_status"($1, $2, $3) $$;

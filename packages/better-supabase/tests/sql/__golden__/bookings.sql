@@ -3198,7 +3198,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:fc0ae8d290e18a83812b2e5ae8ac93bc0c0d4f047d9a0eef0db71b9f7567d1b7
+-- @bsb-hash sha256:6cbdedf0faf07833ea0a74c466e14c7916772428dfe1605fcec3c079af1374bc
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4152,6 +4152,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4215,6 +4216,7 @@ grant execute on function "api"."save_booking_service"(uuid, jsonb) to authentic
 create or replace function "api"."booking_slots"(service uuid, range_start timestamptz, range_end timestamptz, tz text, only_resource uuid)
 returns table (resource_id uuid, starts_at timestamptz, ends_at timestamptz, local_start timestamp, seats integer)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."booking_slots"($1, $2, $3, $4, $5) $$;
@@ -4224,6 +4226,7 @@ grant execute on function "api"."booking_slots"(uuid, timestamptz, timestamptz, 
 create or replace function "api"."available_slots"(service uuid, range_start timestamptz, range_end timestamptz, tz text default null, resource uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."available_slots"($1, $2, $3, $4, $5) $$;
@@ -4296,6 +4299,7 @@ grant execute on function "api"."cancel_booking"(uuid, text) to authenticated, s
 create or replace function "api"."list_bookings"(tenant uuid, range_start timestamptz, range_end timestamptz, resource uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_bookings"($1, $2, $3, $4) $$;
@@ -4305,6 +4309,7 @@ grant execute on function "api"."list_bookings"(uuid, timestamptz, timestamptz, 
 create or replace function "api"."list_booking_resources"(tenant uuid, include_inactive boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_booking_resources"($1, $2) $$;
@@ -4314,6 +4319,7 @@ grant execute on function "api"."list_booking_resources"(uuid, boolean) to authe
 create or replace function "api"."list_booking_services"(tenant uuid, include_inactive boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_booking_services"($1, $2) $$;

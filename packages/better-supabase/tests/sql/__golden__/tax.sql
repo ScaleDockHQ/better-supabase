@@ -3468,7 +3468,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:212f516eb91c4a2fa888e518ebeb9de8e8a1c201cde04321a3bd0d9f40c01e10
+-- @bsb-hash sha256:96850b76132797fa6ae02f12129dce8e9a4eed822697cece56a5fdf2136d3615
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4563,6 +4563,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4581,6 +4582,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."tax_rate_on"(code_id uuid, on_date date)
 returns integer
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tax_rate_on"($1, $2) $$;
@@ -4590,6 +4592,7 @@ grant execute on function "api"."tax_rate_on"(uuid, date) to authenticated, serv
 create or replace function "api"."resolve_tax_code"(tenant uuid, code text, legal_entity uuid default null)
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."resolve_tax_code"($1, $2, $3) $$;
@@ -4617,6 +4620,7 @@ grant execute on function "api"."save_tax_rate"(uuid, uuid, integer, date, date)
 create or replace function "api"."list_tax_codes"(tenant uuid, include_archived boolean default false, legal_entity uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_tax_codes"($1, $2, $3) $$;
@@ -4635,6 +4639,7 @@ grant execute on function "api"."import_tax_code"(uuid, jsonb, text) to service_
 create or replace function "api"."tax_code_updated_at"(subject_id text)
 returns timestamptz
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tax_code_updated_at"($1) $$;
@@ -4653,6 +4658,7 @@ grant execute on function "api"."import_tax_rate"(uuid, jsonb, text) to service_
 create or replace function "api"."tax_compute_lines"(lines jsonb, on_date date, prices_include_tax boolean, credit_restriction_bps integer, discount_bps integer, discount_amount bigint)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tax_compute_lines"($1, $2, $3, $4, $5, $6) $$;
@@ -4662,6 +4668,7 @@ grant execute on function "api"."tax_compute_lines"(jsonb, date, boolean, intege
 create or replace function "api"."compute_document_tax"(lines jsonb, on_date date, prices_include_tax boolean default false, credit_restriction_bps integer default 0)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."compute_document_tax"($1, $2, $3, $4) $$;
@@ -4680,6 +4687,7 @@ grant execute on function "api"."prepare_tax_return"(uuid, date, date, uuid, tex
 create or replace function "api"."tax_return_source"(tenant uuid, since date, until date, legal_entity_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tax_return_source"($1, $2, $3, $4) $$;
@@ -4698,6 +4706,7 @@ grant execute on function "api"."file_tax_return"(uuid) to authenticated, servic
 create or replace function "api"."list_tax_returns"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_tax_returns"($1) $$;

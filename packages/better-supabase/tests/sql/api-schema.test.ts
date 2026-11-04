@@ -544,3 +544,48 @@ grant execute on function better_supabase.claims(uuid) to service_role, supabase
     ).toThrow(/missing is not a settings function/);
   });
 });
+
+describe("wrapper volatility", () => {
+  const source = `create or replace function better_supabase.read_a(x uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$ select 'a' $$;
+grant execute on function better_supabase.read_a(uuid) to authenticated;
+
+create or replace function better_supabase.write_b(x uuid)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$ begin return 'b'; end $$;
+grant execute on function better_supabase.write_b(uuid) to authenticated;
+
+create or replace function better_supabase.pure_c(x uuid)
+returns text
+language sql immutable
+as $$ select 'c' $$;
+grant execute on function better_supabase.pure_c(uuid) to authenticated;`;
+
+  const wrapped = apiWrappers(
+    source,
+    "better_supabase",
+    { schema: "api" },
+    "x",
+  );
+
+  const wrapperOf = (name: string): string =>
+    wrapped.slice(wrapped.indexOf(`function "api"."${name}"`)).split("$$;")[0]!;
+
+  it("copies stable and immutable, and leaves volatile functions volatile", () => {
+    expect(wrapperOf("read_a")).toContain(
+      "language sql\nstable\nsecurity invoker",
+    );
+    expect(wrapperOf("pure_c")).toContain(
+      "language sql\nimmutable\nsecurity invoker",
+    );
+    expect(wrapperOf("write_b")).not.toMatch(/stable|immutable/);
+  });
+});

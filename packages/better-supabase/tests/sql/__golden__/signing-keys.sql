@@ -813,7 +813,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_104_signing_keys.sql
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:f6567405a4998a3a5d7311a408cfafc7c88b3ad85b88ddb9d684ebfea172685c
+-- @bsb-hash sha256:8da066af363d7a4ef1309844e0cd5f387cf40a12cf56898816afbede93aef886
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1061,6 +1061,7 @@ grant execute on function "api"."add_signing_key"(text, text, text, text, jsonb,
 create or replace function "api"."signing_key"(owner_type text, owner_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."signing_key"($1, $2) $$;
@@ -1088,6 +1089,7 @@ grant execute on function "api"."retire_signing_key"(text) to service_role;
 create or replace function "api"."signing_jwks"(owner_type text, owner_id text, grace interval default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."signing_jwks"($1, $2, $3) $$;

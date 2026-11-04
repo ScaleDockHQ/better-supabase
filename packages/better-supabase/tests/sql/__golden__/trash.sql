@@ -1263,7 +1263,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:11de6b2c4414cd16056967a6c80fe69db6050aa9f2dc3aa75e344617b84ad432
+-- @bsb-hash sha256:fd0a9bf36427c523df07dd73093641987a8612cd6d7bade47a9ea9b0eca1d906
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1652,6 +1652,7 @@ drop function if exists "api"."trash"(uuid, text, text, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1688,6 +1689,7 @@ grant execute on function "api"."restore_trash"(uuid) to authenticated, service_
 create or replace function "api"."list_trash"(tenant uuid, subject_type text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_trash"($1, $2, $3, $4) $$;
@@ -1715,6 +1717,7 @@ grant execute on function "api"."purge_expired_trash"(integer) to service_role;
 create or replace function "api"."is_trashed"(subject_type text, subject_id text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."is_trashed"($1, $2) $$;

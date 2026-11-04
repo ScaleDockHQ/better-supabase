@@ -1153,7 +1153,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:4abe51028fb697bec08e998d7551fe860e423593b7683961102131fa0c2a0b34
+-- @bsb-hash sha256:382a95138e7e0aad6ab338371cde9bb8670c50ce6fa9534a8138ef0e9dc2c652
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1510,6 +1510,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1528,6 +1529,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."enrichment_target"(subject_type text, subject_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."enrichment_target"($1, $2) $$;
@@ -1546,6 +1548,7 @@ grant execute on function "api"."record_enrichment"(text, uuid, text, jsonb, boo
 create or replace function "api"."enrichments_of"(subject_type text, subject_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."enrichments_of"($1, $2) $$;
@@ -1555,6 +1558,7 @@ grant execute on function "api"."enrichments_of"(text, uuid) to authenticated, s
 create or replace function "api"."enrichment_due"(provider text, max_count integer default null, stale_after interval default null, subject_type text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."enrichment_due"($1, $2, $3, $4) $$;

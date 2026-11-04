@@ -3322,7 +3322,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:cf0d079da332cd19f1d90df176f192adc439747842c4989f6b2125d230dde713
+-- @bsb-hash sha256:e2616460008d5c95b796d3db52a3aef02f128002f987abbbcccff8a73f2b8b77
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4405,6 +4405,7 @@ drop function if exists "api"."rename_collection"(uuid, text, text, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4450,6 +4451,7 @@ grant execute on function "api"."archive_collection"(uuid, boolean) to authentic
 create or replace function "api"."list_collections"(tenant uuid, subject_type text, include_archived boolean)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_collections"($1, $2, $3) $$;
@@ -4486,6 +4488,7 @@ grant execute on function "api"."rank_collection_entry"(uuid, text, text) to aut
 create or replace function "api"."collection_entries"(collection uuid, after_rank text, after_id text, page_size integer)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."collection_entries"($1, $2, $3, $4) $$;
@@ -4495,6 +4498,7 @@ grant execute on function "api"."collection_entries"(uuid, text, text, integer) 
 create or replace function "api"."collection_subject_ids"(collection uuid, max_ids integer)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."collection_subject_ids"($1, $2) $$;
@@ -4504,6 +4508,7 @@ grant execute on function "api"."collection_subject_ids"(uuid, integer) to authe
 create or replace function "api"."collections_of"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."collections_of"($1, $2) $$;
@@ -4540,6 +4545,7 @@ grant execute on function "api"."rank_star"(text, text, text) to authenticated, 
 create or replace function "api"."starred_subjects"(tenant uuid, subject_type text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."starred_subjects"($1, $2) $$;
@@ -4576,6 +4582,7 @@ grant execute on function "api"."remove_saved_item"(uuid) to authenticated, serv
 create or replace function "api"."list_saved_items"(tenant uuid, completed boolean default false, before timestamptz default null, before_id uuid default null, max_rows integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_saved_items"($1, $2, $3, $4, $5) $$;

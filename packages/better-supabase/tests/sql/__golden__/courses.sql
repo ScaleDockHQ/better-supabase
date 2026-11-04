@@ -4121,7 +4121,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:a9c4dda279429eedbb85d2d138a5279f08f0292dd9a36902e9f224a9c696e8c8
+-- @bsb-hash sha256:2b0d69ad180665600a973825eb1d029433a06532385c5c6bd36446cc1637ea5d
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5422,6 +5422,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -5458,6 +5459,7 @@ grant execute on function "api"."delete_course"(uuid) to authenticated, service_
 create or replace function "api"."list_courses"(tenant uuid, status text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_courses"($1, $2) $$;
@@ -5512,6 +5514,7 @@ grant execute on function "api"."revoke_course_certificate"(uuid) to authenticat
 create or replace function "api"."course_outline"(course_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."course_outline"($1) $$;
@@ -5521,6 +5524,7 @@ grant execute on function "api"."course_outline"(uuid) to authenticated, service
 create or replace function "api"."course_lesson"(lesson_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."course_lesson"($1) $$;
@@ -5566,6 +5570,7 @@ grant execute on function "api"."complete_course_lesson"(uuid, boolean) to authe
 create or replace function "api"."course_progress"(course_id uuid, user_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."course_progress"($1, $2) $$;
@@ -5575,6 +5580,7 @@ grant execute on function "api"."course_progress"(uuid, uuid) to authenticated, 
 create or replace function "api"."list_course_learners"(course_id uuid, status text default null, page_size integer default null, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_course_learners"($1, $2, $3, $4) $$;
@@ -5584,6 +5590,7 @@ grant execute on function "api"."list_course_learners"(uuid, text, integer, time
 create or replace function "api"."verify_course_certificate"(code text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."verify_course_certificate"($1) $$;

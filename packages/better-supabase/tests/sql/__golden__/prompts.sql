@@ -654,7 +654,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_179_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:93991416a0e8f679063a3f963972bcbe0658d1d6c5055bdc8ac3820d9b6e74c9
+-- @bsb-hash sha256:6af6692f3321ffabe1b1a429354ea0f7bd1de32714460014d9d3205f89319918
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -856,6 +856,7 @@ grant execute on function "api"."create_prompt_version"(text, text, uuid, jsonb,
 create or replace function "api"."get_prompt"(name text, label text default 'production', version integer default null, tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_prompt"($1, $2, $3, $4) $$;
@@ -874,6 +875,7 @@ grant execute on function "api"."set_prompt_label"(text, text, integer, uuid) to
 create or replace function "api"."list_prompt_versions"(name text, tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_prompt_versions"($1, $2) $$;

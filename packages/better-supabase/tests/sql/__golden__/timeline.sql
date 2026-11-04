@@ -892,7 +892,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:46c11941bece548d04faf0abdeb1dfbbc45dd96e067846714e769dd48f4371fb
+-- @bsb-hash sha256:984ca4784f941a098f046d59c9c5cdf70830c6e05a92663fce8892dc0557c3c2
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1060,6 +1060,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."list_activity"(tenant uuid, subject_type text default null, subject_id text default null, before timestamptz default null, max_rows integer default 50, sources text[] default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_activity"($1, $2, $3, $4, $5, $6) $$;

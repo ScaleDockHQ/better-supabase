@@ -486,7 +486,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_037_onboarding.sql
 -- better-supabase module: onboarding
 -- @bsb-block onboarding@2 managed
--- @bsb-hash sha256:780e60d3456efb021ef3fb2ad91d036ee82531624513a0417c7b99352f9ff569
+-- @bsb-hash sha256:71338343342a19f5238f549ed74c118aef0000058db9ad3c18f433c1b83835b2
 -- Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -623,6 +623,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."onboarding_progress"(checklist text, tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."onboarding_progress"($1, $2) $$;

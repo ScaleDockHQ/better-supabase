@@ -1370,7 +1370,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@10 managed
--- @bsb-hash sha256:97981e1112e8404ef456bf9d49aac0d0d98de09c325f569e9e3ae160c38d503d
+-- @bsb-hash sha256:285ce107d20cb6f38416f6aec2a4bec95c80ea7e05ee72946835d89df77eda24
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2124,6 +2124,7 @@ grant execute on function "api"."unschedule_job"(text) to service_role;
 create or replace function "api"."list_schedules"(name_prefix text default null, for_tenant text default null)
 returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_schedules"($1, $2) $$;
@@ -2178,6 +2179,7 @@ grant execute on function "api"."replay_dead_job"(text, bigint) to service_role;
 create or replace function "api"."job_queue_stats"(queue text)
 returns table (ready bigint, in_flight bigint, delayed bigint, dead bigint, oldest_age_seconds double precision)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."job_queue_stats"($1) $$;
@@ -2187,6 +2189,7 @@ grant execute on function "api"."job_queue_stats"(text) to service_role;
 create or replace function "api"."list_dead_jobs"(queue text, max_rows integer default 100, before_id bigint default null)
 returns table (id bigint, attempts integer, enqueued_at timestamptz, died_at timestamptz, message jsonb)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."list_dead_jobs"($1, $2, $3) $$;

@@ -1381,7 +1381,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:d8f907b63a5bc0a0dd728db2d0b176e09603f9d7d10f3180c4b3c088833f0732
+-- @bsb-hash sha256:704495601c5a7e39d99d72287c71cec805ba5e8a78ba815a7d536d66c486d8e4
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1829,6 +1829,7 @@ grant execute on function "api"."search_reindex"(text) to service_role;
 create or replace function "api"."search"(q text, types text[] default null, tenant uuid default null, max_results integer default 20)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."search"($1, $2, $3, $4) $$;
@@ -1838,6 +1839,7 @@ grant execute on function "api"."search"(text, text[], uuid, integer) to authent
 create or replace function "api"."search_recents"(max_results integer default 10, types text[] default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."search_recents"($1, $2) $$;
@@ -1847,6 +1849,7 @@ grant execute on function "api"."search_recents"(integer, text[]) to authenticat
 create or replace function "api"."search_favorites"(max_results integer default 10, types text[] default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."search_favorites"($1, $2) $$;

@@ -4940,7 +4940,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@10 managed
--- @bsb-hash sha256:dba21c69a1222e3dec1ae9be79411d2b4fb9073989343a48813d89d9bffdc18f
+-- @bsb-hash sha256:9104a0025172b7219eaca9fe4e408e67c31c33d3a6e902e522a3508566654f80
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6504,6 +6504,7 @@ drop function if exists "api"."list_audit_events"(uuid[], text[], uuid[], text[]
 create or replace function "api"."import_run"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."import_run"() $$;
@@ -6513,6 +6514,7 @@ grant execute on function "api"."import_run"() to anon, authenticated, service_r
 create or replace function "api"."acting_member"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."acting_member"() $$;
@@ -6558,6 +6560,7 @@ grant execute on function "api"."purge_audit_log"(interval, integer, uuid, boole
 create or replace function "api"."audit_events_tenants"(older_than interval default '1 day')
 returns setof uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."audit_events_tenants"($1) $$;
@@ -6567,6 +6570,7 @@ grant execute on function "api"."audit_events_tenants"(interval) to service_role
 create or replace function "api"."list_audit_events"(for_tenants uuid[] default null, for_event_types text[] default null, for_actors uuid[] default null, for_target_types text[] default null, for_records text[] default null, for_categories text[] default null, for_outcomes text[] default null, search text default null, for_sources text[] default null, for_actor_kinds text[] default null, for_correlation_ids text[] default null, since timestamptz default null, until timestamptz default null, cursor_at timestamptz default null, cursor_id text default null, max_items integer default 50, ascending boolean default false, skip integer default 0)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_audit_events"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) $$;
@@ -6576,6 +6580,7 @@ grant execute on function "api"."list_audit_events"(uuid[], text[], uuid[], text
 create or replace function "api"."count_audit_events"(for_tenants uuid[] default null, for_event_types text[] default null, for_actors uuid[] default null, for_target_types text[] default null, for_records text[] default null, for_categories text[] default null, for_outcomes text[] default null, search text default null, for_sources text[] default null, for_actor_kinds text[] default null, for_correlation_ids text[] default null, since timestamptz default null, until timestamptz default null)
 returns bigint
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."count_audit_events"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) $$;

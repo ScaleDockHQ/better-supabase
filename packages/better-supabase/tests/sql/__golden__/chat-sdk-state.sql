@@ -1674,7 +1674,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block chat-sdk-state@2 managed
--- @bsb-hash sha256:2d4b1e05b90d83d2698df57fac95b84488115170b3ef66076e901e9a65bef84a
+-- @bsb-hash sha256:8bf23efd3e1194c4b7cfa869bdb638fca816151da810ce1c20acd936363e881b
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2225,6 +2225,7 @@ grant execute on function "api"."chat_state_unsubscribe"(text, text) to service_
 create or replace function "api"."chat_state_is_subscribed"(prefix text, thread_id text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."chat_state_is_subscribed"($1, $2) $$;
@@ -2369,6 +2370,7 @@ grant execute on function "api"."chat_install"(text, text, uuid, jsonb, uuid, js
 create or replace function "api"."chat_installation"(adapter text, external_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."chat_installation"($1, $2) $$;
@@ -2378,6 +2380,7 @@ grant execute on function "api"."chat_installation"(text, text) to service_role;
 create or replace function "api"."list_chat_installations"(tenant uuid default null, adapter text default null, include_uninstalled boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_chat_installations"($1, $2, $3) $$;

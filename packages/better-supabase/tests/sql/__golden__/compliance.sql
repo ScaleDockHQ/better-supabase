@@ -3773,7 +3773,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:93c2671edbe3a5e888d4b73989bcb0aa0767921fee56220340299a9bab170c6b
+-- @bsb-hash sha256:f3b24c8f745c68816d6a81d5475b0a905719a3bfafbc0e30c01015d3adc9aadc
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4920,6 +4920,7 @@ drop function if exists "api"."save_control"(uuid, text, text, text, uuid, boole
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4947,6 +4948,7 @@ grant execute on function "api"."save_control_framework"(uuid, text, text, text,
 create or replace function "api"."list_control_frameworks"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_control_frameworks"($1) $$;
@@ -4965,6 +4967,7 @@ grant execute on function "api"."save_control"(uuid, text, text, text, uuid, boo
 create or replace function "api"."get_control"(control_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_control"($1) $$;
@@ -4974,6 +4977,7 @@ grant execute on function "api"."get_control"(uuid) to authenticated, service_ro
 create or replace function "api"."list_controls"(tenant uuid, framework_id uuid default null, status text default null, owner_id uuid default null, page_size integer default 200)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_controls"($1, $2, $3, $4, $5) $$;
@@ -5010,6 +5014,7 @@ grant execute on function "api"."save_evidence_task"(uuid, text, integer, date, 
 create or replace function "api"."list_evidence_tasks"(tenant uuid, control_id uuid default null, assignee_id uuid default null, overdue_only boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_evidence_tasks"($1, $2, $3, $4) $$;
@@ -5019,6 +5024,7 @@ grant execute on function "api"."list_evidence_tasks"(uuid, uuid, uuid, boolean)
 create or replace function "api"."control_posture"(tenant uuid, framework_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."control_posture"($1, $2) $$;
@@ -5064,6 +5070,7 @@ grant execute on function "api"."archive_compliance_policy"(uuid) to authenticat
 create or replace function "api"."list_compliance_policies"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_compliance_policies"($1, $2) $$;

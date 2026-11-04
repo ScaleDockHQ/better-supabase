@@ -1959,7 +1959,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:0d0bdc2d7bee010c78d94a0b395574b5ac021f3153cfee49e094250292377d4f
+-- @bsb-hash sha256:41ce63bf90a1eeeb5435b4955677e2e1d70d76e31d579ac9cabc46b8647f0cb1
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2641,6 +2641,7 @@ returns table (
   created_at timestamptz
 )
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."workflow_open_hooks"($1, $2, $3) $$;

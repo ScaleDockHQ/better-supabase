@@ -1291,7 +1291,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:952a31cf3c27e7507f02b131577487669fa502e5c0ab84630af466fcbc540efe
+-- @bsb-hash sha256:bc8bfa4839d6b441235f205264b35caaab61f59235b6e29ca60cf6b0db584ca1
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1670,6 +1670,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1706,6 +1707,7 @@ grant execute on function "api"."period_for"(uuid, text, date) to authenticated,
 create or replace function "api"."period_is_open"(tenant uuid, kind text, on_date date)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."period_is_open"($1, $2, $3) $$;
@@ -1715,6 +1717,7 @@ grant execute on function "api"."period_is_open"(uuid, text, date) to authentica
 create or replace function "api"."period_close_blockers"(period_id uuid)
 returns text[]
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."period_close_blockers"($1) $$;
@@ -1751,6 +1754,7 @@ grant execute on function "api"."reopen_period"(uuid, text) to authenticated, se
 create or replace function "api"."list_periods"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_periods"($1, $2) $$;

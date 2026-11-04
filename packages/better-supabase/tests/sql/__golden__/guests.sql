@@ -1807,7 +1807,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:c88204ccc336f9f4566187a789162a9049cbf147529fbe6c0d78525e1c9216b0
+-- @bsb-hash sha256:56ede8fd661eec87586357cc4d3b8d91ba10e3146d02143f9b9696b7d33f589a
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2363,6 +2363,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2381,6 +2382,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."portal_subjects"(action text)
 returns table (tenant text, subject_type text, subject_id text)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."portal_subjects"($1) $$;
@@ -2390,6 +2392,7 @@ grant execute on function "api"."portal_subjects"(text) to authenticated, servic
 create or replace function "api"."portal_parties"()
 returns table (tenant text, party_type text, party_id text)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."portal_parties"() $$;
@@ -2399,6 +2402,7 @@ grant execute on function "api"."portal_parties"() to authenticated, service_rol
 create or replace function "api"."guest_can"(subject_type text, subject_id text, action text default 'read')
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."guest_can"($1, $2, $3) $$;
@@ -2453,6 +2457,7 @@ grant execute on function "api"."revoke_guest_access"(uuid) to authenticated, se
 create or replace function "api"."list_guests"(tenant uuid, status text default null, before timestamptz default null, page_size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_guests"($1, $2, $3, $4) $$;
@@ -2462,6 +2467,7 @@ grant execute on function "api"."list_guests"(uuid, text, timestamptz, integer) 
 create or replace function "api"."list_guest_grants"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_guest_grants"($1, $2) $$;
@@ -2471,6 +2477,7 @@ grant execute on function "api"."list_guest_grants"(text, text) to authenticated
 create or replace function "api"."my_guest_access"()
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_guest_access"() $$;

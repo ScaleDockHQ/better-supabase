@@ -1651,6 +1651,27 @@ permission, list them in
 trigger raises `42501` when a caller without the group's permission changes one
 of them.
 
+### BS363
+
+**Warning: a partial index differs from the module's definition.** `create index
+if not exists` never changes an index that already exists. When a module now
+writes another `where` predicate for an index, such as the mapped status values
+in the `webhooks-out` delivery indexes, a database set up earlier keeps the old
+one. Doctor compares the string literals of each partial index in the module
+files with the live index of the same name and table, and lists the ones that
+differ. Drop the index, run `better-supabase sql upgrade` and apply the
+migration. Needs a database; saved snapshots skip it.
+
+### BS364
+
+**Warning: an API wrapper is volatile around a stable function.** A `language
+sql` wrapper without `stable` is volatile, so Postgres can't inline it into a
+policy or cache it for the statement. The wrappers `gen.api` writes copy the
+volatility of the function they wrap. Doctor lists a volatile `security invoker`
+SQL function with the same name and arguments as a `stable` or `immutable`
+function in another schema, which is how a wrapper from an older release looks.
+Run `better-supabase sql upgrade` to rewrite it.
+
 ## Auth config
 
 ### BS353

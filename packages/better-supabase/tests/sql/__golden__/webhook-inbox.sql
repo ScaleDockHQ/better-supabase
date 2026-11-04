@@ -1004,7 +1004,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:44bbbf1aa359f4f11c17fda569b18e65bc65d1778f6de381a9001a37b8ad08bf
+-- @bsb-hash sha256:c31e4ba70638f90cdd27010119951aead097a1978909ede5086e4e8c9cc8e3d1
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1380,6 +1380,7 @@ grant execute on function "api"."checkpoint_webhook"(bigint, text, jsonb, intege
 create or replace function "api"."list_webhooks"(for_tenant text, for_source text default null, for_status text default null, max_rows integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_webhooks"($1, $2, $3, $4) $$;

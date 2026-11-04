@@ -1761,7 +1761,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:265abb12bd17fd3578ff3b365d4741eab4565653ff20f8d595c6860941d87954
+-- @bsb-hash sha256:8ec8e99c0a52c4e3c8b785f60e619cf7d8cbe0db8524274502a737661c0be04e
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2314,6 +2314,7 @@ drop function if exists "api"."incoming_webhook_by_token"(text);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2332,6 +2333,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."list_incoming_webhooks"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_incoming_webhooks"($1, $2, $3) $$;
@@ -2395,6 +2397,7 @@ grant execute on function "api"."delete_incoming_webhook"(uuid) to authenticated
 create or replace function "api"."incoming_webhook_by_token"(token text)
 returns table (id uuid, tenant text, enabled boolean, verify text, secret text, signature_header text, max_body_bytes integer, previous_secret text, metadata jsonb)
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."incoming_webhook_by_token"($1) $$;

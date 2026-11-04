@@ -1495,7 +1495,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:56a9f8cc40736742a74f7e38cd891a25560ddb9cce9f92f58254a267d042f39d
+-- @bsb-hash sha256:145f8ad839c295d2e940f7f21ba7f7bec52d004b15580cac6820b4409570fa6e
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1952,6 +1952,7 @@ drop function if exists "api"."join_waitlist"(text, text, jsonb, jsonb);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1979,6 +1980,7 @@ grant execute on function "api"."join_waitlist"(text, text, jsonb) to anon, auth
 create or replace function "api"."list_waitlist"(status text default 'waiting', page_size integer default 50, after_position bigint default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_waitlist"($1, $2, $3) $$;
@@ -2006,6 +2008,7 @@ grant execute on function "api"."create_invite_code"(text, integer, timestamptz,
 create or replace function "api"."list_invite_codes"(tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_invite_codes"($1) $$;
@@ -2024,6 +2027,7 @@ grant execute on function "api"."revoke_invite_code"(uuid) to authenticated, ser
 create or replace function "api"."waitlist_admit"(email text, code text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."waitlist_admit"($1, $2) $$;

@@ -3357,7 +3357,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:960c5b77a18e9c3db17c7105697f66f3c4e86a162ef5f2aa8745e65eda00972b
+-- @bsb-hash sha256:819f9f49443c996e512ab77792c27fe55aae0953977208ea547c928b901c5120
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4247,6 +4247,7 @@ drop function if exists "api"."save_template"(uuid, uuid, text, text, text, json
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4274,6 +4275,7 @@ grant execute on function "api"."save_template"(uuid, uuid, text, text, text, js
 create or replace function "api"."templates_list"(tenant uuid, type text, language text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."templates_list"($1, $2, $3) $$;
@@ -4283,6 +4285,7 @@ grant execute on function "api"."templates_list"(uuid, text, text) to authentica
 create or replace function "api"."template_get"(template_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."template_get"($1) $$;
@@ -4319,6 +4322,7 @@ grant execute on function "api"."publish_template_version"(uuid) to authenticate
 create or replace function "api"."template_versions_list"(template_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."template_versions_list"($1) $$;
@@ -4355,6 +4359,7 @@ grant execute on function "api"."sync_templates"(jsonb) to service_role;
 create or replace function "api"."template_apply_target"(template_id uuid, tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."template_apply_target"($1, $2) $$;
@@ -4373,6 +4378,7 @@ grant execute on function "api"."record_template_application"(uuid, uuid, uuid, 
 create or replace function "api"."template_applications_list"(tenant uuid, template_id uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."template_applications_list"($1, $2, $3, $4) $$;

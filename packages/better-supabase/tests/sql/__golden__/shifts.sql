@@ -4433,7 +4433,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:1dbcf9cbda82b9c24a10852795fc3ce22369d648c9dc9784550691a55a65ecd2
+-- @bsb-hash sha256:50f681c29865a7fc2861148d492c5582354f40c19540b8ef9c95b612e6c46829
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5762,6 +5762,7 @@ drop function if exists "api"."save_shift"(uuid, timestamptz, timestamptz, uuid,
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -5798,6 +5799,7 @@ grant execute on function "api"."archive_shift_template"(uuid) to authenticated,
 create or replace function "api"."list_shift_templates"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_shift_templates"($1, $2) $$;
@@ -5906,6 +5908,7 @@ grant execute on function "api"."set_shift_availability"(uuid, date, text, time,
 create or replace function "api"."list_shift_availability"(tenant uuid, from_date date, until_date date, user_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_shift_availability"($1, $2, $3, $4) $$;
@@ -5915,6 +5918,7 @@ grant execute on function "api"."list_shift_availability"(uuid, date, date, uuid
 create or replace function "api"."roster"(tenant uuid, from_date date, until_date date, team_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."roster"($1, $2, $3, $4) $$;
@@ -5924,6 +5928,7 @@ grant execute on function "api"."roster"(uuid, date, date, uuid) to authenticate
 create or replace function "api"."my_shifts"(since timestamptz default now(), until timestamptz default now() + interval '30 days')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_shifts"($1, $2) $$;
@@ -5933,6 +5938,7 @@ grant execute on function "api"."my_shifts"(timestamptz, timestamptz) to authent
 create or replace function "api"."shift_hours"(tenant uuid, week_start date)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."shift_hours"($1, $2) $$;

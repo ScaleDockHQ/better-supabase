@@ -1534,7 +1534,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:7b679ec1949908828c91ff2a5b9282f38d6aea85f40bd5175391cb801dc6d2fe
+-- @bsb-hash sha256:4910929098dcc9e5f3922c337e91bc28635882ddf6ee26b596da1dddd48b9f81
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2013,6 +2013,7 @@ drop function if exists "api"."create_api_key"(text, text, text, uuid, boolean, 
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2040,6 +2041,7 @@ grant execute on function "api"."create_api_key"(text, text, text, uuid, boolean
 create or replace function "api"."list_api_keys"(tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_api_keys"($1) $$;
@@ -2076,6 +2078,7 @@ grant execute on function "api"."verify_api_key"(text, text) to service_role;
 create or replace function "api"."has_scope"(scope text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."has_scope"($1) $$;
@@ -2085,6 +2088,7 @@ grant execute on function "api"."has_scope"(text) to anon, authenticated, servic
 create or replace function "api"."api_key_tenant"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."api_key_tenant"() $$;

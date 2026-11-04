@@ -1236,7 +1236,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:4708783599ec2367dcc4c90c81642241952db30eee076883720c88cc2a6cb466
+-- @bsb-hash sha256:5cf5ef232751e5e499ff83a73b90357c0b2339b85cab71efe887b8d33233f930
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1661,6 +1661,7 @@ grant execute on function "api"."set_lifecycle_flag"(text, text, text, boolean) 
 create or replace function "api"."status_state"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."status_state"($1, $2) $$;
@@ -1670,6 +1671,7 @@ grant execute on function "api"."status_state"(text, text) to authenticated, ser
 create or replace function "api"."list_status_history"(subject_type text, subject_id text, before timestamptz default null, max_rows integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_status_history"($1, $2, $3, $4) $$;
@@ -1679,6 +1681,7 @@ grant execute on function "api"."list_status_history"(text, text, timestamptz, i
 create or replace function "api"."list_status_stages"(subject_type text, subject_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_status_stages"($1, $2) $$;

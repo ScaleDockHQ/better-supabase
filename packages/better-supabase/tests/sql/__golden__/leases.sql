@@ -2108,7 +2108,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:6883a7ac7fa50c70c4885309cc98517607850f43e4f4910ebc25f9cab3190f0a
+-- @bsb-hash sha256:61237acc63551b114cec107fe9cc73bbfb02966e5bf89cc22302870d11a1023d
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2741,6 +2741,7 @@ drop function if exists "api"."create_lease"(uuid, uuid, text, text, date, bigin
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2795,6 +2796,7 @@ grant execute on function "api"."terminate_lease"(uuid, date, text, bigint) to a
 create or replace function "api"."get_lease"(lease_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_lease"($1) $$;
@@ -2804,6 +2806,7 @@ grant execute on function "api"."get_lease"(uuid) to authenticated, service_role
 create or replace function "api"."list_leases"(tenant uuid, status text default null, unit_id uuid default null, party_type text default null, party_id text default null, page_size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_leases"($1, $2, $3, $4, $5, $6) $$;
@@ -2831,6 +2834,7 @@ grant execute on function "api"."record_rent_payment"(uuid, bigint, timestamptz,
 create or replace function "api"."list_lease_charges"(lease_id uuid, page_size integer default 200)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_lease_charges"($1, $2) $$;

@@ -8841,7 +8841,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:5342520ebd3d41c0a0d7a2861e6164f7d9099fbda8a7f43de9b49e1f39c1158a
+-- @bsb-hash sha256:3a01a57ec8330c0d0c96b16140218b3d1125385a29152c3b59c5b77719d1310c
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11738,6 +11738,7 @@ drop function if exists "api"."claim_ai_chat_stream"(uuid, text, text, text, tex
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -11756,6 +11757,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."ai_chat_can_read"(chat uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ai_chat_can_read"($1) $$;
@@ -11792,6 +11794,7 @@ grant execute on function "api"."delete_ai_chat"(uuid) to authenticated, service
 create or replace function "api"."get_ai_chat"(chat uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_ai_chat"($1) $$;
@@ -11801,6 +11804,7 @@ grant execute on function "api"."get_ai_chat"(uuid) to authenticated, service_ro
 create or replace function "api"."list_ai_chats"(tenant uuid default null, search text default null, project uuid default null, pinned boolean default null, archived boolean default false, after text default null, size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_chats"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -11828,6 +11832,7 @@ grant execute on function "api"."delete_ai_project"(uuid) to authenticated, serv
 create or replace function "api"."list_ai_projects"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_projects"($1) $$;
@@ -11855,6 +11860,7 @@ grant execute on function "api"."remove_ai_chat_participant"(uuid, uuid) to auth
 create or replace function "api"."list_ai_chat_participants"(chat uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_chat_participants"($1) $$;
@@ -11882,6 +11888,7 @@ grant execute on function "api"."remove_ai_chat_party"(uuid, text, text) to auth
 create or replace function "api"."ai_chat_share_summaries"(chats uuid[])
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ai_chat_share_summaries"($1) $$;
@@ -11918,6 +11925,7 @@ grant execute on function "api"."revoke_ai_chat_link"(uuid) to authenticated, se
 create or replace function "api"."get_ai_chat_by_link"(token text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_ai_chat_by_link"($1) $$;
@@ -11927,6 +11935,7 @@ grant execute on function "api"."get_ai_chat_by_link"(text) to anon, authenticat
 create or replace function "api"."ai_message_path"(chat uuid, leaf text default null, include_native boolean default false)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ai_message_path"($1, $2, $3) $$;
@@ -11936,6 +11945,7 @@ grant execute on function "api"."ai_message_path"(uuid, text, boolean) to authen
 create or replace function "api"."ai_message_siblings"(chat uuid, message_id text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ai_message_siblings"($1, $2) $$;
@@ -12026,6 +12036,7 @@ grant execute on function "api"."decide_ai_tool_approval"(text, boolean, text) t
 create or replace function "api"."get_ai_tool_approvals"(chat uuid, ids text[] default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_ai_tool_approvals"($1, $2) $$;
@@ -12044,6 +12055,7 @@ grant execute on function "api"."set_ai_tool_policy"(uuid, text, text) to authen
 create or replace function "api"."ai_tool_policies_for"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ai_tool_policies_for"($1) $$;
@@ -12098,6 +12110,7 @@ grant execute on function "api"."revoke_ai_chat_share"(uuid) to authenticated, s
 create or replace function "api"."list_ai_chat_shares"(chat uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_chat_shares"($1) $$;
@@ -12107,6 +12120,7 @@ grant execute on function "api"."list_ai_chat_shares"(uuid) to authenticated, se
 create or replace function "api"."get_shared_ai_chat"(token text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_shared_ai_chat"($1) $$;
@@ -12125,6 +12139,7 @@ grant execute on function "api"."upsert_ai_models"(jsonb, boolean) to service_ro
 create or replace function "api"."allowed_ai_models"(tenant uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."allowed_ai_models"($1) $$;
@@ -12143,6 +12158,7 @@ grant execute on function "api"."record_ai_moderation_event"(jsonb) to service_r
 create or replace function "api"."list_ai_moderation_events"(tenant uuid, size integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_moderation_events"($1, $2) $$;
@@ -12179,6 +12195,7 @@ grant execute on function "api"."touch_ai_sandbox"(uuid) to service_role;
 create or replace function "api"."ai_sandbox_for"(chat_id uuid, provider text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."ai_sandbox_for"($1, $2) $$;
@@ -12206,6 +12223,7 @@ grant execute on function "api"."finish_ai_sandbox_stop"(uuid, boolean, text) to
 create or replace function "api"."list_ai_sandboxes"(tenant uuid, chat_id uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_sandboxes"($1, $2) $$;
@@ -12215,6 +12233,7 @@ grant execute on function "api"."list_ai_sandboxes"(uuid, uuid) to authenticated
 create or replace function "api"."get_ai_run"(run uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_ai_run"($1) $$;
@@ -12224,6 +12243,7 @@ grant execute on function "api"."get_ai_run"(uuid) to authenticated, service_rol
 create or replace function "api"."list_ai_runs"(chat uuid default null, active boolean default null, size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_runs"($1, $2, $3) $$;
@@ -12242,6 +12262,7 @@ grant execute on function "api"."attach_ai_run"(uuid, text) to service_role;
 create or replace function "api"."list_pending_ai_tool_approvals"(size integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_pending_ai_tool_approvals"($1) $$;
@@ -12260,6 +12281,7 @@ grant execute on function "api"."record_ai_run_step"(uuid, jsonb) to service_rol
 create or replace function "api"."list_ai_run_steps"(run uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_ai_run_steps"($1) $$;
@@ -12269,6 +12291,7 @@ grant execute on function "api"."list_ai_run_steps"(uuid) to authenticated, serv
 create or replace function "api"."load_ai_harness_session"(chat uuid, harness text)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."load_ai_harness_session"($1, $2) $$;

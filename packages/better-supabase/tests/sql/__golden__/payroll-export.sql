@@ -1414,7 +1414,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:745b8d80743b5f5543a8ae34a630f3ecac91fb5119c8fa54f013c8f24554ef87
+-- @bsb-hash sha256:bbe4b454ae62f38234fbb1e893fcfb45c9a6a411aa4286dc8d163b9e8e0a40b5
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1841,6 +1841,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1877,6 +1878,7 @@ grant execute on function "api"."refresh_payroll_run"(uuid) to authenticated, se
 create or replace function "api"."get_payroll_run"(run_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_payroll_run"($1) $$;
@@ -1886,6 +1888,7 @@ grant execute on function "api"."get_payroll_run"(uuid) to authenticated, servic
 create or replace function "api"."list_payroll_runs"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_payroll_runs"($1) $$;

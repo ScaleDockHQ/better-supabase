@@ -1120,7 +1120,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:37ed3e763c6f467fc7477f9b8bee4490fd094f4fefe1eaf63e545ff882b26a41
+-- @bsb-hash sha256:94786003b5399836379bac0350b3b147c6475ae8d67beedc01744f70f71e0ed5
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1466,6 +1466,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -1493,6 +1494,7 @@ grant execute on function "api"."take_forecast_snapshot"(uuid, uuid, date, date,
 create or replace function "api"."forecast_snapshots"(tenant uuid, pipeline uuid default null, since date default null, until date default null, max_count integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."forecast_snapshots"($1, $2, $3, $4, $5) $$;
@@ -1502,6 +1504,7 @@ grant execute on function "api"."forecast_snapshots"(uuid, uuid, date, date, int
 create or replace function "api"."forecast_snapshot"(snapshot uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."forecast_snapshot"($1) $$;
@@ -1511,6 +1514,7 @@ grant execute on function "api"."forecast_snapshot"(uuid) to authenticated, serv
 create or replace function "api"."forecast_changes"(from_snapshot uuid, to_snapshot uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."forecast_changes"($1, $2) $$;

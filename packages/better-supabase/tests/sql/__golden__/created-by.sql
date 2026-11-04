@@ -592,7 +592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:b65c27f8aef0b931a51feb25b3acb017aa9905e3362085cefc455eb4068691b2
+-- @bsb-hash sha256:36e74b3b9d162f397cfb4165e57e01b37f34908f3c90d97885d771f028c7f4c2
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -766,6 +766,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."acting_member"()
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."acting_member"() $$;
@@ -775,6 +776,7 @@ grant execute on function "api"."acting_member"() to service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -793,6 +795,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."token_scope_allows"(p_scope text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."token_scope_allows"($1) $$;

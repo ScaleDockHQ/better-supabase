@@ -3250,7 +3250,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:efeffddd19a2e3a76e750665311daed413558942a80631a6dde15a53dd36d00f
+-- @bsb-hash sha256:771c4eb8bd5da86701bb6a80fd54c5fb1b555069d1d84f72d95a74e03a70630a
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4270,6 +4270,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -4288,6 +4289,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."mail_thread_visible"(thread uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."mail_thread_visible"($1) $$;
@@ -4324,6 +4326,7 @@ grant execute on function "api"."disconnect_mail_account"(uuid, boolean) to auth
 create or replace function "api"."mail_accounts_of"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."mail_accounts_of"($1) $$;
@@ -4333,6 +4336,7 @@ grant execute on function "api"."mail_accounts_of"(uuid) to authenticated, servi
 create or replace function "api"."get_mail_account"(account uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_mail_account"($1) $$;
@@ -4342,6 +4346,7 @@ grant execute on function "api"."get_mail_account"(uuid) to authenticated, servi
 create or replace function "api"."due_mail_accounts"(max_count integer, stale_after interval)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."due_mail_accounts"($1, $2) $$;
@@ -4396,6 +4401,7 @@ grant execute on function "api"."unlink_mail_thread"(uuid, text, text) to authen
 create or replace function "api"."mail_threads_of"(subject_type text, subject_id text, before timestamptz, page_size integer)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."mail_threads_of"($1, $2, $3, $4) $$;
@@ -4405,6 +4411,7 @@ grant execute on function "api"."mail_threads_of"(text, text, timestamptz, integ
 create or replace function "api"."list_mail_threads"(tenant uuid, account uuid, before timestamptz, page_size integer)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_mail_threads"($1, $2, $3, $4) $$;
@@ -4414,6 +4421,7 @@ grant execute on function "api"."list_mail_threads"(uuid, uuid, timestamptz, int
 create or replace function "api"."get_mail_thread"(thread uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_mail_thread"($1) $$;
@@ -4432,6 +4440,7 @@ grant execute on function "api"."track_mail"(text, text, integer, text) to servi
 create or replace function "api"."mail_template_stats"(tenant uuid, since timestamptz)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."mail_template_stats"($1, $2) $$;

@@ -1913,7 +1913,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:552d3a40e876ec24c76fa969d79cc75461e115a25c489fca3e7e7ca6778c4df6
+-- @bsb-hash sha256:19ce12114534dc46482f9effbd63a38a4c5b38f92d3df6884ac360b08e1a3454
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2506,6 +2506,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2542,6 +2543,7 @@ grant execute on function "api"."delete_connector_server"(uuid) to authenticated
 create or replace function "api"."list_connector_servers"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_connector_servers"($1) $$;
@@ -2551,6 +2553,7 @@ grant execute on function "api"."list_connector_servers"(uuid) to authenticated,
 create or replace function "api"."get_connector"(id uuid, owner uuid default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_connector"($1, $2) $$;
@@ -2578,6 +2581,7 @@ grant execute on function "api"."revoke_connector_grant"(uuid) to authenticated,
 create or replace function "api"."expiring_connector_grants"(before timestamptz, max_rows integer default 100)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."expiring_connector_grants"($1, $2) $$;
@@ -2596,6 +2600,7 @@ grant execute on function "api"."renew_connector_grant"(uuid, timestamptz) to se
 create or replace function "api"."get_connector_session"(server_id uuid, chat_key text default '')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_connector_session"($1, $2) $$;

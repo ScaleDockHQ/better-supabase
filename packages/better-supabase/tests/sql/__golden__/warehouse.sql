@@ -5699,7 +5699,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:65ef5008d80972e07a06299f3f8239a5d5122ef04db86bffec6f78199a09075d
+-- @bsb-hash sha256:2337f90f9e937049fb569198337ceea5ae70ccf531cd9d76455ba46ec517610c
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7539,6 +7539,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -7611,6 +7612,7 @@ grant execute on function "api"."complete_pick_list"(uuid) to authenticated, ser
 create or replace function "api"."get_pick_list"(pick_list_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_pick_list"($1) $$;
@@ -7620,6 +7622,7 @@ grant execute on function "api"."get_pick_list"(uuid) to authenticated, service_
 create or replace function "api"."list_pick_lists"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_pick_lists"($1, $2) $$;
@@ -7629,6 +7632,7 @@ grant execute on function "api"."list_pick_lists"(uuid, jsonb) to authenticated,
 create or replace function "api"."list_pick_waves"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_pick_waves"($1) $$;
@@ -7647,6 +7651,7 @@ grant execute on function "api"."create_count_plan"(uuid, jsonb) to authenticate
 create or replace function "api"."list_count_plans"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_count_plans"($1) $$;
@@ -7674,6 +7679,7 @@ grant execute on function "api"."run_due_count_plans"(uuid) to authenticated, se
 create or replace function "api"."get_cycle_count_variance"(count_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_cycle_count_variance"($1) $$;
@@ -7710,6 +7716,7 @@ grant execute on function "api"."delete_putaway_rule"(uuid) to authenticated, se
 create or replace function "api"."list_putaway_rules"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_putaway_rules"($1, $2) $$;
@@ -7737,6 +7744,7 @@ grant execute on function "api"."save_variant_size"(uuid, jsonb) to authenticate
 create or replace function "api"."list_bin_slots"(tenant uuid, filters jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_bin_slots"($1, $2) $$;
@@ -7746,6 +7754,7 @@ grant execute on function "api"."list_bin_slots"(uuid, jsonb) to authenticated, 
 create or replace function "api"."suggest_putaway"(tenant uuid, input jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."suggest_putaway"($1, $2) $$;
@@ -7755,6 +7764,7 @@ grant execute on function "api"."suggest_putaway"(uuid, jsonb) to authenticated,
 create or replace function "api"."suggest_receipt_putaway"(receipt_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."suggest_receipt_putaway"($1) $$;
@@ -7764,6 +7774,7 @@ grant execute on function "api"."suggest_receipt_putaway"(uuid) to authenticated
 create or replace function "api"."suggest_slotting"(tenant uuid, input jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."suggest_slotting"($1, $2) $$;

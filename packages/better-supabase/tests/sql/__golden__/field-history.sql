@@ -453,7 +453,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:0650dc832ff053f62963cfdd198b40c44c59aa99b768b9aebedf8f461e8315cb
+-- @bsb-hash sha256:54ec41ed45360f61dd841cf7d5d148e59d0972264d8d82001d4a6b71b904e273
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -579,6 +579,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."field_history"(subject_type text, subject_id text, field text default null, before bigint default null, max_count integer default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."field_history"($1, $2, $3, $4, $5) $$;

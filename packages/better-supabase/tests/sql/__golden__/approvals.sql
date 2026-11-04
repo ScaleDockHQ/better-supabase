@@ -4445,7 +4445,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@2 managed
--- @bsb-hash sha256:6211e89e32d126d1b773bdbfff36a71cf41aec9058f4c0014802435721b8bde3
+-- @bsb-hash sha256:c791fcd3e9faf2f01779d8ba144ccf2ed3532fcc45a134c1d5994ecee64f1f20
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5801,6 +5801,7 @@ drop function if exists "api"."decide_approval"(uuid, text, text);
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -5819,6 +5820,7 @@ grant execute on function "api"."raise_actor_readonly"() to anon, authenticated,
 create or replace function "api"."approval_policy"(subject_type text, action text)
 returns jsonb
 language sql
+immutable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."approval_policy"($1, $2) $$;
@@ -5828,6 +5830,7 @@ grant execute on function "api"."approval_policy"(text, text) to authenticated, 
 create or replace function "api"."approval_eligible"(request_id uuid)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."approval_eligible"($1) $$;
@@ -5837,6 +5840,7 @@ grant execute on function "api"."approval_eligible"(uuid) to authenticated, serv
 create or replace function "api"."approval_requirement"(tenant uuid, subject_type text, action text, subject jsonb default '{}'::jsonb)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."approval_requirement"($1, $2, $3, $4) $$;
@@ -5927,6 +5931,7 @@ grant execute on function "api"."cancel_approval"(uuid) to authenticated, servic
 create or replace function "api"."get_approval"(request_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_approval"($1) $$;
@@ -5936,6 +5941,7 @@ grant execute on function "api"."get_approval"(uuid) to authenticated, service_r
 create or replace function "api"."list_approvals"(tenant uuid, status text default 'pending', assigned boolean default false, subject_type text default null, subject_id text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_approvals"($1, $2, $3, $4, $5, $6, $7) $$;
@@ -5945,6 +5951,7 @@ grant execute on function "api"."list_approvals"(uuid, text, boolean, text, text
 create or replace function "api"."is_approved"(subject_type text, subject_id text, action text)
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."is_approved"($1, $2, $3) $$;

@@ -1884,7 +1884,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_177_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:cbacd1c80583fc6b16bbb15813fbfccc3cf39df8312decbf4301f2514b995351
+-- @bsb-hash sha256:4ad13b1637b72805a2a84060ee1e7c69a6e5bbe638a326fe4a5e3cf666a9eb79
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2460,6 +2460,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2496,6 +2497,7 @@ grant execute on function "api"."update_checkout_session"(uuid, jsonb) to authen
 create or replace function "api"."get_checkout_session"(session_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_checkout_session"($1) $$;
@@ -2505,6 +2507,7 @@ grant execute on function "api"."get_checkout_session"(uuid) to authenticated, s
 create or replace function "api"."list_checkout_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_checkout_sessions"($1, $2) $$;
@@ -2550,6 +2553,7 @@ grant execute on function "api"."revoke_agent_mandate"(uuid) to authenticated, s
 create or replace function "api"."get_agent_mandate"(mandate_id uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_agent_mandate"($1) $$;
@@ -2559,6 +2563,7 @@ grant execute on function "api"."get_agent_mandate"(uuid) to authenticated, serv
 create or replace function "api"."list_agent_mandates"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_agent_mandates"($1, $2) $$;

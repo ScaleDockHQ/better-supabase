@@ -1766,7 +1766,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:05b795d0bbca196e48c48dabaab6123cb6659b41b7153a3a6a7a549c348893ed
+-- @bsb-hash sha256:e33241856b0ba19d7aa36681b0aae819f88e4f093e56366782a6daae4d3a121a
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2310,6 +2310,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."actor_may_write"() $$;
@@ -2355,6 +2356,7 @@ grant execute on function "api"."delete_agent"(uuid) to authenticated, service_r
 create or replace function "api"."get_agent"(id uuid default null, tenant uuid default null, slug text default null)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_agent"($1, $2, $3) $$;
@@ -2364,6 +2366,7 @@ grant execute on function "api"."get_agent"(uuid, uuid, text) to authenticated, 
 create or replace function "api"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_agents"($1, $2, $3, $4) $$;

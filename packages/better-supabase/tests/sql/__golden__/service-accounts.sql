@@ -864,7 +864,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:2e6fe05f19e612212be7f1c72a0f94a829c66f463659f844e6dc024c90574eca
+-- @bsb-hash sha256:edef67576c0dc772d600f075d69dab85c03bbab2a1ae96a3ff0ccbb48cc3e021
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1146,6 +1146,7 @@ grant execute on function "api"."disable_service_principal"(uuid, uuid) to servi
 create or replace function "api"."default_service_principal"(tenant uuid)
 returns uuid
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."default_service_principal"($1) $$;
@@ -1155,6 +1156,7 @@ grant execute on function "api"."default_service_principal"(uuid) to service_rol
 create or replace function "api"."service_principals_list"(tenant uuid)
 returns jsonb
 language sql
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."service_principals_list"($1) $$;
