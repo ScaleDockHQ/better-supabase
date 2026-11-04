@@ -791,4 +791,28 @@ describe("blocks.client.ts", () => {
       ),
     ).toThrow(/doesn't install/);
   });
+
+  it("rejects a listed block without a client", () => {
+    expect(() =>
+      emitClientBlocks(
+        resolveConfig(
+          {
+            blocks: { ...install, "updated-at": {} },
+            gen: { clientBlocks: ["updated-at"] },
+          },
+          "/project",
+        ),
+      ),
+    ).toThrow(/no client/);
+  });
+
+  it("writes nothing when no block is installed", () => {
+    const config = resolveConfig(
+      { gen: { clientBlocks: ["tags"] } },
+      "/project",
+    );
+
+    expect(emitClientBlocks(config)).toBeUndefined();
+    expect(emitBlockConfigModule(config)).toBeUndefined();
+  });
 });
