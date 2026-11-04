@@ -50,6 +50,7 @@ import type { RequestIdOptions } from "./request-ids.ts";
 import type { ActiveSupport, SupportApi, SupportSessions } from "./support.ts";
 import type {
   EndSessionsResult,
+  LastSignIn,
   SuspendAccountOptions,
   SuspendAccountResult,
 } from "./suspend-account.ts";
@@ -478,7 +479,19 @@ export interface BetterServer<
     userId: string,
     options?: DeleteAccountOptions,
   ): AsyncResult<DeleteAccountResult>;
+  /**
+   * Deletes the user's sessions. Without `postgres`, it calls `end_sessions` in
+   * the sessions block's API schema as the service role.
+   */
   endSessions(userId: string): AsyncResult<EndSessionsResult>;
+  /**
+   * The last sign-in of each user in one call (`better_supabase.last_sign_ins`
+   * from the `sessions` module), over `postgres` or the service role's Data
+   * API. Users that don't exist are missing from the map.
+   */
+  lastSignIns(
+    userIds: readonly string[],
+  ): AsyncResult<ReadonlyMap<string, LastSignIn>>;
   /**
    * Bans the user in Auth and keeps their sessions, so Auth answers with
    * `user_banned` (`endSessions: true` deletes them too). Lifting the ban ends

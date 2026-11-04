@@ -582,6 +582,30 @@ $$;
 revoke execute on function better_supabase.last_sign_ins(uuid[]) from public, anon, authenticated;
 grant execute on function better_supabase.last_sign_ins(uuid[]) to service_role;
 
+-- Deletes every session and refresh token of a user and returns how many
+-- sessions went. Only the service role calls this, over SQL or the Data API.
+create or replace function better_supabase.end_sessions(p_user uuid)
+returns int
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  ended int;
+begin
+  with gone as (
+    delete from auth.sessions s where s.user_id = end_sessions.p_user returning s.id
+  )
+  select count(*)::int into ended from gone;
+  delete from auth.refresh_tokens t where t.user_id = end_sessions.p_user::text;
+  return ended;
+end;
+$$;
+
+revoke execute on function better_supabase.end_sessions(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.end_sessions(uuid) to service_role;
+
 -- The caller's own unexpired sessions, most recently active first, with the
 -- one behind the current token marked.
 create or replace function better_supabase.list_my_sessions()

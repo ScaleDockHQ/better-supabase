@@ -38,6 +38,7 @@ import type {
   ServerOptions,
 } from "./server-types.ts";
 import type { ActiveSupport } from "./support.ts";
+import type { AccountTransport } from "./suspend-account.ts";
 
 import { authContext } from "../auth/context.ts";
 import {
@@ -58,7 +59,7 @@ import { StatsRecorder } from "../core/stats.ts";
 import { credentialProviderOf } from "../credentials/provider.ts";
 import { loadEnv } from "../env/index.ts";
 import { serverAudit } from "./audit.ts";
-import { serverBootstrap } from "./bootstrap.ts";
+import { bootstrapSchema, serverBootstrap } from "./bootstrap.ts";
 import { createClients } from "./clients.ts";
 import { deleteAccount } from "./delete-account.ts";
 import { withServerContext } from "./entries/context.ts";
@@ -82,7 +83,12 @@ import { TENANT_HEADER } from "./server-types.ts";
 import { serverSessions } from "./sessions.ts";
 import { supportOff } from "./support-off.ts";
 import { supportStorage } from "./support-storage.ts";
-import { endSessions, suspendAccount } from "./suspend-account.ts";
+import {
+  accountClient,
+  endSessions,
+  lastSignIns,
+  suspendAccount,
+} from "./suspend-account.ts";
 import { countVerifications } from "./verify-count.ts";
 
 /** The header `better_supabase.acting_member()` reads for a service caller. */
@@ -124,12 +130,6 @@ function isLoadedEnv(
 ): env is BetterSupabaseEnv {
   return env.jwksUrl instanceof URL;
 }
-
-const needsPostgres = (method: string) =>
-  dbError(
-    "invalid_request",
-    `${method} needs createServer(betterSupabase, { postgres: createPostgres() })`,
-  );
 
 /**
  * A framework adapter's server: `server` plus the adapter's own methods,
@@ -208,6 +208,11 @@ export function createServer<
     definitionExecutor: betterSupabase.executorOptions(),
     lite,
   });
+
+  const schema = bootstrapSchema({}, options, betterSupabase);
+
+  const accountTransport = (): AccountTransport =>
+    accountClient(options.postgres?.admin, serviceClient, schema);
 
   const tuned = (rest: PostgrestClientLike) =>
     tunedExecutor ? { executor: postgrestExecutor(rest, executorOptions) } : {};
@@ -980,37 +985,32 @@ export function createServer<
         return deleted;
       }),
     endSessions: (userId) =>
-      options.postgres
-        ? endSessions(options.postgres.admin, userId).map((ended) => {
-            audit.account("account.sessions_ended", userId, {
-              ended: ended.ended,
-            });
+      endSessions(accountTransport(), userId).map((ended) => {
+        audit.account("account.sessions_ended", userId, { ended: ended.ended });
 
-            return ended;
-          })
-        : AsyncResult.err(needsPostgres("endSessions")),
+        return ended;
+      }),
+    lastSignIns: (userIds) => lastSignIns(accountTransport(), userIds),
     suspendAccount: (userId, suspendOptions) =>
-      options.postgres
-        ? suspendAccount(
-            serviceClient,
-            options.postgres.admin,
-            userId,
-            suspendOptions,
-          ).map((suspended) => {
-            audit.account(
-              suspended.suspended ? "account.suspended" : "account.unsuspended",
-              userId,
-              {
-                ended: suspended.ended,
-                ...(suspendOptions.duration === undefined
-                  ? {}
-                  : { duration: suspendOptions.duration }),
-              },
-            );
+      suspendAccount(
+        serviceClient,
+        accountTransport(),
+        userId,
+        suspendOptions,
+      ).map((suspended) => {
+        audit.account(
+          suspended.suspended ? "account.suspended" : "account.unsuspended",
+          userId,
+          {
+            ended: suspended.ended,
+            ...(suspendOptions.duration === undefined
+              ? {}
+              : { duration: suspendOptions.duration }),
+          },
+        );
 
-            return suspended;
-          })
-        : AsyncResult.err(needsPostgres("suspendAccount")),
+        return suspended;
+      }),
     actingAs: (userId, claims = {}, impersonation) => {
       const full: SqlClaims = {
         role: "authenticated",

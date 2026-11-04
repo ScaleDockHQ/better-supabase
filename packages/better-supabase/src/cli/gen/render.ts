@@ -25,6 +25,7 @@ import {
   generateDatabaseTypes,
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
+import { apiTypeSchemas } from "./api-schemas.ts";
 import {
   emitBlockConfig,
   generatorBlocks,
@@ -128,7 +129,7 @@ export async function render(
   const output = resolve(config.root, config.output);
 
   const typegenOptions = {
-    schemas: config.schemas,
+    schemas: [...config.schemas, ...apiTypeSchemas(config)],
     postgrestVersion: config.postgrestVersion,
   };
 

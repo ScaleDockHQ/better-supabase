@@ -1,9 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { BlockTransport } from "../core/block-transport.ts";
 import type { DbError } from "../core/errors.ts";
 import type { SqlClient } from "../postgres/executor.ts";
 
+import { rpcTransport } from "../core/block-transport.ts";
 import { dbError, dbErrorOf, mapDbError } from "../core/errors.ts";
+import { isRecord } from "../core/guards.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { temporal } from "../core/temporal-required.ts";
 import { fromPgError } from "../postgres/pg-error.ts";
@@ -48,6 +51,31 @@ const END_SESSIONS = `with ended as (
 )
 select count(*)::int as ended from ended`;
 
+/**
+ * What the account helpers call the database through: direct Postgres, or a
+ * `BlockTransport` such as `rpcTransport(admin, { schema })` over the Data API.
+ * The transport form needs the `sessions` SQL module.
+ */
+export type AccountTransport = SqlClient | BlockTransport;
+
+const isTransport = (client: AccountTransport): client is BlockTransport =>
+  "call" in client && typeof client.call === "function";
+
+/**
+ * Direct Postgres when configured, else the service role over the Data API
+ * through the sessions block's API `schema`.
+ */
+export function accountClient(
+  postgres: SqlClient | undefined,
+  service: () => SupabaseClient,
+  schema: string,
+): AccountTransport {
+  return postgres ?? rpcTransport(service(), { schema });
+}
+
+/** The schema `better_supabase.end_sessions` lives in, for a transport call. */
+const SESSIONS_SCHEMA = "better_supabase";
+
 function invalidUser(userId: string): DbError {
   return dbError("invalid_request", `"${userId}" is not a user id`, {
     table: "auth.users",
@@ -74,14 +102,32 @@ function fromSqlError(cause: unknown): DbError {
   );
 }
 
-async function deleteSessions(sql: SqlClient, userId: string): Promise<number> {
-  const [row] = await sql.queryRaw<{ ended: number }>(END_SESSIONS, [userId]);
+async function deleteSessions(
+  client: AccountTransport,
+  userId: string,
+): Promise<number> {
+  if (isTransport(client)) {
+    const value = await client.call(SESSIONS_SCHEMA, "end_sessions", {
+      p_user: userId,
+    });
+
+    return typeof value === "number" ? value : 0;
+  }
+
+  const [row] = await client.queryRaw<{ ended: number }>(END_SESSIONS, [
+    userId,
+  ]);
 
   return row?.ended ?? 0;
 }
 
+/**
+ * Deletes a user's sessions and refresh tokens. Pass `postgres.admin` (raw SQL,
+ * no module needed) or a service-role `BlockTransport` (the `sessions` module's
+ * `end_sessions`).
+ */
 export function endSessions(
-  sql: SqlClient,
+  sql: AccountTransport,
   userId: string,
 ): AsyncResult<EndSessionsResult> {
   return AsyncResult.from(async () => {
@@ -106,13 +152,37 @@ export interface LastSignIn {
 const LAST_SIGN_INS = `select user_id, last_sign_in_at
 from better_supabase.last_sign_ins($1::uuid[])`;
 
+interface LastSignInRow {
+  readonly user_id: string;
+  readonly last_sign_in_at: Date | string | null;
+}
+
+const isRow = (value: unknown): value is LastSignInRow =>
+  isRecord(value) && typeof value["user_id"] === "string";
+
+async function lastSignInRows(
+  client: AccountTransport,
+  userIds: readonly string[],
+): Promise<readonly LastSignInRow[]> {
+  if (isTransport(client)) {
+    // The Data API answers a table function with an array of rows.
+    const value = await client.call(SESSIONS_SCHEMA, "last_sign_ins", {
+      p_users: userIds,
+    });
+
+    return Array.isArray(value) ? value.filter(isRow) : [];
+  }
+
+  return client.queryRaw<LastSignInRow>(LAST_SIGN_INS, [userIds]);
+}
+
 /**
  * The last sign-in of each user, in one query (`better_supabase.last_sign_ins`
  * from the `sessions` module, which only the service role may call). Users that
  * don't exist are missing from the map.
  */
 export function lastSignIns(
-  sql: SqlClient,
+  sql: AccountTransport,
   userIds: readonly string[],
 ): AsyncResult<ReadonlyMap<string, LastSignIn>> {
   return AsyncResult.from(async () => {
@@ -127,10 +197,7 @@ export function lastSignIns(
     }
 
     try {
-      const rows = await sql.queryRaw<{
-        user_id: string;
-        last_sign_in_at: Date | string | null;
-      }>(LAST_SIGN_INS, [[...new Set(userIds)]]);
+      const rows = await lastSignInRows(sql, [...new Set(userIds)]);
 
       return ok(
         new Map(
@@ -174,7 +241,7 @@ async function ban(
 
 export function suspendAccount(
   service: SupabaseClient | (() => SupabaseClient),
-  sql: SqlClient,
+  sql: AccountTransport,
   userId: string,
   options: SuspendAccountOptions,
 ): AsyncResult<SuspendAccountResult> {

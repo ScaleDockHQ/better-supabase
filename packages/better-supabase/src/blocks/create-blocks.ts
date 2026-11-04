@@ -13,6 +13,7 @@ import type { BlockNaming } from "../core/block-names.ts";
 import type {
   BlockTransport,
   DbTransportSource,
+  RpcClient,
 } from "../core/block-transport.ts";
 import type { BlockInstanceSurface } from "../core/db-blocks.ts";
 import type { EventHub } from "../core/events.ts";
@@ -27,8 +28,9 @@ import { onBlockEvent } from "../core/block-event-listener.ts";
 import { blockCall, isRecord } from "../core/block-helpers.ts";
 import { withBlockHooks, wrapTransport } from "../core/block-hooks.ts";
 import { blockNames } from "../core/block-names.ts";
-import { dbTransport } from "../core/block-transport.ts";
+import { dbTransport, rpcTransport } from "../core/block-transport.ts";
 import { dbError } from "../core/errors.ts";
+import { instanceProperty } from "../core/instance-property.ts";
 import { AsyncResult } from "../core/result.ts";
 import { forwardBlockEvents } from "../events/cloud-event.ts";
 import { generatedOptions } from "./block-config.ts";
@@ -210,6 +212,22 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
     },
   ): ClientOf<B[K]>;
   /**
+   * The clients of the blocks for the service role, by property, over one
+   * `rpcTransport(admin)`: each client calls the API schema its generated entry
+   * names (`entry.api`), so no call site restates it. A client is built when
+   * first read. Use it in jobs and webhooks, where no user's `Db` exists; the
+   * calls run as the admin client's role, so only functions granted to
+   * `service_role` work.
+   *
+   * ```ts
+   * const { sessions } = blockSet.serviceBlocks(server.admin().$client);
+   * ```
+   */
+  serviceBlocks(
+    admin: RpcClient,
+    options?: Omit<BlockClientOptions, "transport" | "config" | "instance">,
+  ): BlockSetClientMap<B>;
+  /**
    * Calls `fn` in the API schema the blocks are wrapped in (`sql.api`), as
    * `db`'s caller. The error is a `DbError` in the result.
    */
@@ -283,6 +301,35 @@ export function defineBlocks<
             ),
           )
         : blockCall(dbTransport(db), api)(fn, args, (value) => value),
+    serviceBlocks: (admin, options = {}) => {
+      const builder = blockBuilder(
+        {
+          tenant: () => undefined,
+          ...options,
+          config,
+          transport: rpcTransport(admin),
+        },
+        blocks,
+      );
+
+      const clients: Record<string, unknown> = {};
+
+      for (const key of Object.keys(blocks).filter(created)) {
+        let built: { readonly value: unknown } | undefined;
+
+        Object.defineProperty(clients, instanceProperty(key), {
+          enumerable: true,
+          get: () => {
+            built ??= { value: builder.build(key) };
+
+            return built.value;
+          },
+        });
+      }
+
+      // SAFETY: one getter per created block, named as `BlockSetClientMap` is.
+      return clients as BlockSetClientMap<B>;
+    },
     client: (db, key, options = {}) =>
       // SAFETY: `build(key)` returns the client of the block under `key`.
       blockBuilder(clientContext(db, { config, ...options }), blocks).build(

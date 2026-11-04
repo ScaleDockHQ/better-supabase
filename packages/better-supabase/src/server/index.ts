@@ -15,6 +15,8 @@ export type {
 
 export { endSessions, lastSignIns, suspendAccount } from "./suspend-account.ts";
 
+export type { AccountTransport } from "./suspend-account.ts";
+
 export type {
   EndSessionsResult,
   LastSignIn,

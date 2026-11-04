@@ -237,3 +237,32 @@ describe("lastSignIns", () => {
     });
   });
 });
+
+describe("account helpers over a block transport", () => {
+  it("ends sessions through end_sessions", async () => {
+    const call = vi.fn(async () => 3);
+
+    const result = await endSessions({ call }, USER);
+
+    expect(result.ok && result.data).toEqual({ userId: USER, ended: 3 });
+    expect(call).toHaveBeenCalledWith("better_supabase", "end_sessions", {
+      p_user: USER,
+    });
+  });
+
+  it("reads last sign-ins from the rows the Data API returns", async () => {
+    const call = vi.fn(async () => [
+      { user_id: USER, last_sign_in_at: "2026-01-02T03:04:05Z" },
+    ]);
+
+    const result = await lastSignIns({ call }, [USER, USER]);
+
+    expect(call).toHaveBeenCalledWith("better_supabase", "last_sign_ins", {
+      p_users: [USER],
+    });
+
+    expect(result.ok && result.data.get(USER)?.lastSignInAt?.toString()).toBe(
+      "2026-01-02T03:04:05Z",
+    );
+  });
+});
