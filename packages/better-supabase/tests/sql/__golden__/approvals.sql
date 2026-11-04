@@ -1392,7 +1392,7 @@ on conflict (name) do update
 -- ==== alone: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:2d4ec8205e968ee1e4b694bfb09d0d7b58d5fa790cc108b91e39b95be3cbb7d9
+-- @bsb-hash sha256:ed820505305ed0b3611c5da079d83693071629fb8c8c79551cbcc32e0f3ac3dc
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1417,12 +1417,12 @@ begin
     end if;
   end loop;
   perform set_config('request.jwt.claims', '', true);
-  perform set_config('bsb.approval_parity', bad::text, true);
+  perform set_config('bsb.parity', bad::text, true);
 end;
 $$;
 
 select extensions.is(
-  current_setting('bsb.approval_parity')::bigint,
+  current_setting('bsb.parity')::bigint,
   0::bigint,
   'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
 );
@@ -3147,7 +3147,7 @@ on conflict (name) do update
 -- ==== with every module: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:2d4ec8205e968ee1e4b694bfb09d0d7b58d5fa790cc108b91e39b95be3cbb7d9
+-- @bsb-hash sha256:ed820505305ed0b3611c5da079d83693071629fb8c8c79551cbcc32e0f3ac3dc
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3172,12 +3172,12 @@ begin
     end if;
   end loop;
   perform set_config('request.jwt.claims', '', true);
-  perform set_config('bsb.approval_parity', bad::text, true);
+  perform set_config('bsb.parity', bad::text, true);
 end;
 $$;
 
 select extensions.is(
-  current_setting('bsb.approval_parity')::bigint,
+  current_setting('bsb.parity')::bigint,
   0::bigint,
   'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
 );
@@ -4584,7 +4584,7 @@ on conflict (name) do update
 -- ==== schema app_private: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:0ae050610e033f8fc02664de39f7ae4c621c25d38e7501129e22c2fcb1c75dfb
+-- @bsb-hash sha256:b5947f50f278aa3ab34eccf5331245d902850492d909d8345af89e2150988427
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -4609,12 +4609,12 @@ begin
     end if;
   end loop;
   perform set_config('request.jwt.claims', '', true);
-  perform set_config('bsb.approval_parity', bad::text, true);
+  perform set_config('bsb.parity', bad::text, true);
 end;
 $$;
 
 select extensions.is(
-  current_setting('bsb.approval_parity')::bigint,
+  current_setting('bsb.parity')::bigint,
   0::bigint,
   'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
 );
@@ -6224,7 +6224,7 @@ on conflict (name) do update
 -- ==== api schema: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:2d4ec8205e968ee1e4b694bfb09d0d7b58d5fa790cc108b91e39b95be3cbb7d9
+-- @bsb-hash sha256:ed820505305ed0b3611c5da079d83693071629fb8c8c79551cbcc32e0f3ac3dc
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -6249,12 +6249,12 @@ begin
     end if;
   end loop;
   perform set_config('request.jwt.claims', '', true);
-  perform set_config('bsb.approval_parity', bad::text, true);
+  perform set_config('bsb.parity', bad::text, true);
 end;
 $$;
 
 select extensions.is(
-  current_setting('bsb.approval_parity')::bigint,
+  current_setting('bsb.parity')::bigint,
   0::bigint,
   'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
 );
@@ -7663,7 +7663,7 @@ on conflict (name) do update
 -- ==== over the app's tables: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:2d4ec8205e968ee1e4b694bfb09d0d7b58d5fa790cc108b91e39b95be3cbb7d9
+-- @bsb-hash sha256:ed820505305ed0b3611c5da079d83693071629fb8c8c79551cbcc32e0f3ac3dc
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -7688,12 +7688,12 @@ begin
     end if;
   end loop;
   perform set_config('request.jwt.claims', '', true);
-  perform set_config('bsb.approval_parity', bad::text, true);
+  perform set_config('bsb.parity', bad::text, true);
 end;
 $$;
 
 select extensions.is(
-  current_setting('bsb.approval_parity')::bigint,
+  current_setting('bsb.parity')::bigint,
   0::bigint,
   'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
 );
@@ -9095,7 +9095,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:2d4ec8205e968ee1e4b694bfb09d0d7b58d5fa790cc108b91e39b95be3cbb7d9
+-- @bsb-hash sha256:ed820505305ed0b3611c5da079d83693071629fb8c8c79551cbcc32e0f3ac3dc
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -9120,12 +9120,12 @@ begin
     end if;
   end loop;
   perform set_config('request.jwt.claims', '', true);
-  perform set_config('bsb.approval_parity', bad::text, true);
+  perform set_config('bsb.parity', bad::text, true);
 end;
 $$;
 
 select extensions.is(
-  current_setting('bsb.approval_parity')::bigint,
+  current_setting('bsb.parity')::bigint,
   0::bigint,
   'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
 );
