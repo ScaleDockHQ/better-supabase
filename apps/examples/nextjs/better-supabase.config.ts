@@ -66,6 +66,8 @@ export default defineConfig({
     },
   },
   gen: {
+    // The snapshot above covers public and better_supabase only, so the api schema stays untyped.
+    api: { types: false },
     casing: "camel",
     codecs: { int8: "bigint" },
     output: "src/lib/supabase/generated.ts",
