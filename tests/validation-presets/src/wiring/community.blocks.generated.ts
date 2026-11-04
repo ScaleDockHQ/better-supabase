@@ -3,8 +3,8 @@
 import {
   blockRead,
   type Events,
-  type GeneratedBlocks,
 } from "better-supabase/blocks";
+import { blockConfig } from "./community.blocks.config.ts";
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
@@ -48,129 +48,8 @@ import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/s
 import { tagsBlock as tagsBlockInstance } from "better-supabase/blocks/tags";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
-/**
- * The installed blocks' settings from the `blocks` config, for
- * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema
- * and the options its SQL and TypeScript halves share.
- */
-export const blockConfig = {
-  saas: {
-    schema: "better_supabase",
-    options: {},
-  },
-  permissions: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "api-keys": {
-    schema: "better_supabase",
-    options: {
-      prefix: "bs",
-    },
-  },
-  audit: {
-    schema: "better_supabase",
-    options: {},
-  },
-  billing: {
-    schema: "better_supabase",
-    options: {},
-  },
-  comments: {
-    schema: "better_supabase",
-    options: {},
-  },
-  scores: {
-    schema: "better_supabase",
-    options: {},
-  },
-  moderation: {
-    schema: "better_supabase",
-    options: {},
-  },
-  enrollments: {
-    schema: "better_supabase",
-    options: {},
-  },
-  posts: {
-    schema: "better_supabase",
-    options: {},
-  },
-  entitlements: {
-    schema: "better_supabase",
-    options: {},
-  },
-  messaging: {
-    schema: "better_supabase",
-    options: {
-      topic: "messages",
-    },
-  },
-  channels: {
-    schema: "better_supabase",
-    options: {},
-  },
-  notifications: {
-    schema: "better_supabase",
-    options: {
-      topic: "notifications:{userId}",
-    },
-  },
-  onboarding: {
-    schema: "better_supabase",
-    options: {},
-  },
-  organizations: {
-    schema: "better_supabase",
-    options: {},
-  },
-  outbox: {
-    schema: "better_supabase",
-    options: {},
-  },
-  profiles: {
-    schema: "better_supabase",
-    options: {},
-  },
-  reactions: {
-    schema: "better_supabase",
-    options: {
-      topic: "reactions",
-    },
-  },
-  automations: {
-    schema: "better_supabase",
-    options: {},
-  },
-  search: {
-    schema: "better_supabase",
-    options: {},
-  },
-  settings: {
-    schema: "better_supabase",
-    options: {},
-  },
-  subjects: {
-    schema: "better_supabase",
-    options: {},
-  },
-  tags: {
-    schema: "better_supabase",
-    options: {},
-  },
-  teams: {
-    schema: "better_supabase",
-    options: {},
-  },
-  memberships: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "updated-at": {
-    schema: "better_supabase",
-    options: {},
-  },
-} as const satisfies GeneratedBlocks;
+/** Re-exported for server code; client code imports `blocks.config.ts`. */
+export { blockConfig };
 
 /**
  * Every installed block instance with a client, under its key, for

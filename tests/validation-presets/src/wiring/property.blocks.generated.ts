@@ -4,11 +4,11 @@ import {
   blockRead,
   type EventRenamesOf,
   type Events,
-  type GeneratedBlocks,
   renameBlock,
   type RenamedEvents,
   type RenamedType,
 } from "better-supabase/blocks";
+import { blockConfig } from "./property.blocks.config.ts";
 import {
   type ChecklistItem as DefaultChecklistItem,
   type ChecklistItemInput as DefaultChecklistItemInput,
@@ -77,176 +77,8 @@ import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/s
 import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
-/**
- * The installed blocks' settings from the `blocks` config, for
- * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema
- * and the options its SQL and TypeScript halves share.
- */
-export const blockConfig = {
-  saas: {
-    schema: "better_supabase",
-    options: {},
-  },
-  permissions: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "api-keys": {
-    schema: "better_supabase",
-    options: {
-      prefix: "bs",
-    },
-  },
-  attachments: {
-    schema: "better_supabase",
-    options: {
-      publicBuckets: [],
-      topic: "attachments",
-    },
-  },
-  audit: {
-    schema: "better_supabase",
-    options: {},
-  },
-  billing: {
-    schema: "better_supabase",
-    options: {},
-  },
-  comments: {
-    schema: "better_supabase",
-    options: {},
-  },
-  ledger: {
-    schema: "better_supabase",
-    options: {},
-  },
-  assets: {
-    schema: "better_supabase",
-    options: {},
-  },
-  enrollments: {
-    schema: "better_supabase",
-    options: {},
-  },
-  guests: {
-    schema: "better_supabase",
-    options: {},
-  },
-  leases: {
-    schema: "better_supabase",
-    options: {},
-  },
-  entitlements: {
-    schema: "better_supabase",
-    options: {},
-  },
-  queue: {
-    schema: "better_supabase",
-    options: {},
-  },
-  messaging: {
-    schema: "better_supabase",
-    options: {
-      topic: "messages",
-    },
-  },
-  notifications: {
-    schema: "better_supabase",
-    options: {
-      topic: "notifications:{userId}",
-    },
-  },
-  onboarding: {
-    schema: "better_supabase",
-    options: {},
-  },
-  organizations: {
-    schema: "better_supabase",
-    options: {},
-  },
-  outbox: {
-    schema: "better_supabase",
-    options: {},
-  },
-  contacts: {
-    schema: "better_supabase",
-    options: {},
-  },
-  pipelines: {
-    schema: "better_supabase",
-    options: {},
-  },
-  profiles: {
-    schema: "better_supabase",
-    options: {},
-  },
-  reminders: {
-    schema: "better_supabase",
-    options: {},
-  },
-  settings: {
-    schema: "better_supabase",
-    options: {},
-  },
-  subjects: {
-    schema: "better_supabase",
-    options: {},
-  },
-  teams: {
-    schema: "better_supabase",
-    options: {},
-  },
-  memberships: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "updated-at": {
-    schema: "better_supabase",
-    options: {},
-  },
-  maintenance: {
-    schema: "better_supabase",
-    options: {},
-    names: {
-      functions: {
-        archive_task: "archive_maintenance_request",
-        create_task: "create_maintenance_request",
-        delete_task: "delete_maintenance_request",
-        delete_task_checklist_item: "delete_maintenance_request_checklist_item",
-        get_task: "get_maintenance_request",
-        list_task_checklist: "list_maintenance_request_checklist",
-        list_tasks: "list_maintenance_requests",
-        save_task_checklist_item: "save_maintenance_request_checklist_item",
-        set_task_assignees: "set_maintenance_request_assignees",
-        task_tree: "maintenance_request_tree",
-        update_tasks: "update_maintenance_requests",
-        save_iteration: "maintenance_save_iteration",
-        save_project: "maintenance_save_project",
-      },
-      entities: [{
-        from: {
-          singular: "work_item",
-          plural: "work_items",
-        },
-        to: {
-          singular: "maintenance_request",
-          plural: "maintenance_requests",
-        },
-      }],
-      events: [{
-        from: {
-          singular: "task",
-          plural: "tasks",
-        },
-        to: {
-          singular: "maintenance_request",
-          plural: "maintenance_requests",
-        },
-      }],
-    },
-    block: "tasks",
-  },
-} as const satisfies GeneratedBlocks;
+/** Re-exported for server code; client code imports `blocks.config.ts`. */
+export { blockConfig };
 
 type MaintenanceRenames = (typeof blockConfig)["maintenance"]["names"]["entities"];
 type MaintenanceRenamesEvents = EventRenamesOf<(typeof blockConfig)["maintenance"]["names"]>;

@@ -4,11 +4,11 @@ import {
   blockRead,
   type EventRenamesOf,
   type Events,
-  type GeneratedBlocks,
   renameBlock,
   type RenamedEvents,
   type RenamedType,
 } from "better-supabase/blocks";
+import { blockConfig } from "./itsm.blocks.config.ts";
 import {
   type ChecklistItem as DefaultChecklistItem,
   type ChecklistItemInput as DefaultChecklistItemInput,
@@ -71,169 +71,8 @@ import { slaBlock as slaBlockInstance } from "better-supabase/blocks/sla";
 import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
-/**
- * The installed blocks' settings from the `blocks` config, for
- * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema
- * and the options its SQL and TypeScript halves share.
- */
-export const blockConfig = {
-  saas: {
-    schema: "better_supabase",
-    options: {},
-  },
-  permissions: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "api-keys": {
-    schema: "better_supabase",
-    options: {
-      prefix: "bs",
-    },
-  },
-  approvals: {
-    schema: "better_supabase",
-    options: {},
-  },
-  audit: {
-    schema: "better_supabase",
-    options: {},
-  },
-  billing: {
-    schema: "better_supabase",
-    options: {},
-  },
-  assets: {
-    schema: "better_supabase",
-    options: {},
-  },
-  enrollments: {
-    schema: "better_supabase",
-    options: {},
-  },
-  incidents: {
-    schema: "better_supabase",
-    options: {},
-  },
-  entitlements: {
-    schema: "better_supabase",
-    options: {},
-  },
-  queue: {
-    schema: "better_supabase",
-    options: {},
-  },
-  knowledge: {
-    schema: "better_supabase",
-    options: {},
-  },
-  notifications: {
-    schema: "better_supabase",
-    options: {
-      topic: "notifications:{userId}",
-    },
-  },
-  onboarding: {
-    schema: "better_supabase",
-    options: {},
-  },
-  organizations: {
-    schema: "better_supabase",
-    options: {},
-  },
-  outbox: {
-    schema: "better_supabase",
-    options: {},
-  },
-  pipelines: {
-    schema: "better_supabase",
-    options: {},
-  },
-  profiles: {
-    schema: "better_supabase",
-    options: {},
-  },
-  relations: {
-    schema: "better_supabase",
-    options: {},
-  },
-  settings: {
-    schema: "better_supabase",
-    options: {},
-  },
-  sla: {
-    schema: "better_supabase",
-    options: {},
-  },
-  subjects: {
-    schema: "better_supabase",
-    options: {},
-  },
-  teams: {
-    schema: "better_supabase",
-    options: {},
-  },
-  memberships: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "updated-at": {
-    schema: "better_supabase",
-    options: {},
-  },
-  "vector-search": {
-    schema: "better_supabase",
-    options: {},
-  },
-  tasks: {
-    schema: "better_supabase",
-    options: {},
-    names: {
-      functions: {
-        archive_task: "archive_ticket",
-        create_task: "create_ticket",
-        delete_task: "delete_ticket",
-        delete_task_checklist_item: "delete_ticket_checklist_item",
-        get_task: "get_ticket",
-        list_task_checklist: "list_ticket_checklist",
-        list_tasks: "list_tickets",
-        save_task_checklist_item: "save_ticket_checklist_item",
-        set_task_assignees: "set_ticket_assignees",
-        task_tree: "ticket_tree",
-        update_tasks: "update_tickets",
-      },
-      entities: [{
-        from: {
-          singular: "work_item",
-          plural: "work_items",
-        },
-        to: {
-          singular: "ticket",
-          plural: "tickets",
-        },
-      }, {
-        from: {
-          singular: "project",
-          plural: "projects",
-        },
-        to: {
-          singular: "issue",
-          plural: "issues",
-        },
-      }],
-      events: [{
-        from: {
-          singular: "task",
-          plural: "tasks",
-        },
-        to: {
-          singular: "ticket",
-          plural: "tickets",
-        },
-      }],
-    },
-  },
-} as const satisfies GeneratedBlocks;
+/** Re-exported for server code; client code imports `blocks.config.ts`. */
+export { blockConfig };
 
 type TasksRenames = (typeof blockConfig)["tasks"]["names"]["entities"];
 type TasksRenamesEvents = EventRenamesOf<(typeof blockConfig)["tasks"]["names"]>;
