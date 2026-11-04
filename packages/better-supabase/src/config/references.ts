@@ -1,4 +1,5 @@
 import type { BlockNameRegistry, TablesOf } from "../blocks/name-registry.ts";
+import type { AuthorizationProvider } from "./authorization.ts";
 import type { BlockConfigOf, BlockName, InstanceOn } from "./blocks.ts";
 import type { BlockInput } from "./types/groups.ts";
 
@@ -81,6 +82,58 @@ type InstanceReferences<C> = {
   };
 };
 
+type ProviderOf<C> = C extends {
+  readonly auth: { readonly authorization: infer P };
+}
+  ? P
+  : never;
+
+/**
+ * The permission keys a typed provider (`AuthorizationProvider<Key>`) declares,
+ * or `string` when the config has no provider or an untyped one.
+ */
+export type ProviderKeys<C> = [ProviderOf<C>] extends [never]
+  ? string
+  : ProviderOf<C> extends AuthorizationProvider<infer K>
+    ? K
+    : string;
+
+type PermissionReferences<C> =
+  string extends ProviderKeys<C>
+    ? unknown
+    : {
+        readonly blocks?: {
+          readonly [K in keyof BlocksOf<C>]?: {
+            readonly [field: string]: unknown;
+            readonly permissions?: Readonly<Record<string, ProviderKeys<C>>>;
+            readonly roles?: Readonly<
+              Record<string, readonly ("*" | ProviderKeys<C>)[]>
+            >;
+            readonly scopes?: Readonly<
+              Record<string, readonly ProviderKeys<C>[]>
+            >;
+          };
+        };
+        readonly subjects?: Readonly<
+          Record<
+            string,
+            {
+              readonly [field: string]: unknown;
+              readonly permissions?: Readonly<
+                Record<
+                  string,
+                  | ProviderKeys<C>
+                  | {
+                      readonly key?: ProviderKeys<C>;
+                      readonly also?: ProviderKeys<C>;
+                    }
+                >
+              >;
+            }
+          >
+        >;
+      };
+
 /**
  * What `defineConfig` checks a literal config against: bucket names in
  * `gen.storagePaths`, the role names other blocks take from
@@ -91,4 +144,5 @@ export type ConfigReferences<C> = {
     readonly storagePaths?: Readonly<Record<string, BucketName<C>>>;
   };
 } & RoleReferences<C> &
+  PermissionReferences<C> &
   InstanceReferences<C>;

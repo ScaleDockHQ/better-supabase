@@ -10,6 +10,8 @@ import type {
   PERMISSIONS_TRUNCATED_CLAIM,
 } from "../../src/claims/index.ts";
 import type {
+  AuthorizationPersona,
+  AuthorizationPlatformRoles,
   AuthorizationProvider,
   AuthorizationTokenHook,
   ResolvedConfig,
@@ -239,6 +241,8 @@ describe("authorization library contract", () => {
   it("re-exports exactly the slot types from better-supabase/contract", () => {
     expectTypeOf<Contract.ContractApiVersion>().toEqualTypeOf<1>();
     expectTypeOf<Contract.AuthorizationProvider>().toEqualTypeOf<AuthorizationProvider>();
+    expectTypeOf<Contract.AuthorizationPersona>().toEqualTypeOf<AuthorizationPersona>();
+    expectTypeOf<Contract.AuthorizationPlatformRoles>().toEqualTypeOf<AuthorizationPlatformRoles>();
     expectTypeOf<Contract.Authorizer>().toEqualTypeOf<Authorizer>();
     expectTypeOf<Contract.AuthorizationHooks>().toEqualTypeOf<AuthorizationHooks>();
     expectTypeOf<Contract.AuthzVersionCache>().toEqualTypeOf<AuthzVersionCache>();

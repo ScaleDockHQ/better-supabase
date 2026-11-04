@@ -945,6 +945,9 @@
                 },
                 "portalParties": {
                   "type": "string"
+                },
+                "subject": {
+                  "type": "string"
                 }
               },
               "required": ["idsWith", "isPlatform"],
@@ -1066,6 +1069,9 @@
                   },
                   "rolesTable": {
                     "type": "string"
+                  },
+                  "disabledAt": {
+                    "type": "string"
                   }
                 },
                 "required": ["table", "userColumn", "scope", "idColumn"],
@@ -1153,6 +1159,12 @@
                           },
                           "column": {
                             "type": "string"
+                          },
+                          "tenant": {
+                            "type": "string"
+                          },
+                          "where": {
+                            "type": "string"
                           }
                         },
                         "required": ["table", "id", "column"],
@@ -1164,6 +1176,74 @@
                   }
                 },
                 "required": ["table", "role"],
+                "additionalProperties": false
+              }
+            },
+            "platformRoles": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "user": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "through": {
+                  "type": "object",
+                  "properties": {
+                    "table": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "column": {
+                      "type": "string"
+                    },
+                    "where": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["table", "id", "column"],
+                  "additionalProperties": false
+                },
+                "canAssign": {
+                  "type": "string"
+                },
+                "canAssignFor": {
+                  "type": "string"
+                }
+              },
+              "required": ["table", "user", "role"],
+              "additionalProperties": false
+            },
+            "personas": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$"
+                  },
+                  "setup": {
+                    "type": "string"
+                  },
+                  "claims": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["name", "setup", "permissions"],
                 "additionalProperties": false
               }
             },

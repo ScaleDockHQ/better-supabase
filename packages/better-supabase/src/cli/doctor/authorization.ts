@@ -388,7 +388,76 @@ function requirementProblem(
       };
 }
 
+/**
+ * Config values that repeat what the provider already supplies (BS426): the
+ * generated SQL fills them from `authorization` when they are unset.
+ */
+function restatedDefaults(context: DoctorContext): FindingInput[] {
+  const provider = context.config.authorization;
+
+  if (!provider) {
+    return [];
+  }
+
+  const findings: FindingInput[] = [];
+
+  const same = (a: unknown, b: unknown): boolean =>
+    JSON.stringify(a) === JSON.stringify(b);
+
+  const invitations = context.config.blocks["invitations"];
+  const tenant = context.config.blocks["memberships"];
+
+  if (
+    invitations?.options?.["platformRoles"] !== undefined &&
+    provider.platformRoles !== undefined &&
+    same(invitations.options["platformRoles"], provider.platformRoles)
+  ) {
+    findings.push({
+      message: `blocks.invitations.options.platformRoles repeats ${providerLabel(provider)}'s platformRoles. Remove it: the provider's value is the default.`,
+      target: "blocks.invitations.options.platformRoles",
+    });
+  }
+
+  const through = tenant?.options?.["roleThrough"];
+
+  if (
+    through !== undefined &&
+    (provider.roleSources ?? []).some((source) =>
+      same(source.role.through, through),
+    )
+  ) {
+    findings.push({
+      message: `blocks.memberships.options.roleThrough repeats a role source of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
+      target: "blocks.memberships.options.roleThrough",
+    });
+  }
+
+  const disabledAt = tenant?.columns?.["memberships"]?.["disabledAt"];
+
+  if (
+    typeof disabledAt === "string" &&
+    (provider.memberships ?? []).some(
+      (entry) => entry.disabledAt === disabledAt,
+    )
+  ) {
+    findings.push({
+      message: `blocks.memberships.columns.memberships.disabledAt repeats the disabledAt of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
+      target: "blocks.memberships.columns.memberships.disabledAt",
+    });
+  }
+
+  return findings;
+}
+
 export const AUTHORIZATION_RULES: readonly Rule[] = [
+  {
+    code: "BS426",
+    severity: "info",
+    title: "Config value the authorization provider already supplies",
+    description:
+      "`blocks.invitations.options.platformRoles`, `blocks.memberships.options.roleThrough` and the memberships `disabledAt` column default to the values the authorization provider declares (`platformRoles`, a role source's `through`, a membership's `disabledAt`). A config value equal to the provider's is a second copy that goes stale when the provider changes. Doctor reports each one; remove it.",
+    check: restatedDefaults,
+  },
   {
     code: "BS214",
     severity: "error",

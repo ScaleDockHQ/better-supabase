@@ -16,18 +16,20 @@ export type SessionsSqlOptions = {
    * `bsb.bootstrap({ rpc, readSet, params })`, and `shell` is an optional
    * function whose result is `data`. Either form takes `subject`, a no-argument
    * function whose jsonb result the authorizer reads (`accessFor` seeds it, so
-   * the check skips its own subject query). Renders
+   * the check skips its own subject query). Without it, an entry takes the
+   * authorization provider's `functions.subject`; `subject: false` opts out.
+   * String entries take the provider's too. Renders
    * `better_supabase.bootstrap_<name>`.
    */
   readonly bootstrap?: Readonly<
     Record<
       string,
       | string
-      | { readonly readSet: string; readonly subject?: string }
+      | { readonly readSet: string; readonly subject?: string | false }
       | {
           readonly readSets: readonly string[];
           readonly shell?: string;
-          readonly subject?: string;
+          readonly subject?: string | false;
         }
     >
   >;

@@ -171,6 +171,7 @@ describe("accessProviderMode", () => {
         scopes: ["organization", "project"],
         idType: "uuid",
         functions: stubProvider.functions,
+        memberships: stubProvider.memberships,
         sqlCompleteKeys: sqlCompleteKeys(stubProvider),
         truncatedClaim: "memberships_truncated",
       },

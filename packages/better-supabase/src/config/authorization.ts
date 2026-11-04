@@ -124,6 +124,13 @@ export interface AuthorizationFunctions {
    * calls it for portal reads such as a customer's own invoices.
    */
   readonly portalParties?: string;
+  /**
+   * A no-argument function whose jsonb result is the signed-in user's
+   * authorizer subject. `blocks.sessions.options.bootstrap` entries that set no
+   * `subject` call it, so the bootstrap payload carries the subject and the
+   * server seeds its authorizer from it. Write it as `schema.function`.
+   */
+  readonly subject?: string;
 }
 
 /** One scope the provider decides permissions in, such as `organization`. */
@@ -149,8 +156,8 @@ export interface AuthorizationRequirement {
 }
 
 /** A permission key the provider defines. */
-export interface AuthorizationPermission {
-  readonly key: string;
+export interface AuthorizationPermission<Key extends string = string> {
+  readonly key: Key;
   /**
    * `true` when the SQL functions answer for the key completely. A key with row
    * conditions they don't check is `false`, and policies refuse it. Unset means
@@ -166,9 +173,9 @@ export interface AuthorizationPermission {
  * inbox commands with that name need. The provider supplies the table;
  * `blocks.<module>.permissions` still renames a module's own keys.
  */
-export interface AuthorizationOperation {
+export interface AuthorizationOperation<Key extends string = string> {
   /** The permission key the operation needs. */
-  readonly permission: string;
+  readonly permission: Key;
   readonly meta?: {
     /** `low`, `medium` or `high`; a `high` operation can ask for approval. */
     readonly risk?: "low" | "medium" | "high";
@@ -193,6 +200,12 @@ export interface AuthorizationMembership {
    * (`blocks.memberships.options.roles.many`).
    */
   readonly rolesTable?: string;
+  /**
+   * The column that holds the time a member was disabled. A
+   * `blocks.memberships` mapping without `columns.memberships.disabledAt`
+   * defaults to it, so disabled members stop counting.
+   */
+  readonly disabledAt?: string;
 }
 
 /** A membership table whose role column points into a roles table. */
@@ -206,8 +219,54 @@ export interface AuthorizationRoleSource {
       readonly table: string;
       readonly id: string;
       readonly column: string;
+      /** The roles' tenant column, for tenant custom roles. */
+      readonly tenant?: string;
+      /** A condition on the roles row `{row}` that holds for these roles only. */
+      readonly where?: string;
     };
   };
+}
+
+/**
+ * The table of platform role assignments, with who may assign which role.
+ * `blocks.invitations.options.platformRoles` defaults to it.
+ */
+export interface AuthorizationPlatformRoles {
+  /** `schema.table` of the assignments. */
+  readonly table: string;
+  /** The user column. */
+  readonly user: string;
+  /** The role column. */
+  readonly role: string;
+  /** The roles table the role column points into. */
+  readonly through?: {
+    readonly table: string;
+    readonly id: string;
+    readonly column: string;
+    /** A condition on `{row}` that holds for platform roles only. */
+    readonly where?: string;
+  };
+  /** `{user}` and `{role}`: whether the caller may assign the role. */
+  readonly canAssign?: string;
+  /** `canAssign` for `{user}`. */
+  readonly canAssignFor?: string;
+}
+
+/**
+ * A user the access matrix signs in as, with the permission keys the provider
+ * says that user holds in the tenant.
+ */
+export interface AuthorizationPersona<Key extends string = string> {
+  /** Lower case letters, digits and `_`; the matrix file is named after it. */
+  readonly name: string;
+  /**
+   * SQL that creates the persona's memberships and roles. `{user}` is its uuid
+   * and `{tenant}` the tenant id.
+   */
+  readonly setup: string;
+  readonly claims?: Readonly<Record<string, unknown>>;
+  /** The keys the persona holds in the tenant; every other key is denied. */
+  readonly permissions: readonly Key[];
 }
 
 /** The access token hook the provider generates. */
@@ -283,7 +342,7 @@ export interface AuthorizationVersions {
  * An authorization system the SQL modules, the policies and doctor delegate to.
  * It is plain data, usually built from the provider's own output files.
  */
-export interface AuthorizationProvider {
+export interface AuthorizationProvider<Key extends string = string> {
   readonly apiVersion: 1;
   /** The provider's name, for messages. */
   readonly name: string;
@@ -292,13 +351,13 @@ export interface AuthorizationProvider {
   readonly tenantScope: string;
   readonly functions: AuthorizationFunctions;
   readonly requires?: readonly AuthorizationRequirement[];
-  readonly permissions?: readonly AuthorizationPermission[];
+  readonly permissions?: readonly AuthorizationPermission<Key>[];
   /**
    * Operations by name (`workflow.node.http`, `mcp.tool.search_posts`,
    * `ai.tool.send_email`, `inbox.command.assign`). A module looks an operation
    * up here first and uses its own default permission otherwise.
    */
-  readonly operations?: Readonly<Record<string, AuthorizationOperation>>;
+  readonly operations?: Readonly<Record<string, AuthorizationOperation<Key>>>;
   readonly memberships?: readonly AuthorizationMembership[];
   /** Rows that say whether a user or a tenant is active. */
   readonly suspension?: {
@@ -306,6 +365,10 @@ export interface AuthorizationProvider {
     readonly tenant?: DisabledRow;
   };
   readonly roleSources?: readonly AuthorizationRoleSource[];
+  /** Where platform roles are assigned, and who may assign them. */
+  readonly platformRoles?: AuthorizationPlatformRoles;
+  /** Users the access matrix signs in as, one pgTAP file each. */
+  readonly personas?: readonly AuthorizationPersona<Key>[];
   /** `schema.table.column` of every column that decides access (BS213). */
   readonly decidingColumns?: readonly string[];
   readonly tokenHook?: AuthorizationTokenHook;

@@ -492,4 +492,63 @@ describe("roles through a lookup table", () => {
       }),
     ).not.toContain("team_roles");
   });
+
+  it("takes the membership disabledAt column from the provider", () => {
+    const { options: _options, ...tenant } = THROUGH["memberships"]!;
+
+    const layout = {
+      modules: { ...THROUGH, memberships: tenant },
+      ownTables: THROUGH_TABLES,
+      accessProvider: {
+        ...moduleProvider,
+        memberships: [
+          {
+            table: "public.team_members",
+            userColumn: "user_id",
+            scope: { value: "team" },
+            idColumn: "team_id",
+            disabledAt: "off_at",
+          },
+        ],
+      },
+    };
+
+    expect(moduleBody("memberships", layout)).toContain(`"off_at" is null`);
+    expect(
+      moduleBody("memberships", {
+        ...layout,
+        accessProvider: { ...moduleProvider, memberships: [] },
+      }),
+    ).not.toContain(`"off_at" is null`);
+  });
+
+  it("takes platformRoles from the provider unless the config sets it", () => {
+    const platform = {
+      table: "public.user_roles",
+      user: "user_id",
+      role: "role_id",
+      canAssign: "acme.can_assign_any({role}, null, 'global', null)",
+    };
+
+    const layout = {
+      modules: { ...THROUGH, invitations: {} },
+      ownTables: THROUGH_TABLES,
+      accessProvider: { ...moduleProvider, platformRoles: platform },
+    };
+
+    expect(moduleBody("invitations", layout)).toContain("acme.can_assign_any(");
+    expect(
+      moduleBody("invitations", {
+        ...layout,
+        modules: {
+          ...THROUGH,
+          invitations: {
+            options: {
+              platformRoles: { ...platform, canAssign: "mine.can({role})" },
+            },
+          },
+        },
+      }),
+    ).toContain("mine.can(");
+  });
 });

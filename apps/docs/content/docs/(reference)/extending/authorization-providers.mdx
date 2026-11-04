@@ -828,6 +828,22 @@ another way; the token hook must still write `authz_ver`, because the
 providers compare against it
 ([Authorization refresh on native](/docs/frontend/authorization-refresh-native)).
 
+## Provider fields by release
+
+Every field below is optional and additive. A config value you set always wins
+over the provider's.
+
+| Field                                             | What it fills                                                                                | Release    |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------- |
+| `functions.subject`                               | the subject the sessions bootstrap returns and seeds, when an entry sets no `subject`        | next minor |
+| `roleSources[].role.through` `tenant` and `where` | `blocks.memberships.options.roleThrough`                                                     | next minor |
+| `memberships[].disabledAt`                        | the memberships `disabledAt` column                                                          | next minor |
+| `platformRoles`                                   | `blocks.invitations.options.platformRoles`                                                   | next minor |
+| `personas`                                        | one access matrix file per persona (`providerPersonaTests`)                                  | next minor |
+| `AuthorizationProvider<Key>`                      | typed permission keys in `blocks.*.permissions`, `subjects.*.permissions` and the role lists | next minor |
+
+Doctor reports a config value equal to the provider's (BS426).
+
 ## Test a provider
 
 `testAuthorizationProvider` from `better-supabase/testing` checks API v1,

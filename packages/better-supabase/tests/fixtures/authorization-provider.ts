@@ -14,6 +14,7 @@ type StubProvider = AuthorizationProvider & {
       | "teamIdsOf"
       | "portalSubjects"
       | "portalParties"
+      | "subject"
       | "rowsWith"
       | "rowsWithFor"
     >
