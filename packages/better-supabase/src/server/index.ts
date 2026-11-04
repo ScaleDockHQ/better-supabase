@@ -53,6 +53,7 @@ export type { HandleOptions } from "./adapter.ts";
 export type {
   ActiveSupport,
   SupportApi,
+  SupportCaller,
   SupportAuthorizeInput,
   SupportExpireRouteOptions,
   SupportOptions,

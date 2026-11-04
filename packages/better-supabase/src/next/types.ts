@@ -18,6 +18,7 @@ import type {
   BlockMethodName,
 } from "../blocks/block-method.ts";
 import type { AuthzVersionCache } from "../core/authorizer.ts";
+import type { DbError } from "../core/errors.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { QuerySpec } from "../core/spec.ts";
@@ -204,6 +205,20 @@ export interface ActionOptions<
    * tenant the caller belongs to.
    */
   readonly tenant?: (input: ActionParsed<S>) => string | undefined;
+  /**
+   * Runs after authentication and the permission check, before the action body.
+   * Return an error to refuse the call; the body never runs. `tenant` is what
+   * `tenant(input)` returned.
+   */
+  readonly guard?: (
+    tenant: string | undefined,
+    ctx: Pick<
+      ServerContext<AnyModels, AnyFunctions, unknown, C, P>,
+      "auth" | "resolution" | "supabase"
+    >,
+  ) => DbError | undefined | Promise<DbError | undefined>;
+  /** Maps the `ActionResult` before it returns, for example to translate errors. */
+  readonly result?: (outcome: ActionResult<unknown>) => ActionResult<unknown>;
 }
 
 /**

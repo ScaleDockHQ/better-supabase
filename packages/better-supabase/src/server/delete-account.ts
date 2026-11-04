@@ -7,6 +7,7 @@ import type { SqlClient } from "../postgres/executor.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { Bucket } from "../storage/index.ts";
 
+import { authErrorKind } from "../auth/error-kind.ts";
 import { dbError, isDbError, mapDbError } from "../core/errors.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { fromPgError } from "../postgres/pg-error.ts";
@@ -89,8 +90,11 @@ export function fromAuthError(raw: unknown): DbError {
     return dbError("forbidden", message, base);
   }
 
-  return failure.name === "AuthRetryableFetchError" ||
-    (failure.status ?? 0) >= 500
+  if (authErrorKind(raw) === "rate-limited") {
+    return dbError("rate_limited", message, base);
+  }
+
+  return authErrorKind(raw) === "retryable"
     ? dbError("network", message, base)
     : dbError("unexpected", message, base);
 }

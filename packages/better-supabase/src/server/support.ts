@@ -38,6 +38,46 @@ import { fromPgError } from "../postgres/pg-error.ts";
 type UserAuth = Extract<AuthState, { kind: "user" }>;
 
 /**
+ * Who calls a support method: the `AuthState` of the request, or the verified
+ * `token` and `claims` an app already holds. The library builds the `AuthState`
+ * from the second form.
+ */
+export type SupportCaller =
+  | AuthState
+  | {
+      readonly token: string;
+      readonly claims: Readonly<Record<string, unknown>>;
+    };
+
+function toAuthState(caller: SupportCaller): AuthState {
+  if ("kind" in caller) {
+    return caller;
+  }
+
+  const { claims } = caller;
+
+  const text = (key: string): string | undefined =>
+    typeof claims[key] === "string" ? claims[key] : undefined;
+
+  const email = text("email");
+  const exp = claims["exp"];
+
+  return {
+    kind: "user",
+    token: caller.token,
+    // SAFETY: the caller passes claims it verified; they are a JWT payload.
+    claims: claims as UserAuth["claims"],
+    user: {
+      id: text("sub") ?? "",
+      role: text("role") ?? "authenticated",
+      ...(email === undefined ? {} : { email }),
+    },
+    source: "bearer",
+    expiresAt: typeof exp === "number" ? exp : null,
+  };
+}
+
+/**
  * The `kind` an `approverOf` hook sees for a support request; the SQL
  * `isApprover` sees the same.
  */
@@ -135,7 +175,7 @@ export interface SupportApi {
    * value that switches the admin's next requests to the target.
    */
   start(
-    admin: AuthState,
+    admin: SupportCaller,
     request: SupportStartRequest,
   ): AsyncResult<{ readonly session: SupportSession; readonly cookie: string }>;
   /**
@@ -143,7 +183,7 @@ export interface SupportApi {
    * checks of `start` apply. `ttl` is not stored: `start` passes it.
    */
   request(
-    admin: AuthState,
+    admin: SupportCaller,
     request: SupportStartRequest,
   ): AsyncResult<SupportRequest>;
   /**
@@ -152,24 +192,27 @@ export interface SupportApi {
    * does (the SQL store: the provider's `isApprover`, else the start
    * permission).
    */
-  approve(approver: AuthState, requestId: string): AsyncResult<SupportRequest>;
+  approve(
+    approver: SupportCaller,
+    requestId: string,
+  ): AsyncResult<SupportRequest>;
   /**
    * Ends the admin's own session and returns the `Set-Cookie` that clears the
    * cookie.
    */
   stop(
-    admin: AuthState,
+    admin: SupportCaller,
     sessionId: string,
   ): AsyncResult<{ readonly ended: boolean; readonly cookie: string }>;
   /**
    * Ends a session as `caller`: the SQL store allows the session's admin and
    * staff with the revoke permission.
    */
-  revoke(caller: AuthState, sessionId: string): AsyncResult<boolean>;
+  revoke(caller: SupportCaller, sessionId: string): AsyncResult<boolean>;
   /** The running session the request names (`sessionIdOf`) for `auth`, if any. */
   current(
     request: Request,
-    auth: AuthState,
+    auth: SupportCaller,
   ): Promise<ActiveSupport | undefined>;
   /**
    * The running session `sessionId` for the admin in `auth`, if any. Use it
@@ -179,11 +222,11 @@ export interface SupportApi {
    */
   resolve(
     sessionId: string,
-    auth: AuthState,
+    auth: SupportCaller,
   ): Promise<ActiveSupport | undefined>;
   /** The sessions `caller` may view (the SQL store checks the view permission). */
   list(
-    caller: AuthState,
+    caller: SupportCaller,
     filter?: SupportListFilter,
   ): AsyncResult<readonly SupportSession[]>;
   /**
@@ -597,8 +640,10 @@ function createSupport(
               });
         },
       ),
-    start(admin, request) {
+    start(adminCaller, request) {
       return AsyncResult.from(async () => {
+        const admin = toAuthState(adminCaller);
+
         if (admin.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to start a support session"),
@@ -721,8 +766,10 @@ function createSupport(
       });
     },
 
-    request(admin, request) {
+    request(adminCaller, request) {
       return AsyncResult.from(async () => {
+        const admin = toAuthState(adminCaller);
+
         if (admin.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to ask for a support session"),
@@ -769,8 +816,10 @@ function createSupport(
       });
     },
 
-    approve(approver, requestId) {
+    approve(approverCaller, requestId) {
       return AsyncResult.from(async () => {
+        const approver = toAuthState(approverCaller);
+
         if (approver.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to approve a support session"),
@@ -830,8 +879,9 @@ function createSupport(
       });
     },
 
-    stop(admin, sessionId) {
+    stop(adminCaller, sessionId) {
       return AsyncResult.from(async () => {
+        const admin = toAuthState(adminCaller);
         const cookie = clearSupportCookie(options.cookie);
 
         if (admin.kind !== "user") {
@@ -869,8 +919,10 @@ function createSupport(
       });
     },
 
-    revoke(caller, sessionId) {
+    revoke(callerCaller, sessionId) {
       return AsyncResult.from(async () => {
+        const caller = toAuthState(callerCaller);
+
         if (caller.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to revoke a support session"),
@@ -888,13 +940,15 @@ function createSupport(
     async current(request, auth) {
       const id = sessionIdOf(request);
 
-      return id ? resolve(id, auth) : undefined;
+      return id ? resolve(id, toAuthState(auth)) : undefined;
     },
 
-    resolve,
+    resolve: (id, auth) => resolve(id, toAuthState(auth)),
 
-    list(caller, filter) {
+    list(callerCaller, filter) {
       return AsyncResult.from(async () => {
+        const caller = toAuthState(callerCaller);
+
         if (caller.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to list support sessions"),

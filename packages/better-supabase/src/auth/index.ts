@@ -1,5 +1,9 @@
 export { authContext } from "./context.ts";
 
+export { authErrorKind } from "./error-kind.ts";
+
+export type { AuthErrorKind } from "./error-kind.ts";
+
 export { clientIp, resolveAuth } from "./resolve.ts";
 
 export { accessTokenResolver, isAccessTokenJwt } from "./access-token.ts";

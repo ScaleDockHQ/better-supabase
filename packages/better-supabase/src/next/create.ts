@@ -1,6 +1,6 @@
 import { cacheLife, cacheTag, io } from "next/cache.js";
 import { redirect } from "next/dist/client/components/redirect.js";
-import { cookies, headers } from "next/headers.js";
+import { cookies } from "next/headers.js";
 import { NextResponse, after } from "next/server.js";
 import { cache } from "react";
 
@@ -89,6 +89,7 @@ import {
 } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
 import { applyCacheEntry } from "./entry.ts";
+import { incomingRequest } from "./incoming-request.ts";
 import {
   isRedirect,
   mutableResponse,
@@ -207,29 +208,6 @@ export function createNext<
     for (const write of writes) {
       jar.set(write.name, write.value, write.options);
     }
-  };
-
-  /**
-   * The incoming request, with the cookie header rebuilt from the cookie jar:
-   * in a Server Action or a route handler the jar already holds this request's
-   * writes (a sign-in, a sign-out), and the header never does.
-   */
-  const incomingRequest = async (): Promise<Request> => {
-    const [incomingHeaders, jar] = await Promise.all([headers(), cookies()]);
-    const forwarded = new Headers(incomingHeaders);
-
-    const cookie = jar
-      .getAll()
-      .map(({ name, value }) => `${name}=${encodeURIComponent(value)}`)
-      .join("; ");
-
-    if (cookie === "") {
-      forwarded.delete("cookie");
-    } else {
-      forwarded.set("cookie", cookie);
-    }
-
-    return new Request("http://next.local/", { headers: forwarded });
   };
 
   /**
@@ -1027,6 +1005,9 @@ export function createNext<
     action(actionOptions, fn) {
       type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
 
+      // SAFETY: `result` keeps the data type.
+      const mapped = (o: Out): Out => (actionOptions.result?.(o) ?? o) as Out;
+
       return async (input) => {
         // With a per-input tenant the context waits for the input, so the
         // guard reads the verified caller instead of building a context for
@@ -1045,7 +1026,7 @@ export function createNext<
         );
 
         if (denied) {
-          return { ok: false, data: null, error: denied };
+          return mapped({ ok: false, data: null, error: denied });
         }
 
         let parsed: unknown =
@@ -1055,7 +1036,7 @@ export function createNext<
           const checked = await validate(actionOptions.input, parsed, "input");
 
           if (!checked.ok) {
-            return { ok: false, data: null, error: checked.error };
+            return mapped({ ok: false, data: null, error: checked.error });
           }
 
           parsed = checked.data;
@@ -1078,7 +1059,13 @@ export function createNext<
         );
 
         if ("kind" in caller) {
-          return { ok: false, data: null, error: caller };
+          return mapped({ ok: false, data: null, error: caller });
+        }
+
+        const refused = await actionOptions.guard?.(tenant, ctx);
+
+        if (refused) {
+          return mapped({ ok: false, data: null, error: refused });
         }
 
         const scope = ctx;
@@ -1103,11 +1090,11 @@ export function createNext<
         }
 
         // SAFETY: Out is the Result of the action's return type, which both branches build.
-        return (
-          settled.ok
+        return mapped(
+          (settled.ok
             ? { ok: true, data: settled.data, error: null }
-            : { ok: false, data: null, error: settled.error }
-        ) as Out;
+            : { ok: false, data: null, error: settled.error }) as Out,
+        );
       };
     },
 

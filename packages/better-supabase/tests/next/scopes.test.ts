@@ -226,22 +226,6 @@ describe("private-cache scopes", () => {
 describe("suspending accounts", () => {
   const betterSupabase = defineSupabase(schema);
 
-  it("needs postgres to end sessions", async () => {
-    const bsb = createNext(betterSupabase, {
-      env: { ...env, secretKey: "sb_secret_test" },
-      cacheTags: false,
-    });
-
-    expect(await bsb.endSessions(USER)).toMatchObject({
-      ok: false,
-      error: { kind: "invalid_request" },
-    });
-    expect(await bsb.suspendAccount(USER, { suspended: true })).toMatchObject({
-      ok: false,
-      error: { kind: "invalid_request" },
-    });
-  });
-
   it("drops the cached session after ending sessions or suspending", async () => {
     const calls: string[] = [];
 
@@ -360,6 +344,40 @@ describe("explicit tenants", () => {
     );
 
     expect(await unscoped(undefined)).toMatchObject({ data: null });
+  });
+
+  it("runs guard before the body and maps the outcome with result", async () => {
+    let ran = false;
+
+    const guarded = bsb.action(
+      {
+        input: v.object({ organizationId: v.string() }),
+        tenant: (input) => input.organizationId,
+        guard: (tenant) =>
+          tenant === "blocked"
+            ? dbError("forbidden", "tenant is blocked")
+            : undefined,
+        result: (outcome) =>
+          outcome.ok
+            ? outcome
+            : { ...outcome, error: dbError("forbidden", "mapped") },
+      },
+      () => {
+        ran = true;
+
+        return 1;
+      },
+    );
+
+    expect(await guarded({ organizationId: TENANT })).toMatchObject({
+      ok: true,
+    });
+
+    ran = false;
+    const blocked = await guarded({ organizationId: "blocked" });
+
+    expect(ran).toBe(false);
+    expect(!blocked.ok && blocked.error.message).toBe("mapped");
   });
 });
 
