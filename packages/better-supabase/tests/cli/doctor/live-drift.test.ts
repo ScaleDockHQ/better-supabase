@@ -80,4 +80,30 @@ describe("BS363", () => {
       ),
     ).toEqual([]);
   });
+
+  it("reports a failed comparison instead of throwing", async () => {
+    const failing: LiveDatabase = {
+      describe: "test database",
+      session: true,
+      query: () => Promise.reject(new Error("connection reset")),
+    };
+
+    const findings = await run(context(failing), "BS363");
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.message).toContain("connection reset");
+  });
+
+  it("ignores a live index the modules do not create", async () => {
+    expect(
+      await run(
+        context(
+          database([
+            { name: "other_idx", table: "public.other", predicate: "(a = 1)" },
+          ]),
+        ),
+        "BS363",
+      ),
+    ).toEqual([]);
+  });
 });

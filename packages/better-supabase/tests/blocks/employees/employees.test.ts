@@ -428,4 +428,32 @@ describe("employees block", () => {
 
     expect((await employees.contracts("e1")).ok).toBe(false);
   });
+
+  it("patches a contract without a salary and sends dates as text", async () => {
+    const contract = { id: "c1", employee_id: "e1", starts_on: "2026-01-01" };
+    const t = transport({ update_employee_contract: () => contract });
+    const employees = createEmployees({ transport: t });
+
+    await employees
+      .updateContract({
+        contractId: "c1",
+        patch: { endsOn: date("2026-12-31") },
+      })
+      .orThrow();
+
+    expect(t.calls[0]?.[1]).toEqual({
+      contract: "c1",
+      attrs: { endsOn: "2026-12-31" },
+    });
+  });
+
+  it("deletes an employee through delete_employee", async () => {
+    const t = transport({ delete_employee: () => EMPLOYEE });
+    const employees = createEmployees({ transport: t });
+
+    const deleted = await employees.delete("e1").orThrow();
+
+    expect(deleted).toMatchObject({ id: "e1" });
+    expect(t.calls[0]).toEqual(["delete_employee", { employee: "e1" }]);
+  });
 });

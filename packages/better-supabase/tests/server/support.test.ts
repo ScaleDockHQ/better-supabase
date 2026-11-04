@@ -587,6 +587,70 @@ describe("support sessions on the server", () => {
     expect(store.sessions.get(session.id)?.endedBy).toBe("revoked");
   });
 
+  it("merges the claims schema's output into the target's claims", async () => {
+    const { server } = setup({
+      auth: {
+        jwks: signer.jwks,
+        claims: v.object({ organization: v.literal("o1") }),
+      },
+    });
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const active = await server.support.resolve(session.id, admin());
+
+    expect(active?.session.id).toBe(session.id);
+  });
+
+  it("falls back to the authenticated role when the store has no claims", async () => {
+    const store = memorySupportStore();
+
+    // SAFETY: the store minus its optional `claims` member is a valid store.
+    const withoutClaims = Object.fromEntries(
+      Object.entries(store).filter(([key]) => key !== "claims"),
+    ) as typeof store;
+
+    const { server } = setup({
+      support: supportSessions({ store: withoutClaims }),
+    });
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const active = await server.support.resolve(session.id, admin());
+
+    expect(active?.session.id).toBe(session.id);
+  });
+
+  it("resolves nothing for a caller that is not signed in", async () => {
+    const { server } = setup();
+    const anon = { kind: "none", reason: "none" } as const;
+
+    expect(await server.support.resolve("any", anon)).toBeUndefined();
+  });
+
+  it("returns a store failure from revoke and list", async () => {
+    const store = memorySupportStore();
+
+    const { server } = setup({
+      support: supportSessions({
+        store: {
+          ...store,
+          end: () => Promise.reject(pgError("57014", "timeout")),
+          list: () => Promise.reject(pgError("57014", "timeout")),
+        },
+      }),
+    });
+
+    expect((await server.support.revoke(admin(), "s1")).error?.kind).toBe(
+      "timeout",
+    );
+    expect((await server.support.list(admin())).error?.kind).toBe("timeout");
+  });
+
   it("accepts a token with claims instead of an AuthState", async () => {
     const { server } = setup();
     const state = admin();

@@ -545,6 +545,20 @@ grant execute on function better_supabase.claims(uuid) to service_role, supabase
   });
 });
 
+describe("a grant without a definition", () => {
+  it("names the function it found nothing to wrap", () => {
+    const sql = `create or replace function better_supabase.claims(user_id uuid)
+returns jsonb
+language sql
+as $$ select '{}'::jsonb $$;
+grant execute on function better_supabase.claims(text) to service_role;`;
+
+    expect(() =>
+      apiWrappers(sql, "better_supabase", { schema: "api" }, "x"),
+    ).toThrow(/found no definition of claims\(text\) to wrap/);
+  });
+});
+
 describe("wrapper volatility", () => {
   const source = `create or replace function better_supabase.read_a(x uuid)
 returns text
