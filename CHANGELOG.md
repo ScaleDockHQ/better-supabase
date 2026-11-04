@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.52.0 (2026-11-04)
+
+- The jobs drain makes fewer database calls. `ensureSchedules` writes only the schedules that are new or whose cron, time zone, queue, tenant or payload changed, so a reconcile on every drain costs one `list_schedules` call when nothing changed. `drainRoute` asks once which queues have a job to claim and claims only from those, instead of one `claim_jobs` call per empty queue. The `queue` SQL module moves to version 11: it adds `ready_job_queues(queues text[])` and a `payload` column on `list_schedules`, and `QueueProvider` gains an optional `readyQueues`. Run `better-supabase upgrade`; until then the drain reports the missing function and claims from every queue as before.
+- With `debug.enabled`, `bsb.action` logs the request's database stats in the same format as the
+  `x-bsb-db-calls` header, because a server action cannot set response headers. `testAuthorizer`
+  checks that an authorizer ignores a `runtime.seed` for another user or a version that is not live.
+- `better_supabase.audit()` takes `statement => true`, which audits a table with statement-level triggers over transition tables and writes every entry of a statement in one insert. The audit module moves to version 10 and drops the previous `audit()` signature on upgrade; calls that name their arguments keep working.
+- Add `createVersionCache({ store, maxStaleMs })` to `better-supabase/server`, a `subject` option on the sessions `bootstrap` entries that `bsb.bootstrap` returns and `accessFor` passes to authorizers as `runtime.seed` (`AuthzSubjectSeed`), and doctor code BS611 for a service-role client inside a `"use cache: private"` function.
+- Ship reads for the data most pages share. `comments` (`list`, `counts`), `notifications` (`inbox`, `counts`), `saved-views` (`list`), `tags` (`list`, `forSubjects`) and `attachments` (`list`) now appear in `reads` in `blocks.generated.ts`, so a read set loads them with the page's own rows as `s.blocks.<instance>.<read>(args)`. `tags` gains the `subjects_tags` function behind `forSubjects`, and a read argument can be `text[]`.
+- Load a read set with the session check. `blocks.sessions.options.bootstrap` accepts `{ readSets, shell? }`, the wrapper takes `read_set` and `read_params`, and `bsb.bootstrap({ rpc, readSet, params })` returns the decoded result as `reads`. When the request already ran the wrapper, only the read set runs. `db.$decodeReadSet(readSet, params, payload)` decodes a payload that ran elsewhere. Rendering the new wrapper drops the one-argument version.
+- `doctor --explain` now accepts a function name with `--args` and reports the share of time spent in
+  security definer helpers. New rules BS243 (a security definer function with a literal above 1 KB)
+  and BS244 (schema cache pressure) check the schema. The `updated-at` module adds
+  `better_supabase.memo_get` and `memo_set`, a value kept for one transaction, and BS206 points to
+  them. `gen.api.expose: "used"` and `gen.api.exposeAlso` wrap only the functions your sources call.
+- `better-supabase doctor --explain-write <tables>` plans an insert (a copy of one row with fresh keys) and an update on each table in a rolled-back transaction, and reports the time of every trigger from the `EXPLAIN` plan.
+- `better-supabase/node` exports `keepAliveFetch({ connections, pipelining })`, a `fetch` for the
+  Supabase client that keeps sockets open through the optional peer `undici` and falls back to the
+  global `fetch` without it. `defineListQuery.run({ count: "planned" })` is documented, and
+  `tests/bench` holds a PostgREST floor script and an executor comparison.
+- Warn about nested private cache scopes. In development `bsb.cached()` logs once when it runs inside another cache scope (best effort, from the async stack), and `better-supabase doctor` reports BS610 for a `"use cache: private"` function that calls another one.
+- Gate a read set entry on a permission with `s.when(auth.can("customer.read"), entry)`. The compiled function checks `better_supabase.can`, a refused entry is `null`, and the batch path checks each gate once. `ReadSetGate` is a new type export.
+- Check a read set result with `readSet.parse(value)`, and find groups of parallel reads with `better-supabase codemod read-many`, which lists each `Promise.all` that `db.$many` can load in one round trip. Doctor BS609 counts `$rpc` and block calls in the same `Promise.all`.
+- Count token verifications and service-role calls per request. `db.$stats()`, the `x-bsb-db-calls` header, the `auth` event and the OpenTelemetry spans now report `verifications` and `adminCalls` next to calls and waves, `expectDbBudget` takes `maxVerifications` and `maxAdminCalls`, and the stats collector falls back to the trace id, `x-vercel-id` or `x-request-id` when a request has no `x-bsb-request-id`. Pass `{ request }` to `bsb.admin()` to attach an admin call to its render.
+- Add `bsb.sessionHandle()` and `bsb.cached({ session })` to `better-supabase/next`. A page parks its verified session once, and each `'use cache: private'` island resolves it from the serializable handle without reading `cookies()` or `headers()`, verifying the token or building another PostgREST client. The verified-token memo now keys by a SHA-256 digest of the token instead of the token itself.
+- Documents the cost of each render stage (database calls, waves, verifications and admin calls) for a customer page, and asserts it in `tests/next/customer-reads.test.ts`.
+
 ## 0.51.0 (2026-11-03)
 
 - The invitations block adds `accepting_invitation()`, which returns the invitation that `accept_invitation` or `accept_invitation_by_id` is accepting while it inserts the membership or platform role, and null otherwise. Triggers on the membership table can read the invitation's `prefill` through it instead of matching on an email address.
