@@ -1,8 +1,8 @@
 -- ==== alone: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:8e7bcbbf2f39f3fb6a6e3d4db8fd0d7afd7c3ccb25c3791276f3bc08057e8e03
--- tests.create_user, tests.authenticate_as and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
+-- @bsb-hash sha256:581c19ca94f5162a856dc5d005179810aaeb45800a32b77b591ff168fdbadcd8
+-- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -52,6 +52,48 @@ begin
     (jsonb_build_object('sub', user_id, 'role', 'authenticated', 'email', user_email, 'aud', 'authenticated') || claims)::text,
     true
   );
+  set local role authenticated;
+end;
+$$;
+
+-- The same by email address: tests.authenticate_as('member@acme.test').
+create or replace function tests.authenticate_as(user_email text)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  found_id uuid;
+begin
+  select u.id into found_id from auth.users u where u.email = user_email;
+  if found_id is null then
+    raise exception 'tests.authenticate_as: no user with email %', user_email;
+  end if;
+  perform tests.authenticate_as(found_id);
+end;
+$$;
+
+-- Runs as this user with the claims your custom access token hook issues, as a
+-- real sign-in does. Name the hook as config.toml does: 'public.my_hook'.
+create or replace function tests.authenticate_as_issued(user_id uuid, hook text default null)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  issued jsonb;
+  base_claims jsonb;
+begin
+  if hook is null then
+    raise exception 'tests.authenticate_as_issued: pass the custom access token hook from config.toml (auth.hook.custom_access_token)';
+  end if;
+  select jsonb_build_object('sub', u.id, 'role', 'authenticated', 'email', u.email, 'aud', 'authenticated', 'app_metadata', u.raw_app_meta_data, 'user_metadata', u.raw_user_meta_data)
+    into base_claims from auth.users u where u.id = authenticate_as_issued.user_id;
+  if base_claims is null then
+    raise exception 'tests.authenticate_as_issued: no user %', user_id;
+  end if;
+  execute format('select (%s(%L::jsonb)) -> ''claims''', hook, jsonb_build_object('user_id', user_id, 'claims', base_claims, 'authentication_method', 'password')::text) into issued;
+  perform set_config('request.jwt.claims', issued::text, true);
   set local role authenticated;
 end;
 $$;
@@ -207,8 +249,8 @@ select * from extensions.finish();
 -- ==== schema app_private: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:8e7bcbbf2f39f3fb6a6e3d4db8fd0d7afd7c3ccb25c3791276f3bc08057e8e03
--- tests.create_user, tests.authenticate_as and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
+-- @bsb-hash sha256:581c19ca94f5162a856dc5d005179810aaeb45800a32b77b591ff168fdbadcd8
+-- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -258,6 +300,48 @@ begin
     (jsonb_build_object('sub', user_id, 'role', 'authenticated', 'email', user_email, 'aud', 'authenticated') || claims)::text,
     true
   );
+  set local role authenticated;
+end;
+$$;
+
+-- The same by email address: tests.authenticate_as('member@acme.test').
+create or replace function tests.authenticate_as(user_email text)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  found_id uuid;
+begin
+  select u.id into found_id from auth.users u where u.email = user_email;
+  if found_id is null then
+    raise exception 'tests.authenticate_as: no user with email %', user_email;
+  end if;
+  perform tests.authenticate_as(found_id);
+end;
+$$;
+
+-- Runs as this user with the claims your custom access token hook issues, as a
+-- real sign-in does. Name the hook as config.toml does: 'public.my_hook'.
+create or replace function tests.authenticate_as_issued(user_id uuid, hook text default null)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  issued jsonb;
+  base_claims jsonb;
+begin
+  if hook is null then
+    raise exception 'tests.authenticate_as_issued: pass the custom access token hook from config.toml (auth.hook.custom_access_token)';
+  end if;
+  select jsonb_build_object('sub', u.id, 'role', 'authenticated', 'email', u.email, 'aud', 'authenticated', 'app_metadata', u.raw_app_meta_data, 'user_metadata', u.raw_user_meta_data)
+    into base_claims from auth.users u where u.id = authenticate_as_issued.user_id;
+  if base_claims is null then
+    raise exception 'tests.authenticate_as_issued: no user %', user_id;
+  end if;
+  execute format('select (%s(%L::jsonb)) -> ''claims''', hook, jsonb_build_object('user_id', user_id, 'claims', base_claims, 'authentication_method', 'password')::text) into issued;
+  perform set_config('request.jwt.claims', issued::text, true);
   set local role authenticated;
 end;
 $$;
@@ -413,8 +497,8 @@ select * from extensions.finish();
 -- ==== api schema: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:8e7bcbbf2f39f3fb6a6e3d4db8fd0d7afd7c3ccb25c3791276f3bc08057e8e03
--- tests.create_user, tests.authenticate_as and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
+-- @bsb-hash sha256:581c19ca94f5162a856dc5d005179810aaeb45800a32b77b591ff168fdbadcd8
+-- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -464,6 +548,48 @@ begin
     (jsonb_build_object('sub', user_id, 'role', 'authenticated', 'email', user_email, 'aud', 'authenticated') || claims)::text,
     true
   );
+  set local role authenticated;
+end;
+$$;
+
+-- The same by email address: tests.authenticate_as('member@acme.test').
+create or replace function tests.authenticate_as(user_email text)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  found_id uuid;
+begin
+  select u.id into found_id from auth.users u where u.email = user_email;
+  if found_id is null then
+    raise exception 'tests.authenticate_as: no user with email %', user_email;
+  end if;
+  perform tests.authenticate_as(found_id);
+end;
+$$;
+
+-- Runs as this user with the claims your custom access token hook issues, as a
+-- real sign-in does. Name the hook as config.toml does: 'public.my_hook'.
+create or replace function tests.authenticate_as_issued(user_id uuid, hook text default null)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  issued jsonb;
+  base_claims jsonb;
+begin
+  if hook is null then
+    raise exception 'tests.authenticate_as_issued: pass the custom access token hook from config.toml (auth.hook.custom_access_token)';
+  end if;
+  select jsonb_build_object('sub', u.id, 'role', 'authenticated', 'email', u.email, 'aud', 'authenticated', 'app_metadata', u.raw_app_meta_data, 'user_metadata', u.raw_user_meta_data)
+    into base_claims from auth.users u where u.id = authenticate_as_issued.user_id;
+  if base_claims is null then
+    raise exception 'tests.authenticate_as_issued: no user %', user_id;
+  end if;
+  execute format('select (%s(%L::jsonb)) -> ''claims''', hook, jsonb_build_object('user_id', user_id, 'claims', base_claims, 'authentication_method', 'password')::text) into issued;
+  perform set_config('request.jwt.claims', issued::text, true);
   set local role authenticated;
 end;
 $$;
