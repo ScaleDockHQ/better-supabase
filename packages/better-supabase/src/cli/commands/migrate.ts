@@ -27,7 +27,7 @@ export interface MigrateDeps {
  * loader accepts it for this command only), so run `upgrade` after removing
  * it.
  */
-export async function runMigrateSchemaFirst(
+async function runMigrateSchemaFirst(
   config: ResolvedConfig,
   args: MigrateSchemaFirstArgs,
   deps: MigrateDeps = {},

@@ -282,7 +282,7 @@ export function blockConfigImport(context: TemplateContext): string {
 
 const SYSTEM_DEPS: SqlDeps = { now: () => new Date() };
 
-export async function runAdd(
+async function runAdd(
   config: ResolvedConfig,
   args: AddArgs,
   prompts?: Prompter,

@@ -72,7 +72,7 @@ async function sqlFiles(dir: string): Promise<string[]> {
  * 0102). Nothing else in the file changes; `db diff` then writes the
  * migration.
  */
-export async function runTable(
+async function runTable(
   config: ResolvedConfig,
   args: TableArgs,
   deps: TableDeps = {},

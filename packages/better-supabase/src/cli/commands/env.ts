@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
@@ -50,10 +50,6 @@ const ENV_PLAN_ARGS = {
   check: PLAN_ARGS.check,
 };
 
-export type EnvArgs = CliArgs<
-  typeof ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
->;
-
 export type EnvFlags = CliOptions<
   typeof ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
 >;
@@ -95,7 +91,7 @@ async function readStatus(
 }
 
 /** The browser prefix: `--prefix`, then `env.prefix`, then the framework's. */
-export async function browserPrefix(
+async function browserPrefix(
   config: ResolvedConfig,
   flag: string | undefined,
 ): Promise<string> {

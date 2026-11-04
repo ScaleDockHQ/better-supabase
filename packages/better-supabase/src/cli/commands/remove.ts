@@ -79,7 +79,7 @@ const resolved = (names: readonly string[]) =>
  * and test files only they wrote. The tables stay in the database until the
  * migration that `db diff` writes from the smaller schema runs.
  */
-export async function runRemove(
+async function runRemove(
   config: ResolvedConfig,
   args: RemoveArgs,
   deps: RemoveDeps = {},
