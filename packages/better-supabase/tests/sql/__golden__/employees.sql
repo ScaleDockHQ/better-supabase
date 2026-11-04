@@ -897,7 +897,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:e47c9feab2915fe42397c16aab6f45d39624aec742fb7efa70077fb0c0201e75
+-- @bsb-hash sha256:2f1253a97efafefc35ba9b093e1dbd2949ee893819422b7e67501b31d910d97c
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1120,6 +1120,10 @@ revoke execute on function better_supabase.bsb_employee_user_mirror() from publi
 drop trigger if exists bsb_employee_user_mirror on "better_supabase"."employees";
 create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_user_mirror();
+
+drop trigger if exists "bsb_approval_memo" on "better_supabase"."employees";
+create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."employees"
+  for each statement execute function "better_supabase"."approval_memo_bump"();
 
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
 -- teamId, managerId, employmentType, status, startDate, endDate, origin
