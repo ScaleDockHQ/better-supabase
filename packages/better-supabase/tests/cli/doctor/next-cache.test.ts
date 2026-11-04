@@ -46,6 +46,17 @@ describe("BS608", () => {
     expect(findings[0]?.location?.line).toBe(3);
   });
 
+  it("names next.config when none was read", () => {
+    const findings = check({
+      sources: [
+        { path: "src/a.ts", text: 'const mode = "use cache: remote";' },
+      ],
+    });
+
+    expect(findings[0]?.message).toContain("next.config sets no remote");
+    expect(findings[0]?.location?.line).toBe(1);
+  });
+
   it("stays quiet with a remote handler or on Vercel", () => {
     for (const text of [
       'createNextConfig({ remoteCacheHandler: "./cache/remote.mjs" })',

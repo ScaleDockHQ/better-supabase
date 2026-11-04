@@ -56,6 +56,12 @@ describe("BS243 large literal in a security definer helper", () => {
     ).toEqual([]);
   });
 
+  it("skips the library's own functions", async () => {
+    const text = `create function better_supabase.table_map() returns text language sql security definer as $$ select '${"z".repeat(3000)}' $$;`;
+
+    expect(await run("BS243", [{ path: "d.sql", text }])).toEqual([]);
+  });
+
   it("reads a tagged dollar-quoted literal", async () => {
     const text = `create function private.f() returns text language sql security definer as $f$ select $q$${"y".repeat(2000)}$q$ $f$;`;
 

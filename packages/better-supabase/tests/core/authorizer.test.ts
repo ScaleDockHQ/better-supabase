@@ -8,7 +8,9 @@ import type {
 
 import {
   bindAuthorizer,
+  checkPermission,
   isRequestMemo,
+  outcomesOf,
   requestMemo,
   requestOf,
 } from "../../src/core/authorizer.ts";
@@ -229,5 +231,52 @@ describe("bindAuthorizer", () => {
 
     expect("evaluations" in bound).toBe(false);
     expect("forOperation" in bound).toBe(false);
+  });
+});
+
+describe("checkPermission and outcomesOf fail closed", () => {
+  const resource = { type: "customer", id: "c1" } as const;
+
+  it("denies an unknown permission key", async () => {
+    const result = await checkPermission({
+      authorizer: {
+        apiVersion: 1,
+        name: "test",
+        key: () => {
+          throw new Error("unknown");
+        },
+        check: async () => ({ outcome: "granted" }),
+        // SAFETY: the test authorizer implements the parts checkPermission reads.
+      } as never,
+      permission: "nope",
+      resource,
+    } as never);
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "PERMISSION_DENIED" },
+    });
+  });
+
+  it("answers undefined without an authorizer, without resources or on a throw", async () => {
+    expect(await outcomesOf(undefined, "p", [resource], undefined)).toEqual([
+      undefined,
+    ]);
+
+    // SAFETY: only the members outcomesOf reads.
+    const authorizer = {
+      apiVersion: 1,
+      name: "test",
+      key: (permission: string) => permission,
+      check: async () => ({ outcome: "granted" }),
+      checkMany: async () => {
+        throw new Error("down");
+      },
+    } as never;
+
+    expect(await outcomesOf(authorizer, "p", [], undefined)).toEqual([]);
+    expect(await outcomesOf(authorizer, "p", [resource], undefined)).toEqual([
+      undefined,
+    ]);
   });
 });

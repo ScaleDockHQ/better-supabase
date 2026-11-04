@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
-import { bootstrapWith } from "../../src/server/bootstrap.ts";
+import { bootstrapWith, mapBootstrapMemo } from "../../src/server/bootstrap.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -293,5 +293,174 @@ describe("bootstrapWith() in a support session", () => {
 
     expect(boot).toMatchObject({ sessionActive: false, data: null });
     expect(evicted).not.toHaveBeenCalled();
+  });
+});
+
+describe("bootstrapWith() errors and memoized read sets", () => {
+  const ctxOf = (
+    executor: Record<string, unknown>,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    auth: {
+      kind: "user" as const,
+      token: "token",
+      claims: { sub: USER, role: "authenticated", session_id: SESSION },
+      user: { id: USER, role: "authenticated" },
+      source: "support" as const,
+      expiresAt: Math.floor(Date.now() / 1000) + 600,
+    },
+    db: { $executor: executor, ...extra },
+    support: { session: { id: "sup2" } },
+  });
+
+  const deps = {
+    schema: () => "better_supabase",
+    evictSession: async () => {},
+    versions: undefined,
+  };
+
+  const direct = (_key: string, run: () => Promise<never>) => run();
+  const call = { rpc: "home" };
+
+  const run = (ctx: unknown) =>
+    // SAFETY: the context carries the parts bootstrapWith reads.
+    bootstrapWith(deps, ctx as never, call, undefined, direct as never);
+
+  const wrapper = (data: unknown) => ({
+    rpc: () => Promise.resolve({ ok: true, data }),
+  });
+
+  it("rejects an executor that can't call functions", async () => {
+    await expect(run(ctxOf({}))).rejects.toThrow(
+      "needs an executor that calls functions",
+    );
+  });
+
+  it("throws the wrapper's error", async () => {
+    await expect(
+      run(
+        ctxOf({
+          rpc: () =>
+            Promise.resolve({
+              ok: false,
+              error: { code: "unexpected", message: "boom" },
+            }),
+        }),
+      ),
+    ).rejects.toMatchObject({ error: { message: "boom" } });
+  });
+
+  it("rejects a row without session_active", async () => {
+    await expect(run(ctxOf(wrapper({ data: 1 })))).rejects.toMatchObject({
+      error: { message: "The bootstrap wrapper returned no session_active" },
+    });
+  });
+
+  it("reads bigint versions and a banned user", async () => {
+    const boot = await run(
+      ctxOf(
+        wrapper({
+          session_active: false,
+          end_reason: "user_banned",
+          authz_version: "12",
+          token_authz_version: "x",
+        }),
+      ),
+    );
+
+    expect(boot).toMatchObject({
+      sessionActive: false,
+      endReason: "user_banned",
+      authzVersion: 12,
+      tokenAuthzVersion: null,
+      stale: false,
+    });
+  });
+
+  const readSet = { name: "hub" } as never;
+
+  const memoRow = {
+    sessionActive: true,
+    endReason: null,
+    authzVersion: 1,
+    tokenAuthzVersion: 1,
+    tenant: null,
+    data: null,
+    reads: { a: 1 },
+    subject: null,
+  };
+
+  // Runs the fallback the way a memo that holds the key never would.
+  const memoOf = (has: (key: string) => boolean) =>
+    Object.assign(
+      (_key: string, run: () => Promise<unknown>) =>
+        run().then(
+          (value) => value,
+          () => memoRow,
+        ),
+      { has },
+    );
+
+  it("reads a set separately when the shell was memoized without it", async () => {
+    const many = vi.fn(async () => ({ ok: true as const, data: { a: 2 } }));
+
+    const boot = await bootstrapWith(
+      deps,
+      // SAFETY: the context carries the parts bootstrapWith reads.
+      ctxOf(wrapper({}), { $many: many, $decodeReadSet: vi.fn() }) as never,
+      { rpc: "home", readSet },
+      undefined,
+      memoOf((key) => !key.includes("|rs:")) as never,
+    );
+
+    expect(many).toHaveBeenCalledOnce();
+    expect(boot.reads).toEqual({ a: 2 });
+  });
+
+  it("decodes the payload of a memoized set and throws a failed decode", async () => {
+    const decode = vi.fn(async () => ({ ok: true as const, data: { a: 3 } }));
+
+    const boot = await bootstrapWith(
+      deps,
+      // SAFETY: the context carries the parts bootstrapWith reads.
+      ctxOf(wrapper({}), { $many: vi.fn(), $decodeReadSet: decode }) as never,
+      { rpc: "home", readSet },
+      undefined,
+      memoOf(() => true) as never,
+    );
+
+    expect(boot.reads).toEqual({ a: 3 });
+
+    await expect(
+      bootstrapWith(
+        deps,
+        ctxOf(wrapper({}), {
+          $many: vi.fn(),
+          $decodeReadSet: async () => ({
+            ok: false as const,
+            error: { code: "unexpected", message: "bad" },
+          }),
+          // SAFETY: the context carries the parts bootstrapWith reads.
+        }) as never,
+        { rpc: "home", readSet },
+        undefined,
+        memoOf(() => true) as never,
+      ),
+    ).rejects.toMatchObject({ error: { message: "bad" } });
+  });
+});
+
+describe("mapBootstrapMemo()", () => {
+  it("runs a key once and reports the keys it holds", async () => {
+    const memo = mapBootstrapMemo(new Map());
+    const run = vi.fn(async () => ({}) as never);
+
+    expect(memo.has?.("a")).toBe(false);
+
+    await memo("a", run);
+    await memo("a", run);
+
+    expect(run).toHaveBeenCalledOnce();
+    expect(memo.has?.("a")).toBe(true);
   });
 });

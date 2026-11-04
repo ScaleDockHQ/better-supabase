@@ -665,3 +665,165 @@ describe("BS212 --explain", () => {
     );
   });
 });
+
+describe("BS212 --explain edge cases", () => {
+  const planRow: Record<string, unknown>[] = [
+    { "QUERY PLAN": [{ Plan: { "Node Type": "Result" }, Triggers: [{}] }] },
+  ];
+
+  const keyColumn = (name: string, type: string, hasDefault = false) => ({
+    name,
+    type,
+    has_default: hasDefault,
+    generated: false,
+    is_key: true,
+  });
+
+  const valueColumn = {
+    name: "label",
+    type: "text",
+    has_default: false,
+    generated: false,
+    is_key: false,
+  };
+
+  const writeDb = (
+    columns: Record<string, unknown>[],
+    plan: Record<string, unknown>[] = planRow,
+  ) =>
+    database([
+      [/from pg_attribute a left join pg_index/, columns],
+      [/pg_stat_xact_user_functions/, []],
+      [/^explain/, plan],
+    ]);
+
+  const write = (db: ReturnType<typeof database>) =>
+    check("BS212", {
+      database: db,
+      explain: { tables: [], claims: {}, write: ["notes"] },
+    });
+
+  it("makes text and defaulted integer keys and names a trigger without time", async () => {
+    const db = writeDb([
+      keyColumn("slug", "text"),
+      keyColumn("seq", "integer", true),
+      valueColumn,
+    ]);
+
+    const [finding] = await write(db);
+
+    expect(finding!.message).toContain("(undefined 0.00 ms over 0 calls)");
+
+    expect(
+      db
+        .texts()
+        .find((text) =>
+          text.startsWith("explain (analyze, buffers, format json) insert"),
+        ),
+    ).toContain(`'bsb_explain_' || gen_random_uuid()::text`);
+  });
+
+  it("reports no triggers and a table without a non-key column", async () => {
+    const [quiet] = await write(
+      writeDb(
+        [valueColumn],
+        [{ "QUERY PLAN": [{ Plan: { "Node Type": "Result" } }] }],
+      ),
+    );
+
+    expect(quiet!.message).toContain("no triggers fired");
+
+    const [bare] = await write(writeDb([keyColumn("id", "uuid")]));
+
+    expect(bare!.message).toContain(
+      "the table has no non-key column to update",
+    );
+  });
+
+  const procDb = (row: Record<string, unknown> | undefined) =>
+    database([
+      [/where p\.proname/, row ? [row] : []],
+      [/^explain/, planRow],
+    ]);
+
+  const explainFunction = (
+    db: ReturnType<typeof database>,
+    name: string,
+    args?: unknown,
+  ) =>
+    check("BS212", {
+      database: db,
+      explain: {
+        tables: [name],
+        claims: {},
+        ...(args === undefined ? {} : { args }),
+      },
+    });
+
+  it("qualifies a function by schema and leaves unknown named args untyped", async () => {
+    const db = procDb({
+      schema: "public",
+      name: "hub",
+      arg_names: null,
+      arg_types: [],
+    });
+
+    await explainFunction(db, "public.hub", { other: 1 });
+
+    expect(db.texts().find((text) => text.startsWith("explain"))).toContain(
+      `"public"."hub"("other" => '1')`,
+    );
+    expect(db.texts().join("\n")).toContain("n.nspname = 'public'");
+  });
+
+  it("calls a function without args and types positional args it has no type for", async () => {
+    const bare = procDb({
+      schema: "public",
+      name: "hub",
+      arg_names: [],
+      arg_types: [],
+    });
+
+    await explainFunction(bare, "hub");
+
+    expect(bare.texts().find((text) => text.startsWith("explain"))).toContain(
+      `"public"."hub"()`,
+    );
+
+    const untyped = procDb({
+      schema: "public",
+      name: "hub",
+      arg_names: [],
+      arg_types: [],
+    });
+
+    await explainFunction(untyped, "hub", ["x"]);
+
+    expect(
+      untyped.texts().find((text) => text.startsWith("explain")),
+    ).toContain(`"public"."hub"('x')`);
+  });
+
+  it("ignores a function in a schema that isn't exposed and reports a failed lookup", async () => {
+    const hidden = procDb({
+      schema: "secret",
+      name: "hub",
+      arg_names: [],
+      arg_types: [],
+    });
+
+    const [missing] = await explainFunction(hidden, "hub");
+
+    expect(missing!.message).toContain('no table or function "hub"');
+
+    const [failed] = await explainFunction(
+      database([[/where p\.proname/, { throws: pgError("42501", "denied") }]]),
+      "hub",
+    );
+
+    expect(failed).toMatchObject({
+      target: "hub:explain",
+      message: "--explain hub failed: denied",
+    });
+  });
+});
