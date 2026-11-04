@@ -45,6 +45,48 @@ describe("sessions bootstrap wrappers", () => {
     ).toThrow(/read set name/);
   });
 
+  it("adds the authorizer subject to the wrapper", () => {
+    const sql = sessions({
+      options: {
+        bootstrap: { home: { readSet: "home", subject: "app.authz_subject" } },
+      },
+    });
+
+    expect(sql).toContain("'subject', to_jsonb(app.authz_subject())");
+    expect(() =>
+      sessions({
+        options: { bootstrap: { home: { readSet: "home", subject: "drop;" } } },
+      }),
+    ).toThrow(/subject must name a function/);
+  });
+
+  it("takes a read set per call from a fixed list", () => {
+    const sql = sessions({
+      options: {
+        bootstrap: {
+          home: { readSets: ["hub", "detail"], shell: "app.home_data" },
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      "bootstrap_home(args jsonb default '{}'::jsonb, read_set text default null, read_params jsonb default null)",
+    );
+    expect(sql).toContain(
+      "drop function if exists better_supabase.bootstrap_home(jsonb);",
+    );
+    expect(sql).toContain("when 'hub' then to_jsonb(public.rs_hub(");
+    expect(sql).toContain("when 'detail' then to_jsonb(public.rs_detail(");
+    expect(sql).toContain("read_set not in ('hub', 'detail')");
+    expect(sql).toContain("'data', to_jsonb(app.home_data(args))");
+    expect(sql).toContain(
+      "bootstrap_home(jsonb, text, jsonb) to authenticated",
+    );
+    expect(() =>
+      sessions({ options: { bootstrap: { home: { readSets: ["hub;"] } } } }),
+    ).toThrow(/read set names/);
+  });
+
   it("rejects a name or a function it can't render safely", () => {
     expect(() => sessions({ options: { bootstrap: ["app.home"] } })).toThrow(
       /must map names to functions/,

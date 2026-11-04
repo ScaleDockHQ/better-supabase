@@ -84,4 +84,11 @@ export const AUDIT_UPGRADES: readonly BlockSqlUpgrade[] = [
       "audit_event_many(events) records a batch of semantic events in one call, with audit_event's checks per event and an {id} or {error} result each; audit_row_change() is no longer executable by API roles.",
     sql: () => "",
   },
+  {
+    from: 9,
+    description:
+      "audit() takes statement => true, which audits with statement-level triggers over transition tables and writes one insert per statement; audit_statement_change() is the trigger function.",
+    sql: () =>
+      "drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);",
+  },
 ];

@@ -409,9 +409,9 @@ a command before a test has to.
 
 ## Database budget
 
-`expectDbBudget(page, { maxCalls, maxWaves, during })` fails a Playwright
-test when one render makes more database calls or sequential waves than
-allowed. It reads the request id from every document and `_rsc` response
+`expectDbBudget(page, { maxCalls, maxWaves, maxVerifications, maxAdminCalls, during })` fails a Playwright
+test when one render makes more database calls, sequential waves, token verifications or
+service-role calls than allowed. It reads the request id from every document and `_rsc` response
 during `during` (a reload by default) and fetches each render's totals from
 [`bsb.debugRoute()`](/docs/frameworks/next-cache-components#budget):
 

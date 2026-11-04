@@ -13,6 +13,7 @@ import type {
   PermissionRef,
 } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { Result } from "../core/result.ts";
 import type { DbStats } from "../core/stats.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
@@ -35,7 +36,6 @@ import type {
   CachedOptions,
   CacheScope,
   NextOptions,
-  RemoteCacheKey,
   ScopeOptions,
 } from "./types.ts";
 
@@ -58,6 +58,7 @@ import {
   accessOf,
   bootstrapSchema,
   bootstrapWith,
+  mapBootstrapMemo,
 } from "../server/bootstrap.ts";
 import { serverCore } from "../server/entries/core.ts";
 import { outageResponse } from "../server/entries/session.ts";
@@ -71,21 +72,23 @@ import { resourceRouter } from "../server/resources.ts";
 import { defaultExpose, guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import {
-  cachedLife,
   invalidateAll,
   nextCache,
   nextCacheAttached,
-  sessionIdTag,
   supportTag,
   tableTags,
 } from "./cache.ts";
 import {
   DEFAULT_ROUND_TRIPS,
+  devBudget,
   REQUEST_ID_HEADER,
+  logActionStats,
+  requestIdOf,
   formatStats,
   sharedCollector,
 } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
+import { applyCacheEntry } from "./entry.ts";
 import {
   isRedirect,
   mutableResponse,
@@ -95,7 +98,9 @@ import {
 } from "./proxy.ts";
 import { recordAtServer, recordServer } from "./record.ts";
 import { handOff, takeHandoff } from "./remote-handoff.ts";
+import { adminForRequest, stampStats, verifyOption } from "./request-stats.ts";
 import { resourceRoutes } from "./resources.ts";
+import { cacheKeyOf, parkUntilResponseEnds } from "./session-handle.ts";
 import { refreshCallerCache, userSessionTags } from "./session-tags.ts";
 import { authFlows } from "./sign-in.ts";
 import {
@@ -153,8 +158,7 @@ export function createNext<
   const roundTrips = options.devRoundTripBudget ?? DEFAULT_ROUND_TRIPS;
   const watching = development && roundTrips !== false;
 
-  const budget =
-    debug?.budget ?? (watching ? { waves: roundTrips } : undefined);
+  const budget = debug?.budget ?? devBudget(watching && roundTrips);
 
   const collector =
     debug?.enabled || watching
@@ -166,7 +170,7 @@ export function createNext<
       : undefined;
 
   const statsFor = (request: Request): ContextOptions => {
-    const id = collector && request.headers.get(REQUEST_ID_HEADER);
+    const id = collector && requestIdOf(request.headers);
 
     return id ? { stats: collector.recorderFor(id) } : {};
   };
@@ -287,13 +291,15 @@ export function createNext<
       }
 
       const request = await requestScope();
+      const verify = verifyOption(statsFor(request).stats);
+
       // Scopes that resolve the same token share one verification; resolve
       // then answers from the verified-token memo.
-      await base.snapshot(request);
+      await base.snapshot(request, verify.onVerify);
 
       return {
         request,
-        resolution: await base.resolve(request, { refresh: false }),
+        resolution: await base.resolve(request, { refresh: false, ...verify }),
       };
     },
   );
@@ -442,6 +448,10 @@ export function createNext<
 
   const withAccounts = withExtra(base, {
     context,
+    admin: adminForRequest(
+      (adminContext, adminOptions) => base.admin(adminContext, adminOptions),
+      (request) => statsFor(request).stats,
+    ),
     contextFromSession,
     evictSession,
     deleteAccount: ((userId, deleteOptions) =>
@@ -499,6 +509,22 @@ export function createNext<
     readonly scope: CacheScope;
     readonly tenant: string | undefined;
   }> => {
+    const handle =
+      cachedOptions.scope === "remote" ? undefined : cachedOptions.session;
+
+    const handed = handle ? takeHandoff<C>(handle) : undefined;
+
+    if (handle && handed) {
+      const ctx = await base.contextFromSession(
+        handed,
+        handle.tenant === null ? {} : { tenant: handle.tenant },
+      );
+
+      const view = toSession(ctx.auth);
+
+      return { ctx, view, scope: "private", tenant: tenantFor(ctx, view) };
+    }
+
     if (cachedOptions.scope !== "remote") {
       const [view, ctx] = await Promise.all([
         claims(),
@@ -533,7 +559,6 @@ export function createNext<
     return { ctx, view: toSession(ctx.auth), scope: "remote", tenant };
   };
 
-  /** Sets `cacheLife` and the session, support, table and row tags of an entry. */
   const applyEntry = (
     ctx: ServerContext<M, F, E, C, P, B>,
     view: AuthSession<C, P>,
@@ -541,42 +566,19 @@ export function createNext<
     tenant: string | undefined,
     entry: CachedOptions,
   ): void => {
-    cacheLife(
-      cachedLife(view, scope, entry.life, {
-        ...(development
-          ? {
-              warn: (message: string) => {
-                betterSupabase.events.logger.warn(message);
-              },
-            }
-          : {}),
-      }),
-    );
-
-    const tables = entry.tables ?? [];
-    const first = tables[0];
-
-    const claimed =
-      ctx.auth.kind === "user" ? ctx.auth.claims["session_id"] : undefined;
-
-    const sessionId = typeof claimed === "string" ? claimed : undefined;
-
-    const tags = [
-      ...(view.kind === "user" ? userTags(view.user.id) : []),
-      ...(sessionId === undefined ? [] : [sessionIdTag(sessionId)]),
-      ...(ctx.support ? [supportTag(ctx.support.session.id)] : []),
-      ...(entry.tags ?? []),
-      ...tables.flatMap((table) =>
-        tableTags(table, tenant === undefined ? {} : { tenant }),
-      ),
-      ...(first !== undefined && entry.id !== undefined
-        ? [tagFor(first, entry.id)]
-        : []),
-    ];
-
-    if (tags.length > 0) {
-      cacheTag(...tags);
-    }
+    applyCacheEntry({
+      ctx,
+      view,
+      scope,
+      tenant,
+      entry,
+      userTags,
+      warn: development
+        ? (message) => {
+            betterSupabase.events.logger.warn(message);
+          }
+        : undefined,
+    });
   };
 
   /** The bootstrap calls of one request, by session key, schema, rpc and args. */
@@ -597,6 +599,26 @@ export function createNext<
       return withExtra(ctx, { session: view });
     },
 
+    async sessionHandle(handleOptions = {}) {
+      const ctx = await current(handleOptions.tenant);
+      const view = toSession(ctx.auth);
+      // A support session's restrictions live in its context, which a scope
+      // can't rebuild from a handle: it reads the request's own.
+      const snapshot = ctx.support ? null : snapshotOf(ctx.auth);
+
+      const handle = cacheKeyOf({
+        userId: view.kind === "user" ? view.user.id : null,
+        tenant: tenantFor(ctx, view),
+        support: ctx.support?.session.id ?? null,
+        snapshot,
+        share: "session",
+      });
+
+      parkUntilResponseEnds(handle, snapshot);
+
+      return handle;
+    },
+
     remote(fn, remoteOptions = {}) {
       return async (...args) => {
         const ctx = await current(remoteOptions.tenant?.(...args));
@@ -604,21 +626,14 @@ export function createNext<
         // A support session's restrictions live in its context, which a remote
         // scope can't rebuild: its calls get no token.
         const snapshot = ctx.support ? null : snapshotOf(ctx.auth);
-        const share = remoteOptions.share ?? "session";
-        const shared = typeof share === "object" ? share.key(snapshot) : null;
 
-        const key: RemoteCacheKey = {
-          userId: shared === null && view.kind === "user" ? view.user.id : null,
-          sessionId:
-            shared === null && share === "session"
-              ? (snapshot?.sessionId ?? null)
-              : null,
-          tenant: tenantFor(ctx, view) ?? null,
-          authzVersion:
-            shared === null ? (snapshot?.authzVersion ?? null) : null,
-          shared,
+        const key = cacheKeyOf({
+          userId: view.kind === "user" ? view.user.id : null,
+          tenant: tenantFor(ctx, view),
           support: ctx.support?.session.id ?? null,
-        };
+          snapshot,
+          share: remoteOptions.share ?? "session",
+        });
 
         const release = snapshot ? handOff(key, snapshot) : undefined;
 
@@ -630,13 +645,13 @@ export function createNext<
       };
     },
 
-    async bootstrap<T>(
-      bootstrapOptions: BootstrapOptions<Extract<keyof M, string>>,
-    ): Promise<Bootstrap<C, P, T>> {
+    async bootstrap<T, S extends ReadSet = ReadSet>(
+      bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,
+    ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>> {
       const { ctx, view, scope, tenant } = await scopeOf(bootstrapOptions);
       const calls = bootstrapCalls();
 
-      const result = await bootstrapWith<C, P, T>(
+      const result = await bootstrapWith<C, P, T, S>(
         {
           schema: (call) => bootstrapSchema(call, options, betterSupabase),
           evictSession,
@@ -651,16 +666,7 @@ export function createNext<
         ctx,
         bootstrapOptions,
         tenant,
-        (key, run) => {
-          let call = calls.get(key);
-
-          if (!call) {
-            call = run();
-            calls.set(key, call);
-          }
-
-          return call;
-        },
+        mapBootstrapMemo(calls),
       );
 
       if (result.session.kind === "user" && !result.sessionActive) {
@@ -737,6 +743,7 @@ export function createNext<
     async proxy(request, proxyOptions = {}) {
       const started = performance.now();
       const id = collector ? crypto.randomUUID() : undefined;
+      const proxyRecorder = id ? collector?.recorderFor(id) : undefined;
       let authMs = 0;
       const phases: Partial<Record<ResolvePhase, number>> = {};
 
@@ -756,6 +763,7 @@ export function createNext<
         base
           .resolve(request, {
             refresh: true,
+            ...verifyOption(proxyRecorder),
             ...(verifySession ? { verifySession } : {}),
             // Under "bootstrap" the render's session check is the only one:
             // a session it found ended clears its cookies here.
@@ -859,6 +867,10 @@ export function createNext<
       if (id) {
         response.headers.set(REQUEST_ID_HEADER, id);
         response.headers.set(STATS_URL_HEADER, `${statsRoute}?id=${id}`);
+
+        // Headers leave before the render runs, so this carries the proxy's own
+        // verification; the render's totals come from the stats route.
+        stampStats(response.headers, statsHeader, proxyRecorder);
       }
 
       if (proxyOptions.after) {
@@ -1082,6 +1094,12 @@ export function createNext<
           // Also when redirect() or notFound() follows a write.
           flushAfter();
           await writeCookies(ctx);
+          await logActionStats(
+            debug?.enabled ? collector : undefined,
+            betterSupabase.events.logger,
+            incomingRequest,
+            statsHeader,
+          );
         }
 
         // SAFETY: Out is the Result of the action's return type, which both branches build.

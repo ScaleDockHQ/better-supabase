@@ -19,6 +19,10 @@ export { applyWebHeaders, toWebHeaders } from "../bridges/node-headers.ts";
 
 export type { NodeHeaderTarget } from "../bridges/node-headers.ts";
 
+export { keepAliveFetch } from "./keep-alive.ts";
+
+export type { KeepAliveFetchOptions, UndiciModule } from "./keep-alive.ts";
+
 export { sendWebResponse, toWebRequest } from "./http.ts";
 
 export type { WebRequestOptions } from "./http.ts";

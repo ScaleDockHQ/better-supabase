@@ -71,6 +71,8 @@ const config: KnipConfig = {
         "@supabase/config",
         "effect",
         "@effect/platform-node",
+        // src/node/keep-alive-fetch.ts loads undici lazily as an optional peer.
+        "undici",
       ],
     },
     "packages/typescript-config": {},

@@ -1,18 +1,29 @@
 import type { AuthState, SessionRejection } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
-import type { AnyAuthorizer, AuthzVersionCache } from "../core/authorizer.ts";
+import type {
+  AnyAuthorizer,
+  AuthzSubjectSeed,
+  AuthzVersionCache,
+} from "../core/authorizer.ts";
 import type { Executor } from "../core/executor.ts";
+import type {
+  InferReadSetParams,
+  ReadSet,
+  ReadSetResult,
+} from "../core/read-set.ts";
+import type { AsyncResult } from "../core/result.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 
 import { sessionCacheKey, snapshotOf } from "../auth/snapshot.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
+import { bindAuthorizer } from "../core/authorizer.ts";
 import { claimsOf } from "../core/claims.ts";
 import { DbException, dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
 import { authorizeCaller } from "./kit.ts";
 
 /** One `bootstrap_<rpc>` call: the parts every adapter takes. */
-export interface BootstrapCallOptions {
+export interface BootstrapCallOptions<S extends ReadSet = ReadSet> {
   /**
    * The name in `blocks.sessions.options.bootstrap`; the call runs
    * `bootstrap_<rpc>` in the sessions schema (its API schema when there is
@@ -28,10 +39,24 @@ export interface BootstrapCallOptions {
   readonly schema?: string;
   /** The active tenant. Defaults to the token's tenant claim. */
   readonly tenant?: string;
+  /**
+   * A read set to run with the session check, in the same query. It must be
+   * listed in `blocks.sessions.options.bootstrap[rpc].readSets`. When another
+   * call of the same request already ran the wrapper, only the read set runs.
+   * The answer is `Bootstrap.reads`.
+   */
+  readonly readSet?: S;
+  /** The read set's parameters. */
+  readonly params?: InferReadSetParams<S>;
 }
 
 /** What a bootstrap call returns: plain data, safe across a cache boundary. */
-export interface Bootstrap<C = unknown, P = unknown, T = unknown> {
+export interface Bootstrap<
+  C = unknown,
+  P = unknown,
+  T = unknown,
+  R = Readonly<Record<string, unknown>>,
+> {
   readonly session: AuthSession<C, P>;
   readonly tenant: string | null;
   /**
@@ -56,6 +81,17 @@ export interface Bootstrap<C = unknown, P = unknown, T = unknown> {
    */
   readonly endReason?: SessionRejection | null;
   readonly data: T | null;
+  /**
+   * The read set's result, decoded like `db.$many(readSet, params)`; null
+   * without one.
+   */
+  readonly reads?: R | null;
+  /**
+   * The authorizer subject, when
+   * `blocks.sessions.options.bootstrap[rpc].subject` names a function.
+   * `accessFor` seeds it into the authorizer's runtime.
+   */
+  readonly subject?: unknown;
 }
 
 /** One context and its checks, bound to one authorization version. */
@@ -85,6 +121,10 @@ export interface BootstrapRow {
   readonly tokenAuthzVersion: number | null;
   readonly tenant: string | null;
   readonly data: unknown;
+  /** The wrapper's raw `reads` payload, from the read set it ran. */
+  readonly reads: unknown;
+  /** The authorizer subject the wrapper's `subject` function returned. */
+  readonly subject: unknown;
 }
 
 /**
@@ -109,10 +149,10 @@ export function bootstrapSchema(
 }
 
 /** A caller without a session: no wrapper call, nothing to cache. */
-function signedOutBootstrap<C, P>(
+function signedOutBootstrap<C, P, R>(
   view: AuthSession<C, P>,
   tenant: string | undefined,
-): Bootstrap<C, P, never> {
+): Bootstrap<C, P, never, R> {
   return {
     session: view,
     tenant: tenant ?? null,
@@ -122,6 +162,7 @@ function signedOutBootstrap<C, P>(
     sessionActive: false,
     endReason: null,
     data: null,
+    reads: null,
   };
 }
 
@@ -131,6 +172,7 @@ async function runBootstrap(
   schema: string,
   rpc: string,
   args: Readonly<Record<string, unknown>>,
+  readSet?: { readonly name: string; readonly params: unknown },
 ): Promise<BootstrapRow> {
   if (!executor.rpc) {
     throw new DbException(
@@ -143,7 +185,9 @@ async function runBootstrap(
 
   const result = await executor.rpc(
     `bootstrap_${rpc}`,
-    { args },
+    readSet
+      ? { args, read_set: readSet.name, read_params: readSet.params ?? {} }
+      : { args },
     { schema, errorMappers: [] },
   );
 
@@ -181,6 +225,8 @@ function bootstrapRow(value: unknown): BootstrapRow {
         : authzVersion,
     tenant: typeof tenant === "string" ? tenant : null,
     data: value["data"] ?? null,
+    reads: value["reads"] ?? null,
+    subject: value["subject"] ?? null,
   };
 }
 
@@ -208,27 +254,63 @@ export interface BootstrapDeps {
  * Shares one wrapper call among the callers with the same key, such as the
  * loaders of one page.
  */
-export type BootstrapMemo = (
+export type BootstrapMemo = ((
   key: string,
   run: () => Promise<BootstrapRow>,
-) => Promise<BootstrapRow>;
+) => Promise<BootstrapRow>) & {
+  /** Whether a call with `key` is already memoized. */
+  readonly has?: (key: string) => boolean;
+};
+
+/** A memo over `calls`: the first call for a key runs, the rest share it. */
+export function mapBootstrapMemo(
+  calls: Map<string, Promise<BootstrapRow>>,
+): BootstrapMemo {
+  return Object.assign(
+    (key: string, run: () => Promise<BootstrapRow>) => {
+      let call = calls.get(key);
+
+      if (!call) {
+        call = run();
+        calls.set(key, call);
+      }
+
+      return call;
+    },
+    { has: (key: string) => calls.has(key) },
+  );
+}
+
+/** What `bootstrapWith` needs from the context's `db` to run a read set. */
+export interface BootstrapDb {
+  readonly $executor: Executor;
+  $many(
+    readSet: ReadSet,
+    params: Readonly<Record<string, unknown>>,
+  ): AsyncResult<Record<string, unknown>>;
+  $decodeReadSet(
+    readSet: ReadSet,
+    params: Readonly<Record<string, unknown>>,
+    payload: unknown,
+  ): AsyncResult<Record<string, unknown>>;
+}
 
 /**
  * Runs the bootstrap wrapper for a resolved context. A signed-out caller makes
  * no call. A row with `session_active` false evicts the user; an active one
  * seeds the version cache with the live version.
  */
-export async function bootstrapWith<C, P, T>(
+export async function bootstrapWith<C, P, T, S extends ReadSet = ReadSet>(
   deps: BootstrapDeps,
   ctx: {
     readonly auth: AuthState<C, P>;
-    readonly db: { readonly $executor: Executor };
+    readonly db: BootstrapDb;
     readonly support?: { readonly session: { readonly id: string } };
   },
-  call: BootstrapCallOptions,
+  call: BootstrapCallOptions<S>,
   tenant: string | undefined,
   memo: BootstrapMemo,
-): Promise<Bootstrap<C, P, T>> {
+): Promise<Bootstrap<C, P, T, ReadSetResult<S>>> {
   const view = toSession(ctx.auth);
   const snapshot = snapshotOf(ctx.auth);
   const support = ctx.support?.session.id;
@@ -244,11 +326,36 @@ export async function bootstrapWith<C, P, T>(
 
   const schema = deps.schema(call);
   const args = { ...call.args, ...(tenant ? { tenant } : {}) };
-  const key = `${session}|${schema}|${call.rpc}|${JSON.stringify(args)}`;
+  const shellKey = `${session}|${schema}|${call.rpc}|${JSON.stringify(args)}`;
+  const set = call.readSet;
+  const params: Readonly<Record<string, unknown>> = call.params ?? {};
+  const setKey = set && `${shellKey}|rs:${set.name}|${JSON.stringify(params)}`;
 
-  const row = await memo(key, () =>
-    runBootstrap(ctx.db.$executor, schema, call.rpc, args),
-  );
+  let row: BootstrapRow;
+  // A read set the wrapper didn't run, because the shell was already memoized.
+  let separate = false;
+
+  if (set && setKey) {
+    if (memo.has?.(setKey)) {
+      row = await memo(setKey, () => Promise.reject(new Error("memoized")));
+    } else if (memo.has?.(shellKey)) {
+      row = await memo(shellKey, () => Promise.reject(new Error("memoized")));
+      separate = true;
+    } else {
+      const first = memo(shellKey, () =>
+        runBootstrap(ctx.db.$executor, schema, call.rpc, args, {
+          name: set.name,
+          params,
+        }),
+      );
+
+      row = await memo(setKey, () => first);
+    }
+  } else {
+    row = await memo(shellKey, () =>
+      runBootstrap(ctx.db.$executor, schema, call.rpc, args),
+    );
+  }
 
   if (!row.sessionActive) {
     if (support === undefined) {
@@ -260,6 +367,22 @@ export async function bootstrapWith<C, P, T>(
     }
   } else if (row.authzVersion !== null) {
     await deps.versions?.seed?.(view.user.id, row.authzVersion);
+  }
+
+  let reads: unknown = null;
+
+  if (set && row.sessionActive) {
+    const decoded = separate
+      ? await ctx.db.$many(set, params)
+      : row.reads === null
+        ? null
+        : await ctx.db.$decodeReadSet(set, params, row.reads);
+
+    if (decoded && !decoded.ok) {
+      throw new DbException(decoded.error);
+    }
+
+    reads = decoded?.data ?? null;
   }
 
   return {
@@ -276,6 +399,9 @@ export async function bootstrapWith<C, P, T>(
     tenant: row.tenant ?? tenant ?? null,
     // SAFETY: the app's function decides the data's type; the wrapper passes its jsonb through.
     data: row.sessionActive ? (row.data as T | null) : null,
+    // SAFETY: the decoded payload has the read set's result shape.
+    reads: reads as ReadSetResult<S> | null,
+    subject: row.sessionActive ? row.subject : null,
   };
 }
 
@@ -294,9 +420,26 @@ export function accessOf<
     readonly tenant: string | null;
     readonly authzVersion: number | null;
     readonly authorizer: AnyAuthorizer | undefined;
+    readonly subject?: unknown;
   },
 ): Access<Ctx, C, P, Ref> {
   const view = toSession(ctx.auth);
+
+  const seed: AuthzSubjectSeed | undefined =
+    view.kind === "user" &&
+    options.subject !== undefined &&
+    options.subject !== null &&
+    options.authzVersion !== null
+      ? {
+          userId: view.user.id,
+          version: options.authzVersion,
+          subject: options.subject,
+        }
+      : undefined;
+
+  const authorizer = seed
+    ? bindAuthorizer(options.authorizer, { seed })
+    : options.authorizer;
 
   return {
     context: ctx,
@@ -313,7 +456,7 @@ export function accessOf<
         { permission },
         undefined,
         options.tenant ?? undefined,
-        options.authorizer,
+        authorizer,
         ctx,
       );
 
@@ -326,7 +469,7 @@ export function accessOf<
 function requestBootstrapMemo(): (request: Request) => BootstrapMemo {
   const calls = new WeakMap<Request, Map<string, Promise<BootstrapRow>>>();
 
-  return (request) => (key, run) => {
+  const byKeyOf = (request: Request): Map<string, Promise<BootstrapRow>> => {
     let byKey = calls.get(request);
 
     if (!byKey) {
@@ -334,15 +477,24 @@ function requestBootstrapMemo(): (request: Request) => BootstrapMemo {
       calls.set(request, byKey);
     }
 
-    let call = byKey.get(key);
-
-    if (!call) {
-      call = run();
-      byKey.set(key, call);
-    }
-
-    return call;
+    return byKey;
   };
+
+  return (request) =>
+    Object.assign(
+      (key: string, run: () => Promise<BootstrapRow>) => {
+        const byKey = byKeyOf(request);
+        let call = byKey.get(key);
+
+        if (!call) {
+          call = run();
+          byKey.set(key, call);
+        }
+
+        return call;
+      },
+      { has: (key: string) => byKeyOf(request).has(key) },
+    );
 }
 
 /** The server methods `bootstrapFor` and `accessFor` run on. */
@@ -366,10 +518,7 @@ export interface BootstrapServer<Ctx, Snapshot> {
  * so the server object can be built after them.
  */
 export function serverBootstrap<
-  Ctx extends {
-    readonly auth: AuthState<C, P>;
-    readonly db: { readonly $executor: Executor };
-  },
+  Ctx extends { readonly auth: AuthState<C, P>; readonly db: BootstrapDb },
   C,
   P,
   Snapshot extends { readonly authzVersion: number | null },
@@ -378,10 +527,10 @@ export function serverBootstrap<
   options: { readonly bootstrapSchema?: string | undefined },
   server: () => BootstrapServer<Ctx, Snapshot>,
 ): {
-  readonly bootstrapFor: <T>(
+  readonly bootstrapFor: <T, S extends ReadSet = ReadSet>(
     request: Request,
-    call: BootstrapCallOptions,
-  ) => Promise<Bootstrap<C, P, T>>;
+    call: BootstrapCallOptions<S>,
+  ) => Promise<Bootstrap<C, P, T, ReadSetResult<S>>>;
   readonly accessFor: (
     source: Request | Snapshot | null,
     options?: AccessForOptions<C, P>,
@@ -429,6 +578,7 @@ export function serverBootstrap<
           snapshot?.authzVersion ??
           null,
         authorizer: target.authorizer,
+        subject: accessOptions.bootstrap?.subject,
       });
     },
   };

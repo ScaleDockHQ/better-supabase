@@ -2661,6 +2661,22 @@
           "required": ["instances"],
           "additionalProperties": false
         },
+        "api": {
+          "type": "object",
+          "properties": {
+            "expose": {
+              "enum": ["all", "used"],
+              "type": "string"
+            },
+            "exposeAlso": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
         "output": {
           "type": "string",
           "description": "Main generated module.",

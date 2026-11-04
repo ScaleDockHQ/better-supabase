@@ -13,6 +13,7 @@ import type { ConnectOptions, SupabaseOptions } from "./define-types.ts";
 import type { DbError, ErrorMapper } from "./errors.ts";
 import type { EventHandler, EventName } from "./events.ts";
 import type { Executor } from "./executor.ts";
+import type { GateRpc } from "./gates.ts";
 import type {
   AnyPlugin,
   ExtensionOf,
@@ -42,6 +43,7 @@ import { NO_PLUGINS, isExecutor, keptPlugins } from "./define-plugins.ts";
 import { definitionEvents } from "./diagnostics.ts";
 import { DbException, dbError } from "./errors.ts";
 import { EventHub, errorEvent } from "./events.ts";
+import { openGates } from "./gates.ts";
 import { isRecord } from "./guards.ts";
 import { orderPlugins } from "./plugin.ts";
 import { postgrestExecutor } from "./postgrest-executor.ts";
@@ -500,7 +502,11 @@ export class BetterSupabase<
         ? source
         : postgrestExecutor(source, this.executorOptions()));
 
-    const recorder = new StatsRecorder(options.stats);
+    const recorder = new StatsRecorder(
+      options.stats,
+      undefined,
+      options.admin === true,
+    );
 
     const tuning: RequestTuning = {
       ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
@@ -676,6 +682,27 @@ export class BetterSupabase<
       },
       $run: (spec: unknown, options?: { signal?: AbortSignal }) =>
         runSpec(db, spec, options?.signal),
+      $decodeReadSet: (
+        set: ReadSet,
+        values: Readonly<Record<string, unknown>> | undefined,
+        payload: unknown,
+      ) =>
+        AsyncResult.from(async () => {
+          const problems = checkParams(set, values);
+
+          if (problems.length > 0) {
+            return err(
+              dbError(
+                "invalid_request",
+                `db.$decodeReadSet(${set.name}): ${problems.join(", ")}`,
+              ),
+            );
+          }
+
+          const { specs: bound } = bindParams(set, values, context);
+
+          return this.#decodeReadSet(source, context, set, bound, payload);
+        }),
       $many: (target: unknown, ...rest: unknown[]) => {
         if (isReadSet(target)) {
           // SAFETY: the $many overloads take values and options after a read set.
@@ -795,7 +822,20 @@ export class BetterSupabase<
             return err(noCaller);
           }
 
-          const tableKeys = keys.filter((key) => !isFunctionSpec(bound[key]));
+          const open = await openGates(
+            // SAFETY: $rpc is a function on every db this method builds.
+            db["$rpc"] as GateRpc,
+            bound,
+            signal,
+          );
+
+          if (!open.ok) {
+            return open;
+          }
+
+          const tableKeys = keys.filter(
+            (key) => !isFunctionSpec(bound[key]) && open.data.has(key),
+          );
 
           const result = await many(
             tableKeys.map((key) => bound[key]),
@@ -812,7 +852,9 @@ export class BetterSupabase<
           for (const key of keys) {
             const entry = bound[key];
 
-            if (isFunctionSpec(entry)) {
+            if (!open.data.has(key)) {
+              out[key] = null;
+            } else if (isFunctionSpec(entry)) {
               // SAFETY: $rpc is a function on every db this method builds.
               const called = await (
                 db["$rpc"] as (
@@ -883,7 +925,7 @@ export class BetterSupabase<
     // SAFETY: the read set function returns one rows and count object per spec key.
     const payload = (data ?? {}) as Record<
       string,
-      { rows?: Record<string, unknown>[] | null; count?: number | null }
+      { rows?: Record<string, unknown>[] | null; count?: number | null } | null
     >;
 
     // The specs run one at a time, so one decoding db serves them all: its
@@ -929,6 +971,11 @@ export class BetterSupabase<
     const out: Record<string, unknown> = {};
 
     for (const [key, spec] of Object.entries(specs)) {
+      if (spec.gate !== undefined && payload[key] === null) {
+        out[key] = null;
+        continue;
+      }
+
       if (isFunctionSpec(spec)) {
         if (!Object.hasOwn(payload, key)) {
           return err(

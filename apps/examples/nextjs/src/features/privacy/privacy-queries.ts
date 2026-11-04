@@ -5,7 +5,7 @@ import type {
 
 import { tenantOf } from "better-supabase/next";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
+import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -46,10 +46,9 @@ function toRow(item: DataExport): ExportRow {
 export async function loadPrivacy(): Promise<PrivacyData> {
   "use cache: private";
 
-  const [{ session, db }, permissions] = await Promise.all([
-    bsb.cached(),
-    getPermissions(),
-  ]);
+  const request = await bsb.cached();
+  const { session, db } = request;
+  const permissions = await readPermissions(request);
 
   const tenant = tenantOf(session);
   const { dataLifecycle } = db;

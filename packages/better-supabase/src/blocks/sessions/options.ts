@@ -10,12 +10,26 @@ export type SessionsSqlOptions = {
    */
   readonly authzVersions?: boolean;
   /**
-   * Wrapper name to `schema.function`, or to `{ readSet: "name" }` for the read
-   * set `defineReadSet(db, "name", ...)` installs as `public.rs_name`; renders
+   * Wrapper name to `schema.function`, to `{ readSet: "name" }` for the read
+   * set `defineReadSet(db, "name", ...)` installs as `public.rs_name`, or to `{
+   * readSets, shell? }`: the caller picks one of the read sets per call with
+   * `bsb.bootstrap({ rpc, readSet, params })`, and `shell` is an optional
+   * function whose result is `data`. Either form takes `subject`, a no-argument
+   * function whose jsonb result the authorizer reads (`accessFor` seeds it, so
+   * the check skips its own subject query). Renders
    * `better_supabase.bootstrap_<name>`.
    */
   readonly bootstrap?: Readonly<
-    Record<string, string | { readonly readSet: string }>
+    Record<
+      string,
+      | string
+      | { readonly readSet: string; readonly subject?: string }
+      | {
+          readonly readSets: readonly string[];
+          readonly shell?: string;
+          readonly subject?: string;
+        }
+    >
   >;
   readonly exclude?: readonly string[];
   readonly policies?: boolean;

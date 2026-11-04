@@ -38,6 +38,7 @@ import {
   designFileResult,
   thenConvertPresetCode,
 } from "./codemod-preset-code.ts";
+import { reportReadMany } from "./codemod-read-many.ts";
 import { RECORD_BINDING_RENAMES } from "./codemod-record-bindings.ts";
 import { linesMatching } from "./codemod-review.ts";
 import { CODEMOD_0_29 } from "./codemod-subjects.ts";
@@ -535,6 +536,11 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   ...CODEMODS_0_37,
   "0.46": CODEMOD_0_46,
   "0.47": CODEMOD_0_47,
+  "read-many": {
+    name: "read-many",
+    description: "List Promise.all groups of reads that db.$many can load",
+    source: reportReadMany,
+  },
 };
 
 const SUPABASE_IMPORT =

@@ -6,7 +6,7 @@ import { unstable_rethrow } from "next/navigation";
 import type { Role } from "@/lib/claims";
 
 import { getMembers } from "@/features/organization/organization-queries";
-import { getPermissions } from "@/features/user/permission-snapshot";
+import { readPermissions } from "@/features/user/permission-snapshot";
 import { can, roleOf } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -57,10 +57,9 @@ async function memberNames(
 export async function loadAccessRequests(): Promise<AccessRequestsData | null> {
   "use cache: private";
 
-  const [{ session, db, auth }, permissions] = await Promise.all([
-    bsb.cached(),
-    getPermissions(),
-  ]);
+  const request = await bsb.cached();
+  const { session, db, auth } = request;
+  const permissions = await readPermissions(request);
 
   const tenant = tenantOf(session);
 

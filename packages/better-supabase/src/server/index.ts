@@ -326,6 +326,7 @@ export type {
   AuthorizationSubject,
   Authorizer,
   AuthorizerRuntime,
+  AuthzSubjectSeed,
   AuthzVersionCache,
   PermissionRef,
   RequestMemo,
@@ -342,7 +343,10 @@ export {
 
 export { passwordGrant, safeRedirectPath } from "../auth/sign-in.ts";
 
-export { subscribeAuthzVersions } from "./authz-versions.ts";
+export {
+  createVersionCache,
+  subscribeAuthzVersions,
+} from "./authz-versions.ts";
 
 export {
   AUTHZ_EVENT,
@@ -354,7 +358,10 @@ export type {
   AuthzVersionChannel,
   AuthzVersionClient,
   AuthzVersionSubscription,
+  CreateVersionCacheOptions,
   SubscribeAuthzVersionsOptions,
+  VersionCache,
+  VersionStore,
 } from "./authz-versions.ts";
 
 export type { PasswordGrantOptions } from "../auth/sign-in.ts";

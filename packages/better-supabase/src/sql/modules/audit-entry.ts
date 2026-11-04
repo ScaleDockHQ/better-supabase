@@ -34,6 +34,12 @@ export function castId(value: string, idType: BlockSqlIdType): string {
  * `audited_tables` row.
  */
 export function entrySql(ctx: BlockSqlContext): string {
+  return `${entryLoadSql(ctx)}
+${recordedSkipSql()}`;
+}
+
+/** `entrySql` without the skip of a row `audit_event` already recorded. */
+export function entryLoadSql(ctx: BlockSqlContext): string {
   const a = (logical: string, missing: string): string =>
     registryColumn(ctx, "a", logical, missing);
 
@@ -64,8 +70,7 @@ export function entrySql(ctx: BlockSqlContext): string {
     into entry
     from (select 1) one
     left join ${ctx.table("registry")} a on a.${ctx.col("registry", "target")} = tg_relid::regclass;
-  end if;
-${recordedSkipSql()}`;
+  end if;`;
 }
 
 /**
@@ -98,9 +103,17 @@ export function tenantFallbackSql(idType: BlockSqlIdType): string {
  * (`bsb.recorded`).
  */
 function recordedSkipSql(): string {
-  return `  if position(E'\\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\\n') > 0 then
+  return `  if ${recordedPredicate()} then
     return null;
   end if;`;
+}
+
+/**
+ * True for a row `audit_event` recorded (`bsb.recorded`), read from `row_data`;
+ * the statement trigger filters its rows with the negation.
+ */
+export function recordedPredicate(): string {
+  return `position(E'\\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\\n') > 0`;
 }
 
 /** In `audit_event`: marks the record so the row trigger skips it. */

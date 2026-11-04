@@ -23,6 +23,10 @@ export interface ExplainRequest {
   readonly tables: readonly string[];
   /** `request.jwt.claims`; `role` picks the Postgres role (default `anon`). */
   readonly claims: Readonly<Record<string, unknown>>;
+  /** `--args`: a JSON array (positional) or object (named) for a function. */
+  readonly args?: unknown;
+  /** `--explain-write`: tables to plan an insert and an update on. */
+  readonly write?: readonly string[];
 }
 
 /**
@@ -94,15 +98,24 @@ interface PlanNode {
   readonly Plans?: readonly PlanNode[];
 }
 
+interface TriggerTime {
+  readonly "Trigger Name": string;
+  readonly Time?: number;
+  readonly Calls?: number;
+}
+
 interface ExplainOutput {
   readonly Plan: PlanNode;
   readonly "Execution Time"?: number;
+  readonly Triggers?: readonly TriggerTime[];
 }
 
 interface FunctionTime {
   readonly name: string;
   readonly calls: number;
   readonly selfTime: number;
+  /** Runs with its owner's rights: the helpers policies call. */
+  readonly definer: boolean;
 }
 
 /**
@@ -127,6 +140,31 @@ async function functionTimes(
       { calls: Number(row.calls), selfTime: Number(row.self_time) },
     ]),
   );
+}
+
+/** Names (`schema.function`) of the security definer functions. */
+async function definerFunctions(db: LiveDatabase): Promise<Set<string>> {
+  const rows = await db.query<{ name: string }>(
+    `select n.nspname || '.' || p.proname as name from pg_proc p join pg_namespace n on n.oid = p.pronamespace where p.prosecdef`,
+  );
+
+  return new Set(rows.map((row) => row.name));
+}
+
+/** Share of the execution time spent in security definer helpers, 0 to 100. */
+function policyShare(
+  functions: readonly FunctionTime[],
+  executionMs: number,
+): number {
+  if (executionMs <= 0) {
+    return 0;
+  }
+
+  const self = functions
+    .filter((fn) => fn.definer)
+    .reduce((sum, fn) => sum + fn.selfTime, 0);
+
+  return Math.min(100, Math.round((self / executionMs) * 100));
 }
 
 export interface PlanSummary {
@@ -179,11 +217,18 @@ export function summarizePlan(output: ExplainOutput): PlanSummary {
 
 const ROLE = /^[a-z_][a-z0-9_]*$/;
 
-async function explainTable(
+interface Explained {
+  readonly summary: PlanSummary;
+  readonly functions: FunctionTime[] | undefined;
+  /** `EXPLAIN` reports the time of each trigger a write fired. */
+  readonly triggers: readonly TriggerTime[];
+}
+
+async function explainStatement(
   db: LiveDatabase,
-  table: CatalogTable,
+  statement: string,
   claims: Readonly<Record<string, unknown>>,
-): Promise<{ summary: PlanSummary; functions: FunctionTime[] | undefined }> {
+): Promise<Explained> {
   const role = typeof claims["role"] === "string" ? claims["role"] : "anon";
 
   if (!ROLE.test(role)) {
@@ -216,7 +261,7 @@ async function explainTable(
     await db.query(`set local role ${ident(role)}`);
 
     const [row] = await db.query<{ "QUERY PLAN": unknown }>(
-      `explain (analyze, buffers, format json) select * from ${ident(table.schema)}.${ident(table.name)} limit ${EXPLAIN_LIMIT}`,
+      `explain (analyze, buffers, format json) ${statement}`,
     );
 
     const raw = row?.["QUERY PLAN"];
@@ -230,6 +275,8 @@ async function explainTable(
       throw new Error("EXPLAIN returned no plan");
     }
 
+    const definers = tracked ? await definerFunctions(db) : new Set<string>();
+
     const functions = tracked
       ? [...(await functionTimes(db))]
           .map(([name, after]): FunctionTime => {
@@ -239,15 +286,208 @@ async function explainTable(
               name,
               calls: after.calls - (start?.calls ?? 0),
               selfTime: after.selfTime - (start?.selfTime ?? 0),
+              definer: definers.has(name),
             };
           })
           .filter((fn) => fn.calls > 0)
           .toSorted((a, b) => b.selfTime - a.selfTime)
       : undefined;
 
-    return { summary: summarizePlan(plan[0]), functions };
+    return {
+      summary: summarizePlan(plan[0]),
+      functions,
+      triggers: plan[0].Triggers ?? [],
+    };
   } finally {
     await db.query("rollback");
+  }
+}
+
+const explainTable = (
+  db: LiveDatabase,
+  table: CatalogTable,
+  claims: Readonly<Record<string, unknown>>,
+): Promise<Explained> =>
+  explainStatement(
+    db,
+    `select * from ${ident(table.schema)}.${ident(table.name)} limit ${EXPLAIN_LIMIT}`,
+    claims,
+  );
+
+interface ProcRow {
+  readonly schema: string;
+  readonly name: string;
+  readonly arg_names: string[] | null;
+  readonly arg_types: string[];
+}
+
+/**
+ * `select * from schema.fn(...)` for a function in an exposed schema, with
+ * `--args` as literals cast to the declared argument types: an array is
+ * positional, an object is named.
+ */
+async function functionStatement(
+  db: LiveDatabase,
+  context: DoctorContext,
+  name: string,
+  args: unknown,
+): Promise<string | undefined> {
+  const schemas = new Set(exposed(context).map((table) => table.schema));
+  const dot = name.indexOf(".");
+  const schema = dot === -1 ? undefined : name.slice(0, dot);
+  const bare = dot === -1 ? name : name.slice(dot + 1);
+
+  const rows = await db.query<ProcRow>(
+    `select n.nspname as schema, p.proname as name, p.proargnames as arg_names, coalesce(array(select format_type(t, null) from unnest(p.proargtypes::oid[]) as t), '{}') as arg_types from pg_proc p join pg_namespace n on n.oid = p.pronamespace where p.proname = ${literal(bare)} and p.prokind = 'f'${schema ? ` and n.nspname = ${literal(schema)}` : ""} order by p.pronargs desc`,
+  );
+
+  const proc =
+    rows.find((row) => schema !== undefined || schemas.has(row.schema)) ??
+    rows[0];
+
+  if (!proc || (schema === undefined && !schemas.has(proc.schema))) {
+    return undefined;
+  }
+
+  const typed = (value: unknown, type: string | undefined): string => {
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+
+    return `${literal(text)}${type ? `::${type}` : ""}`;
+  };
+
+  let list = "";
+
+  if (Array.isArray(args)) {
+    list = args.map((value, i) => typed(value, proc.arg_types[i])).join(", ");
+  } else if (typeof args === "object" && args !== null) {
+    list = Object.entries(args)
+      .map(([key, value]) => {
+        const at = proc.arg_names?.indexOf(key) ?? -1;
+
+        return `${ident(key)} => ${typed(value, at === -1 ? undefined : proc.arg_types[at])}`;
+      })
+      .join(", ");
+  }
+
+  return `select * from ${ident(proc.schema)}.${ident(proc.name)}(${list})`;
+}
+
+interface ColumnRow {
+  readonly name: string;
+  readonly type: string;
+  readonly has_default: boolean;
+  readonly generated: boolean;
+  readonly is_key: boolean;
+}
+
+const UUID_TYPE = /^uuid$/;
+const TEXT_TYPE = /^(text|character varying|citext|character)/;
+const NUMBER_TYPE = /^(smallint|integer|bigint)$/;
+
+/**
+ * An insert of a copy of one row with fresh keys, and an update of one non-key
+ * column, for `--explain-write`. Throws with the reason when a key has no value
+ * to make up.
+ */
+async function writeStatements(
+  db: LiveDatabase,
+  table: CatalogTable,
+): Promise<{ insert: string; update: string }> {
+  const target = `${ident(table.schema)}.${ident(table.name)}`;
+
+  const columns = await db.query<ColumnRow>(
+    `select a.attname::text as name, format_type(a.atttypid, a.atttypmod) as type, a.atthasdef as has_default, (a.attgenerated <> '' or a.attidentity = 'a') as generated, coalesce(a.attnum = any(i.indkey), false) as is_key from pg_attribute a left join pg_index i on i.indrelid = a.attrelid and i.indisprimary where a.attrelid = ${literal(target)}::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum`,
+  );
+
+  const names: string[] = [];
+  const values: string[] = [];
+
+  for (const column of columns) {
+    if (column.generated) {
+      continue;
+    }
+
+    const id = ident(column.name);
+
+    if (!column.is_key) {
+      names.push(id);
+      values.push(`s.${id}`);
+    } else if (UUID_TYPE.test(column.type)) {
+      names.push(id);
+      values.push("gen_random_uuid()");
+    } else if (TEXT_TYPE.test(column.type)) {
+      names.push(id);
+      values.push(`'bsb_explain_' || gen_random_uuid()::text`);
+    } else if (!(NUMBER_TYPE.test(column.type) && column.has_default)) {
+      throw new Error(
+        `can't make a fresh key for ${column.name} (${column.type}); use a uuid, text or defaulted integer key`,
+      );
+    }
+  }
+
+  const changed = columns.find((column) => !column.is_key && !column.generated);
+
+  if (!changed) {
+    throw new Error("the table has no non-key column to update");
+  }
+
+  const id = ident(changed.name);
+
+  return {
+    insert: `insert into ${target} (${names.join(", ")}) select ${values.join(", ")} from (select * from ${target} limit 1) s`,
+    update: `update ${target} set ${id} = ${id} where ctid = (select ctid from ${target} limit 1)`,
+  };
+}
+
+/** Trigger time per statement, as `bsb_audit 0.12 ms over 1 call`. */
+const triggerText = (triggers: readonly TriggerTime[]): string =>
+  triggers.length === 0
+    ? "no triggers fired"
+    : triggers
+        .map(
+          (trigger) =>
+            `${trigger["Trigger Name"]} ${(trigger.Time ?? 0).toFixed(2)} ms over ${plural(trigger.Calls ?? 0, "call")}`,
+        )
+        .join(", ");
+
+/** `--explain-write` for one table: an insert and an update, rolled back. */
+async function explainWrite(
+  db: LiveDatabase,
+  table: CatalogTable,
+  claims: Readonly<Record<string, unknown>>,
+  who: string,
+): Promise<FindingInput> {
+  const label = qualified(table);
+
+  try {
+    const statements = await writeStatements(db, table);
+    const parts: string[] = [];
+
+    for (const kind of ["insert", "update"] as const) {
+      const { summary, triggers } = await explainStatement(
+        db,
+        statements[kind],
+        claims,
+      );
+
+      const fired = triggers.reduce((sum, item) => sum + (item.Time ?? 0), 0);
+
+      parts.push(
+        `${kind} ${summary.executionMs.toFixed(2)} ms, of which triggers ${fired.toFixed(2)} ms (${triggerText(triggers)})`,
+      );
+    }
+
+    return {
+      message: `${label} write as ${who}: ${parts.join("; ")}. Each statement ran in a rolled-back transaction on a copy of one existing row with fresh keys; the update assigns a column its own value, so triggers that only fire on a changed column don't show.`,
+      target: `${label}:explain-write`,
+      object: tableObject(table),
+    };
+  } catch (cause) {
+    return {
+      severity: "warning",
+      message: `--explain-write ${label} failed: ${errorText(cause)}`,
+      target: `${label}:explain-write`,
+    };
   }
 }
 
@@ -453,6 +693,8 @@ export const LIVE_RULES: readonly Rule[] = [
         return [];
       }
 
+      const writes = request.write ?? [];
+
       const db = live(context);
 
       if (!db || "skipped" in db || !db.session) {
@@ -474,20 +716,40 @@ export const LIVE_RULES: readonly Rule[] = [
       for (const name of request.tables) {
         const table = resolveTable(context, name);
 
+        let statement: string | undefined;
+
         if (!table) {
+          try {
+            statement = await functionStatement(
+              db,
+              context,
+              name,
+              request.args,
+            );
+          } catch (cause) {
+            findings.push({
+              severity: "warning",
+              message: `--explain ${name} failed: ${errorText(cause)}`,
+              target: `${name}:explain`,
+            });
+            continue;
+          }
+        }
+
+        if (!table && statement === undefined) {
           findings.push({
             severity: "warning",
-            message: `--explain: no table "${name}" in the exposed schemas; qualify tables in other schemas, like better_supabase.memberships.`,
+            message: `--explain: no table or function "${name}" in the exposed schemas; qualify names in other schemas, like better_supabase.memberships.`,
           });
           continue;
         }
 
+        const label = table ? qualified(table) : name;
+
         try {
-          const { summary, functions } = await explainTable(
-            db,
-            table,
-            request.claims,
-          );
+          const { summary, functions } = table
+            ? await explainTable(db, table, request.claims)
+            : await explainStatement(db, statement ?? "", request.claims);
 
           const helpers = functions
             ? functions.length > 0
@@ -506,6 +768,10 @@ export const LIVE_RULES: readonly Rule[] = [
               : " No tracked function ran; inlined SQL functions are part of the plan."
             : " Function times need `track_functions`, which this role may not set; showing the plan only.";
 
+          const policy = functions?.some((fn) => fn.definer)
+            ? ` Policy time share: ${policyShare(functions, summary.executionMs)}% in security definer helpers.`
+            : "";
+
           const perRow =
             summary.perRowSubPlans.length > 0
               ? ` Per-row SubPlans: ${summary.perRowSubPlans.join(", ")}; wrap the policy's function calls in \`(select ...)\` so they run once as an InitPlan.`
@@ -515,17 +781,30 @@ export const LIVE_RULES: readonly Rule[] = [
             ...(summary.perRowSubPlans.length > 0
               ? { severity: "warning" as const }
               : {}),
-            message: `${qualified(table)} as ${who}: ${summary.executionMs.toFixed(2)} ms, ${plural(summary.initPlans, "InitPlan")}. Plan: ${summary.nodes.join(" > ")}.${perRow}${helpers}`,
-            target: `${qualified(table)}:explain`,
-            object: tableObject(table),
+            message: `${label} as ${who}: ${summary.executionMs.toFixed(2)} ms, ${plural(summary.initPlans, "InitPlan")}. Plan: ${summary.nodes.join(" > ")}.${perRow}${helpers}${policy}`,
+            target: `${label}:explain`,
+            ...(table ? { object: tableObject(table) } : {}),
           });
         } catch (cause) {
           findings.push({
             severity: "warning",
-            message: `--explain ${qualified(table)} failed: ${errorText(cause)}`,
-            target: `${qualified(table)}:explain`,
+            message: `--explain ${label} failed: ${errorText(cause)}`,
+            target: `${label}:explain`,
           });
         }
+      }
+
+      for (const name of writes) {
+        const table = resolveTable(context, name);
+
+        findings.push(
+          table
+            ? await explainWrite(db, table, request.claims, who)
+            : {
+                severity: "warning",
+                message: `--explain-write: no table "${name}" in the exposed schemas; qualify names in other schemas.`,
+              },
+        );
       }
 
       return findings;

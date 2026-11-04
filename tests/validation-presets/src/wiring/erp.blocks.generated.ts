@@ -1208,6 +1208,12 @@ export const topics = {
   notifications: (v: { readonly userId: string }) => `notifications:${String(v.userId)}`,
 } as const;
 
+/** The arguments of `reads.attachments.list`. @public */
+export type AttachmentsListArgs = { readonly tenant: string; readonly subjectType?: string; readonly subjectId?: string };
+
+/** What `reads.attachments.list` returns. @public */
+export type AttachmentsListResult = readonly unknown[];
+
 /** The arguments of `reads.billing.overview`. @public */
 export type BillingOverviewArgs = { readonly organizationId: string; readonly invoiceLimit?: number };
 
@@ -1285,6 +1291,21 @@ export type InventoryOverviewResult = {
   }[];
 };
 
+/** The arguments of `reads.notifications.inbox`. @public */
+export type NotificationsInboxArgs = { readonly tenant?: string; readonly status?: string; readonly maxItems?: number };
+
+/** What `reads.notifications.inbox` returns. @public */
+export type NotificationsInboxResult = {
+  readonly items: readonly unknown[];
+  readonly total: number;
+};
+
+/** The arguments of `reads.notifications.counts`. @public */
+export type NotificationsCountsArgs = { readonly tenant?: string; readonly actionable?: readonly string[] };
+
+/** What `reads.notifications.counts` returns. @public */
+export type NotificationsCountsResult = unknown;
+
 /** The arguments of `reads.orders.board`. @public */
 export type OrdersBoardArgs = { readonly organizationId: string; readonly perStatus?: number };
 
@@ -1334,12 +1355,33 @@ export type OrganizationsOverviewResult = {
   }[];
 };
 
+/** The arguments of `reads.savedViews.list`. @public */
+export type SavedViewsListArgs = { readonly tenant: string; readonly list: string };
+
+/** What `reads.savedViews.list` returns. @public */
+export type SavedViewsListResult = readonly {
+  readonly id: string;
+  readonly list: string;
+  readonly scope: string;
+  readonly ownerId: string | null;
+  readonly teamId: string | null;
+  readonly name: string;
+  readonly kind: string;
+  readonly state: unknown;
+  readonly rank: string;
+  readonly isDefault: boolean;
+  readonly updatedAt: string;
+}[];
+
 /**
  * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
  * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
  * @public
  */
 export const reads = {
+  attachments: {
+    list: blockRead<AttachmentsListArgs, AttachmentsListResult>("list_attachments", { tenant: "tenant", subjectType: "subject_type", subjectId: "subject_id" }, ["attachments"], "better_supabase"),
+  },
   billing: {
     overview: blockRead<BillingOverviewArgs, BillingOverviewResult>("billing_overview", { organizationId: "tenant", invoiceLimit: "invoice_limit" }, ["customers", "subscriptions"], "better_supabase"),
   },
@@ -1349,10 +1391,17 @@ export const reads = {
   inventory: {
     overview: blockRead<InventoryOverviewArgs, InventoryOverviewResult>("inventory_overview", { organizationId: "tenant", limit: "row_limit", expiryDays: "expiry_days" }, ["levels", "lots", "buckets"], "better_supabase"),
   },
+  notifications: {
+    inbox: blockRead<NotificationsInboxArgs, NotificationsInboxResult>("notification_page", { tenant: "tenant", status: "status", maxItems: "max_items" }, ["notification_recipients", "notification_events"], "better_supabase"),
+    counts: blockRead<NotificationsCountsArgs, NotificationsCountsResult>("notification_counts", { tenant: "tenant", actionable: "actionable" }, ["notification_recipients", "notification_events"], "better_supabase"),
+  },
   orders: {
     board: blockRead<OrdersBoardArgs, OrdersBoardResult>("order_status_board", { organizationId: "tenant", perStatus: "per_status" }, ["orders"], "better_supabase"),
   },
   organizations: {
     overview: blockRead<OrganizationsOverviewArgs, OrganizationsOverviewResult>("organization_overview", { organizationId: "organization" }, ["organizations", "memberships", "invitations"], "better_supabase"),
+  },
+  savedViews: {
+    list: blockRead<SavedViewsListArgs, SavedViewsListResult>("list_views", { tenant: "tenant", list: "list" }, ["saved_views"], "better_supabase"),
   },
 } as const;

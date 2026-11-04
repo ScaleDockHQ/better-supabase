@@ -36,6 +36,17 @@ describe("sessionMemo", () => {
     expect(memo.stats()).toEqual({ hits: 1, misses: 1, size: 1 });
   });
 
+  it("answers a lookup from a seeded token without loading", async () => {
+    const memo = memoAt({ ms: 0 });
+    const load = vi.fn(async () => ({ user: "b", exp: null }));
+
+    await memo.seed("token", { user: "a", exp: null });
+
+    expect(await memo.get("token", load)).toEqual({ user: "a", exp: null });
+    expect(await memo.get("other", load)).toEqual({ user: "b", exp: null });
+    expect(load).toHaveBeenCalledOnce();
+  });
+
   it("keeps at most max entries and drops the least recently used", async () => {
     const memo = memoAt({ ms: 0 }, 2);
     const load = (user: string) => async () => ({ user, exp: null });
@@ -142,5 +153,20 @@ describe("snapshots", () => {
     expect(isSessionSnapshot(snapshot)).toBe(true);
     expect(isSessionSnapshot(structuredClone(snapshot))).toBe(false);
     expect(isSessionSnapshot({ ...snapshot })).toBe(false);
+  });
+
+  it("builds one context per snapshot and tenant", async () => {
+    const snapshot = await server.snapshot(await requestAs({ role: "m" }));
+
+    const first = await server.contextFromSession(snapshot);
+    const again = await server.contextFromSession(snapshot);
+
+    const tenant = await server.contextFromSession(snapshot, { tenant: "t1" });
+
+    expect(again).toBe(first);
+    expect(tenant).not.toBe(first);
+    expect(await server.contextFromSession(snapshot, { tenant: "t1" })).toBe(
+      tenant,
+    );
   });
 });

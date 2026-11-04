@@ -1391,6 +1391,48 @@ describe("createNext", () => {
     }
   });
 
+  it("logs the stats of a server action when debug is on", async () => {
+    const rest = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => Response.json([]));
+
+    const info = vi.fn();
+
+    try {
+      const debugged = createNext(
+        defineSupabase(schema, {
+          logger: { debug() {}, info, warn() {}, error() {} },
+        }),
+        {
+          env,
+          cacheTags: false,
+          auth: { jwks: signer.jwks, fetch: fresh },
+          debug: { enabled: true },
+        },
+      );
+
+      const proxied = await debugged.proxy(page());
+      const id = proxied.headers.get("x-bsb-request-id")!;
+      mocks.headers = new Headers({
+        "x-bsb-request-id": id,
+        authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+      });
+
+      const act = debugged.action({}, async (_input, { db }) => {
+        await db.customers.list();
+
+        return "done";
+      });
+
+      expect(await act(undefined as never)).toMatchObject({ ok: true });
+      expect(info).toHaveBeenCalledWith(
+        expect.stringMatching(/^bsb\.action x-bsb-db-calls: 1;1;/),
+      );
+    } finally {
+      rest.mockRestore();
+    }
+  });
+
   it("collects nothing without debug", async () => {
     const proxied = await bsb.proxy(page());
     expect(proxied.headers.get("x-bsb-request-id")).toBeNull();

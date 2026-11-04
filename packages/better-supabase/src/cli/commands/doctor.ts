@@ -108,8 +108,21 @@ const ARGS = {
   },
   explain: {
     type: "string",
-    description: "EXPLAIN ANALYZE these tables under RLS, rolled back (BS212)",
+    description:
+      "EXPLAIN ANALYZE these tables or functions (rs_*, *_payload) under RLS, rolled back (BS212)",
     valueHint: "tables",
+  },
+  "explain-write": {
+    type: "string",
+    description:
+      "EXPLAIN ANALYZE an insert (a copy of one row with fresh keys) and an update on these tables, with trigger times, rolled back (BS212)",
+    valueHint: "tables",
+  },
+  args: {
+    type: "string",
+    description:
+      "Arguments for a function passed to --explain: a JSON array (positional) or object (named)",
+    valueHint: "json",
   },
   as: {
     type: "string",
@@ -288,6 +301,8 @@ export async function runDoctor(
   }
 
   const explainTables = list(args.explain);
+  const writeTables = list(args["explain-write"]);
+  const planning = explainTables.length > 0 || writeTables.length > 0;
   const stats = args.stats === true;
   const claims = explainClaims(args);
 
@@ -295,10 +310,30 @@ export async function runDoctor(
     throw new CliError("usage", String(claims.error));
   }
 
-  if (args.claims !== undefined && explainTables.length === 0) {
+  let explainArgs: unknown;
+
+  if (args.args !== undefined) {
+    if (explainTables.length === 0) {
+      throw new CliError(
+        "usage",
+        "--args passes arguments to a function, so it needs --explain <function>.",
+      );
+    }
+
+    try {
+      explainArgs = JSON.parse(args.args);
+    } catch (cause) {
+      throw new CliError(
+        "usage",
+        `--args is not valid JSON: ${errorText(cause)}`,
+      );
+    }
+  }
+
+  if (args.claims !== undefined && !planning) {
     throw new CliError(
       "usage",
-      "--claims plans a query, so it needs --explain <table>.",
+      "--claims plans a query, so it needs --explain <table> or --explain-write <table>.",
     );
   }
 
@@ -307,7 +342,7 @@ export async function runDoctor(
 
   const asked = new Set([
     ...(stats ? ["BS209"] : []),
-    ...(explainTables.length > 0 ? ["BS212"] : []),
+    ...(planning ? ["BS212"] : []),
     ...(hookUser ? ["BS405"] : []),
   ]);
 
@@ -338,7 +373,7 @@ export async function runDoctor(
 
   const source: SnapshotSource = {
     // Statistics, plans, hook calls and fixes need the database, not the saved snapshot.
-    ...(stats || explainTables.length > 0 || hookUser || args.fix === true
+    ...(stats || planning || hookUser || args.fix === true
       ? { live: true }
       : {}),
     ...(snapshotPath ? { snapshotPath } : {}),
@@ -460,8 +495,15 @@ export async function runDoctor(
     ...(live.database ? { database: live.database } : {}),
     ...(stats ? { stats } : {}),
     ...(hookUser ? { hookUser } : {}),
-    ...(explainTables.length > 0
-      ? { explain: { tables: explainTables, claims } }
+    ...(planning
+      ? {
+          explain: {
+            tables: explainTables,
+            ...(writeTables.length > 0 ? { write: writeTables } : {}),
+            claims,
+            ...(explainArgs === undefined ? {} : { args: explainArgs }),
+          },
+        }
       : {}),
   };
 
@@ -654,7 +696,7 @@ const ruleCodes = (): string[] => [...new Set([...RULE_CODES, ...LIVE_CODES])];
 export const doctorCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("doctor"),
   args: { ...SOURCE_ARGS, ...ARGS },
-  lists: ["only", "ignore", "explain"],
+  lists: ["only", "ignore", "explain", "explain-write"],
   completions: {
     format: () => FLAG_FORMATS,
     only: ruleCodes,
@@ -669,6 +711,8 @@ export const doctorCommand: AnyCommand = defineCliCommand({
         ...sourceFlags(args),
         ...(args.stats === true ? ["--stats"] : []),
         ...(args.explain === undefined ? [] : ["--explain"]),
+        ...(args["explain-write"] === undefined ? [] : ["--explain-write"]),
+        ...(args.args === undefined ? [] : ["--args"]),
         ...(args.as === undefined ? [] : ["--as"]),
         ...(args.fix === true ? ["--fix"] : []),
       ]);

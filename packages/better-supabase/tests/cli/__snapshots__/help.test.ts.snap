@@ -578,18 +578,19 @@ exports[`help > documents codemod 1`] = `
 Rewrites imports, calls and config keys for renamed better-supabase APIs
 
 Commands
-  0.4   Renames from 0.3 to 0.4
-  0.5   Renames from 0.4 to 0.5
-  0.6   Changes from 0.5 to 0.6: kits become blocks and modules
-  0.9   Changes from 0.8 to 0.9: sql.modules becomes blocks, and CLI calls use the new subcommands and flags
-  0.11  Changes from 0.10 to 0.11: adopted outgoing webhooks get an explicit defaultFormat
-  0.15  Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, renamed blocks take their 0.15 names, and CLI calls use the new commands
-  0.29  Changes from 0.28 to 0.29: records is renamed back to subjects in the config, and record tags in the schema files become subject tags
-  0.32  Changes from 0.31 to 0.32: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js
-  0.35  The 0.36 part of the 0.35 to 0.37 changes, as 0.36.0 shipped it: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone. Prefer codemod 0.37
-  0.37  Changes from 0.35 to 0.37: the proxy refreshes on every request, session cookies go through @supabase/ssr, the cookie codec and prefetch predicates are gone, and stock quantities are numeric
-  0.46  Changes from 0.45 to 0.46: permission keys use the block name as their area and the read, write and manage verbs
-  0.47  Changes from 0.46 to 0.47: entity keys equal the entity's singular, hint codes start with the entity's new name, the work_item, engagement and policy subject types become task, activity and compliance_policy, event types are named <entity>.<past verb>, and saved events split into created and updated
+  0.4        Renames from 0.3 to 0.4
+  0.5        Renames from 0.4 to 0.5
+  0.6        Changes from 0.5 to 0.6: kits become blocks and modules
+  0.9        Changes from 0.8 to 0.9: sql.modules becomes blocks, and CLI calls use the new subcommands and flags
+  0.11       Changes from 0.10 to 0.11: adopted outgoing webhooks get an explicit defaultFormat
+  0.15       Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, renamed blocks take their 0.15 names, and CLI calls use the new commands
+  0.29       Changes from 0.28 to 0.29: records is renamed back to subjects in the config, and record tags in the schema files become subject tags
+  0.32       Changes from 0.31 to 0.32: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js
+  0.35       The 0.36 part of the 0.35 to 0.37 changes, as 0.36.0 shipped it: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone. Prefer codemod 0.37
+  0.37       Changes from 0.35 to 0.37: the proxy refreshes on every request, session cookies go through @supabase/ssr, the cookie codec and prefetch predicates are gone, and stock quantities are numeric
+  0.46       Changes from 0.45 to 0.46: permission keys use the block name as their area and the read, write and manage verbs
+  0.47       Changes from 0.46 to 0.47: entity keys equal the entity's singular, hint codes start with the entity's new name, the work_item, engagement and policy subject types become task, activity and compliance_policy, event types are named <entity>.<past verb>, and saved events split into created and updated
+  read-many  List Promise.all groups of repository reads that db.$many or a read set can load in one round trip
 
 Global options
   --cwd <dir>            Project directory
@@ -603,6 +604,35 @@ Global options
   --debug                Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help             Show help
 
+Docs: https://bettersupabase.com/docs/cli/codemod
+"
+`;
+
+exports[`help > documents codemod read-many 1`] = `
+"Usage: better-supabase codemod read-many [options] [path...]
+
+List Promise.all groups of repository reads that db.$many or a read set can load in one round trip
+
+Arguments
+  [path...]  Files or directories to rewrite (default: the project)
+
+Options
+  --dry-run  Show the changes without writing them
+  --check    Write nothing; exit 1 with a diff when a file would change
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/codemod
 "
 `;
@@ -1080,22 +1110,24 @@ exports[`help > documents doctor 1`] = `
 Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --fail-on warning
 
 Options
-  --snapshot <file>       Read a saved snapshot instead of the database
-  --db-url-stdin          Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --project-ref <ref>     Read a hosted project through the Management API
-  --format <format>       text, sarif (code scanning) or github (workflow annotations); also tooling.doctor.format, default text. --json for the JSON report
-  --out <file>            Write the report to a file; also tooling.doctor.output
-  --only <codes,...>      Run only these checks, e.g. --only BS100,BS304; also tooling.doctor.only
-  --ignore <codes,...>    Skip checks; also tooling.doctor.ignore in the config
-  --fail-on <level>       Exit 1 on findings at this level: error (the default), warning (the default with tooling.doctor.strict) or never
-  --metadata <path|->     Check a GeneratorMetadata document (- for stdin); checks it lacks data for are skipped
-  --stats                 Report slow frequent statements from pg_stat_statements (BS209)
-  --explain <tables,...>  EXPLAIN ANALYZE these tables under RLS, rolled back (BS212)
-  --as <uuid>             Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)
-  --claims <json>         Plan with these JWT claims ({"role":"authenticated",...})
-  --fix-grants            Print the grant and revoke SQL BS404 asks for, to add to your schema or migration
-  --fix                   Run the SQL that resolves findings which carry a fix, such as validating a not valid check (BS236), against the database
-  --update-baseline       Rewrite tooling.doctor.baseline to accept this run's errors and warnings, keeping each entry's reason
+  --snapshot <file>             Read a saved snapshot instead of the database
+  --db-url-stdin                Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --project-ref <ref>           Read a hosted project through the Management API
+  --format <format>             text, sarif (code scanning) or github (workflow annotations); also tooling.doctor.format, default text. --json for the JSON report
+  --out <file>                  Write the report to a file; also tooling.doctor.output
+  --only <codes,...>            Run only these checks, e.g. --only BS100,BS304; also tooling.doctor.only
+  --ignore <codes,...>          Skip checks; also tooling.doctor.ignore in the config
+  --fail-on <level>             Exit 1 on findings at this level: error (the default), warning (the default with tooling.doctor.strict) or never
+  --metadata <path|->           Check a GeneratorMetadata document (- for stdin); checks it lacks data for are skipped
+  --stats                       Report slow frequent statements from pg_stat_statements (BS209)
+  --explain <tables,...>        EXPLAIN ANALYZE these tables or functions (rs_*, *_payload) under RLS, rolled back (BS212)
+  --explain-write <tables,...>  EXPLAIN ANALYZE an insert (a copy of one row with fresh keys) and an update on these tables, with trigger times, rolled back (BS212)
+  --args <json>                 Arguments for a function passed to --explain: a JSON array (positional) or object (named)
+  --as <uuid>                   Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)
+  --claims <json>               Plan with these JWT claims ({"role":"authenticated",...})
+  --fix-grants                  Print the grant and revoke SQL BS404 asks for, to add to your schema or migration
+  --fix                         Run the SQL that resolves findings which carry a fix, such as validating a not valid check (BS236), against the database
+  --update-baseline             Rewrite tooling.doctor.baseline to accept this run's errors and warnings, keeping each entry's reason
 
 Global options
   --cwd <dir>            Project directory

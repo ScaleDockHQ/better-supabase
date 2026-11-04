@@ -190,6 +190,24 @@ result type of each block read (`DealsBoardResult`) and the block's client
 has a method for it, so `deals.board({ pipelineId })` works without a read
 set.
 
+The blocks that sit on most pages ship reads for a page's side data, so a
+detail page reads them in the same call as its own rows:
+
+| Read                                                             | Function              | Returns                                    |
+| ---------------------------------------------------------------- | --------------------- | ------------------------------------------ |
+| `s.blocks.comments.list({ tenant, subjectType, subjectId })`     | `list_comments`       | a record's comments and replies            |
+| `s.blocks.comments.counts({ tenant, subjectType, subjectIds })`  | `comment_counts`      | the comment count per record               |
+| `s.blocks.notifications.inbox({ status })`                       | `notification_page`   | the user's notifications and the total     |
+| `s.blocks.notifications.counts({})`                              | `notification_counts` | the unread and actionable counts           |
+| `s.blocks.savedViews.list({ tenant, list })`                     | `list_views`          | the saved views of one list                |
+| `s.blocks.tags.list({ tenant })`                                 | `list_tags`           | the tenant's tags                          |
+| `s.blocks.tags.forSubjects({ tenant, subjectType, subjectIds })` | `subjects_tags`       | the tags per record, for up to 200 records |
+| `s.blocks.attachments.list({ tenant, subjectType, subjectId })`  | `list_attachments`    | the files on a record                      |
+
+Each read keeps the checks of its function: `tags.forSubjects` runs the
+`subject_tags` check for every record, so one record the caller can't read
+fails the read.
+
 ## Caching
 
 In Next.js, tag a `"use cache"` scope with every table a set (or an array
@@ -225,3 +243,7 @@ See [Cache Components](/docs/frameworks/next-cache-components).
 [BS304](/docs/cli/doctor#bs304) reports a `read-sets` file that no longer
 matches the sets in `readSets`. Run `better-supabase gen` (or
 `better-supabase upgrade`), then `supabase db schema declarative sync`.
+
+## Check a result that crossed a boundary
+
+`readSet.parse(value)` checks that a value has the shape `db.$many(readSet, params)` returns. Use it where a read set result passes through a cache, a Server Component prop or JSON. It returns a `Result`, naming each key with the wrong shape. It checks structure (counts are numbers, lists are arrays, a gated entry may be `null`), not each column. The block row parsers `viewOf` (saved views) and `subscriptionOf` (notifications) parse single rows from a page payload.

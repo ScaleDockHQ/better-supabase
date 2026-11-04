@@ -46,6 +46,17 @@ describe("BS608", () => {
     expect(findings[0]?.location?.line).toBe(3);
   });
 
+  it("names next.config when none was read", () => {
+    const findings = check({
+      sources: [
+        { path: "src/a.ts", text: 'const mode = "use cache: remote";' },
+      ],
+    });
+
+    expect(findings[0]?.message).toContain("next.config sets no remote");
+    expect(findings[0]?.location?.line).toBe(1);
+  });
+
   it("stays quiet with a remote handler or on Vercel", () => {
     for (const text of [
       'createNextConfig({ remoteCacheHandler: "./cache/remote.mjs" })',
@@ -70,5 +81,93 @@ describe("BS608", () => {
         ],
       }),
     ).toEqual([]);
+  });
+});
+
+describe("BS610", () => {
+  const rule = NEXT_CACHE_RULES.find((candidate) => candidate.code === "BS610");
+
+  const run = (text: string) => {
+    // SAFETY: BS610 reads only `sources`.
+    const findings = rule?.check({
+      sources: [{ path: "src/data.ts", text }],
+    } as unknown as DoctorContext);
+
+    if (!Array.isArray(findings)) {
+      throw new TypeError("BS610 runs synchronously");
+    }
+
+    return findings;
+  };
+
+  it("flags a private scope that calls another one", () => {
+    const findings = run(
+      [
+        "export async function inner() {",
+        '  "use cache: private";',
+        "  return 1;",
+        "}",
+        "",
+        "export const outer = async () => {",
+        '  "use cache: private";',
+        "  return await inner();",
+        "};",
+      ].join("\n"),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain("outer");
+    expect(findings[0]?.message).toContain("inner");
+    expect(findings[0]?.location?.line).toBe(6);
+  });
+
+  it("stays quiet when the scopes don't call each other", () => {
+    expect(
+      run(
+        [
+          "async function a() {",
+          '  "use cache: private";',
+          "  return 1;",
+          "}",
+          "async function b() {",
+          '  "use cache: private";',
+          "  return 2;",
+          "}",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("BS611", () => {
+  const rule = NEXT_CACHE_RULES.find((candidate) => candidate.code === "BS611");
+
+  const run = (text: string) => {
+    // SAFETY: BS611 reads only `sources`.
+    const findings = rule?.check({
+      sources: [{ path: "src/data.ts", text }],
+    } as unknown as DoctorContext);
+
+    if (!Array.isArray(findings)) {
+      throw new TypeError("BS611 runs synchronously");
+    }
+
+    return findings;
+  };
+
+  it("flags an admin client in a private scope", () => {
+    const findings = run(
+      'async function load() { "use cache: private"; const db = bsb.admin(); return db; }',
+    );
+
+    expect(findings).toHaveLength(1);
+  });
+
+  it("allows an admin read outside the scope", () => {
+    expect(
+      run(
+        'async function load() { "use cache: private"; return 1; }\nasync function other() { return bsb.admin(); }',
+      ),
+    ).toHaveLength(0);
   });
 });

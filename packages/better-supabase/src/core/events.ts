@@ -79,6 +79,8 @@ export interface AuthEvent {
     | "actor";
   /** The user's `source` as the resolver set it, e.g. a custom resolver's name. */
   readonly rawSource?: string;
+  /** Token verifications this resolution ran; 0 when the session memo answered. */
+  readonly verifications?: number;
 }
 
 export interface RefreshEvent {

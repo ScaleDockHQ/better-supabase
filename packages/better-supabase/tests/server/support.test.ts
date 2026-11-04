@@ -427,6 +427,16 @@ describe("support sessions on the server", () => {
     expect(active?.claims["act"]).toMatchObject({ read_only: true });
   });
 
+  it("makes no store call for a request without a support cookie", async () => {
+    const { server, store } = setup();
+    const get = vi.spyOn(store, "get");
+    const request = new Request("https://a.test/");
+
+    expect(server.support.sessionIdOf(request)).toBeUndefined();
+    expect(await server.support.current(request, admin())).toBeUndefined();
+    expect(get).not.toHaveBeenCalled();
+  });
+
   it("resolves a session id the app keeps in its own request context", async () => {
     const store = new AsyncLocalStorage<{ supportSessionId?: string }>();
 

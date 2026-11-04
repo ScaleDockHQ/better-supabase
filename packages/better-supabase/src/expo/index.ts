@@ -8,6 +8,7 @@ import type { ExpoParams } from "../bridges/expo.ts";
 import type { AuthzVersionCache } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
+import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type {
   Access,
@@ -89,7 +90,9 @@ export interface ExpoContextOptions
   readonly refresh?: boolean;
 }
 
-export interface ExpoBootstrapOptions extends BootstrapCallOptions {
+export interface ExpoBootstrapOptions<
+  S extends ReadSet = ReadSet,
+> extends BootstrapCallOptions<S> {
   /** As `ExpoContextOptions.refresh`. */
   readonly refresh?: boolean;
 }
@@ -164,10 +167,10 @@ export interface BetterExpo<
    * the request, the session and the arguments. A signed-out caller makes no
    * call.
    */
-  bootstrap<T = unknown>(
+  bootstrap<T = unknown, S extends ReadSet = ReadSet>(
     request: ExpoRequest,
-    options: ExpoBootstrapOptions,
-  ): Promise<Bootstrap<C, P, T>>;
+    options: ExpoBootstrapOptions<S>,
+  ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>>;
   /**
    * The caller's tenant, live version and `can(permission)`. Pass the bootstrap
    * result so `can` checks against its live version.
@@ -395,35 +398,44 @@ export function createExpo<
     (await options.tenant?.(toRequest(incoming), ctx.auth)) ??
     tenantOf(toSession(ctx.auth), tenantClaim);
 
-  const bootMemo =
-    (incoming: ExpoRequest): BootstrapMemo =>
-    (key, run) => {
-      const now = Date.now();
+  const bootMemo = (incoming: ExpoRequest): BootstrapMemo =>
+    Object.assign(
+      (key: string, run: () => Promise<BootstrapRow>) =>
+        bootCall(incoming, key, run),
+      { has: (key: string) => boots.has(`${handoffKey(incoming)}\n${key}`) },
+    );
 
-      // Insertion order is expiry order, so the expired entries lead.
-      for (const [stored, entry] of boots) {
-        if (entry.expires > now) {
-          break;
-        }
+  const bootCall = (
+    incoming: ExpoRequest,
+    key: string,
+    run: () => Promise<BootstrapRow>,
+  ): Promise<BootstrapRow> => {
+    const now = Date.now();
 
-        boots.delete(stored);
+    // Insertion order is expiry order, so the expired entries lead.
+    for (const [stored, entry] of boots) {
+      if (entry.expires > now) {
+        break;
       }
 
-      const full = `${handoffKey(incoming)}\n${key}`;
-      const hit = boots.get(full);
+      boots.delete(stored);
+    }
 
-      if (hit) {
-        return hit.call;
-      }
+    const full = `${handoffKey(incoming)}\n${key}`;
+    const hit = boots.get(full);
 
-      const call = run();
-      boots.set(full, { call, expires: now + BOOTSTRAP_TTL_MS });
-      call.catch(() => {
-        boots.delete(full);
-      });
+    if (hit) {
+      return hit.call;
+    }
 
-      return call;
-    };
+    const call = run();
+    boots.set(full, { call, expires: now + BOOTSTRAP_TTL_MS });
+    call.catch(() => {
+      boots.delete(full);
+    });
+
+    return call;
+  };
 
   const contextFor = (
     incoming: ExpoRequest,
@@ -450,10 +462,10 @@ export function createExpo<
   return extendServer<BetterExpo<M, F, E, C, P, B, V>>(server, {
     request,
 
-    async bootstrap<T>(
+    async bootstrap<T, S extends ReadSet = ReadSet>(
       incoming: ExpoRequest,
-      call: ExpoBootstrapOptions,
-    ): Promise<Bootstrap<C, P, T>> {
+      call: ExpoBootstrapOptions<S>,
+    ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>> {
       const { refresh, ...rest } = call;
 
       const ctx = await request(incoming, {
@@ -461,7 +473,7 @@ export function createExpo<
         ...(rest.tenant === undefined ? {} : { tenant: rest.tenant }),
       });
 
-      return bootstrapWith<C, P, T>(
+      return bootstrapWith<C, P, T, S>(
         {
           schema: (options_) =>
             bootstrapSchema(options_, options, betterSupabase),

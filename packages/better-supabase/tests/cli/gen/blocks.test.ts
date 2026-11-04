@@ -470,7 +470,7 @@ describe("blocks.generated.ts", () => {
     expect(file?.path).toBe("app/lib/db/blocks.generated.ts");
     expect(blockConfigPath(config)).toBe("app/lib/db/blocks.generated.ts");
     expect(file?.contents).toContain(
-      'import {\n  type Events,\n  type GeneratedBlocks,\n} from "better-supabase/blocks";',
+      'import {\n  blockRead,\n  type Events,\n  type GeneratedBlocks,\n} from "better-supabase/blocks";',
     );
     expect(file?.contents).toContain(
       `  attachments: {

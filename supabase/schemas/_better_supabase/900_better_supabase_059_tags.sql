@@ -1,6 +1,6 @@
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:cca8c1e09c3317950156f4365ca0e4036e64622bc3740a21ec113d194849aeb2
+-- @bsb-hash sha256:a7316767bfe9491d6dea5075f51f291a0c0b374f17fc8c46a0cb3fdfbcbdbfd2
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -593,6 +593,21 @@ end;
 $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
+
+-- The tags on several subjects of one type, keyed by subject id, in one call.
+-- Each subject goes through the same checks as subject_tags.
+create or replace function "better_supabase"."subjects_tags"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, "better_supabase"."subject_tags"(subjects_tags.tenant, subjects_tags.subject_type, s.id)), '{}'::jsonb)
+  from (select distinct u as id from unnest(subjects_tags.subject_ids) u limit 200) s
+$$;
+revoke execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) to authenticated, service_role;
 -- Moves this module's rows from one subject record to another when
 -- better_supabase.merge_subject_refs merges them.
 create or replace function "better_supabase"."tags_subject_merge"(subject_table text, keep text, drop text)
@@ -770,6 +785,15 @@ set search_path = ''
 as $$ select "better_supabase"."subject_tags"($1, $2, $3) $$;
 revoke execute on function "api"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "api"."subject_tags"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."subjects_tags"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."subjects_tags"($1, $2, $3) $$;
+revoke execute on function "api"."subjects_tags"(uuid, text, text[]) from public, anon;
+grant execute on function "api"."subjects_tags"(uuid, text, text[]) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

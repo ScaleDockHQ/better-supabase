@@ -717,6 +717,47 @@ subscribeAuthzVersions({
 With your own trigger, pass `topic`, `event` and `userIdKey` to match what
 it sends (defaults `AUTHZ_TOPIC`, `"changed"` and `"user_id"`).
 
+### Without a library cache
+
+An app whose provider ships no cache can use `createVersionCache` from
+`better-supabase/server`. It keeps the highest version seen per user (a slow
+bootstrap never lowers a version a broadcast raised) and forgets an entry after
+`maxStaleMs`, which bounds the staleness when an eviction message is lost. Pass
+a `store` with `get`, `set` and `delete` (Redis, Vercel Runtime Cache) so
+instances share what one learned.
+
+```ts title="src/lib/supabase/authz.ts"
+import { createVersionCache } from "better-supabase/server";
+
+export const versions = createVersionCache({
+  maxStaleMs: 60_000,
+  store: redisVersionStore,
+});
+```
+
+### Seed the subject from the bootstrap
+
+An authorizer that loads a subject per user (roles and grants) can skip that
+query when the page's bootstrap already read it. Name a no-argument function
+that returns the subject as jsonb in the sessions option, either form of the
+entry:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  sessions: {
+    options: {
+      bootstrap: { home: { readSet: "home", subject: "app.authz_subject" } },
+    },
+  },
+},
+```
+
+`bsb.bootstrap` returns it as `subject`. `accessFor(source, { bootstrap })`
+passes `{ userId, version, subject }` as `runtime.seed` (`AuthzSubjectSeed`) to
+every check. Use the seed only when `seed.userId` is the caller and
+`seed.version` equals the version you would read; otherwise load the subject as
+before. The field is optional, so authorizers written for API v1 keep working.
+
 ### Versions the provider keeps
 
 A provider whose library already stores a version per user names its

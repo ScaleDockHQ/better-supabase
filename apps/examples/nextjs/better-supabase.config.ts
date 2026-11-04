@@ -74,6 +74,15 @@ export default defineConfig({
     readSets: ["src/lib/read-sets.ts"],
     hooks: "react",
   },
+  tooling: {
+    doctor: {
+      // The fixture installs every block, so its module SQL is far past the
+      // 2 MB cache budget (BS244), and `client_notes_reveal` is a demo
+      // function that embeds its masking table (BS243). Apps install fewer
+      // blocks and keep data in tables.
+      ignore: ["BS243", "BS244"],
+    },
+  },
   auth: {
     tenant: { column: "organization_id" },
     // Plan features come from the fixture's plan catalog

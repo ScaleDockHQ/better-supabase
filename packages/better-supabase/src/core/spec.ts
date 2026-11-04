@@ -38,6 +38,23 @@ const READ_METHODS: readonly ReadMethod[] = [
 ];
 
 declare const resultType: unique symbol;
+declare const gatedMarker: unique symbol;
+
+/**
+ * A permission check a read set entry waits on: build it with `auth.can` in the
+ * read set's builder and apply it with `s.when(gate, entry)`.
+ */
+export interface ReadSetGate {
+  /** The permission key, as `better_supabase.can` takes it. */
+  readonly permission: string;
+  /** The scope the permission is checked in. Defaults to `tenant`. */
+  readonly scope: string;
+  /**
+   * The scope id: a parameter placeholder or a literal. Without one the check
+   * uses the caller's current tenant.
+   */
+  readonly id?: unknown;
+}
 
 /**
  * A read, described as plain JSON: build it with `betterSupabase.spec`, run it
@@ -54,6 +71,8 @@ export interface QuerySpec<
   readonly method: K;
   /** Positional arguments of the repository method. */
   readonly args: readonly unknown[];
+  /** Set by `s.when`: the entry runs only when the caller holds the permission. */
+  readonly gate?: ReadSetGate;
   /** Type-only: the result `db.$run(spec)` resolves to. */
   readonly [resultType]?: R;
 }
@@ -81,6 +100,8 @@ export interface FunctionSpec<N extends string = string, R = unknown> {
    * lists (a block read names the block's API schema).
    */
   readonly schema?: string;
+  /** Set by `s.when`: the entry runs only when the caller holds the permission. */
+  readonly gate?: ReadSetGate;
   /** Type-only: the result of the call. */
   readonly [functionResultType]?: R;
 }
@@ -96,7 +117,11 @@ export type FunctionSpecs<F extends AnyFunctions> = {
 export type ReadSetEntry = QuerySpec | FunctionSpec;
 
 /** The result of a read set entry. */
-export type InferEntryResult<S> =
+export type InferEntryResult<S> = S extends { readonly [gatedMarker]: true }
+  ? InferUngated<S> | null
+  : InferUngated<S>;
+
+type InferUngated<S> =
   S extends FunctionSpec<string, infer R> ? R : InferResult<S>;
 
 /** What `record_summary` returns for a record the caller can read. */
@@ -129,6 +154,14 @@ export type ReadSetSpecs<
 > = Specs<M, E> & {
   readonly $fn: FunctionSpecs<F>;
   readonly blocks: BlockReadSpecs<B>;
+  /**
+   * Runs `entry` only when the caller passes `gate` (from `auth.can`); the
+   * result is `null` otherwise.
+   */
+  when<S extends ReadSetEntry>(
+    gate: ReadSetGate,
+    entry: S,
+  ): S & { readonly [gatedMarker]: true };
   record(
     type: string,
     id: string,

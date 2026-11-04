@@ -2478,7 +2478,7 @@ export interface BlockNameRegistry {
       readonly "tags": "id" | "tenant" | "kind" | "name" | "slug" | "color" | "description" | "rank" | "createdAt" | "updatedAt";
       readonly "taggings": "tenant" | "tag" | "subjectType" | "subjectId" | "createdAt";
     };
-    readonly functions: "create_tag" | "delete_tag" | "list_tags" | "rank_tag" | "subject_tags" | "tag" | "untag" | "update_tag";
+    readonly functions: "create_tag" | "delete_tag" | "list_tags" | "rank_tag" | "subject_tags" | "subjects_tags" | "tag" | "untag" | "update_tag";
     readonly actions: "manage" | "read" | "apply" | "create" | "update" | "delete";
     readonly hooks: "before_tag_apply" | "after_tag_apply";
     readonly entities: {

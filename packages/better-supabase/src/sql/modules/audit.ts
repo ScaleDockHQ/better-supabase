@@ -47,6 +47,8 @@ import {
 } from "./audit-request.ts";
 import { retention } from "./audit-retention.ts";
 import { revert } from "./audit-revert.ts";
+import { rowPairs } from "./audit-row.ts";
+import { once, statementFunction } from "./audit-statement.ts";
 import {
   actorKind,
   requestIpSql,
@@ -489,6 +491,24 @@ function eventRestricted(ctx: BlockSqlContext, restricted: boolean): string {
   end if;`;
 }
 
+/** `rowPairs` with the context columns every entry writes. */
+function rowChange(
+  ctx: BlockSqlContext,
+  snapshots: boolean,
+  expr: { op: string; kind: string },
+): (readonly [string, string])[] {
+  return rowPairs(
+    ctx,
+    snapshots,
+    expr,
+    contextPairs(ctx, "row_tenant", {
+      targetLabel: "row_data ->> entry.label_column",
+      summary: "null",
+      correlationId: correlationIdSql(ctx),
+    }),
+  );
+}
+
 function triggerFunction(
   ctx: BlockSqlContext,
   tenantColumn: string,
@@ -496,64 +516,19 @@ function triggerFunction(
 ): string {
   const snapshots = !restricted;
 
-  const insert = present(ctx, "log", [
-    ["table", "tg_table_schema || '.' || tg_table_name"],
-    [
-      "record",
-      "(select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord))",
-    ],
-    ["op", "lower(tg_op)"],
-    ...(snapshots
-      ? ([
-          ["old", "old_row"],
-          ["new", "new_row"],
-        ] as const)
-      : []),
-    ["changed", "changed_columns"],
-    ["actor", "coalesce(auth.uid(), better_supabase.acting_member())"],
-    ["actorRole", "coalesce(auth.jwt() ->> 'role', current_user)"],
-    ["tenant", "row_tenant"],
-    [
-      "impersonatedBy",
-      "case when auth.jwt() -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (auth.jwt() -> 'act' ->> 'sub')::uuid end",
-    ],
-    ["impersonationReason", "auth.jwt() -> 'act' ->> 'reason'"],
-    [
-      "supportSession",
-      "case when auth.jwt() -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (auth.jwt() -> 'act' ->> 'session_id')::uuid end",
-    ],
-    [
-      "eventType",
-      "coalesce(entry.event_prefix, tg_table_name) || '.' || case tg_op when 'INSERT' then 'created' when 'UPDATE' then 'updated' else 'deleted' end",
-    ],
-    [
-      "category",
-      auditWrite(ctx, "category", "coalesce(entry.category, 'data')"),
-    ],
-    ["outcome", auditWrite(ctx, "outcome", "'success'")],
-    ["source", auditWrite(ctx, "source", "'database'")],
-    ["targetType", "coalesce(entry.target_type, tg_table_name)"],
-    ...contextPairs(ctx, "row_tenant", {
-      targetLabel: "row_data ->> entry.label_column",
-      summary: "null",
-      correlationId: correlationIdSql(ctx),
+  const insert = present(
+    ctx,
+    "log",
+    rowChange(ctx, snapshots, {
+      op: "lower(tg_op)",
+      kind: "case tg_op when 'INSERT' then 'created' when 'UPDATE' then 'updated' else 'deleted' end",
     }),
-  ]);
+  );
 
   const tenantValue = castId(
     `row_data ->> coalesce(entry.tenant_column, ${sqlString(tenantColumn)})`,
     ctx.idType,
   );
-
-  // The trigger reads the JWT and the request headers once per row, not once
-  // per column that uses them.
-  const once = (sql: string): string =>
-    sql
-      .replaceAll("auth.jwt()", "v_jwt")
-      .replaceAll(
-        /better_supabase\.request_header\(('[^']*')\)/g,
-        "(v_headers ->> $1)",
-      );
 
   const changedValues = restricted
     ? `
@@ -618,6 +593,36 @@ ${tenantFallbackSql(ctx.idType)}
 end;
 $$;
 ${triggerGrant("better_supabase.audit_row_change()")}`;
+}
+
+/**
+ * The trigger function of `audit(..., statement => true)`; none in restricted
+ * mode.
+ */
+function statementTrigger(
+  ctx: BlockSqlContext,
+  tenantColumn: string,
+  restricted: boolean,
+): string {
+  if (restricted) {
+    return "";
+  }
+
+  return statementFunction(ctx, {
+    tenantValue: castId(
+      `c.row_data ->> coalesce(entry.tenant_column, ${sqlString(tenantColumn)})`,
+      ctx.idType,
+    ),
+    insert: present(
+      ctx,
+      "log",
+      rowChange(ctx, true, {
+        op: "op",
+        kind: "case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end",
+      }),
+    ),
+    grant: triggerGrant("better_supabase.audit_statement_change()"),
+  });
 }
 
 /** `audit_event`'s argument types. */
@@ -960,8 +965,9 @@ function auditSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     requestIpSql(ctx),
     ctx.manages ? managedTables(ctx, restricted) : "",
     triggerFunction(ctx, tenantColumn, restricted),
+    statementTrigger(ctx, tenantColumn, restricted),
     EQUIVALENT_TRIGGERS.trim(),
-    register(ctx),
+    register(ctx, restricted),
     auditEvent(ctx, restricted),
     appendOnly(ctx),
     chainSql(ctx),
@@ -988,7 +994,7 @@ export const AUDIT: BlockSqlDefinition = {
       : [],
   target: "schema",
   modes: ["managed"],
-  version: 9,
+  version: 10,
   names: NAMES,
   contract: (ctx) => [
     {

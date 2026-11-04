@@ -48,7 +48,19 @@ export function forgetDropped(ctx: BlockSqlContext, indent = ""): string {
 ${indent}where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.${ctx.col("registry", "target")}::oid);`;
 }
 
-export function register(ctx: BlockSqlContext): string {
+/** The argument checks of `audit(..., statement => true)`. */
+function statementChecks(restricted: boolean): string {
+  return `  if audit.statement then
+    if ${restricted ? "true" : "audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null"} then
+      raise exception 'audit(statement => true) ${restricted ? "needs an audit log without the restricted table" : "does not combine with deferred, tenant_path or tenant_function"}';
+    end if;
+    if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then
+      raise exception 'audit(statement => true) needs a primary key on %', audit.target;
+    end if;
+  end if;`;
+}
+
+export function register(ctx: BlockSqlContext, restricted: boolean): string {
   const registry = ctx.table("registry");
   const target = ctx.col("registry", "target");
 
@@ -60,6 +72,7 @@ drop function if exists better_supabase.audit(regclass, text[], boolean);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure);
+drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);
 
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
@@ -74,6 +87,10 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 -- tries the row's tenant column, then the path, then the function.
 -- ignore also keeps the update trigger from firing when only ignored columns
 -- change, so writes such as last_run_at cost nothing.
+-- statement => true audits with statement-level triggers over transition
+-- tables, so a statement that changes many rows writes its entries in one
+-- insert. It needs a primary key, and not deferred, tenant_path,
+-- tenant_function or the restricted table.
 -- replace_trigger => true drops another audit trigger on the table.
 -- deferred => true audits at commit, once a block function has recorded its
 -- own entry (bsb.recorded), so the row isn't audited twice.
@@ -89,7 +106,8 @@ create or replace function better_supabase.audit(
   label_column text default null,
   tenant_path text default null,
   tenant_function regprocedure default null,
-  deferred boolean default false
+  deferred boolean default false,
+  statement boolean default false
 )
 returns void
 language plpgsql
@@ -111,6 +129,7 @@ declare
   trigger_kind text := case when audit.deferred then 'constraint ' else '' end;
   trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;
 begin
+${statementChecks(restricted)}
   if audit.tenant_path is not null then
     parts := regexp_split_to_array(btrim(audit.tenant_path), '\\s*->\\s*');
     if coalesce(array_length(parts, 1), 0) < 2 then
@@ -167,7 +186,23 @@ begin
   ));
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
-  if cardinality(coalesce(audit.ignore, '{}')) > 0 then
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
+  if audit.statement then
+    execute format(
+      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+    execute format(
+      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      target, base_settings::text
+    );
+  elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
       'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
@@ -194,7 +229,7 @@ as $$
   select coalesce(
     (select convert_from(substring(t.tgargs from 1 for position('\\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb
      from pg_catalog.pg_trigger t
-     where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),
+     where t.tgrelid = audit_settings.target and t.tgname in ('bsb_audit', 'bsb_audit_stmt_insert') and t.tgnargs > 0),
     (select jsonb_strip_nulls(jsonb_build_object(
        'ignore', to_jsonb(${col("ignore", "null::text[]")}), 'redact', to_jsonb(${col("redact", "null::text[]")}), 'key_columns', to_jsonb(${col("keyColumns", "null::text[]")}),
        'category', ${col("category", "null::text")}, 'event_prefix', ${col("eventPrefix", "null::text")}, 'target_type', ${col("targetType", "null::text")},
@@ -211,6 +246,9 @@ as $$
 begin
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
+  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
   delete from ${registry} a where a.${target} = unaudit.target;
 end;
 $$;
@@ -317,7 +355,7 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean) from public, anon, authenticated;
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;

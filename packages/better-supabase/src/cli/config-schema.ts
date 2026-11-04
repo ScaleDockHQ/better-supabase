@@ -924,6 +924,12 @@ const ENTRIES = {
       ),
       contentMapper: v.optional(v.boolean()),
       powersync: v.optional(powersyncGenSchema),
+      api: v.optional(
+        v.strictObject({
+          expose: v.optional(v.picklist(["all", "used"])),
+          exposeAlso: v.optional(v.array(v.string())),
+        }),
+      ),
       ...pickEntries([
         "output",
         "casing",

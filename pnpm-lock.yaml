@@ -692,6 +692,9 @@ catalogs:
     ultracite:
       specifier: 8.1.0
       version: 8.1.0
+    undici:
+      specifier: 7.30.1
+      version: 7.30.1
     valibot:
       specifier: 1.5.0
       version: 1.5.0
@@ -2102,6 +2105,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      undici:
+        specifier: 'catalog:'
+        version: 7.30.1
       valibot:
         specifier: 'catalog:'
         version: 1.5.0(typescript@7.0.2)

@@ -176,3 +176,25 @@ control to read the protocol and host from `x-forwarded-proto` and
 `x-forwarded-host`. The middleware leaves the request body unread, so body
 parsers run as usual. `toWebRequest` and `sendWebResponse` are exported for
 other Node frameworks.
+
+## Keep sockets open to PostgREST
+
+A long-running Node server sends many small reads to the same origin. Pass
+`keepAliveFetch` to the Supabase client to keep a fixed pool of sockets open
+and, if you choose, to pipeline requests on them.
+
+```ts
+import { keepAliveFetch } from "better-supabase/node";
+
+const supabase = createClient(url, key, {
+  global: { fetch: keepAliveFetch({ connections: 32, pipelining: 1 }) },
+});
+```
+
+`connections` defaults to 16 and `pipelining` to 1. A higher `pipelining`
+writes several requests on one socket before the first response returns,
+which helps a burst of small reads and delays the later ones behind a slow
+one. `keepAliveFetch` loads the optional peer `undici` (`>=7.30.1 <9`) on the
+first request. Without it the function calls the global `fetch`, so the code
+runs and only the pool settings are lost. Measure your project's floor with
+`tests/bench/postgrest-floor.ts` before and after.

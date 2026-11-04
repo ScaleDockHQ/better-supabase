@@ -369,6 +369,62 @@ export const PRESET_CATALOG: PresetCatalog = {
         "consents",
         "housekeeping"
       ],
+      "reads": [
+        {
+          "name": "inbox",
+          "function": "notification_page",
+          "args": {
+            "tenant": {
+              "param": "tenant",
+              "type": "id",
+              "optional": true
+            },
+            "status": {
+              "param": "status",
+              "type": "text",
+              "optional": true
+            },
+            "maxItems": {
+              "param": "max_items",
+              "type": "int",
+              "optional": true
+            }
+          },
+          "result": {
+            "items": [
+              "json"
+            ],
+            "total": "number"
+          },
+          "summary": "The signed-in user's notifications, newest first, with the total.",
+          "tables": [
+            "notification_recipients",
+            "notification_events"
+          ]
+        },
+        {
+          "name": "counts",
+          "function": "notification_counts",
+          "args": {
+            "tenant": {
+              "param": "tenant",
+              "type": "id",
+              "optional": true
+            },
+            "actionable": {
+              "param": "actionable",
+              "type": "text[]",
+              "optional": true
+            }
+          },
+          "result": "json",
+          "summary": "The unread count and the actionable counts of the signed-in user.",
+          "tables": [
+            "notification_recipients",
+            "notification_events"
+          ]
+        }
+      ],
       "extraColumns": "events"
     },
     {
@@ -690,6 +746,63 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "contributes": [
         "subjects"
+      ],
+      "reads": [
+        {
+          "name": "list",
+          "function": "list_comments",
+          "args": {
+            "tenant": {
+              "param": "tenant",
+              "type": "id"
+            },
+            "subjectType": {
+              "param": "subject_type",
+              "type": "text"
+            },
+            "subjectId": {
+              "param": "subject_id",
+              "type": "text"
+            },
+            "maxRows": {
+              "param": "max_rows",
+              "type": "int",
+              "optional": true
+            }
+          },
+          "result": [
+            "json"
+          ],
+          "summary": "A record's comments and replies, oldest first.",
+          "tables": [
+            "messages",
+            "conversations"
+          ]
+        },
+        {
+          "name": "counts",
+          "function": "comment_counts",
+          "args": {
+            "tenant": {
+              "param": "tenant",
+              "type": "id"
+            },
+            "subjectType": {
+              "param": "subject_type",
+              "type": "text"
+            },
+            "subjectIds": {
+              "param": "subject_ids",
+              "type": "text[]"
+            }
+          },
+          "result": "json",
+          "summary": "The number of comments per record, as an object keyed by record id.",
+          "tables": [
+            "messages",
+            "conversations"
+          ]
+        }
       ]
     },
     {
@@ -712,6 +825,35 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "imports",
         "subjects"
+      ],
+      "reads": [
+        {
+          "name": "list",
+          "function": "list_attachments",
+          "args": {
+            "tenant": {
+              "param": "tenant",
+              "type": "id"
+            },
+            "subjectType": {
+              "param": "subject_type",
+              "type": "text",
+              "optional": true
+            },
+            "subjectId": {
+              "param": "subject_id",
+              "type": "text",
+              "optional": true
+            }
+          },
+          "result": [
+            "json"
+          ],
+          "summary": "The files on one record, or the tenant's files, oldest first.",
+          "tables": [
+            "attachments"
+          ]
+        }
       ],
       "seeds": {
         "variants": []
@@ -1677,6 +1819,61 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "bulk"
       ],
+      "reads": [
+        {
+          "name": "list",
+          "function": "list_tags",
+          "args": {
+            "tenant": {
+              "param": "tenant",
+              "type": "id"
+            },
+            "kind": {
+              "param": "kind",
+              "type": "text",
+              "optional": true
+            }
+          },
+          "result": [
+            {
+              "id": "text",
+              "kind": "text",
+              "name": "text",
+              "slug": "text",
+              "color": "text?",
+              "description": "text?"
+            }
+          ],
+          "summary": "The tenant's tags of one kind, or of every kind, in rank order.",
+          "tables": [
+            "tags"
+          ]
+        },
+        {
+          "name": "forSubjects",
+          "function": "subjects_tags",
+          "args": {
+            "tenant": {
+              "param": "tenant",
+              "type": "id"
+            },
+            "subjectType": {
+              "param": "subject_type",
+              "type": "text"
+            },
+            "subjectIds": {
+              "param": "subject_ids",
+              "type": "text[]"
+            }
+          },
+          "result": "json",
+          "summary": "The tags on several records of one type, as an object keyed by record id.",
+          "tables": [
+            "tags",
+            "taggings"
+          ]
+        }
+      ],
       "extraColumns": "tags",
       "entities": {
         "specs": {
@@ -1972,6 +2169,41 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "saved-views",
       "scopes": [
         "tenant"
+      ],
+      "reads": [
+        {
+          "name": "list",
+          "function": "list_views",
+          "args": {
+            "tenant": {
+              "param": "tenant",
+              "type": "id"
+            },
+            "list": {
+              "param": "list",
+              "type": "text"
+            }
+          },
+          "result": [
+            {
+              "id": "text",
+              "list": "text",
+              "scope": "text",
+              "ownerId": "text?",
+              "teamId": "text?",
+              "name": "text",
+              "kind": "text",
+              "state": "json",
+              "rank": "text",
+              "isDefault": "bool",
+              "updatedAt": "text"
+            }
+          ],
+          "summary": "The saved views of one list the caller can see, in rank order.",
+          "tables": [
+            "saved_views"
+          ]
+        }
       ],
       "tenantNameClashes": [
         "team"

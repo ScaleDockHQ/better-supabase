@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:efe90c2e686a300673e3e9e55fb1aca4c58d5e7cde399581a1c5604c85f6d957
+-- @bsb-hash sha256:90142869a18ac91346030a0f02299bc988bee674b53df89d367313561409af32
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -358,6 +358,21 @@ $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+-- The tags on several subjects of one type, keyed by subject id, in one call.
+-- Each subject goes through the same checks as subject_tags.
+create or replace function "better_supabase"."subjects_tags"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, "better_supabase"."subject_tags"(subjects_tags.tenant, subjects_tags.subject_type, s.id)), '{}'::jsonb)
+  from (select distinct u as id from unnest(subjects_tags.subject_ids) u limit 200) s
+$$;
+revoke execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -440,7 +455,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:ffdfdb5fd4d502bf950d74043e267c8c3c66ca0e89b3c9b67940e50b8d462521
+-- @bsb-hash sha256:0c9cccefd6ab7d8aec05cb19de3e6abca16c9f3d2407c760e699b6d08a0584bb
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -797,6 +812,21 @@ $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+-- The tags on several subjects of one type, keyed by subject id, in one call.
+-- Each subject goes through the same checks as subject_tags.
+create or replace function "better_supabase"."subjects_tags"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, "better_supabase"."subject_tags"(subjects_tags.tenant, subjects_tags.subject_type, s.id)), '{}'::jsonb)
+  from (select distinct u as id from unnest(subjects_tags.subject_ids) u limit 200) s
+$$;
+revoke execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -886,7 +916,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:9bc79faed4b28a383c3612858aa2e59d0bf0e204dc5da3ac32677cfb2824b0a8
+-- @bsb-hash sha256:52af583f2ff66d1e8557c38080544f03814817aa7de6b69e2bc975d8895561c8
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1248,6 +1278,21 @@ $$;
 revoke execute on function "app_private"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "app_private"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+-- The tags on several subjects of one type, keyed by subject id, in one call.
+-- Each subject goes through the same checks as subject_tags.
+create or replace function "app_private"."subjects_tags"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, "app_private"."subject_tags"(subjects_tags.tenant, subjects_tags.subject_type, s.id)), '{}'::jsonb)
+  from (select distinct u as id from unnest(subjects_tags.subject_ids) u limit 200) s
+$$;
+revoke execute on function "app_private"."subjects_tags"(uuid, text, text[]) from public, anon;
+grant execute on function "app_private"."subjects_tags"(uuid, text, text[]) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1330,7 +1375,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:0f3f80e70a748f4e8fd4f31ad270aab34564ef01760965a66a3033d3b230352f
+-- @bsb-hash sha256:d9dcbd2a34dbae65c1a2571768556f51c870f7d2a417090ec4a04535b23a25c2
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1687,6 +1732,21 @@ $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+-- The tags on several subjects of one type, keyed by subject id, in one call.
+-- Each subject goes through the same checks as subject_tags.
+create or replace function "better_supabase"."subjects_tags"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, "better_supabase"."subject_tags"(subjects_tags.tenant, subjects_tags.subject_type, s.id)), '{}'::jsonb)
+  from (select distinct u as id from unnest(subjects_tags.subject_ids) u limit 200) s
+$$;
+revoke execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1836,6 +1896,15 @@ as $$ select "better_supabase"."subject_tags"($1, $2, $3) $$;
 revoke execute on function "api"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "api"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+create or replace function "api"."subjects_tags"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."subjects_tags"($1, $2, $3) $$;
+revoke execute on function "api"."subjects_tags"(uuid, text, text[]) from public, anon;
+grant execute on function "api"."subjects_tags"(uuid, text, text[]) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1866,7 +1935,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:52ccab58a9e3ca18b95624e3fa058f320356b638d1fc03fe8421a888bf69b1fb
+-- @bsb-hash sha256:1fad8c6adf629c520119eaa40ba3276559d51caff206a2f3c9d74f367c360f57
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2233,6 +2302,21 @@ $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+-- The tags on several subjects of one type, keyed by subject id, in one call.
+-- Each subject goes through the same checks as subject_tags.
+create or replace function "better_supabase"."subjects_tags"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, "better_supabase"."subject_tags"(subjects_tags.tenant, subjects_tags.subject_type, s.id)), '{}'::jsonb)
+  from (select distinct u as id from unnest(subjects_tags.subject_ids) u limit 200) s
+$$;
+revoke execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2315,7 +2399,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:d9ced6c1449d7ba7dc72c9377af3f21253bdfbd83541729467401f8a8817b562
+-- @bsb-hash sha256:4b827b5840a8b4411e8d2639656feb64b69f349e1303e6b86ed31829a49a8b3d
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2671,6 +2755,21 @@ end;
 $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
+
+-- The tags on several subjects of one type, keyed by subject id, in one call.
+-- Each subject goes through the same checks as subject_tags.
+create or replace function "better_supabase"."subjects_tags"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, "better_supabase"."subject_tags"(subjects_tags.tenant, subjects_tags.subject_type, s.id)), '{}'::jsonb)
+  from (select distinct u as id from unnest(subjects_tags.subject_ids) u limit 200) s
+$$;
+revoke execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

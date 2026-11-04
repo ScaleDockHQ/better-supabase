@@ -19,24 +19,26 @@ Advisors](https://supabase.com/docs/guides/database/database-advisors) (BS100
 and BS200), so the dashboard's findings show up locally and in CI. It exits
 with 1 when there are errors, or with any warning under `--fail-on warning`.
 
-| Option                 | Description                                                                                                                                                                                                                                                        |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--format <f>`         | `text` (default), `sarif` or `github`; also `tooling.doctor.format`. The global `--json` prints the JSON report                                                                                                                                                    |
-| `--out <file>`         | Write the report to a file; also `tooling.doctor.output`, which applies with `tooling.doctor.format`                                                                                                                                                               |
-| `--only <codes>`       | Run only these checks, e.g. `--only BS100,BS304`; also `tooling.doctor.only`                                                                                                                                                                                       |
-| `--ignore <codes>`     | Skip checks. Adds to `tooling.doctor.ignore` in the config                                                                                                                                                                                                         |
-| `--fail-on <level>`    | Exit 1 on findings at this level: `error` (the default), `warning` (the default with `tooling.doctor.strict`) or `never`                                                                                                                                           |
-| `--snapshot <file>`    | Check a saved snapshot instead of the database                                                                                                                                                                                                                     |
-| `--metadata <path\|->` | Check a `GeneratorMetadata` document (`-` for stdin). Checks that need policies, grants, indexes, triggers or other data it lacks are skipped with an info finding; it exits 65 for a document it rejects ([gen](/docs/cli/gen#from-a-generatormetadata-document)) |
-| `--db-url-stdin`       | Read the connection string of the database to check from stdin                                                                                                                                                                                                     |
-| `--project-ref <ref>`  | Hosted project to read through the Management API (needs `SUPABASE_ACCESS_TOKEN`)                                                                                                                                                                                  |
-| `--stats`              | Report slow frequent statements from `pg_stat_statements` ([BS209](#bs209))                                                                                                                                                                                        |
-| `--explain <tables>`   | Plan these tables under RLS ([BS212](#bs212))                                                                                                                                                                                                                      |
-| `--as <uuid>`          | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405))                                                                                                                        |
-| `--claims <json>`      | With `--explain`: plan with these JWT claims                                                                                                                                                                                                                       |
-| `--fix-grants`         | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                                                                                                                                          |
-| `--update-baseline`    | Rewrite the [baseline](#baseline) file to accept this run's errors and warnings                                                                                                                                                                                    |
-| `--fix`                | Run the SQL of the findings that carry a fix against the database, such as validating a not valid check ([BS236](#bs236)), and leave them out of the report. Asks before it writes to a database that is not local                                                 |
+| Option                     | Description                                                                                                                                                                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--format <f>`             | `text` (default), `sarif` or `github`; also `tooling.doctor.format`. The global `--json` prints the JSON report                                                                                                                                                    |
+| `--out <file>`             | Write the report to a file; also `tooling.doctor.output`, which applies with `tooling.doctor.format`                                                                                                                                                               |
+| `--only <codes>`           | Run only these checks, e.g. `--only BS100,BS304`; also `tooling.doctor.only`                                                                                                                                                                                       |
+| `--ignore <codes>`         | Skip checks. Adds to `tooling.doctor.ignore` in the config                                                                                                                                                                                                         |
+| `--fail-on <level>`        | Exit 1 on findings at this level: `error` (the default), `warning` (the default with `tooling.doctor.strict`) or `never`                                                                                                                                           |
+| `--snapshot <file>`        | Check a saved snapshot instead of the database                                                                                                                                                                                                                     |
+| `--metadata <path\|->`     | Check a `GeneratorMetadata` document (`-` for stdin). Checks that need policies, grants, indexes, triggers or other data it lacks are skipped with an info finding; it exits 65 for a document it rejects ([gen](/docs/cli/gen#from-a-generatormetadata-document)) |
+| `--db-url-stdin`           | Read the connection string of the database to check from stdin                                                                                                                                                                                                     |
+| `--project-ref <ref>`      | Hosted project to read through the Management API (needs `SUPABASE_ACCESS_TOKEN`)                                                                                                                                                                                  |
+| `--stats`                  | Report slow frequent statements from `pg_stat_statements` ([BS209](#bs209))                                                                                                                                                                                        |
+| `--explain <tables>`       | Plan these tables, or functions such as `rs_customers_hub` and `order_payload`, under RLS ([BS212](#bs212))                                                                                                                                                        |
+| `--explain-write <tables>` | Plan an insert (a copy of one row with fresh keys) and an update on these tables, with the time of each trigger ([BS212](#bs212))                                                                                                                                  |
+| `--args <json>`            | With `--explain <function>`: the arguments, a JSON array (positional) or object (named)                                                                                                                                                                            |
+| `--as <uuid>`              | With `--explain` or `--explain-write`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405))                                                                                                   |
+| `--claims <json>`          | With `--explain` or `--explain-write`: plan with these JWT claims                                                                                                                                                                                                  |
+| `--fix-grants`             | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                                                                                                                                          |
+| `--update-baseline`        | Rewrite the [baseline](#baseline) file to accept this run's errors and warnings                                                                                                                                                                                    |
+| `--fix`                    | Run the SQL of the findings that carry a fix against the database, such as validating a not valid check ([BS236](#bs236)), and leave them out of the report. Asks before it writes to a database that is not local                                                 |
 
 Doctor never prints env values, only variable names and line numbers.
 
@@ -377,7 +379,10 @@ one written in `language sql stable`, so a call that takes a column of the row
 runs once per row. Call it as `(select helper(...))` when its arguments don't
 come from the row, so Postgres evaluates it once per statement as an
 InitPlan, or have it return the allowed ids as a set and compare with
-`organization_id in (select helper())`. A policy whose every call to the
+`organization_id in (select helper())`. When the helper itself is slow, compute
+its answer once per transaction with
+[`better_supabase.memo_get` and `memo_set`](/docs/blocks/sql#memoize-a-value-for-one-transaction).
+A policy whose every call to the
 helper already reads `(select helper(...))` with constant arguments, such as
 `(select tenant_ids_with('crm.read'))`, doesn't count.
 
@@ -472,6 +477,29 @@ policy is evaluated per row, and the finding becomes a warning: wrap the
 policy's function calls in `(select ...)` so they run once as an InitPlan.
 `--explain` needs a direct connection (local stack, `$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`); the
 Management API's read-only endpoint can't switch roles.
+
+`--explain-write customers` measures what a write costs, which a read plan can't show: audit, `updated_at` and
+outbox triggers all run inside the write. It copies one existing row with fresh keys (a new uuid, a unique text
+value, or the key's default) into an insert, and assigns one non-key column its own value in an update. Each
+statement runs under `EXPLAIN (ANALYZE)` in a transaction that is rolled back, and the finding lists the time
+of every trigger from the plan. The update assigns a column its own value, so a trigger that fires only when a
+column changes (like an audit trigger with `ignore`) shows only its cheap exit. Compare the numbers with
+`audit(..., statement => true)` for bulk writes.
+
+`--explain` also takes a function in an exposed schema, such as a compiled read
+set (`rs_customers_hub`) or a payload function (`order_payload`). Pass the
+arguments with `--args`, as a JSON array (positional) or object (named), and
+the user with `--as`:
+
+```bash
+better-supabase doctor --explain rs_customers_hub --as 0000…00ff \
+  --args '{"p_customer":"c7d1…"}'
+```
+
+Each value is sent as a literal cast to the argument's declared type, and the
+finding never prints rows. When a security definer helper ran, the finding adds
+a policy time share: the helpers' self time over the execution time, next to
+the calls each helper made in the statement.
 
 ```text
 info    BS212 RLS plan for a table
@@ -894,6 +922,30 @@ status of 400 or more, when an app table has `embedding` or
 `blocks.knowledge.options.autoEmbed` is on. Check that the Vault secrets
 `embedding_worker_url` and `embedding_worker_token` match the deployed worker.
 BS242 needs a database, so a saved snapshot skips it.
+
+### BS243
+
+**Warning: security definer helper holds a large literal.** A
+`security definer` function whose body holds a quoted literal above 1 KB, such
+as a permission map or a JSON catalog. Postgres parses the literal again on
+every call, and a policy helper runs once per table per statement. Store the
+data in a table, or parse it once per transaction and keep it with
+[`better_supabase.memo_get` and `memo_set`](/docs/blocks/sql#memoize-a-value-for-one-transaction).
+BS243 reads the SQL files, so a saved snapshot works too.
+
+### BS244
+
+**Warning: schema cache pressure.** PostgREST loads every table, function and
+relationship of the exposed schemas into its schema cache at start and after
+each `notify pgrst, 'reload schema'`. BS244 reports an exposed schema with more
+than 1500 tables and functions, and generated module SQL above 2 MB.
+
+Two changes keep the cache small. Set `gen.api.expose` to `"used"` so `gen`
+writes API wrappers only for the block functions your code calls (list the
+rest in `gen.api.exposeAlso`; see [gen](/docs/cli/gen#expose-only-the-functions-you-use)).
+And run DDL in one batch per deploy: every migration that ends a statement with
+a schema change makes PostgREST reload, so put all of a deploy's DDL in one
+transaction and send one reload.
 
 ## Drift
 
@@ -2199,6 +2251,25 @@ PostgREST. A read set compiles the same reads into one stable database
 function, so the page waits on one round trip: `defineReadSet(db, "name", ...)`
 and `db.$many(readSet, params)`, or `bsb.bootstrap` for a page's first load.
 See [read sets](/docs/repository/read-sets).
+
+### BS610
+
+**Warning: nested private cache scopes.** A function with
+`"use cache: private"` calls another function in the project that has the same
+directive. Next.js doesn't nest private scopes, and each scope resolves the
+session again. Call the inner function from the page and pass its result down,
+read both in one scope, or give every scope the same
+[session handle](/docs/frameworks/next-cache-components#skip-the-request-read-with-a-session-handle).
+The check reads source text, so it follows function declarations and arrow
+functions that carry the directive as their first statement.
+
+### BS611
+
+**Warning: service-role client in a private cache scope.** A function with
+`"use cache: private"` calls `bsb.admin()` or `createAdminClient`. The service
+role skips the user's policies, so what it returns is cached under the user's
+key but isn't their data, and each call adds a verification. Read as the user,
+or move the admin read out of the cached function.
 
 ## Local stacks
 

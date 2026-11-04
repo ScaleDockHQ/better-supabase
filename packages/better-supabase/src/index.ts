@@ -119,7 +119,11 @@ export { readTypeSource } from "./core/read-type.ts";
 
 export type { InferReadType, ReadType } from "./core/read-type.ts";
 
-export type { RecordReadOptions, RecordSummaryRead } from "./core/spec.ts";
+export type {
+  ReadSetGate,
+  RecordReadOptions,
+  RecordSummaryRead,
+} from "./core/spec.ts";
 
 export type {
   InferReadSetParams,

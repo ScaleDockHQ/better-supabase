@@ -63,7 +63,22 @@ export interface SpecsConfig {
 /** A step `better-supabase gen` runs. */
 export type GenTask = (typeof GEN_TASKS)[number];
 
+/** Which block functions get a wrapper in the API schema. */
+export interface GenApiConfig {
+  /**
+   * `"all"` (the default) wraps every function the roles may execute. `"used"`
+   * wraps only the functions the workspace sources name, the ones a block's
+   * TypeScript client calls and `exposeAlso`, so PostgREST's schema cache stays
+   * small. Wrappers need `sql.api` or a block's `api`.
+   */
+  readonly expose?: "all" | "used";
+  /** Function names that keep a wrapper under `expose: "used"`. */
+  readonly exposeAlso?: readonly string[];
+}
+
 export interface GenConfig {
+  /** Which block functions the API schema wraps (`sql.api`). */
+  readonly api?: GenApiConfig;
   /**
    * The steps `better-supabase gen` runs, in this order: `types` (the generated
    * modules and `generators`), `sql` (`upgrade`), `spec` (`spec emit`), `seed`

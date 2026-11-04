@@ -80,6 +80,8 @@ export interface SupabaseOptions {
 export interface ConnectOptions {
   /** Also records this connection's calls into a request-wide recorder. */
   readonly stats?: StatsRecorder;
+  /** Marks this connection's calls as service-role calls in the stats. */
+  readonly admin?: boolean;
   /**
    * Runs operations instead of the client's own executor, while `$client` stays
    * the client (e.g. routing reads to a replica).

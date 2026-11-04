@@ -199,6 +199,7 @@
       "ReadMethod",
       "ReadSet",
       "ReadSetAuth",
+      "ReadSetGate",
       "ReadSetOptions",
       "ReadSetParams",
       "ReadSetParamType",
@@ -1324,6 +1325,7 @@
       "clientIp",
       "contextFromSupabase",
       "createServer",
+      "createVersionCache",
       "csvColumns",
       "csvResponse",
       "DB_CALLS_HEADER",
@@ -1465,6 +1467,7 @@
       "AuthResolver",
       "AuthSession",
       "AuthState",
+      "AuthzSubjectSeed",
       "AuthzVersionCache",
       "AuthzVersionChannel",
       "AuthzVersionClient",
@@ -1488,6 +1491,7 @@
       "CookieOptions",
       "CookieRecord",
       "CookieWrite",
+      "CreateVersionCacheOptions",
       "CsvOptions",
       "CsvResponseOptions",
       "DelegationPermissions",
@@ -1593,7 +1597,9 @@
       "SuspendAccountResult",
       "TagOptions",
       "TicketSubject",
-      "UserSession"
+      "UserSession",
+      "VersionCache",
+      "VersionStore"
     ]
   },
   "./powersync": {
@@ -1849,6 +1855,7 @@
       "ResourceRouteOptions",
       "RouteOptions",
       "ScopeOptions",
+      "SessionHandle",
       "SessionSnapshot",
       "SignedIn",
       "SignInCredentials",
@@ -2032,6 +2039,7 @@
       "applyWebHeaders",
       "fastifyGuard",
       "guard",
+      "keepAliveFetch",
       "koaGuard",
       "problemErrorHandler",
       "sendWebResponse",
@@ -2049,11 +2057,13 @@
       "FastifyHook",
       "FastifyReplyLike",
       "FastifyRequestLike",
+      "KeepAliveFetchOptions",
       "KoaContextLike",
       "KoaMiddleware",
       "NodeHeaderTarget",
       "RouteGuardOptions",
       "ToNodeOptions",
+      "UndiciModule",
       "WebRequestOptions"
     ]
   },

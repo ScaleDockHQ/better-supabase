@@ -731,3 +731,148 @@ describe("block reads and record summaries in a read set", () => {
     );
   });
 });
+
+describe("nested includes", () => {
+  const nested = defineReadSet(
+    betterSupabase,
+    "customer_detail",
+    { params: { id: "uuid" } },
+    (s, p) => ({
+      customer: s.customers.list({
+        select: ["id", "name"],
+        where: { id: p.id },
+        include: {
+          organization: { select: ["name"] },
+          notes: {
+            select: ["id"],
+            limit: 3,
+            include: { customer: { select: ["id"] } },
+          },
+          customerTags: {
+            select: ["tagId"],
+            include: { tag: { select: ["name"] } },
+          },
+        },
+        limit: 1,
+      }),
+    }),
+  );
+
+  it("compiles to correlated subqueries, one level inside the next", async () => {
+    const { sql } = await compileReadSet(nested);
+    expect(sql).toContain(
+      `'organization', (select json_build_object('name', t1."name") from "public"."organizations" as t1`,
+    );
+    expect(sql).toContain(
+      `'customer', (select json_build_object('id', t3."id") from "public"."customers" as t3`,
+    );
+    expect(sql).toContain(
+      `'tag', (select json_build_object('name', t5."name") from "public"."tags" as t5`,
+    );
+    expect(sql).toContain(`where t0."id" = ((p->>'id')::uuid)`);
+  });
+});
+
+describe("auth.can gates", () => {
+  const gated = defineReadSet(
+    betterSupabase,
+    "gated",
+    { params: { organizationId: "uuid" } },
+    (s, p, auth) => ({
+      open: s.customers.count(),
+      current: s.when(auth.can("customer.read"), s.customers.count()),
+      other: s.when(
+        auth.can("customer.write", { id: p.organizationId }),
+        s.notes.count(),
+      ),
+    }),
+  );
+
+  it("wraps a gated entry in a case on better_supabase.can", async () => {
+    const { sql } = await compileReadSet(gated);
+    expect(sql).toContain(
+      `'current', case when (select better_supabase.can('tenant', better_supabase.current_tenant_id(), 'customer.read')) then jsonb_build_object(`,
+    );
+    expect(sql).toContain(
+      `'other', case when (select better_supabase.can('tenant', ((p->>'organizationId')::uuid), 'customer.write')) then`,
+    );
+    expect(sql).toContain(`else null end`);
+    expect(sql).not.toContain(`'open', case`);
+  });
+
+  it("decodes a gated-off entry to null over PostgREST", async () => {
+    const { client } = capturingClient(() => ({
+      body: {
+        open: { rows: [], count: 5 },
+        current: null,
+        other: { rows: [], count: 2 },
+      },
+    }));
+
+    const result = await betterSupabase
+      .connect(client)
+      .$many(gated, { organizationId: USER });
+
+    expect(result.ok && result.data).toEqual({
+      open: 5,
+      current: null,
+      other: 2,
+    });
+  });
+
+  it("checks each gate once on a batch executor and skips refused entries", async () => {
+    const calls: { name: string; args: unknown }[] = [];
+
+    const executor: Executor = {
+      ...fakeExecutor(),
+      rpc: (name, args) => {
+        calls.push({ name, args });
+
+        return Promise.resolve(
+          ok(
+            name === "current_tenant_id"
+              ? USER
+              : (args as { permission?: string }).permission ===
+                  "customer.read",
+          ),
+        );
+      },
+    };
+
+    const result = await betterSupabase
+      .connect(executor, { claims: { sub: USER } })
+      .$many(gated, { organizationId: USER });
+
+    expect(result.ok && result.data.current).toBeTypeOf("number");
+    expect(result.ok && result.data.other).toBeNull();
+    expect(calls.map((call) => call.name)).toEqual([
+      "current_tenant_id",
+      "can",
+      "can",
+    ]);
+  });
+});
+
+describe("readSet.parse", () => {
+  const set = defineReadSet(betterSupabase, "parsed", {}, (s, _p, auth) => ({
+    names: s.customers.list({ select: ["id"] }),
+    total: s.customers.count(),
+    gated: s.when(auth.can("customer.read"), s.customers.count()),
+  }));
+
+  it("accepts the shape $many returns, with a refused gate as null", () => {
+    const parsed = set.parse({ names: [{ id: "1" }], total: 2, gated: null });
+
+    expect(parsed.ok).toBe(true);
+  });
+
+  it("names each entry that has the wrong shape", () => {
+    const parsed = set.parse({ names: {}, total: "2", gated: 3 });
+
+    expect(parsed.ok).toBe(false);
+    expect(!parsed.ok && parsed.error.message).toBe(
+      'read set "parsed": names must be an array, total must be a number',
+    );
+    expect(set.parse(null).ok).toBe(false);
+  });
+});

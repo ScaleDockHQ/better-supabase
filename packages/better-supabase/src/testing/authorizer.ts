@@ -57,8 +57,9 @@ const FORGED = {
  * request order in `evaluations`, decides from the subject rather than the
  * input (forged roles, claims and memberships in the resource properties, a
  * `source: "input"` resource, its `change` or the context never turn a denial
- * into a grant), never grants an unknown permission, and grants
- * `options.granted` through `checkPermission`.
+ * into a grant), ignores a `runtime.seed` for another user or a version that is
+ * not live, never grants an unknown permission, and grants `options.granted`
+ * through `checkPermission`.
  */
 export function testAuthorizer<Ref>(
   authorizer: Authorizer<Ref>,
@@ -208,6 +209,30 @@ export function testAuthorizer<Ref>(
             expect(
               forged.outcome !== "granted" || plain.outcome === "granted",
               `input claiming a service caller was granted ${authorizer.key(permission)}`,
+            );
+          }
+        }
+      },
+    ],
+    [
+      "ignores a seed for another user or a version that is not live",
+      async () => {
+        for (const permission of options.permissions) {
+          const request = requestFor(permission, "a");
+          const plain = await authorizer.evaluate(request);
+
+          for (const seed of [
+            { userId: request.subject.id, version: -1, subject: FORGED },
+            {
+              userId: `${request.subject.id}-other`,
+              version: Number.MAX_SAFE_INTEGER,
+              subject: FORGED,
+            },
+          ]) {
+            const seeded = await authorizer.evaluate(request, { seed });
+            expect(
+              seeded.outcome === plain.outcome,
+              `a seed that is not for this user at the live version changed the outcome of ${authorizer.key(permission)}`,
             );
           }
         }

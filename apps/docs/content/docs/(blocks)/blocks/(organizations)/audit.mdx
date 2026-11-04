@@ -146,6 +146,25 @@ Every table a block owns writes a row entry when something changes it outside a 
 
 `blocks.audit.options.blockTables` sets the scope: `"entities"` (the default) covers each module's entity tables, `"all"` adds the other block tables, and `"none"` turns it off. The audit block's own tables never write row entries.
 
+## Bulk writes
+
+A row trigger runs once for every row a statement changes, so a bulk import or a nightly job that updates 50,000 rows writes 50,000 inserts into the log. Pass `statement => true` to audit the table with statement-level triggers instead. They read the statement's transition tables and write all entries in one insert.
+
+```sql
+select better_supabase.audit(
+  'public.customers',
+  ignore => '{updated_at}',
+  redact => '{api_key}',
+  statement => true
+);
+```
+
+Entries look the same as the row trigger's, with the same actor, tenant, redaction and `ignore` handling: a row whose only change is in `ignore` writes nothing. The mode has limits:
+
+- The table needs a primary key, because the old and new rows of an update are paired on it. An update that changes a key column is recorded as a delete and an insert.
+- It doesn't combine with `deferred`, `tenant_path` or `tenant_function`, and it needs a log without the restricted details table. `audit()` raises an error for each of these.
+- A row that `audit_event` recorded in the same transaction is skipped, as it is with the row trigger.
+
 ## Module actions
 
 Every SQL module records its security-relevant actions in the log once the

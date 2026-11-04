@@ -83,6 +83,7 @@ import { serverSessions } from "./sessions.ts";
 import { supportOff } from "./support-off.ts";
 import { supportStorage } from "./support-storage.ts";
 import { endSessions, suspendAccount } from "./suspend-account.ts";
+import { countVerifications } from "./verify-count.ts";
 
 /** The header `better_supabase.acting_member()` reads for a service caller. */
 const ACTOR_HEADER = "x-bsb-actor";
@@ -208,6 +209,9 @@ export function createServer<
     lite,
   });
 
+  const tuned = (rest: PostgrestClientLike) =>
+    tunedExecutor ? { executor: postgrestExecutor(rest, executorOptions) } : {};
+
   /** `$client` stays the full Supabase client, built when first read. */
   const withLazyClient = <T extends object>(
     db: T,
@@ -237,9 +241,7 @@ export function createServer<
       { ...authContext(auth), ...context },
       auth.kind === "invalid"
         ? { executor: refusingExecutor(auth.error), storage }
-        : tunedExecutor
-          ? { executor: postgrestExecutor(rest, executorOptions), storage }
-          : { storage },
+        : { ...tuned(rest), storage },
     ) as Db<M, F, E, SupabaseClient, B>;
 
     return withLazyClient(db, () => (supabase ??= contextClient(auth)));
@@ -664,9 +666,7 @@ export function createServer<
                     replica,
                   ),
                 }
-              : tunedExecutor
-                ? { executor: postgrestExecutor(rest, executorOptions) }
-                : {}),
+              : tuned(rest)),
         });
 
         // SAFETY: `$client` is redefined to return the SupabaseClient.
@@ -735,6 +735,8 @@ export function createServer<
     const { endedSession } = resolveOptions;
     const userMetadata = betterSupabase.userMetadataSchema;
 
+    const counted = countVerifications(resolveOptions.onVerify);
+
     const resolved = await resolveAuth(request, {
       logger: betterSupabase.events.logger,
       ...(verifiedTokens ? { memo: verifiedTokens } : {}),
@@ -754,6 +756,7 @@ export function createServer<
         ? {}
         : { leeway: resolveOptions.leeway }),
       ...(resolveOptions.onTiming ? { onTiming: resolveOptions.onTiming } : {}),
+      onVerify: counted.onVerify,
       ...(resolveOptions.encode === undefined
         ? {}
         : {
@@ -774,6 +777,7 @@ export function createServer<
     if (betterSupabase.events.has("auth")) {
       const { auth } = resolution;
       betterSupabase.events.emit("auth", {
+        verifications: counted.count(),
         source:
           auth.kind === "user"
             ? auth.source === "cookie"
@@ -953,9 +957,11 @@ export function createServer<
           claims: { role: "service_role" },
           ...context,
         },
-        tunedExecutor
-          ? { executor: postgrestExecutor(client, executorOptions) }
-          : {},
+        {
+          admin: true,
+          ...(adminOptions.stats && { stats: adminOptions.stats }),
+          ...tuned(client),
+        },
       );
 
       // SAFETY: `$authAdmin` is the one property AdminDb adds to Db.

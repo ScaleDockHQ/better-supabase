@@ -3,10 +3,17 @@ import type { BlockReadMap } from "./block-reads.ts";
 import type { BetterSupabase } from "./define.ts";
 import type { DbError } from "./errors.ts";
 import type { AnyPlugin } from "./plugin.ts";
-import type { InferEntryResult, ReadSetEntry, ReadSetSpecs } from "./spec.ts";
+import type { Result } from "./result.ts";
+import type {
+  InferEntryResult,
+  ReadSetEntry,
+  ReadSetGate,
+  ReadSetSpecs,
+} from "./spec.ts";
 
 import { createBlockReadSpecs } from "./block-reads.ts";
 import { dbError } from "./errors.ts";
+import { err, ok } from "./result.ts";
 import {
   createFunctionSpecs,
   isFunctionSpec,
@@ -73,6 +80,17 @@ export interface ReadSetAuth {
    * otherwise.
    */
   readonly uid: string;
+  /**
+   * A check that the caller holds `permission`, for `s.when(gate, entry)`: the
+   * entry runs only when `better_supabase.can(scope, id, permission)` is true
+   * and its result is `null` otherwise. `scope` defaults to `tenant` and `id`
+   * to the caller's current tenant; pass a parameter placeholder to check
+   * another one.
+   */
+  can(
+    permission: string,
+    options?: { readonly scope?: string; readonly id?: string },
+  ): ReadSetGate;
 }
 
 type ReadSetRole = "anon" | "authenticated";
@@ -99,6 +117,13 @@ export interface ReadSet<
   /** The reads, with placeholders where parameters go. */
   readonly specs: S;
   readonly definition: BetterSupabase;
+  /**
+   * Checks a value that crossed a boundary, such as a cache or a Client
+   * Component prop, against the shape `db.$many(readSet, params)` returns:
+   * every key present, counts as numbers, lists as arrays, and a gated entry as
+   * `null`. It checks structure, not each column.
+   */
+  parse(value: unknown): Result<ReadSetResult<ReadSet<N, P, S>>>;
 }
 
 /** What `db.$many(readSet, params)` resolves to. */
@@ -152,7 +177,14 @@ function sentinel(name: string): string {
   return `${NUL}bsb:${name}${NUL}`;
 }
 
-const AUTH: ReadSetAuth = { uid: sentinel("@uid") };
+const AUTH: ReadSetAuth = {
+  uid: sentinel("@uid"),
+  can: (permission, options = {}) => ({
+    permission,
+    scope: options.scope ?? "tenant",
+    ...(options.id === undefined ? {} : { id: options.id }),
+  }),
+};
 
 /** What a placeholder stands for: a caller parameter or the caller's identity. */
 export type Placeholder =
@@ -242,6 +274,7 @@ export function defineReadSet<
       $fn: createFunctionSpecs(),
       blocks: createBlockReadSpecs(options.blocks ?? {}),
       record: recordSpec,
+      when: gateSpec,
     } as unknown as ReadSetSpecs<M, F, E, B>,
     placeholders as ReadSetParams<P>,
     AUTH,
@@ -289,7 +322,81 @@ export function defineReadSet<
     // SAFETY: the read set stores the definition without its schema generics.
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the read set stores the definition without its schema generics.
     definition: betterSupabase as unknown as ReadSet["definition"],
+    parse: (value) => parseReadSetResult(name, specs, value),
   };
+}
+
+function entryProblem(spec: ReadSetEntry, value: unknown): string | undefined {
+  if (spec.gate !== undefined && value === null) {
+    return undefined;
+  }
+
+  if (isFunctionSpec(spec)) {
+    return value === undefined ? "is missing" : undefined;
+  }
+
+  switch (spec.method) {
+    case "count": {
+      return typeof value === "number" ? undefined : "must be a number";
+    }
+
+    case "list": {
+      return Array.isArray(value) ? undefined : "must be an array";
+    }
+
+    case "get": {
+      return value === null ||
+        (typeof value === "object" && !Array.isArray(value))
+        ? undefined
+        : "must be an object or null";
+    }
+
+    case "page":
+    case "aggregate": {
+      return value !== null && typeof value === "object"
+        ? undefined
+        : "must be an object";
+    }
+
+    default: {
+      const never: never = spec.method;
+
+      return never;
+    }
+  }
+}
+
+function parseReadSetResult<S extends Readonly<Record<string, ReadSetEntry>>>(
+  name: string,
+  specs: S,
+  value: unknown,
+): Result<{ readonly [K in keyof S]: InferEntryResult<S[K]> }> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return err(
+      dbError("invalid_request", `read set "${name}" result must be an object`),
+    );
+  }
+
+  // SAFETY: the check above ruled out null and arrays, leaving a plain object.
+  const record = value as Record<string, unknown>;
+  const problems: string[] = [];
+
+  for (const [key, spec] of Object.entries(specs)) {
+    const problem = entryProblem(spec, record[key]);
+
+    if (problem !== undefined) {
+      problems.push(`${key} ${problem}`);
+    }
+  }
+
+  if (problems.length > 0) {
+    return err(
+      dbError("invalid_request", `read set "${name}": ${problems.join(", ")}`),
+    );
+  }
+
+  // SAFETY: every entry passed its structural check above.
+  return ok(record as { readonly [K in keyof S]: InferEntryResult<S[K]> });
 }
 
 /**
@@ -420,6 +527,17 @@ export function containsPlaceholder(value: unknown): boolean {
   return false;
 }
 
+/** `s.when`: the entry with the gate on it. */
+function gateSpec<S extends ReadSetEntry>(gate: ReadSetGate, entry: S): S {
+  if (typeof gate.permission !== "string" || gate.permission === "") {
+    throw new TypeError(
+      "better-supabase: s.when needs a gate from auth.can(permission)",
+    );
+  }
+
+  return { ...entry, gate };
+}
+
 /** Whether the set's specs read the caller's identity. */
 function readSetUsesAuth(set: ReadSet): boolean {
   return Object.values(set.specs).some((spec) => usesAuth(spec.args));
@@ -523,17 +641,28 @@ export function bindParams(
     return value;
   };
 
+  const bindGate = (gate: ReadSetGate | undefined): { gate?: ReadSetGate } =>
+    gate === undefined
+      ? {}
+      : {
+          gate: {
+            ...gate,
+            ...(gate.id === undefined ? {} : { id: bind(gate.id) }),
+          },
+        };
+
   const specs = Object.fromEntries(
     Object.entries(set.specs).map(([key, spec]) => [
       key,
       isFunctionSpec(spec)
         ? {
             ...spec,
+            ...bindGate(spec.gate),
             args: Object.fromEntries(
               Object.entries(spec.args).map(([name, arg]) => [name, bind(arg)]),
             ),
           }
-        : { ...spec, args: spec.args.map(bind) },
+        : { ...spec, ...bindGate(spec.gate), args: spec.args.map(bind) },
     ]),
   );
 

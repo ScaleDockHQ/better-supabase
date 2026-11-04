@@ -24,6 +24,7 @@ import type {
 } from "../core/contracts/authorization-hooks.ts";
 import type { EventHub } from "../core/events.ts";
 import type { RequestContext } from "../core/plugin.ts";
+import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { AsyncResult } from "../core/result.ts";
 import type { StatsRecorder, DbStats } from "../core/stats.ts";
@@ -382,6 +383,8 @@ export interface ResolveRequestOptions {
   readonly leeway?: number;
   /** Milliseconds per phase, for `Server-Timing`. */
   readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
+  /** Called when a token is verified, not answered by the session memo. */
+  readonly onVerify?: () => void;
 }
 
 /**
@@ -463,7 +466,7 @@ export interface BetterServer<
    */
   admin(
     context?: RequestContext,
-    options?: { readonly as?: string },
+    options?: { readonly as?: string; readonly stats?: StatsRecorder },
   ): AdminDb<M, F, E, B>;
   /**
    * Deletes a user: the Auth user, then their objects in `buckets`, then a
@@ -524,7 +527,10 @@ export interface BetterServer<
    * same token: the first verifies it, the rest await that verification. `null`
    * for anyone but a signed-in user with a valid token. Never refreshes.
    */
-  snapshot(request: Request): Promise<SessionSnapshot<C> | null>;
+  snapshot(
+    request: Request,
+    onVerify?: () => void,
+  ): Promise<SessionSnapshot<C> | null>;
   /**
    * The context of a session snapshot: stateless clients and the claims, with
    * no cookie access and no network call. The token is never verified again: a
@@ -546,10 +552,10 @@ export interface BetterServer<
    * Calls with the same key share one query per request. A false
    * `sessionActive` evicts the user.
    */
-  bootstrapFor<T = unknown>(
+  bootstrapFor<T = unknown, S extends ReadSet = ReadSet>(
     request: Request,
-    options: BootstrapCallOptions,
-  ): Promise<Bootstrap<C, P, T>>;
+    options: BootstrapCallOptions<S>,
+  ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>>;
   /**
    * The context, tenant and permission checks for a request or a snapshot,
    * bound to one authorization version (the bootstrap's when you pass it).

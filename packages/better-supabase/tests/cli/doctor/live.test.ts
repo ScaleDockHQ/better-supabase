@@ -286,6 +286,83 @@ describe("BS209 slow statements", () => {
   });
 });
 
+describe("BS212 --explain-write", () => {
+  const plan = {
+    "Execution Time": 3,
+    Plan: { "Node Type": "ModifyTable", "Actual Total Time": 2 },
+    Triggers: [{ "Trigger Name": "bsb_audit", Time: 1.5, Calls: 1 }],
+  };
+
+  const column = (
+    name: string,
+    type: string,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    name,
+    type,
+    has_default: false,
+    generated: false,
+    is_key: false,
+    ...extra,
+  });
+
+  const writeDb = (columns: Record<string, unknown>[]) =>
+    database([
+      [/from pg_attribute a left join pg_index/, columns],
+      [/pg_stat_xact_user_functions/, []],
+      [/^explain/, [{ "QUERY PLAN": [plan] }]],
+    ]);
+
+  it("copies a row with fresh keys and reports the trigger time", async () => {
+    const db = writeDb([
+      column("id", "uuid", { is_key: true, has_default: true }),
+      column("name", "text"),
+      column("total", "integer", { generated: true }),
+    ]);
+
+    const [finding] = await check("BS212", {
+      database: db,
+      explain: { tables: [], claims: {}, write: ["notes"] },
+    });
+
+    expect(finding!.message).toContain(
+      "insert 3.00 ms, of which triggers 1.50 ms (bsb_audit 1.50 ms over 1 call)",
+    );
+    expect(finding!.message).toContain("update 3.00 ms");
+
+    const explains = db.texts().filter((text) => text.startsWith("explain"));
+
+    expect(explains[0]).toContain(
+      'insert into "public"."notes" ("id", "name") select gen_random_uuid(), s."name" from (select * from "public"."notes" limit 1) s',
+    );
+    expect(explains[1]).toContain(
+      `update "public"."notes" set "name" = "name" where ctid`,
+    );
+    expect(db.texts()).toContain("rollback");
+  });
+
+  it("names a key it can't make up", async () => {
+    const [finding] = await check("BS212", {
+      database: writeDb([column("at", "timestamptz", { is_key: true })]),
+      explain: { tables: [], claims: {}, write: ["notes"] },
+    });
+
+    expect(finding).toMatchObject({
+      severity: "warning",
+      message: expect.stringContaining("can't make a fresh key for at"),
+    });
+  });
+
+  it("warns about a table that is not exposed", async () => {
+    const [finding] = await check("BS212", {
+      database: writeDb([]),
+      explain: { tables: [], claims: {}, write: ["nope"] },
+    });
+
+    expect(finding!.message).toContain('no table "nope"');
+  });
+});
+
 describe("BS212 --explain", () => {
   const plan = {
     "Execution Time": 2,
@@ -449,6 +526,95 @@ describe("BS212 --explain", () => {
     );
   });
 
+  it("plans a function with named --args and reports the policy time share", async () => {
+    let reads = 0;
+
+    const db = database([
+      [
+        /pg_stat_xact_user_functions/,
+        () => {
+          reads += 1;
+
+          return reads === 1
+            ? []
+            : [{ name: "private.is_member", calls: 3, self_time: 1 }];
+        },
+      ],
+      [/p\.prosecdef/, [{ name: "private.is_member" }]],
+      [
+        /from pg_proc p join pg_namespace n on n\.oid = p\.pronamespace where p\.proname/,
+        [
+          {
+            schema: "public",
+            name: "rs_customers_hub",
+            arg_names: ["p_customer"],
+            arg_types: ["uuid"],
+          },
+        ],
+      ],
+      [
+        /^explain/,
+        [
+          {
+            "QUERY PLAN": [
+              { "Execution Time": 4, Plan: { "Node Type": "Function Scan" } },
+            ],
+          },
+        ],
+      ],
+    ]);
+
+    const [finding] = await check("BS212", {
+      database: db,
+      explain: {
+        tables: ["rs_customers_hub"],
+        claims: { role: "authenticated", sub: "u1" },
+        args: { p_customer: "c1" },
+      },
+    });
+
+    expect(db.texts().find((text) => text.startsWith("explain"))).toBe(
+      `explain (analyze, buffers, format json) select * from "public"."rs_customers_hub"("p_customer" => 'c1'::uuid)`,
+    );
+    expect(finding!.target).toBe("rs_customers_hub:explain");
+    expect(finding!.message).toContain(
+      "private.is_member 1.00 ms over 3 calls (25%)",
+    );
+    expect(finding!.message).toContain(
+      "Policy time share: 25% in security definer helpers.",
+    );
+  });
+
+  it("passes positional --args as typed literals", async () => {
+    const db = database([
+      [
+        /where p\.proname/,
+        [
+          {
+            schema: "public",
+            name: "order_payload",
+            arg_names: null,
+            arg_types: ["uuid", "jsonb"],
+          },
+        ],
+      ],
+      [/^explain/, [{ "QUERY PLAN": [{ Plan: { "Node Type": "Result" } }] }]],
+    ]);
+
+    await check("BS212", {
+      database: db,
+      explain: {
+        tables: ["order_payload"],
+        claims: {},
+        args: ["o1", { a: 1 }],
+      },
+    });
+
+    expect(db.texts().find((text) => text.startsWith("explain"))).toBe(
+      `explain (analyze, buffers, format json) select * from "public"."order_payload"('o1'::uuid, '{"a":1}'::jsonb)`,
+    );
+  });
+
   it("reports unknown tables, bad roles, missing plans and failures, and always rolls back", async () => {
     const empty = database([]);
 
@@ -463,7 +629,9 @@ describe("BS212 --explain", () => {
     expect(findings).toMatchObject([
       {
         severity: "warning",
-        message: expect.stringContaining('--explain: no table "nope"'),
+        message: expect.stringContaining(
+          '--explain: no table or function "nope"',
+        ),
       },
       {
         target: "better_supabase.memberships:explain",
@@ -495,5 +663,167 @@ describe("BS212 --explain", () => {
     expect(failed!.message).toBe(
       "--explain public.notes failed: canceling statement",
     );
+  });
+});
+
+describe("BS212 --explain edge cases", () => {
+  const planRow: Record<string, unknown>[] = [
+    { "QUERY PLAN": [{ Plan: { "Node Type": "Result" }, Triggers: [{}] }] },
+  ];
+
+  const keyColumn = (name: string, type: string, hasDefault = false) => ({
+    name,
+    type,
+    has_default: hasDefault,
+    generated: false,
+    is_key: true,
+  });
+
+  const valueColumn = {
+    name: "label",
+    type: "text",
+    has_default: false,
+    generated: false,
+    is_key: false,
+  };
+
+  const writeDb = (
+    columns: Record<string, unknown>[],
+    plan: Record<string, unknown>[] = planRow,
+  ) =>
+    database([
+      [/from pg_attribute a left join pg_index/, columns],
+      [/pg_stat_xact_user_functions/, []],
+      [/^explain/, plan],
+    ]);
+
+  const write = (db: ReturnType<typeof database>) =>
+    check("BS212", {
+      database: db,
+      explain: { tables: [], claims: {}, write: ["notes"] },
+    });
+
+  it("makes text and defaulted integer keys and names a trigger without time", async () => {
+    const db = writeDb([
+      keyColumn("slug", "text"),
+      keyColumn("seq", "integer", true),
+      valueColumn,
+    ]);
+
+    const [finding] = await write(db);
+
+    expect(finding!.message).toContain("(undefined 0.00 ms over 0 calls)");
+
+    expect(
+      db
+        .texts()
+        .find((text) =>
+          text.startsWith("explain (analyze, buffers, format json) insert"),
+        ),
+    ).toContain(`'bsb_explain_' || gen_random_uuid()::text`);
+  });
+
+  it("reports no triggers and a table without a non-key column", async () => {
+    const [quiet] = await write(
+      writeDb(
+        [valueColumn],
+        [{ "QUERY PLAN": [{ Plan: { "Node Type": "Result" } }] }],
+      ),
+    );
+
+    expect(quiet!.message).toContain("no triggers fired");
+
+    const [bare] = await write(writeDb([keyColumn("id", "uuid")]));
+
+    expect(bare!.message).toContain(
+      "the table has no non-key column to update",
+    );
+  });
+
+  const procDb = (row: Record<string, unknown> | undefined) =>
+    database([
+      [/where p\.proname/, row ? [row] : []],
+      [/^explain/, planRow],
+    ]);
+
+  const explainFunction = (
+    db: ReturnType<typeof database>,
+    name: string,
+    args?: unknown,
+  ) =>
+    check("BS212", {
+      database: db,
+      explain: {
+        tables: [name],
+        claims: {},
+        ...(args === undefined ? {} : { args }),
+      },
+    });
+
+  it("qualifies a function by schema and leaves unknown named args untyped", async () => {
+    const db = procDb({
+      schema: "public",
+      name: "hub",
+      arg_names: null,
+      arg_types: [],
+    });
+
+    await explainFunction(db, "public.hub", { other: 1 });
+
+    expect(db.texts().find((text) => text.startsWith("explain"))).toContain(
+      `"public"."hub"("other" => '1')`,
+    );
+    expect(db.texts().join("\n")).toContain("n.nspname = 'public'");
+  });
+
+  it("calls a function without args and types positional args it has no type for", async () => {
+    const bare = procDb({
+      schema: "public",
+      name: "hub",
+      arg_names: [],
+      arg_types: [],
+    });
+
+    await explainFunction(bare, "hub");
+
+    expect(bare.texts().find((text) => text.startsWith("explain"))).toContain(
+      `"public"."hub"()`,
+    );
+
+    const untyped = procDb({
+      schema: "public",
+      name: "hub",
+      arg_names: [],
+      arg_types: [],
+    });
+
+    await explainFunction(untyped, "hub", ["x"]);
+
+    expect(
+      untyped.texts().find((text) => text.startsWith("explain")),
+    ).toContain(`"public"."hub"('x')`);
+  });
+
+  it("ignores a function in a schema that isn't exposed and reports a failed lookup", async () => {
+    const hidden = procDb({
+      schema: "secret",
+      name: "hub",
+      arg_names: [],
+      arg_types: [],
+    });
+
+    const [missing] = await explainFunction(hidden, "hub");
+
+    expect(missing!.message).toContain('no table or function "hub"');
+
+    const [failed] = await explainFunction(
+      database([[/where p\.proname/, { throws: pgError("42501", "denied") }]]),
+      "hub",
+    );
+
+    expect(failed).toMatchObject({
+      target: "hub:explain",
+      message: "--explain hub failed: denied",
+    });
   });
 });

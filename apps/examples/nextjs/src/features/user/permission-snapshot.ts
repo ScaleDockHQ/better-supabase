@@ -8,6 +8,8 @@ import type { PermissionSet } from "./user-permissions";
 
 // See https://bettersupabase.com/docs/frameworks/next-cache-components#permission-snapshots.
 
+type CachedRequest = Awaited<ReturnType<typeof bsb.cached>>;
+
 /** The tag of a user's snapshot entries. */
 function snapshotTag(sub: string | null): string {
   return `permissions:${sub ?? "anon"}`;
@@ -29,7 +31,18 @@ export function organizationSnapshotTag(organizationId: string): string {
  */
 export async function getPermissions(): Promise<PermissionSet | null> {
   "use cache: private";
-  const { db, session } = await bsb.cached();
+
+  return readPermissions(await bsb.cached());
+}
+
+/**
+ * The same read for a function that already runs in a private scope and holds
+ * `bsb.cached()`: it tags the surrounding entry and resolves nothing again.
+ */
+export async function readPermissions({
+  db,
+  session,
+}: CachedRequest): Promise<PermissionSet | null> {
   const tenant = tenantOf(session);
 
   cacheTag(snapshotTag(session.kind === "user" ? session.user.id : null));

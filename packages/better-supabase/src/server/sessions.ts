@@ -38,7 +38,11 @@ export interface SessionsOptions<C, P, Ctx> {
   /** Resolves a request; its token verification goes through `memo`. */
   readonly resolve: (
     request: Request,
-    options: { readonly refresh: false; readonly cookies?: false },
+    options: {
+      readonly refresh: false;
+      readonly cookies?: false;
+      readonly onVerify?: () => void;
+    },
   ) => Promise<AuthResolution<C, P>>;
   /** The server's verified-token memo, `undefined` with `sessions: false`. */
   readonly memo: SessionMemo<VerifiedUser> | undefined;
@@ -51,7 +55,10 @@ export interface SessionsOptions<C, P, Ctx> {
 export function serverSessions<C, P, Ctx, Opts extends object>(
   options: SessionsOptions<C, P, Ctx>,
 ): {
-  readonly snapshot: (request: Request) => Promise<SessionSnapshot<C> | null>;
+  readonly snapshot: (
+    request: Request,
+    onVerify?: () => void,
+  ) => Promise<SessionSnapshot<C> | null>;
   readonly contextFromSession: (
     snapshot: SessionSnapshot<C> | null,
     options?: Opts,
@@ -69,8 +76,13 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
 
   const build = async (
     request: Request,
+    onVerify?: () => void,
   ): Promise<SessionSnapshot<C> | null> => {
-    const { auth } = await options.resolve(request, { refresh: false });
+    const { auth } = await options.resolve(request, {
+      refresh: false,
+      ...(onVerify ? { onVerify } : {}),
+    });
+
     let found = snapshots.get(auth);
 
     if (found === undefined) {
@@ -81,24 +93,51 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
     return found;
   };
 
-  const snapshot = (request: Request): Promise<SessionSnapshot<C> | null> => {
+  const snapshot = (
+    request: Request,
+    onVerify?: () => void,
+  ): Promise<SessionSnapshot<C> | null> => {
     let found = byRequest.get(request);
 
     if (!found) {
-      found = build(request);
+      found = build(request, onVerify);
       byRequest.set(request, found);
     }
 
     return found;
   };
 
+  /** One context, so one PostgREST client, per parked snapshot and tenant. */
+  const built = new WeakMap<object, Map<string, Promise<Ctx>>>();
+
   const contextFromSession = (
     session: SessionSnapshot<C> | null,
     contextOptions?: Opts,
   ): Promise<Ctx> => {
     const auth = session ? authFor<C, P>(session) : ANON;
+    const given = contextOptions ?? {};
+    const keys = Object.keys(given);
+    const tenant = "tenant" in given ? given.tenant : undefined;
 
-    return Promise.resolve(options.contextFor(auth, contextOptions ?? {}));
+    if (
+      !session ||
+      keys.length > 1 ||
+      (keys.length === 1 && typeof tenant !== "string")
+    ) {
+      return Promise.resolve(options.contextFor(auth, given));
+    }
+
+    const tenants = built.get(session) ?? new Map<string, Promise<Ctx>>();
+    const slot = typeof tenant === "string" ? tenant : "";
+    let found = tenants.get(slot);
+
+    if (!found) {
+      found = Promise.resolve(options.contextFor(auth, given));
+      tenants.set(slot, found);
+      built.set(session, tenants);
+    }
+
+    return found;
   };
 
   const evict = (userId: string): void => {

@@ -119,6 +119,19 @@ describe("testAuthorizer", () => {
     }
   });
 
+  it("refuses an authorizer that trusts a seed that is not live", async () => {
+    const seeded = defineAuthorizer({
+      name: "seeded",
+      key: (ref: Ref) => ref,
+      evaluate: (_request, runtime) =>
+        runtime?.seed ? { outcome: "granted" } : { outcome: "denied" },
+    });
+
+    expect(await failures(seeded, ["export"])).toEqual([
+      "ignores a seed for another user or a version that is not live",
+    ]);
+  });
+
   it("passes an authorizer that reads the subject's claims", async () => {
     const reading = defineAuthorizer({
       name: "reading",

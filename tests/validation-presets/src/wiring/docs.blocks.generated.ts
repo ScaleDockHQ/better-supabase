@@ -540,6 +540,33 @@ export type BillingOverviewResult = {
   readonly usage: readonly unknown[];
 };
 
+/** The arguments of `reads.comments.list`. @public */
+export type CommentsListArgs = { readonly tenant: string; readonly subjectType: string; readonly subjectId: string; readonly maxRows?: number };
+
+/** What `reads.comments.list` returns. @public */
+export type CommentsListResult = readonly unknown[];
+
+/** The arguments of `reads.comments.counts`. @public */
+export type CommentsCountsArgs = { readonly tenant: string; readonly subjectType: string; readonly subjectIds: readonly string[] };
+
+/** What `reads.comments.counts` returns. @public */
+export type CommentsCountsResult = unknown;
+
+/** The arguments of `reads.notifications.inbox`. @public */
+export type NotificationsInboxArgs = { readonly tenant?: string; readonly status?: string; readonly maxItems?: number };
+
+/** What `reads.notifications.inbox` returns. @public */
+export type NotificationsInboxResult = {
+  readonly items: readonly unknown[];
+  readonly total: number;
+};
+
+/** The arguments of `reads.notifications.counts`. @public */
+export type NotificationsCountsArgs = { readonly tenant?: string; readonly actionable?: readonly string[] };
+
+/** What `reads.notifications.counts` returns. @public */
+export type NotificationsCountsResult = unknown;
+
 /** The arguments of `reads.organizations.overview`. @public */
 export type OrganizationsOverviewArgs = { readonly organizationId: string };
 
@@ -572,6 +599,14 @@ export type OrganizationsOverviewResult = {
 export const reads = {
   billing: {
     overview: blockRead<BillingOverviewArgs, BillingOverviewResult>("billing_overview", { organizationId: "tenant", invoiceLimit: "invoice_limit" }, ["customers", "subscriptions"], "better_supabase"),
+  },
+  comments: {
+    list: blockRead<CommentsListArgs, CommentsListResult>("list_comments", { tenant: "tenant", subjectType: "subject_type", subjectId: "subject_id", maxRows: "max_rows" }, ["messages", "conversations"], "better_supabase"),
+    counts: blockRead<CommentsCountsArgs, CommentsCountsResult>("comment_counts", { tenant: "tenant", subjectType: "subject_type", subjectIds: "subject_ids" }, ["messages", "conversations"], "better_supabase"),
+  },
+  notifications: {
+    inbox: blockRead<NotificationsInboxArgs, NotificationsInboxResult>("notification_page", { tenant: "tenant", status: "status", maxItems: "max_items" }, ["notification_recipients", "notification_events"], "better_supabase"),
+    counts: blockRead<NotificationsCountsArgs, NotificationsCountsResult>("notification_counts", { tenant: "tenant", actionable: "actionable" }, ["notification_recipients", "notification_events"], "better_supabase"),
   },
   organizations: {
     overview: blockRead<OrganizationsOverviewArgs, OrganizationsOverviewResult>("organization_overview", { organizationId: "organization" }, ["organizations", "memberships", "invitations"], "better_supabase"),

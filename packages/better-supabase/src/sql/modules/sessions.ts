@@ -64,7 +64,9 @@ const BOOTSTRAP_NAME = /^[a-z][a-z0-9_]*$/;
 
 const FUNCTION_NAME = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
 
-function isReadSetRef(value: unknown): value is { readonly readSet: string } {
+function isReadSetRef(
+  value: unknown,
+): value is { readonly readSet: string; readonly subject?: string } {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -73,13 +75,51 @@ function isReadSetRef(value: unknown): value is { readonly readSet: string } {
   );
 }
 
+function isReadSetsRef(
+  value: unknown,
+): value is {
+  readonly readSets: readonly string[];
+  readonly shell?: string;
+  readonly subject?: string;
+} {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "readSets" in value &&
+    Array.isArray(value.readSets)
+  );
+}
+
+interface BootstrapTarget {
+  readonly name: string;
+  /** The function whose result is `data`, or none. */
+  readonly fn: string | undefined;
+  /** The read sets the caller can pick from, as `public.rs_<name>`. */
+  readonly readSets: readonly string[];
+  /** A no-argument function whose jsonb result is the authorizer subject. */
+  readonly subject?: string | undefined;
+}
+
 /**
- * `blocks['sessions'].options.bootstrap`: wrapper name to `schema.function`, or
- * to a read set, which is the function `public.rs_<name>`.
+ * `blocks['sessions'].options.bootstrap`: wrapper name to `schema.function`, to
+ * a read set (the function `public.rs_<name>`), or to `{ readSets, shell? }`,
+ * where the caller picks one of the read sets per call.
  */
-function bootstrapFunctions(
-  ctx: BlockSqlContext,
-): readonly (readonly [string, string])[] {
+function subjectOf(name: string, subject: unknown): string | undefined {
+  if (subject === undefined) {
+    return undefined;
+  }
+
+  if (typeof subject !== "string" || !FUNCTION_NAME.test(subject)) {
+    throw new TypeError(
+      `${WHERE}.${name}.subject must name a function as schema.function`,
+    );
+  }
+
+  return subject;
+}
+
+function bootstrapFunctions(ctx: BlockSqlContext): readonly BootstrapTarget[] {
   const raw = ctx.option("bootstrap");
 
   if (raw === undefined) {
@@ -99,6 +139,32 @@ function bootstrapFunctions(
       );
     }
 
+    if (isReadSetsRef(fn)) {
+      for (const set of fn.readSets) {
+        if (typeof set !== "string" || !BOOTSTRAP_NAME.test(set)) {
+          throw new TypeError(
+            `${WHERE}.${name}.readSets must list lowercase read set names (letters, digits, _)`,
+          );
+        }
+      }
+
+      if (
+        fn.shell !== undefined &&
+        (typeof fn.shell !== "string" || !FUNCTION_NAME.test(fn.shell))
+      ) {
+        throw new TypeError(
+          `${WHERE}.${name}.shell must name a function as schema.function`,
+        );
+      }
+
+      return {
+        name,
+        fn: fn.shell,
+        readSets: fn.readSets,
+        subject: subjectOf(name, fn.subject),
+      };
+    }
+
     if (isReadSetRef(fn)) {
       if (!BOOTSTRAP_NAME.test(fn.readSet)) {
         throw new TypeError(
@@ -106,7 +172,12 @@ function bootstrapFunctions(
         );
       }
 
-      return [name, `public.rs_${fn.readSet}`] as const;
+      return {
+        name,
+        fn: `public.rs_${fn.readSet}`,
+        readSets: [],
+        subject: subjectOf(name, fn.subject),
+      };
     }
 
     if (typeof fn !== "string" || !FUNCTION_NAME.test(fn)) {
@@ -115,7 +186,7 @@ function bootstrapFunctions(
       );
     }
 
-    return [name, fn] as const;
+    return { name, fn, readSets: [] };
   });
 }
 
@@ -155,16 +226,51 @@ function bootstrapWrappers(
     ? "to_jsonb(better_supabase.caller_authz_version())"
     : "auth.jwt() -> 'authz_ver'";
 
-  const wrappers = functions.map(([name, fn]) => {
+  const wrappers = functions.map(({ name, fn, readSets, subject }) => {
     const wrapper = `better_supabase.bootstrap_${name}`;
+    const picks = readSets.length > 0;
+    const dataSql = fn === undefined ? "null" : `to_jsonb(${fn}(args))`;
 
-    return `create or replace function ${wrapper}(args jsonb default '{}'::jsonb)
+    const signature = picks
+      ? `args jsonb default '{}'::jsonb, read_set text default null, read_params jsonb default null`
+      : `args jsonb default '{}'::jsonb`;
+
+    const argTypes = picks ? "jsonb, text, jsonb" : "jsonb";
+
+    // A static case: the set is one of the listed functions, never a name the
+    // caller builds. Each runs as the caller, so its policies apply.
+    const readsSql = picks
+      ? `,
+    'reads', case read_set
+${readSets
+  .map(
+    (set) =>
+      `      when '${set}' then to_jsonb(public.rs_${set}(coalesce(read_params, '{}'::jsonb)))`,
+  )
+  .join("\n")}
+      else null
+    end`
+      : "";
+
+    const guard = picks
+      ? `
+  if read_set is not null and read_set not in (${readSets.map((set) => `'${set}'`).join(", ")}) then
+    raise exception 'unknown read set %', read_set using errcode = '22023';
+  end if;`
+      : "";
+
+    // The earlier one-argument wrapper would make a named call ambiguous.
+    const dropOld = picks
+      ? `drop function if exists ${wrapper}(jsonb);\n\n`
+      : "";
+
+    return `${dropOld}create or replace function ${wrapper}(${signature})
 returns jsonb
 language plpgsql
 security invoker
 set search_path = ''
 as $$
-begin
+begin${guard}
   if not (select better_supabase.session_active()) then
     return jsonb_build_object(
       'session_active', false,
@@ -180,13 +286,13 @@ begin
     'authz_version', ${live},
     'token_authz_version', auth.jwt() -> 'authz_ver',
     'tenant', args ->> 'tenant',
-    'data', to_jsonb(${fn}(args))
+    'data', ${dataSql}${readsSql}${subject ? `,\n    'subject', to_jsonb(${subject}())` : ""}
   );
 end;
 $$;
 
-revoke execute on function ${wrapper}(jsonb) from public, anon;
-grant execute on function ${wrapper}(jsonb) to authenticated;`;
+revoke execute on function ${wrapper}(${argTypes}) from public, anon;
+grant execute on function ${wrapper}(${argTypes}) to authenticated;`;
   });
 
   return `

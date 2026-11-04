@@ -18,8 +18,10 @@ import type {
   BlockMethodName,
 } from "../blocks/block-method.ts";
 import type { AuthzVersionCache } from "../core/authorizer.ts";
-import type { ReadSet } from "../core/read-set.ts";
+import type { RequestContext } from "../core/plugin.ts";
+import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { QuerySpec } from "../core/spec.ts";
+import type { StatsRecorder } from "../core/stats.ts";
 import type { TagOptions } from "../core/tags.ts";
 import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
 import type { BindingName } from "../records/bindings.ts";
@@ -43,6 +45,7 @@ import type {
 import type { ResourceMap } from "../server/resources.ts";
 import type { GuardOptions } from "../server/respond.ts";
 import type {
+  AdminDb,
   BetterServer,
   ContextOptions,
   ServerContext,
@@ -330,6 +333,26 @@ export interface BetterNext<
     options?: CachedOptions<Extract<keyof M, string>>,
   ): Promise<CachedContext<M, F, E, C, P, B>>;
   /**
+   * Parks the request's verified session until the response is sent and returns
+   * its serializable handle. Pass the handle to a `'use cache: private'`
+   * function and to `bsb.cached({ session: handle })`: the scope resolves the
+   * session from the handle, so it reads no cookie, header or token and runs no
+   * verification. Without a handle (or after the response) the scope reads the
+   * request's session as before. The handle names the user, session, tenant and
+   * authorization version, never the token, so it is a sound cache key part.
+   *
+   * ```ts
+   * const session = await bsb.sessionHandle();
+   * <Customers session={session} />;
+   *
+   * async function Customers({ session }: { session: SessionHandle }) {
+   *   "use cache: private";
+   *   const { db } = await bsb.cached({ session });
+   * }
+   * ```
+   */
+  sessionHandle(options?: { readonly tenant?: string }): Promise<SessionHandle>;
+  /**
    * Wraps a `'use cache: remote'` function so it can read as the caller: it
    * verifies the session outside the boundary (a memo hit), hands the token
    * over for the call, and passes the serializable key parts first. The token
@@ -359,9 +382,9 @@ export interface BetterNext<
    * runs the call once per request and key. A `false` `sessionActive` evicts
    * the user's entries and redirects to `redirect` when it is set.
    */
-  bootstrap<T = unknown>(
-    options: BootstrapOptions<Extract<keyof M, string>>,
-  ): Promise<Bootstrap<C, P, T>>;
+  bootstrap<T = unknown, S extends ReadSet = ReadSet>(
+    options: BootstrapOptions<Extract<keyof M, string>, S>,
+  ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>>;
   /**
    * The context, tenant and permission checks for a bootstrap result (or a
    * snapshot), bound to its authorization version, so islands stop rebuilding
@@ -377,6 +400,19 @@ export interface BetterNext<
   brand(): Promise<string | undefined>;
   /** `rootParams.tenant()`, or `undefined` without one or outside a render. */
   tenant(): Promise<string | undefined>;
+  /**
+   * Service-role repositories, like `bsb.admin()`. With `request` (the one a
+   * route handler or proxy hook received) its calls count as admin calls in
+   * that request's totals, so the dev budget and `expectDbBudget` see them.
+   */
+  admin(
+    context?: RequestContext,
+    options?: {
+      readonly as?: string;
+      readonly stats?: StatsRecorder;
+      readonly request?: Request;
+    },
+  ): AdminDb<M, F, E, B>;
   /**
    * Drops every `bsb.cached()` entry of a user, e.g. after a role change, and
    * the entries tagged with `tags` (such as a permission snapshot's tag). In a
@@ -861,6 +897,9 @@ export interface RemoteCacheKey {
   readonly support: string | null;
 }
 
+/** The serializable handle of a parked session; see `bsb.sessionHandle()`. */
+export type SessionHandle = RemoteCacheKey;
+
 export interface RemoteOptions<
   C = unknown,
   A extends readonly unknown[] = readonly unknown[],
@@ -897,6 +936,11 @@ export interface PrivateCachedOptions<T extends string = string>
   /** Defaults to `"private"`. */
   readonly scope?: "private";
   /**
+   * The handle `bsb.sessionHandle()` returned. The scope resolves the session
+   * from it instead of reading the request.
+   */
+  readonly session?: SessionHandle;
+  /**
    * The active tenant, as for `bsb.context({ tenant })`. Next.js keys the
    * private cache on your function's arguments, so take the tenant as an
    * argument and pass it through; never read it from anywhere else.
@@ -916,8 +960,11 @@ export type CachedOptions<T extends string = string> =
   | PrivateCachedOptions<T>
   | RemoteCachedOptions<T>;
 
-export type BootstrapOptions<T extends string = string> = CachedOptions<T> &
-  Omit<BootstrapCallOptions, "tenant"> & {
+export type BootstrapOptions<
+  T extends string = string,
+  S extends ReadSet = ReadSet,
+> = CachedOptions<T> &
+  Omit<BootstrapCallOptions<S>, "tenant"> & {
     /**
      * Where to send the caller when `session_active()` is false, with
      * `?reason=session_not_found`, or `?reason=user_banned` for a banned user.
