@@ -126,6 +126,7 @@ export type {
   QueueRpcClient,
   QueueStats,
   QueuePurgeArgs,
+  StoredSchedule,
   TransportQueueProviderOptions,
 } from "./backends.ts";
 

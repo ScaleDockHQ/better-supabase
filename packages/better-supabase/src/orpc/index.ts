@@ -265,10 +265,10 @@ export interface BetterOrpc<
    * Counts a hit per call with a rate limiter, such as `createRateLimit()`
    * (`key` and `scope`) or its `checkAll` (`hits`, several limits in one round
    * trip). The `RateLimit` (and with a rule, `RateLimit-Policy`) fields go to
-   * `context.resHeaders` under oRPC's `ResponseHeadersPlugin`, and otherwise
-   * `fetchHandler` adds them. A refused call throws `TOO_MANY_REQUESTS` (or
-   * `code`) and the response carries `Retry-After`. Use it after `middleware()`
-   * to key on `context.auth`.
+   * `context.resHeaders` under oRPC's `ResponseHeadersHandlerPlugin`, and
+   * otherwise `fetchHandler` adds them. A refused call throws
+   * `TOO_MANY_REQUESTS` (or `code`) and the response carries `Retry-After`. Use
+   * it after `middleware()` to key on `context.auth`.
    */
   rateLimit<TContext extends OrpcRequestContext = OrpcRequestContext>(
     options: RateLimitRouteOptions<OrpcRateLimitInput<TContext>> &
@@ -366,7 +366,10 @@ type OrpcErrorFactory = (options: {
   readonly data: ProblemDetails;
 }) => ORPCError<string, ProblemDetails>;
 
-/** `resHeaders` from oRPC's `ResponseHeadersPlugin`, when the handler uses it. */
+/**
+ * `resHeaders` from oRPC's `ResponseHeadersHandlerPlugin`, when the handler
+ * uses it.
+ */
 function responseHeadersOf(context: object): Headers | undefined {
   if (!("resHeaders" in context)) {
     return undefined;

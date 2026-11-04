@@ -62,7 +62,7 @@ describe("queue block", () => {
 
   it("drops the old schedule_job signature when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "queue", version: 1 }]);
-    expect(plan).toMatchObject({ module: "queue", from: 1, to: 10 });
+    expect(plan).toMatchObject({ module: "queue", from: 1, to: 11 });
     expect(plan!.steps[0]!.sql).toContain(
       "drop function if exists better_supabase.schedule_job(text, text, text, jsonb);",
     );
@@ -74,6 +74,9 @@ describe("queue block", () => {
     );
     expect(plan!.steps[3]!.sql).toContain(
       "drop function if exists better_supabase.claim_due_schedules(integer, integer);",
+    );
+    expect(plan!.steps.at(-1)!.sql).toContain(
+      "drop function if exists better_supabase.list_schedules(text, text);",
     );
   });
 

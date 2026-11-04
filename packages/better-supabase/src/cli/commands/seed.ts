@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { ConsentRequest } from "../core/agent.ts";
-import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
@@ -87,10 +87,6 @@ const ARGS = {
     valueHint: "slug",
   },
 } as const;
-
-export type SeedArgs = CliArgs<
-  typeof ARGS & typeof DB_URL_STDIN_ARG & typeof STACK_ARG & typeof PLAN_ARGS
->;
 
 export type SeedFlags = CliOptions<
   typeof ARGS & typeof DB_URL_STDIN_ARG & typeof STACK_ARG & typeof PLAN_ARGS

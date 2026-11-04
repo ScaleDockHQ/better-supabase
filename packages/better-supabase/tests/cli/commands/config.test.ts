@@ -90,4 +90,15 @@ describe("config", () => {
       ),
     ).toMatchObject({ source: { dbUrl: "postgresql://localhost/postgres" } });
   });
+
+  it("prints a generator without an apiVersion as null", () => {
+    const config = resolveConfig(
+      { gen: { generators: [{ name: "plain", generate: () => [] }] } },
+      "/project",
+    );
+
+    expect(printableConfig(config)).toMatchObject({
+      generators: [{ name: "plain", apiVersion: null }],
+    });
+  });
 });

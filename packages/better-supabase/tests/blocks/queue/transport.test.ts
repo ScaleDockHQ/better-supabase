@@ -94,6 +94,8 @@ describe("transportQueueProvider", () => {
   it("calls every jobs function by name with the wrapper's argument names", async () => {
     const { transport, calls } = fakeTransport({
       enqueue_job: "7",
+      enqueue_job_once: [{ id: "8", duplicate: true }],
+      ready_job_queues: [{ queue: "emails" }],
       claim_jobs: [ROW],
       complete_job: true,
       fail_job: "dead",
@@ -151,6 +153,11 @@ describe("transportQueueProvider", () => {
     expect(
       await backend.send("emails", { to: "x" }, 0, 3, "k", "waiting"),
     ).toBe(7);
+    expect(await backend.sendOnce!("emails", {}, 0, 3, "once")).toEqual({
+      id: 8,
+      duplicate: true,
+    });
+    expect(await backend.readyQueues!(["emails", "sms"])).toEqual(["emails"]);
     const [row] = await backend.read("emails", 30, 1);
     expect(row?.id).toBe(7);
 
@@ -247,6 +254,10 @@ describe("transportQueueProvider", () => {
     await expect(
       transportQueueProvider(empty).send("emails", {}, 0, 1, undefined),
     ).rejects.toThrow(/no id/);
+    const { transport: none } = fakeTransport({ enqueue_job_once: [] });
+    await expect(
+      transportQueueProvider(none).sendOnce!("emails", {}, 0, 1, "once"),
+    ).rejects.toThrow(/no row/);
   });
 });
 

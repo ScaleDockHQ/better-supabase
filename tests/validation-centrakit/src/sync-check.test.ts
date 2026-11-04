@@ -101,7 +101,11 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           ) &&
           // The audit 9 to 10 upgrade drops the old audit() signature; the
           // schema migration that creates the new one isn't in this project.
-          !(finding.code === "BS235" && finding.message.includes("audit"))
+          !(finding.code === "BS235" && finding.message.includes("audit")) &&
+          !(
+            finding.code === "BS235" &&
+            finding.message.includes("list_schedules")
+          )
         ) {
           (warnings[`${finding.severity} ${finding.code}`] ??= []).push(
             finding.target ?? "",

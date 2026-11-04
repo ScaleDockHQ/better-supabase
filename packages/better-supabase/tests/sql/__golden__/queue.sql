@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@10 managed
--- @bsb-hash sha256:1af868fb519717de922a1a8fafab9115593628dbf5b1340826f7deb4578d0043
+-- @bsb-block queue@11 managed
+-- @bsb-hash sha256:45f57f7cc17c38aa8c0e2c4b9992a233abf38e2cbd1dd4f8c7706f72bb7bd655
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -177,6 +177,33 @@ begin
       using dead;
     perform pgmq.archive(queue, dead);
   end if;
+end;
+$$;
+
+-- The queues among queues that have a message claim_jobs takes now, so a
+-- drain skips the empty ones in one round trip. A queue without its pgmq
+-- table has none.
+create or replace function better_supabase.ready_job_queues(queues text[])
+returns table (queue text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_name text;
+  v_ready boolean;
+begin
+  foreach v_name in array coalesce(queues, '{}') loop
+    if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || v_name)) is not null then
+      execute format('select exists (select 1 from pgmq.%I where vt <= clock_timestamp())', 'q_' || v_name)
+        into v_ready;
+      if v_ready then
+        queue := v_name;
+        return next;
+      end if;
+    end if;
+  end loop;
 end;
 $$;
 
@@ -462,9 +489,9 @@ as $$
 $$;
 
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
--- tenant or next run, so those are null.
+-- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -477,7 +504,7 @@ begin
     return;
   end if;
   return query execute format(
-    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz
+    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz, null::jsonb
      from %s j where $1 is null or starts_with(j.jobname, $1) order by j.jobname', v_jobs)
     using name_prefix;
 end;
@@ -610,6 +637,8 @@ revoke execute on function better_supabase.enqueue_job_once(text, jsonb, text, i
 grant execute on function better_supabase.enqueue_job_once(text, jsonb, text, integer, integer) to service_role;
 revoke execute on function better_supabase.claim_jobs(text, integer, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_jobs(text, integer, integer) to service_role;
+revoke execute on function better_supabase.ready_job_queues(text[]) from public, anon, authenticated;
+grant execute on function better_supabase.ready_job_queues(text[]) to service_role;
 revoke execute on function better_supabase.complete_job(text, bigint, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_job(text, bigint, integer) to service_role;
 revoke execute on function better_supabase.fail_job(text, bigint, integer, text, integer) from public, anon, authenticated;
@@ -663,7 +692,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:66a7b2dfc33582bcbe9bb88af183745d22e165957f61e3527d9ec29d33bb653e
+-- @bsb-hash sha256:3408fa9f43074f628cc5c3d35f386effade0738cee7218d38c74205e796194ea
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -675,14 +704,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 10, 'managed')
+values ('queue', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@10 managed
--- @bsb-hash sha256:9fa44120ccbbc09c4b14306e757463517ac65e8a30bbb75585a14e3221d35d4a
+-- @bsb-block queue@11 managed
+-- @bsb-hash sha256:d8675d72e7e94e5b6dae7eecba12207287250ac5f2e98504fba44ad66f395d35
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -858,6 +887,33 @@ begin
       using dead;
     perform pgmq.archive(queue, dead);
   end if;
+end;
+$$;
+
+-- The queues among queues that have a message claim_jobs takes now, so a
+-- drain skips the empty ones in one round trip. A queue without its pgmq
+-- table has none.
+create or replace function better_supabase.ready_job_queues(queues text[])
+returns table (queue text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_name text;
+  v_ready boolean;
+begin
+  foreach v_name in array coalesce(queues, '{}') loop
+    if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || v_name)) is not null then
+      execute format('select exists (select 1 from pgmq.%I where vt <= clock_timestamp())', 'q_' || v_name)
+        into v_ready;
+      if v_ready then
+        queue := v_name;
+        return next;
+      end if;
+    end if;
+  end loop;
 end;
 $$;
 
@@ -1147,9 +1203,9 @@ as $$
 $$;
 
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
--- tenant or next run, so those are null.
+-- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -1162,7 +1218,7 @@ begin
     return;
   end if;
   return query execute format(
-    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz
+    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz, null::jsonb
      from %s j where $1 is null or starts_with(j.jobname, $1) order by j.jobname', v_jobs)
     using name_prefix;
 end;
@@ -1295,6 +1351,8 @@ revoke execute on function better_supabase.enqueue_job_once(text, jsonb, text, i
 grant execute on function better_supabase.enqueue_job_once(text, jsonb, text, integer, integer) to service_role;
 revoke execute on function better_supabase.claim_jobs(text, integer, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_jobs(text, integer, integer) to service_role;
+revoke execute on function better_supabase.ready_job_queues(text[]) from public, anon, authenticated;
+grant execute on function better_supabase.ready_job_queues(text[]) to service_role;
 revoke execute on function better_supabase.complete_job(text, bigint, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_job(text, bigint, integer) to service_role;
 revoke execute on function better_supabase.fail_job(text, bigint, integer, text, integer) from public, anon, authenticated;
@@ -1348,7 +1406,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:66a7b2dfc33582bcbe9bb88af183745d22e165957f61e3527d9ec29d33bb653e
+-- @bsb-hash sha256:3408fa9f43074f628cc5c3d35f386effade0738cee7218d38c74205e796194ea
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1360,7 +1418,7 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 10, 'managed')
+values ('queue', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1369,8 +1427,8 @@ on conflict (name) do update
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@10 managed
--- @bsb-hash sha256:97981e1112e8404ef456bf9d49aac0d0d98de09c325f569e9e3ae160c38d503d
+-- @bsb-block queue@11 managed
+-- @bsb-hash sha256:505e544731cb0549d21486d4286ce4504d66a20738b4450d380759bf6a92c4b5
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1546,6 +1604,33 @@ begin
       using dead;
     perform pgmq.archive(queue, dead);
   end if;
+end;
+$$;
+
+-- The queues among queues that have a message claim_jobs takes now, so a
+-- drain skips the empty ones in one round trip. A queue without its pgmq
+-- table has none.
+create or replace function better_supabase.ready_job_queues(queues text[])
+returns table (queue text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_name text;
+  v_ready boolean;
+begin
+  foreach v_name in array coalesce(queues, '{}') loop
+    if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || v_name)) is not null then
+      execute format('select exists (select 1 from pgmq.%I where vt <= clock_timestamp())', 'q_' || v_name)
+        into v_ready;
+      if v_ready then
+        queue := v_name;
+        return next;
+      end if;
+    end if;
+  end loop;
 end;
 $$;
 
@@ -1831,9 +1916,9 @@ as $$
 $$;
 
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
--- tenant or next run, so those are null.
+-- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -1846,7 +1931,7 @@ begin
     return;
   end if;
   return query execute format(
-    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz
+    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz, null::jsonb
      from %s j where $1 is null or starts_with(j.jobname, $1) order by j.jobname', v_jobs)
     using name_prefix;
 end;
@@ -1979,6 +2064,8 @@ revoke execute on function better_supabase.enqueue_job_once(text, jsonb, text, i
 grant execute on function better_supabase.enqueue_job_once(text, jsonb, text, integer, integer) to service_role;
 revoke execute on function better_supabase.claim_jobs(text, integer, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_jobs(text, integer, integer) to service_role;
+revoke execute on function better_supabase.ready_job_queues(text[]) from public, anon, authenticated;
+grant execute on function better_supabase.ready_job_queues(text[]) to service_role;
 revoke execute on function better_supabase.complete_job(text, bigint, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_job(text, bigint, integer) to service_role;
 revoke execute on function better_supabase.fail_job(text, bigint, integer, text, integer) from public, anon, authenticated;
@@ -2076,6 +2163,15 @@ as $$ select * from "better_supabase"."claim_jobs"($1, $2, $3) $$;
 revoke execute on function "api"."claim_jobs"(text, integer, integer) from public, anon, authenticated;
 grant execute on function "api"."claim_jobs"(text, integer, integer) to service_role;
 
+create or replace function "api"."ready_job_queues"(queues text[])
+returns table (queue text)
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."ready_job_queues"($1) $$;
+revoke execute on function "api"."ready_job_queues"(text[]) from public, anon, authenticated;
+grant execute on function "api"."ready_job_queues"(text[]) to service_role;
+
 create or replace function "api"."complete_job"(queue text, job_id bigint, attempt integer)
 returns boolean
 language sql
@@ -2122,7 +2218,7 @@ revoke execute on function "api"."unschedule_job"(text) from public, anon, authe
 grant execute on function "api"."unschedule_job"(text) to service_role;
 
 create or replace function "api"."list_schedules"(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
 language sql
 security invoker
 set search_path = ''
@@ -2254,7 +2350,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:66a7b2dfc33582bcbe9bb88af183745d22e165957f61e3527d9ec29d33bb653e
+-- @bsb-hash sha256:3408fa9f43074f628cc5c3d35f386effade0738cee7218d38c74205e796194ea
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2266,14 +2362,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 10, 'managed')
+values ('queue', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@10 managed
--- @bsb-hash sha256:5598701820084ef6339ccba1e9e23f2b2a62078883bb4f5be44d4c271f59a538
+-- @bsb-block queue@11 managed
+-- @bsb-hash sha256:98814007445fa760f05190424501204f2fdf218f9e577d76298d7de14c4d8787
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2449,6 +2545,33 @@ begin
       using dead;
     perform pgmq.archive(queue, dead);
   end if;
+end;
+$$;
+
+-- The queues among queues that have a message claim_jobs takes now, so a
+-- drain skips the empty ones in one round trip. A queue without its pgmq
+-- table has none.
+create or replace function better_supabase.ready_job_queues(queues text[])
+returns table (queue text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_name text;
+  v_ready boolean;
+begin
+  foreach v_name in array coalesce(queues, '{}') loop
+    if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || v_name)) is not null then
+      execute format('select exists (select 1 from pgmq.%I where vt <= clock_timestamp())', 'q_' || v_name)
+        into v_ready;
+      if v_ready then
+        queue := v_name;
+        return next;
+      end if;
+    end if;
+  end loop;
 end;
 $$;
 
@@ -2734,9 +2857,9 @@ as $$
 $$;
 
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
--- tenant or next run, so those are null.
+-- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -2749,7 +2872,7 @@ begin
     return;
   end if;
   return query execute format(
-    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz
+    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz, null::jsonb
      from %s j where $1 is null or starts_with(j.jobname, $1) order by j.jobname', v_jobs)
     using name_prefix;
 end;
@@ -2880,6 +3003,8 @@ revoke execute on function better_supabase.enqueue_job_once(text, jsonb, text, i
 grant execute on function better_supabase.enqueue_job_once(text, jsonb, text, integer, integer) to service_role;
 revoke execute on function better_supabase.claim_jobs(text, integer, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_jobs(text, integer, integer) to service_role;
+revoke execute on function better_supabase.ready_job_queues(text[]) from public, anon, authenticated;
+grant execute on function better_supabase.ready_job_queues(text[]) to service_role;
 revoke execute on function better_supabase.complete_job(text, bigint, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_job(text, bigint, integer) to service_role;
 revoke execute on function better_supabase.fail_job(text, bigint, integer, text, integer) from public, anon, authenticated;
@@ -2933,7 +3058,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:66a7b2dfc33582bcbe9bb88af183745d22e165957f61e3527d9ec29d33bb653e
+-- @bsb-hash sha256:3408fa9f43074f628cc5c3d35f386effade0738cee7218d38c74205e796194ea
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2945,14 +3070,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 10, 'managed')
+values ('queue', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@10 managed
--- @bsb-hash sha256:1af868fb519717de922a1a8fafab9115593628dbf5b1340826f7deb4578d0043
+-- @bsb-block queue@11 managed
+-- @bsb-hash sha256:45f57f7cc17c38aa8c0e2c4b9992a233abf38e2cbd1dd4f8c7706f72bb7bd655
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3128,6 +3253,33 @@ begin
       using dead;
     perform pgmq.archive(queue, dead);
   end if;
+end;
+$$;
+
+-- The queues among queues that have a message claim_jobs takes now, so a
+-- drain skips the empty ones in one round trip. A queue without its pgmq
+-- table has none.
+create or replace function better_supabase.ready_job_queues(queues text[])
+returns table (queue text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_name text;
+  v_ready boolean;
+begin
+  foreach v_name in array coalesce(queues, '{}') loop
+    if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || v_name)) is not null then
+      execute format('select exists (select 1 from pgmq.%I where vt <= clock_timestamp())', 'q_' || v_name)
+        into v_ready;
+      if v_ready then
+        queue := v_name;
+        return next;
+      end if;
+    end if;
+  end loop;
 end;
 $$;
 
@@ -3413,9 +3565,9 @@ as $$
 $$;
 
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
--- tenant or next run, so those are null.
+-- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -3428,7 +3580,7 @@ begin
     return;
   end if;
   return query execute format(
-    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz
+    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz, null::jsonb
      from %s j where $1 is null or starts_with(j.jobname, $1) order by j.jobname', v_jobs)
     using name_prefix;
 end;
@@ -3561,6 +3713,8 @@ revoke execute on function better_supabase.enqueue_job_once(text, jsonb, text, i
 grant execute on function better_supabase.enqueue_job_once(text, jsonb, text, integer, integer) to service_role;
 revoke execute on function better_supabase.claim_jobs(text, integer, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_jobs(text, integer, integer) to service_role;
+revoke execute on function better_supabase.ready_job_queues(text[]) from public, anon, authenticated;
+grant execute on function better_supabase.ready_job_queues(text[]) to service_role;
 revoke execute on function better_supabase.complete_job(text, bigint, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_job(text, bigint, integer) to service_role;
 revoke execute on function better_supabase.fail_job(text, bigint, integer, text, integer) from public, anon, authenticated;
@@ -3614,7 +3768,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:66a7b2dfc33582bcbe9bb88af183745d22e165957f61e3527d9ec29d33bb653e
+-- @bsb-hash sha256:3408fa9f43074f628cc5c3d35f386effade0738cee7218d38c74205e796194ea
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3626,6 +3780,6 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 10, 'managed')
+values ('queue', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

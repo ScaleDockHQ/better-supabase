@@ -1,6 +1,7 @@
 import type { Preset, PresetConventions, PresetInstance } from "./fields.ts";
 import type { PresetName } from "./presets.ts";
 
+import { canonicalJson } from "../core/canonical-json.ts";
 import { DEFAULT_CONVENTIONS, CONVENTION_FIELDS } from "./fields.ts";
 import { isPresetName, namedPreset, PRESET_NAMES } from "./presets.ts";
 
@@ -30,18 +31,7 @@ function samePreset(left: Preset, right: Preset): boolean {
       same(left[field.key], right[field.key]),
     ) &&
     same(left.blocks, right.blocks) &&
-    canonical(left.instances ?? {}) === canonical(right.instances ?? {})
-  );
-}
-
-/** `value` as JSON with object keys sorted, so key order doesn't matter. */
-function canonical(value: unknown): string {
-  return JSON.stringify(value, (_key, each: unknown) =>
-    isRecord(each)
-      ? Object.fromEntries(
-          Object.entries(each).toSorted(([a], [b]) => (a < b ? -1 : 1)),
-        )
-      : each,
+    canonicalJson(left.instances ?? {}) === canonicalJson(right.instances ?? {})
   );
 }
 

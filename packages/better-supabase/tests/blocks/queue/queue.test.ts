@@ -1367,6 +1367,101 @@ describe("schedules with the drain scheduler", () => {
     expect(calls[3]).toEqual(["unschedule_job", ["wf:stale"]]);
   });
 
+  it("writes only the schedules that are new or changed", async () => {
+    const definitions = [
+      {
+        name: "wf:a",
+        cron: "0 * * * *",
+        queue: "reports",
+        payload: { day: "mon" },
+        context: { actor: { id: "u1", kind: "user" }, tenant: "t1" },
+      },
+      {
+        name: "wf:b",
+        cron: "0 9 * * *",
+        queue: "emails",
+        payload: { to: "a@example.com" },
+        timeZone: "Europe/Amsterdam",
+      },
+    ] as const;
+
+    const reversed = (value: unknown): unknown =>
+      typeof value === "object" && value !== null && !Array.isArray(value)
+        ? Object.fromEntries(
+            Object.entries(value)
+              .toReversed()
+              .map(([key, inner]) => [key, reversed(inner)]),
+          )
+        : value;
+
+    const stored: Record<string, unknown>[] = [];
+
+    const fake = fakeSql([
+      ["list_schedules", () => stored],
+      [
+        "schedule_job",
+        (call) => {
+          const [name, cron, queue, payload, timezone, , tenant] = call.values;
+          stored.push({
+            job_name: name,
+            schedule: cron,
+            timezone,
+            queue,
+            tenant,
+            next_run: null,
+            last_run: null,
+            locked_until: null,
+            created_at: null,
+            payload: reversed(JSON.parse(String(payload))),
+          });
+
+          return [];
+        },
+      ],
+    ]);
+
+    const jobs = createQueue({ sql: fake.sql, queues });
+
+    const ensure = (
+      set: Parameters<typeof jobs.ensureSchedules>[0]["definitions"],
+    ) =>
+      jobs
+        .ensureSchedules({ definitions: set, options: { prefix: "wf:" } })
+        .orThrow();
+
+    const writes = () =>
+      fake.calls
+        .filter((call) => call.text.includes("schedule_job"))
+        .map((call) => call.values[0]);
+
+    await ensure(definitions);
+    expect(writes()).toEqual(["wf:a", "wf:b"]);
+    expect(Object.keys(stored[0]!["payload"] as object)).not.toEqual(
+      Object.keys(JSON.parse(String(fake.calls[1]!.values[3])) as object),
+    );
+
+    expect(await ensure(definitions)).toEqual({
+      scheduled: ["wf:a", "wf:b"],
+      removed: [],
+    });
+    expect(writes()).toEqual(["wf:a", "wf:b"]);
+
+    const second = { ...definitions[1], payload: { to: "b@example.com" } };
+
+    await ensure([definitions[0], second]);
+    expect(writes()).toEqual(["wf:a", "wf:b", "wf:b"]);
+
+    for (const [index, changed] of [
+      { ...definitions[0], cron: "5 * * * *" },
+      { ...definitions[0], timeZone: "Europe/Amsterdam" },
+      { ...definitions[0], tenant: "t2" },
+    ].entries()) {
+      await ensure([changed, second]);
+      expect(writes()).toHaveLength(4 + index);
+      expect(writes().at(-1)).toBe("wf:a");
+    }
+  });
+
   it("checks the whole set before ensureSchedules writes anything", async () => {
     const fake = fakeSql([]);
     const jobs = createQueue({ sql: fake.sql, queues });
@@ -1476,6 +1571,7 @@ describe("drainRoute", () => {
   it("runs schedules, then drains each queue", async () => {
     const fake = fakeSql([
       ["claim_due_schedules", []],
+      ["ready_job_queues", [{ queue: "reports" }]],
       ["claim_jobs", sequence([messageRow(1, { day: "mon" })])],
       ["complete_job", [{ done: true }]],
     ]);
@@ -1505,6 +1601,7 @@ describe("drainRoute", () => {
   it("reports schedule and queue errors and keeps going", async () => {
     const fake = fakeSql([
       ["claim_due_schedules", { throws: pgError("42883", "no function") }],
+      ["ready_job_queues", [{ queue: "emails" }, { queue: "reports" }]],
       ["claim_jobs", { throws: pgError("42P01", "no table") }],
     ]);
 
@@ -1526,6 +1623,74 @@ describe("drainRoute", () => {
     });
     expect(errors).toHaveLength(3);
     expect(body).toMatchObject({ errors: 3 });
+  });
+
+  it("asks which queues are ready once and claims only from those", async () => {
+    const fake = fakeSql([
+      ["ready_job_queues", [{ queue: "reports" }]],
+      ["claim_jobs", sequence([messageRow(1, { day: "mon" })])],
+      ["complete_job", [{ done: true }]],
+    ]);
+
+    const route = createQueue({ sql: fake.sql, queues }).drainRoute({
+      secret: "s3cret",
+      schedules: false,
+      handlers: { emails: () => undefined, reports: () => undefined },
+    });
+
+    expect(await (await route(request())).json()).toEqual({
+      schedules: 0,
+      queues: {
+        emails: { succeeded: 0, failed: 0 },
+        reports: { succeeded: 1, failed: 0 },
+      },
+      budgetExhausted: false,
+      errors: 0,
+    });
+
+    const called = fake.calls.map((call) => [
+      /\.(\w+)\(/.exec(call.text)![1],
+      call.values,
+    ]);
+
+    expect(called.filter(([fn]) => fn === "ready_job_queues")).toEqual([
+      ["ready_job_queues", [["emails", "reports"]]],
+    ]);
+    expect(
+      called.filter(([fn]) => fn === "claim_jobs").map(([, values]) => values),
+    ).toEqual([
+      ["reports", 300, 1],
+      ["reports", 300, 1],
+    ]);
+  });
+
+  it("claims from every queue when the ready check fails", async () => {
+    const fake = fakeSql([
+      ["ready_job_queues", { throws: pgError("42883", "no function") }],
+    ]);
+
+    const errors: DbError[] = [];
+
+    const route = createQueue({ sql: fake.sql, queues }).drainRoute({
+      secret: "s3cret",
+      schedules: false,
+      handlers: { emails: () => undefined, reports: () => undefined },
+      onError: (error) => errors.push(error),
+    });
+
+    expect(await (await route(request())).json()).toMatchObject({
+      queues: {
+        emails: { succeeded: 0, failed: 0 },
+        reports: { succeeded: 0, failed: 0 },
+      },
+      errors: 1,
+    });
+    expect(errors.map((error) => error.message)).toEqual(["no function"]);
+    expect(
+      fake.calls
+        .filter((call) => call.text.includes("claim_jobs"))
+        .map((call) => call.values[0]),
+    ).toEqual(["emails", "reports"]);
   });
 
   it("calls the monitor around an authorized drain and survives its errors", async () => {

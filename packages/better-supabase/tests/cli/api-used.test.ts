@@ -13,6 +13,7 @@ async function project(): Promise<string> {
     join(root, "src/page.ts"),
     `await db.$rpc("flag_definitions", {});`,
   );
+  await writeFile(join(root, "src/zero.ts"), "0;\n");
   await writeFile(
     join(root, "src/lib/supabase/database.types.ts"),
     `export type F = "unused_helper";`,

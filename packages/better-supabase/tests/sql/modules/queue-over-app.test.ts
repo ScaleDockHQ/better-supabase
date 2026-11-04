@@ -111,7 +111,13 @@ begin
   if (select max_attempts || dedupe_key from public.jobs where job_id = v_id) <> '3k1' then
     raise exception 'jobs %', (select jsonb_agg(j) from public.jobs j);
   end if;
+  if (select array_agg(queue) from better_supabase.ready_job_queues(array['mail', 'sms'])) is distinct from array['mail'] then
+    raise exception 'ready queues %', (select array_agg(queue) from better_supabase.ready_job_queues(array['mail', 'sms']));
+  end if;
   select * into v_claim from better_supabase.claim_jobs('mail', 60, 10);
+  if exists (select 1 from better_supabase.ready_job_queues(array['mail'])) then
+    raise exception 'a claimed job is still ready';
+  end if;
   if v_claim.id <> v_id or v_claim.attempts <> 1 then
     raise exception 'claim %', row_to_json(v_claim);
   end if;
@@ -152,6 +158,9 @@ begin
   end if;
   if (select last_at from public.crons) is distinct from v_next then
     raise exception 'last run %', (select last_at from public.crons);
+  end if;
+  if (select payload from better_supabase.list_schedules('dig', null)) <> '{"v":2}' then
+    raise exception 'listed payload %', (select payload from better_supabase.list_schedules('dig', null));
   end if;
   if (select count(*) from better_supabase.list_schedules(null, 't1')) <> 1
     or better_supabase.unschedule_tenant('t1') <> 1 then
