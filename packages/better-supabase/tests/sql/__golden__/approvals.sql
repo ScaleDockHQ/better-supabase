@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@2 managed
--- @bsb-hash sha256:e8e9ed9a5e00ab1798547f7a994e055d68e6c09052bfb87ad29a6d0e8435b7ba
+-- @bsb-block approvals@3 managed
+-- @bsb-hash sha256:762ff6292d72f3ce6380a486b04295c63ebb06ce3657a63cb3730a758b4447cb
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -233,6 +233,25 @@ end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible"(uuid) to authenticated, service_role;
+
+-- The pending requests the caller may decide, as a set, for a policy or a list
+-- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
+-- statement, not once per row. It calls approval_eligible for each pending
+-- request, so the two never disagree. Pass a tenant to read one tenant's.
+create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r."id" from "better_supabase"."approval_requests" r
+  where r."status" = 'pending'
+    and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+    and "better_supabase"."approval_eligible"(r."id")
+$$;
+revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
+grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
 
 -- Notifies the current step's approvers (requested, reminder), its fallback
 -- approvers (escalated), a delegate (delegated) or the requester (approved,
@@ -1127,8 +1146,8 @@ begin
       and (list_approvals.subject_id is null or x."subject_id" = list_approvals.subject_id)
       and (list_approvals.before is null or x."created_at" < list_approvals.before)
       and case
-        when list_approvals.assigned then "better_supabase"."approval_eligible"(x."id")
-        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (true))) or "better_supabase"."approval_eligible"(x."id")
+        when list_approvals.assigned then x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
+        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (true))) or x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
       end
     order by x."created_at" desc, x."id"
     limit least(greatest(coalesce(list_approvals.page_size, 50), 1), 200)
@@ -1359,21 +1378,62 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
+-- @bsb-hash sha256:f32c0399095494fd0bbfbc9b85bfce5c244989534f5ba1bfce79e4db4ce1973d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 2, 'managed')
+values ('approvals', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
+-- ==== alone: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
+-- better-supabase module: approvals
+-- @bsb-block-test approvals
+-- @bsb-hash sha256:2d4ec8205e968ee1e4b694bfb09d0d7b58d5fa790cc108b91e39b95be3cbb7d9
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+begin;
+create extension if not exists pgtap with schema extensions;
+select extensions.plan(1);
+
+do $$
+declare
+  u record;
+  bad bigint := 0;
+begin
+  for u in select a.id from auth.users a order by a.id limit 25 loop
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', u.id, 'role', 'authenticated')::text, true);
+    if (
+      select coalesce(array_agg(r."id" order by r."id"), '{}') from "better_supabase"."approval_requests" r
+      where r."status" = 'pending' and "better_supabase"."approval_eligible"(r."id")
+    ) is distinct from (
+      select coalesce(array_agg(x order by x), '{}') from "better_supabase"."approval_eligible_ids"() x
+    ) then
+      bad := bad + 1;
+    end if;
+  end loop;
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('bsb.approval_parity', bad::text, true);
+end;
+$$;
+
+select extensions.is(
+  current_setting('bsb.approval_parity')::bigint,
+  0::bigint,
+  'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
+);
+
+select * from extensions.finish();
+rollback;
+
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@2 managed
--- @bsb-hash sha256:04a9c9c56bf01142316ba57cef39e50737248f51df2a20f4891057777f43467e
+-- @bsb-block approvals@3 managed
+-- @bsb-hash sha256:747059009e11692c1c9a425413acf46d29ecd547f0c51b19a78e8b986f25725b
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1644,6 +1704,25 @@ end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible"(uuid) to authenticated, service_role;
+
+-- The pending requests the caller may decide, as a set, for a policy or a list
+-- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
+-- statement, not once per row. It calls approval_eligible for each pending
+-- request, so the two never disagree. Pass a tenant to read one tenant's.
+create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r."id" from "better_supabase"."approval_requests" r
+  where r."status" = 'pending'
+    and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+    and "better_supabase"."approval_eligible"(r."id")
+$$;
+revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
+grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
 
 -- Notifies the current step's approvers (requested, reminder), its fallback
 -- approvers (escalated), a delegate (delegated) or the requester (approved,
@@ -2806,8 +2885,8 @@ begin
       and (list_approvals.subject_id is null or x."subject_id" = list_approvals.subject_id)
       and (list_approvals.before is null or x."created_at" < list_approvals.before)
       and case
-        when list_approvals.assigned then "better_supabase"."approval_eligible"(x."id")
-        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (not x."subject_type" in ('support_request', 'ai_tool_approval') and (x."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'appraisal') or (case when x."subject_type" = 'drive_node' then coalesce(case when x."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((x."subject_id")::uuid, 'viewer') end, false) else true end))))) or "better_supabase"."approval_eligible"(x."id")
+        when list_approvals.assigned then x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
+        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (not x."subject_type" in ('support_request', 'ai_tool_approval') and (x."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'appraisal') or (case when x."subject_type" = 'drive_node' then coalesce(case when x."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((x."subject_id")::uuid, 'viewer') end, false) else true end))))) or x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
       end
     order by x."created_at" desc, x."id"
     limit least(greatest(coalesce(list_approvals.page_size, 50), 1), 200)
@@ -3054,21 +3133,62 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
+-- @bsb-hash sha256:f32c0399095494fd0bbfbc9b85bfce5c244989534f5ba1bfce79e4db4ce1973d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 2, 'managed')
+values ('approvals', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
+-- ==== with every module: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
+-- better-supabase module: approvals
+-- @bsb-block-test approvals
+-- @bsb-hash sha256:2d4ec8205e968ee1e4b694bfb09d0d7b58d5fa790cc108b91e39b95be3cbb7d9
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+begin;
+create extension if not exists pgtap with schema extensions;
+select extensions.plan(1);
+
+do $$
+declare
+  u record;
+  bad bigint := 0;
+begin
+  for u in select a.id from auth.users a order by a.id limit 25 loop
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', u.id, 'role', 'authenticated')::text, true);
+    if (
+      select coalesce(array_agg(r."id" order by r."id"), '{}') from "better_supabase"."approval_requests" r
+      where r."status" = 'pending' and "better_supabase"."approval_eligible"(r."id")
+    ) is distinct from (
+      select coalesce(array_agg(x order by x), '{}') from "better_supabase"."approval_eligible_ids"() x
+    ) then
+      bad := bad + 1;
+    end if;
+  end loop;
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('bsb.approval_parity', bad::text, true);
+end;
+$$;
+
+select extensions.is(
+  current_setting('bsb.approval_parity')::bigint,
+  0::bigint,
+  'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
+);
+
+select * from extensions.finish();
+rollback;
+
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@2 managed
--- @bsb-hash sha256:7d248f929aa8e44ced7d3df8c5acaff87afb95c2d1f1f4ad28d6e35c18d9dd60
+-- @bsb-block approvals@3 managed
+-- @bsb-hash sha256:6ac5d0692816eb1e148bacc0bb59addb471314d131f2ee6ba9f8751476a2c1f6
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3305,6 +3425,25 @@ end;
 $$;
 revoke execute on function "app_private"."approval_eligible"(uuid) from public, anon;
 grant execute on function "app_private"."approval_eligible"(uuid) to authenticated, service_role;
+
+-- The pending requests the caller may decide, as a set, for a policy or a list
+-- (`id in (select "app_private"."approval_eligible_ids"())`): Postgres evaluates the set once per
+-- statement, not once per row. It calls approval_eligible for each pending
+-- request, so the two never disagree. Pass a tenant to read one tenant's.
+create or replace function "app_private"."approval_eligible_ids"(tenant uuid default null)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r."id" from "app_private"."approval_requests" r
+  where r."status" = 'pending'
+    and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+    and "app_private"."approval_eligible"(r."id")
+$$;
+revoke execute on function "app_private"."approval_eligible_ids"(uuid) from public, anon;
+grant execute on function "app_private"."approval_eligible_ids"(uuid) to authenticated, service_role;
 
 -- Notifies the current step's approvers (requested, reminder), its fallback
 -- approvers (escalated), a delegate (delegated) or the requester (approved,
@@ -4199,8 +4338,8 @@ begin
       and (list_approvals.subject_id is null or x."subject_id" = list_approvals.subject_id)
       and (list_approvals.before is null or x."created_at" < list_approvals.before)
       and case
-        when list_approvals.assigned then "app_private"."approval_eligible"(x."id")
-        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (true))) or "app_private"."approval_eligible"(x."id")
+        when list_approvals.assigned then x."id" in (select "app_private"."approval_eligible_ids"(list_approvals.tenant))
+        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (true))) or x."id" in (select "app_private"."approval_eligible_ids"(list_approvals.tenant))
       end
     order by x."created_at" desc, x."id"
     limit least(greatest(coalesce(list_approvals.page_size, 50), 1), 200)
@@ -4431,21 +4570,62 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
+-- @bsb-hash sha256:f32c0399095494fd0bbfbc9b85bfce5c244989534f5ba1bfce79e4db4ce1973d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 2, 'managed')
+values ('approvals', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
+-- ==== schema app_private: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
+-- better-supabase module: approvals
+-- @bsb-block-test approvals
+-- @bsb-hash sha256:0ae050610e033f8fc02664de39f7ae4c621c25d38e7501129e22c2fcb1c75dfb
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+begin;
+create extension if not exists pgtap with schema extensions;
+select extensions.plan(1);
+
+do $$
+declare
+  u record;
+  bad bigint := 0;
+begin
+  for u in select a.id from auth.users a order by a.id limit 25 loop
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', u.id, 'role', 'authenticated')::text, true);
+    if (
+      select coalesce(array_agg(r."id" order by r."id"), '{}') from "app_private"."approval_requests" r
+      where r."status" = 'pending' and "app_private"."approval_eligible"(r."id")
+    ) is distinct from (
+      select coalesce(array_agg(x order by x), '{}') from "app_private"."approval_eligible_ids"() x
+    ) then
+      bad := bad + 1;
+    end if;
+  end loop;
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('bsb.approval_parity', bad::text, true);
+end;
+$$;
+
+select extensions.is(
+  current_setting('bsb.approval_parity')::bigint,
+  0::bigint,
+  'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
+);
+
+select * from extensions.finish();
+rollback;
+
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@2 managed
--- @bsb-hash sha256:c791fcd3e9faf2f01779d8ba144ccf2ed3532fcc45a134c1d5994ecee64f1f20
+-- @bsb-block approvals@3 managed
+-- @bsb-hash sha256:e4049ae35a54261f1ac40c4d82f2b22011b995b1029737209278f78dc5e1d6d5
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4677,6 +4857,25 @@ end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible"(uuid) to authenticated, service_role;
+
+-- The pending requests the caller may decide, as a set, for a policy or a list
+-- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
+-- statement, not once per row. It calls approval_eligible for each pending
+-- request, so the two never disagree. Pass a tenant to read one tenant's.
+create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r."id" from "better_supabase"."approval_requests" r
+  where r."status" = 'pending'
+    and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+    and "better_supabase"."approval_eligible"(r."id")
+$$;
+revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
+grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
 
 -- Notifies the current step's approvers (requested, reminder), its fallback
 -- approvers (escalated), a delegate (delegated) or the requester (approved,
@@ -5571,8 +5770,8 @@ begin
       and (list_approvals.subject_id is null or x."subject_id" = list_approvals.subject_id)
       and (list_approvals.before is null or x."created_at" < list_approvals.before)
       and case
-        when list_approvals.assigned then "better_supabase"."approval_eligible"(x."id")
-        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (true))) or "better_supabase"."approval_eligible"(x."id")
+        when list_approvals.assigned then x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
+        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (true))) or x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
       end
     order by x."created_at" desc, x."id"
     limit least(greatest(coalesce(list_approvals.page_size, 50), 1), 200)
@@ -5837,6 +6036,16 @@ as $$ select "better_supabase"."approval_eligible"($1) $$;
 revoke execute on function "api"."approval_eligible"(uuid) from public, anon;
 grant execute on function "api"."approval_eligible"(uuid) to authenticated, service_role;
 
+create or replace function "api"."approval_eligible_ids"(tenant uuid default null)
+returns setof uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."approval_eligible_ids"($1) $$;
+revoke execute on function "api"."approval_eligible_ids"(uuid) from public, anon;
+grant execute on function "api"."approval_eligible_ids"(uuid) to authenticated, service_role;
+
 create or replace function "api"."approval_requirement"(tenant uuid, subject_type text, action text, subject jsonb default '{}'::jsonb)
 returns jsonb
 language sql
@@ -6001,21 +6210,62 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
+-- @bsb-hash sha256:f32c0399095494fd0bbfbc9b85bfce5c244989534f5ba1bfce79e4db4ce1973d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 2, 'managed')
+values ('approvals', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
+-- ==== api schema: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
+-- better-supabase module: approvals
+-- @bsb-block-test approvals
+-- @bsb-hash sha256:2d4ec8205e968ee1e4b694bfb09d0d7b58d5fa790cc108b91e39b95be3cbb7d9
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+begin;
+create extension if not exists pgtap with schema extensions;
+select extensions.plan(1);
+
+do $$
+declare
+  u record;
+  bad bigint := 0;
+begin
+  for u in select a.id from auth.users a order by a.id limit 25 loop
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', u.id, 'role', 'authenticated')::text, true);
+    if (
+      select coalesce(array_agg(r."id" order by r."id"), '{}') from "better_supabase"."approval_requests" r
+      where r."status" = 'pending' and "better_supabase"."approval_eligible"(r."id")
+    ) is distinct from (
+      select coalesce(array_agg(x order by x), '{}') from "better_supabase"."approval_eligible_ids"() x
+    ) then
+      bad := bad + 1;
+    end if;
+  end loop;
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('bsb.approval_parity', bad::text, true);
+end;
+$$;
+
+select extensions.is(
+  current_setting('bsb.approval_parity')::bigint,
+  0::bigint,
+  'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
+);
+
+select * from extensions.finish();
+rollback;
+
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@2 managed
--- @bsb-hash sha256:b103e41f40e4b727cf2bba7e24a9bbbadd0e77972cf0584f8175afd3132f01aa
+-- @bsb-block approvals@3 managed
+-- @bsb-hash sha256:ff3aa44fb418b8743a267e299aba0d67dd4ea81fad220966fbc5d4d0665f3f95
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6254,6 +6504,25 @@ end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible"(uuid) to authenticated, service_role;
+
+-- The pending requests the caller may decide, as a set, for a policy or a list
+-- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
+-- statement, not once per row. It calls approval_eligible for each pending
+-- request, so the two never disagree. Pass a tenant to read one tenant's.
+create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r."id" from "better_supabase"."approval_requests" r
+  where r."status" = 'pending'
+    and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+    and "better_supabase"."approval_eligible"(r."id")
+$$;
+revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
+grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
 
 -- Notifies the current step's approvers (requested, reminder), its fallback
 -- approvers (escalated), a delegate (delegated) or the requester (approved,
@@ -7148,8 +7417,8 @@ begin
       and (list_approvals.subject_id is null or x."subject_id" = list_approvals.subject_id)
       and (list_approvals.before is null or x."created_at" < list_approvals.before)
       and case
-        when list_approvals.assigned then "better_supabase"."approval_eligible"(x."id")
-        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (true))) or "better_supabase"."approval_eligible"(x."id")
+        when list_approvals.assigned then x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
+        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (true))) or x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
       end
     order by x."created_at" desc, x."id"
     limit least(greatest(coalesce(list_approvals.page_size, 50), 1), 200)
@@ -7380,21 +7649,62 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
+-- @bsb-hash sha256:f32c0399095494fd0bbfbc9b85bfce5c244989534f5ba1bfce79e4db4ce1973d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 2, 'managed')
+values ('approvals', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
+-- ==== over the app's tables: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
+-- better-supabase module: approvals
+-- @bsb-block-test approvals
+-- @bsb-hash sha256:2d4ec8205e968ee1e4b694bfb09d0d7b58d5fa790cc108b91e39b95be3cbb7d9
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+begin;
+create extension if not exists pgtap with schema extensions;
+select extensions.plan(1);
+
+do $$
+declare
+  u record;
+  bad bigint := 0;
+begin
+  for u in select a.id from auth.users a order by a.id limit 25 loop
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', u.id, 'role', 'authenticated')::text, true);
+    if (
+      select coalesce(array_agg(r."id" order by r."id"), '{}') from "better_supabase"."approval_requests" r
+      where r."status" = 'pending' and "better_supabase"."approval_eligible"(r."id")
+    ) is distinct from (
+      select coalesce(array_agg(x order by x), '{}') from "better_supabase"."approval_eligible_ids"() x
+    ) then
+      bad := bad + 1;
+    end if;
+  end loop;
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('bsb.approval_parity', bad::text, true);
+end;
+$$;
+
+select extensions.is(
+  current_setting('bsb.approval_parity')::bigint,
+  0::bigint,
+  'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
+);
+
+select * from extensions.finish();
+rollback;
+
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@2 managed
--- @bsb-hash sha256:ed870e19e4300c8338ed17075b30eb4f6180b00f42c680b2816331d4f8500453
+-- @bsb-block approvals@3 managed
+-- @bsb-hash sha256:f009b2df0e57a6cb0357851b4fed9b5934efb0f1c995fbdf0e09f9d2bd0565ed
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7626,6 +7936,25 @@ end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible"(uuid) to authenticated, service_role;
+
+-- The pending requests the caller may decide, as a set, for a policy or a list
+-- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
+-- statement, not once per row. It calls approval_eligible for each pending
+-- request, so the two never disagree. Pass a tenant to read one tenant's.
+create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r."id" from "better_supabase"."approval_requests" r
+  where r."status" = 'pending'
+    and (approval_eligible_ids.tenant is null or r."org_id" = approval_eligible_ids.tenant)
+    and "better_supabase"."approval_eligible"(r."id")
+$$;
+revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
+grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
 
 -- Notifies the current step's approvers (requested, reminder), its fallback
 -- approvers (escalated), a delegate (delegated) or the requester (approved,
@@ -8520,8 +8849,8 @@ begin
       and (list_approvals.subject_id is null or x."subject_id" = list_approvals.subject_id)
       and (list_approvals.before is null or x."created_at" < list_approvals.before)
       and case
-        when list_approvals.assigned then "better_supabase"."approval_eligible"(x."id")
-        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (true))) or "better_supabase"."approval_eligible"(x."id")
+        when list_approvals.assigned then x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
+        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (true))) or x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
       end
     order by x."created_at" desc, x."id"
     limit least(greatest(coalesce(list_approvals.page_size, 50), 1), 200)
@@ -8752,13 +9081,54 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:7a0ce61a48dce222f074d2829d78990ffc932b246bf120c0e8396715fb1e895e
+-- @bsb-hash sha256:f32c0399095494fd0bbfbc9b85bfce5c244989534f5ba1bfce79e4db4ce1973d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 2, 'managed')
+values ('approvals', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== tenant column renamed: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
+-- better-supabase module: approvals
+-- @bsb-block-test approvals
+-- @bsb-hash sha256:2d4ec8205e968ee1e4b694bfb09d0d7b58d5fa790cc108b91e39b95be3cbb7d9
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+begin;
+create extension if not exists pgtap with schema extensions;
+select extensions.plan(1);
+
+do $$
+declare
+  u record;
+  bad bigint := 0;
+begin
+  for u in select a.id from auth.users a order by a.id limit 25 loop
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', u.id, 'role', 'authenticated')::text, true);
+    if (
+      select coalesce(array_agg(r."id" order by r."id"), '{}') from "better_supabase"."approval_requests" r
+      where r."status" = 'pending' and "better_supabase"."approval_eligible"(r."id")
+    ) is distinct from (
+      select coalesce(array_agg(x order by x), '{}') from "better_supabase"."approval_eligible_ids"() x
+    ) then
+      bad := bad + 1;
+    end if;
+  end loop;
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('bsb.approval_parity', bad::text, true);
+end;
+$$;
+
+select extensions.is(
+  current_setting('bsb.approval_parity')::bigint,
+  0::bigint,
+  'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
+);
+
+select * from extensions.finish();
+rollback;

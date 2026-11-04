@@ -307,7 +307,7 @@ export interface BlockNameRegistry {
       readonly "items": "id" | "request" | "tenant" | "key" | "label" | "payload" | "permission" | "dependsOn" | "status" | "createdType" | "createdId" | "decidedBy" | "decidedAt" | "createdAt";
       readonly "policies": "id" | "tenant" | "subjectType" | "action" | "name" | "conditions" | "mode" | "steps" | "selfApproval" | "expiresIn" | "enabled" | "createdBy" | "createdAt" | "updatedAt" | "effect";
     };
-    readonly functions: "approval_effective_policy" | "approval_eligible" | "approval_finalize" | "approval_notify" | "approval_policy" | "approval_policy_tighten" | "approval_requirement" | "cancel_approval" | "consume_approval" | "decide_approval" | "decide_approval_items" | "delegate_approval" | "escalate_approvals" | "expire_approvals" | "get_approval" | "is_approved" | "list_approvals" | "open_approval" | "record_approval_created" | "remind_approvals" | "request_approval" | "request_approval_items" | "settle_approval";
+    readonly functions: "approval_effective_policy" | "approval_eligible" | "approval_eligible_ids" | "approval_finalize" | "approval_notify" | "approval_policy" | "approval_policy_tighten" | "approval_requirement" | "cancel_approval" | "consume_approval" | "decide_approval" | "decide_approval_items" | "delegate_approval" | "escalate_approvals" | "expire_approvals" | "get_approval" | "is_approved" | "list_approvals" | "open_approval" | "record_approval_created" | "remind_approvals" | "request_approval" | "request_approval_items" | "settle_approval";
     readonly actions: "read" | "request" | "manage";
     readonly hooks: "before_approval_request" | "after_approval_request" | "before_approval_decide" | "after_approval_decide" | "approval_notification";
     readonly entities: {

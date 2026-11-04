@@ -17,3 +17,7 @@ drop it and run `sql upgrade`. The `gen.api` wrappers copy `stable` and `immutab
 function they wrap instead of being volatile, so Postgres can inline and cache them; run
 `sql upgrade` to rewrite existing wrappers. Doctor reports a volatile wrapper around a stable
 function (BS364).
+
+`approvals` adds `approval_eligible_ids(tenant)`, the pending requests the caller may decide, as a
+set for `id in (select ...)` in policies and for `list_approvals`. It calls `approval_eligible`, so
+the two agree, and a pgTAP file checks that for each user. `sql upgrade` writes the function.

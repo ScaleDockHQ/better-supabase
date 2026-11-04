@@ -99,7 +99,7 @@ async function run(check: string, layout = OVER_APP, app = APP): Promise<void> {
       ROLES,
       app,
       ...files
-        .filter((file) => file.kind !== "data")
+        .filter((file) => file.kind === "schema")
         .map((file) => file.contents),
     ],
     seed: [

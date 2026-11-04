@@ -69,7 +69,7 @@ async function run(check: string): Promise<void> {
     migrations: [
       ROLES,
       ...invoicesFirst
-        .filter((file) => file.kind !== "data")
+        .filter((file) => file.kind === "schema")
         .map((file) => file.contents),
     ],
     seed: [

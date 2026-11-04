@@ -86,7 +86,7 @@ async function run(
       ROLES,
       app,
       ...files
-        .filter((file) => file.kind !== "data")
+        .filter((file) => file.kind === "schema")
         .map((file) => file.contents),
     ],
     seed: [
@@ -662,7 +662,7 @@ $$;`;
         ROLES,
         app,
         ...files
-          .filter((file) => file.kind !== "data")
+          .filter((file) => file.kind === "schema")
           .map((file) => file.contents),
       ],
       seed: [
@@ -959,7 +959,7 @@ create table public.bill_lines (
 );
 `,
         ...files
-          .filter((file) => file.kind !== "data")
+          .filter((file) => file.kind === "schema")
           .map((file) => file.contents),
       ],
       seed: [

@@ -151,7 +151,7 @@ async function run(check: string, over: Over = QUOTES): Promise<void> {
       PGCRYPTO,
       over.app,
       ...files
-        .filter((file) => file.kind !== "data")
+        .filter((file) => file.kind === "schema")
         .map((file) => file.contents),
     ],
     seed: [

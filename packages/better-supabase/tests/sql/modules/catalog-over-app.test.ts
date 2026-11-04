@@ -172,7 +172,7 @@ describe("catalog over the app's products", () => {
         migrations: [
           APP,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [
@@ -231,7 +231,7 @@ $$;`,
         migrations: [
           VARIANT_APP,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [
@@ -341,7 +341,7 @@ $$;`,
         migrations: [
           VARIANT_APP,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [
@@ -434,7 +434,7 @@ create function public.variant_in_use(variant uuid) returns boolean language sql
   select exists (select 1 from public.pinned_variants p where p.variant_id = variant);
 $$;`,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [
@@ -586,7 +586,7 @@ $$;`,
           `${VARIANT_APP}
 alter table public.item_variants add column status public.item_status not null default 'active';`,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [
@@ -707,7 +707,7 @@ create unique index item_variants_org_ean_key on public.item_variants (org_id, l
 alter table public.item_categories alter column description set default '' ;
 alter table public.item_categories alter column description set not null;`,
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [

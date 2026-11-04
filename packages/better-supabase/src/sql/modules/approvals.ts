@@ -3,6 +3,7 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { ApprovalSqlKit } from "./approvals-steps.ts";
 
+import { approvalTests } from "./approvals-tests.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -714,6 +715,24 @@ end;
 $$;
 ${userGrant(`${fn("approval_eligible")}(uuid)`)}
 
+-- The pending requests the caller may decide, as a set, for a policy or a list
+-- (\`id in (select ${fn("approval_eligible_ids")}())\`): Postgres evaluates the set once per
+-- statement, not once per row. It calls approval_eligible for each pending
+-- request, so the two never disagree. Pass a tenant to read one tenant's.
+create or replace function ${fn("approval_eligible_ids")}(tenant ${ctx.idType} default null)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r.${c("id")} from ${requests} r
+  where r.${c("status")} = 'pending'
+    and (approval_eligible_ids.tenant is null or r.${c("tenant")} = approval_eligible_ids.tenant)
+    and ${fn("approval_eligible")}(r.${c("id")})
+$$;
+${userGrant(`${fn("approval_eligible_ids")}(${ctx.idType})`)}
+
 -- Notifies the current step's approvers (requested, reminder), its fallback
 -- approvers (escalated), a delegate (delegated) or the requester (approved,
 -- rejected, expired).
@@ -938,8 +957,8 @@ begin
       and (list_approvals.subject_id is null or x.${c("subjectId")} = list_approvals.subject_id)
       and (list_approvals.before is null or x.${c("createdAt")} < list_approvals.before)
       and case
-        when list_approvals.assigned then ${fn("approval_eligible")}(x.${c("id")})
-        else x.${c("requestedBy")} = auth.uid() or (v_read and (${SERVICE_CALLER} or ${readable("x")})) or ${fn("approval_eligible")}(x.${c("id")})
+        when list_approvals.assigned then x.${c("id")} in (select ${fn("approval_eligible_ids")}(list_approvals.tenant))
+        else x.${c("requestedBy")} = auth.uid() or (v_read and (${SERVICE_CALLER} or ${readable("x")})) or x.${c("id")} in (select ${fn("approval_eligible_ids")}(list_approvals.tenant))
       end
     order by x.${c("createdAt")} desc, x.${c("id")}
     limit ${pageSize("list_approvals.page_size", 50, 200)}
@@ -1098,7 +1117,7 @@ export const APPROVALS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   names: APPROVALS_NAMES,
   upgrades: [
     {
@@ -1107,7 +1126,14 @@ export const APPROVALS: BlockSqlDefinition = {
         "Adds approval_items and the item functions; decide_approval refuses a request that has items.",
       sql: () => "",
     },
+    {
+      from: 2,
+      description:
+        "Adds approval_eligible_ids(tenant), the set of pending requests the caller may decide; list_approvals reads it once per statement.",
+      sql: () => "",
+    },
   ],
   contract,
   build,
+  tests: approvalTests,
 };

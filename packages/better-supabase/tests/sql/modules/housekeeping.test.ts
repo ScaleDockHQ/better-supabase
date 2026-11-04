@@ -81,7 +81,7 @@ describe("housekeeping", () => {
         migrations: [
           "create schema if not exists better_supabase;",
           ...files
-            .filter((file) => file.kind !== "data")
+            .filter((file) => file.kind === "schema")
             .map((file) => file.contents),
         ],
         seed: [CHECK],

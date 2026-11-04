@@ -148,7 +148,7 @@ describe("notifications to profiles with an enum locale", BOOT, () => {
       ROLES,
       APP,
       ...files
-        .filter((file) => file.kind !== "data")
+        .filter((file) => file.kind === "schema")
         .map((file) => file.contents),
     ]);
 

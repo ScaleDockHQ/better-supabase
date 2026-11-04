@@ -133,7 +133,7 @@ describe("sequences version 2 upgrade", BOOT, () => {
       migrations: [
         ROLES,
         ...files
-          .filter((file) => file.kind !== "data")
+          .filter((file) => file.kind === "schema")
           .map((file) => file.contents),
         VERSION_1,
       ],
