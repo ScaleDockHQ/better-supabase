@@ -105,6 +105,15 @@ export interface GenConfig {
    */
   readonly contentMapper?: boolean;
   /**
+   * Block instances the browser client wires: `gen` writes `blocks.client.ts`
+   * with `clientBlocks`, a `defineBlocks` set over only these instances, so
+   * `createClient(app.blocks(clientBlocks))` has `db.<instance>` without
+   * importing every installed block. Without it, the browser gets no block
+   * `db`; client components build a block's controller from `blockConfig`
+   * (`blocks.config.ts`). A renamed instance can't be listed.
+   */
+  readonly clientBlocks?: readonly string[];
+  /**
    * Writes PowerSync sync streams for these block instances:
    * `sync-streams.yaml` and `schema.ts` in `out`, and a migration that adds
    * their tables to the `powersync` publication. Runs as the `powersync` task,

@@ -11,6 +11,7 @@ import { BLOCK_EVENT_RENAMES } from "../events/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import { CODEMOD_0_32 } from "./codemod-0-32.ts";
 import { CODEMODS_0_37 } from "./codemod-0-37.ts";
+import { CODEMOD_0_53 } from "./codemod-block-config.ts";
 import {
   BLOCK_EXPORT_RENAMES,
   PLUGIN_IMPORT_RENAMES,
@@ -536,6 +537,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   ...CODEMODS_0_37,
   "0.46": CODEMOD_0_46,
   "0.47": CODEMOD_0_47,
+  "0.53": CODEMOD_0_53,
   "read-many": {
     name: "read-many",
     description: "List Promise.all groups of reads that db.$many can load",

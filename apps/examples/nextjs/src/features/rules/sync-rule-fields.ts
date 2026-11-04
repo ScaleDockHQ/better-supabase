@@ -3,7 +3,7 @@ import {
   rpcTransport,
 } from "better-supabase/blocks/automations";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 import { customerRuleFields } from "./rule-fields";

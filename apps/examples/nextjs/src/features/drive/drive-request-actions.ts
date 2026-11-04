@@ -4,7 +4,7 @@ import { ok } from "better-supabase";
 import { createDrive, rpcTransport } from "better-supabase/blocks/drive";
 import * as v from "valibot";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 /** Next.js caps a Server Action body at 1 MB (`serverActions.bodySizeLimit`). */

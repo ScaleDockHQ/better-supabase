@@ -104,7 +104,9 @@ export async function renderFixtures(): Promise<
     });
 
     for (const file of rendered.filter(
-      ({ path }) => !path.endsWith("blocks.generated.ts"),
+      ({ path }) =>
+        !path.endsWith("blocks.generated.ts") &&
+        !path.endsWith("blocks.config.ts"),
     )) {
       files.set(resolve(root, file.path), file.contents);
     }

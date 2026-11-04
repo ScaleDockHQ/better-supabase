@@ -73,7 +73,10 @@ export interface BetterClient<
    * push, links.
    */
   readonly ports: ClientPorts;
-  /** `blockConfig` from `blocks.generated.ts`, when passed. */
+  /**
+   * `blockConfig` from `blocks.config.ts` (plain data, so the browser doesn't
+   * bundle the blocks), when passed.
+   */
   readonly blocks?: GeneratedBlocks;
   /**
    * The organization block hooks act in: the `organization` option, or the
@@ -101,8 +104,9 @@ export interface BindClientOptions {
    */
   readonly ports?: ClientPorts;
   /**
-   * `blockConfig` from `blocks.generated.ts`: the block hooks call the schema,
-   * function names and topics `gen` wrote.
+   * `blockConfig` from `blocks.config.ts` (plain data, so the browser doesn't
+   * bundle the blocks): the block hooks call the schema, function names and
+   * topics `gen` wrote.
    */
   readonly blocks?: GeneratedBlocks;
   /**

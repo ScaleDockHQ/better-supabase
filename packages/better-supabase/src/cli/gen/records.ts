@@ -6,7 +6,11 @@ import { blockSubjectTypes } from "../../config/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import { importPath } from "../core/io.ts";
 import { hasPermissionConstants } from "./block-names.ts";
-import { blockConfigPath, generatorBlocks } from "./blocks.ts";
+import {
+  blockConfigModulePath,
+  blockConfigPath,
+  generatorBlocks,
+} from "./blocks.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { docComment, importStatement, sortImports } from "./layout.ts";
 import { q } from "./shared.ts";
@@ -145,9 +149,9 @@ function recordFile(
   },
 ): GeneratedFile {
   const generated = importPath(path, blockConfigPath(config));
+  const configModule = importPath(path, blockConfigModulePath(config));
 
   const fromGenerated = [
-    "blockConfig",
     ...(extras.permissions ? ["permissions"] : []),
     ...blocks.filter((block) => block.from === undefined).map((b) => b.local),
   ].toSorted((a, b) => a.localeCompare(b));
@@ -171,7 +175,10 @@ function recordFile(
       "",
       ...imports,
       "",
-      ...importStatement(fromGenerated, generated),
+      ...importStatement(["blockConfig"], configModule),
+      ...(fromGenerated.length === 0
+        ? []
+        : importStatement(fromGenerated, generated)),
       "",
       ...docComment(
         `The ${type} record type: each installed block that binds to it. Pass it to \`bsb.record\`, \`recordQueries\` or \`createRecordProvider\`.`,

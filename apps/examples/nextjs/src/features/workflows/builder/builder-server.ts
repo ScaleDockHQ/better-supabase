@@ -11,7 +11,7 @@ import {
 } from "better-supabase/workflow-sdk/builder";
 import "server-only";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 import { graphSteps, requestGraphApproval } from "./graph-steps";

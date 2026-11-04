@@ -42,6 +42,7 @@ export type BlockReadSpecs<B extends BlockReadMap> = {
 };
 
 /** Declares one read for `blocks.generated.ts`. */
+/*#__NO_SIDE_EFFECTS__*/
 export function blockRead<A extends object, R>(
   fn: string,
   params: Readonly<Record<string, string>>,

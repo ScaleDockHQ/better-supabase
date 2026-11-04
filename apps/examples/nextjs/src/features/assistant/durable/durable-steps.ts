@@ -11,7 +11,7 @@ import { createAiChat } from "better-supabase/blocks/ai-chat";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 import { Temporal } from "temporal-polyfill";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 import {
   serviceNotifications,

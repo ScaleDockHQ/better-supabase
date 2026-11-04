@@ -4,7 +4,7 @@ import { rpcTransport } from "better-supabase/blocks";
 
 import type { AppDb } from "@/lib/supabase";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig.imports.api;

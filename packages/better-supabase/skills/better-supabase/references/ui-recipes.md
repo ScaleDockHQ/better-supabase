@@ -369,7 +369,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useCommandSearch } from "@/hooks/use-search";
 import { Link, toAppHref } from "@/i18n/navigation";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 /** The API schema `gen` wrote for the search block. */
 const API_SCHEMA = blockConfig.search.api;
@@ -618,7 +618,7 @@ import { gettingStarted } from "@/features/onboarding/checklist";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { Link, toAppHref } from "@/i18n/navigation";
 import { useAuth } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 /** The API schema `gen` wrote for the onboarding block. */
 const API_SCHEMA = blockConfig.onboarding.api;
@@ -1014,7 +1014,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { useOrganizations } from "@/hooks/use-organizations";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { OrganizationSummary } from "../organization-queries";
@@ -1479,7 +1479,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUsageMeter } from "@/hooks/use-usage";
 import { useAuth } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 /** The API schema `gen` wrote for the usage block. */
 const API_SCHEMA = blockConfig.usage.api;
@@ -1799,7 +1799,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { settings } from "../settings-definition";
@@ -2236,7 +2236,7 @@ import { useMembers } from "@/hooks/use-organizations";
 import { Link } from "@/i18n/navigation";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
@@ -2755,7 +2755,7 @@ import { useInviteLink } from "@/features/organization/use-invite-link";
 import { useRoleLabel } from "@/features/organization/use-role-label";
 import { useInvitations } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
@@ -3088,7 +3088,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useApiKeys } from "@/hooks/use-api-keys";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { apiKeyCreated } from "../api-key-actions";
@@ -3374,7 +3374,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuditLog } from "@/hooks/use-audit";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 const ALL = "all";
@@ -7719,7 +7719,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { env } from "@/env";
 import { useSupabase } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 /**
  * The app's one service worker in `public/`, which shows the pushes. It must be
@@ -8544,7 +8544,7 @@ import { Switch } from "@/components/ui/switch";
 import { useStatusLabel } from "@/features/customers/use-status-label";
 import { useRuleBuilder } from "@/hooks/use-automations";
 import { useRouter } from "@/i18n/navigation";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import {
@@ -21775,7 +21775,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useSupabase } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 const DOCUMENT_NAME = "notes";
 const LOCAL = Symbol("local edit");

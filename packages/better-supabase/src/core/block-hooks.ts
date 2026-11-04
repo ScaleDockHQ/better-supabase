@@ -243,6 +243,7 @@ export interface ExtendBlockOptions {
  * );
  * ```
  */
+/*#__NO_SIDE_EFFECTS__*/
 export function extendBlock<C extends object, X extends object>(
   client: C,
   build: (base: C, tools: ExtendBlockTools) => X,

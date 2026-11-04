@@ -8,7 +8,7 @@ import { durableChat } from "better-supabase/ai-sdk/workflow";
 import { postgresStreamStore } from "better-supabase/streams";
 import * as v from "valibot";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 import {
   assistant,

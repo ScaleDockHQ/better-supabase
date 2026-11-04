@@ -2641,6 +2641,12 @@
           "description": "Serve the schema types through the TypeScript 7.1 content mapper: gen writes a slim generated.ts and schema.bsb instead of the type files.",
           "default": false
         },
+        "clientBlocks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "powersync": {
           "type": "object",
           "properties": {

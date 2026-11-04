@@ -6,6 +6,8 @@ import {
   blockConfigEntries,
   blockConfigPath,
   emitBlockConfig,
+  emitBlockConfigModule,
+  emitClientBlocks,
   schemaExtensions,
 } from "../../../src/cli/gen/blocks.ts";
 import { renderFiles } from "../../../src/cli/gen/render.ts";
@@ -239,7 +241,6 @@ describe("blocks.generated.ts", () => {
     expect(contents).toContain(
       `import {
   type Events,
-  type GeneratedBlocks,
   renameBlock,
   type RenamedEvents,
   type RenamedType,
@@ -491,9 +492,12 @@ describe("blocks.generated.ts", () => {
     expect(file?.path).toBe("app/lib/db/blocks.generated.ts");
     expect(blockConfigPath(config)).toBe("app/lib/db/blocks.generated.ts");
     expect(file?.contents).toContain(
-      'import {\n  blockRead,\n  type Events,\n  type GeneratedBlocks,\n} from "better-supabase/blocks";',
+      'import {\n  blockRead,\n  type Events,\n} from "better-supabase/blocks";',
     );
-    expect(file?.contents).toContain(
+    expect(
+      emitBlockConfigModule(config, { runtimeImport: "better-supabase" })
+        ?.contents,
+    ).toContain(
       `  attachments: {
     schema: "better_supabase",
     options: {
@@ -516,8 +520,10 @@ describe("blocks.generated.ts", () => {
     );
 
     const file = emitBlockConfig(config, { runtimeImport: "better-supabase" });
-    expect(file?.contents).toContain("offline: true");
-    expect(file?.contents).not.toContain("requireScan");
+    const module = emitBlockConfigModule(config)?.contents;
+    expect(module).toContain("offline: true");
+    expect(module).not.toContain("requireScan");
+    expect(file?.contents).toContain('from "./blocks.config.ts"');
   });
 
   it("declares the events app tables emit", () => {
@@ -538,7 +544,7 @@ describe("blocks.generated.ts", () => {
       "";
 
     expect(contents).toContain(
-      'import {\n  type AppTableEventData,\n  defineEvents,\n  event,\n  type GeneratedBlocks,\n} from "better-supabase/blocks";',
+      'import {\n  type AppTableEventData,\n  defineEvents,\n  event,\n} from "better-supabase/blocks";',
     );
     expect(contents).toContain(
       'export const appTableEvents = defineEvents({\n  "task.created": event<AppTableEventData>(),\n  "task.updated": event<AppTableEventData>(),\n  "task.deleted": event<AppTableEventData>(),\n  "notes.deleted": event<AppTableEventData>(),\n});',
@@ -748,5 +754,41 @@ describe("schemaExtensions", () => {
 
       expect(blockConfigEntries(missing, catalog)["talk"]).toBeUndefined();
     });
+  });
+});
+
+describe("blocks.client.ts", () => {
+  const install = { memberships: {}, attachments: {}, tags: {} };
+
+  it("wires only the listed instances, each from its own subpath", () => {
+    const config = resolveConfig(
+      { blocks: install, gen: { clientBlocks: ["tags"] } },
+      "/project",
+    );
+
+    const file = emitClientBlocks(config);
+
+    expect(file?.path).toBe("src/lib/supabase/blocks.client.ts");
+    expect(file?.contents).toContain('from "better-supabase/blocks/tags"');
+    expect(file?.contents).not.toContain("blocks/attachments");
+    expect(file?.contents).not.toContain("blocks.generated");
+    expect(file?.contents).toContain(
+      "export const clientBlocks = defineBlocks(blockConfig, instances);",
+    );
+  });
+
+  it("writes nothing without a list, and rejects an unknown instance", () => {
+    expect(
+      emitClientBlocks(resolveConfig({ blocks: install }, "/project")),
+    ).toBeUndefined();
+
+    expect(() =>
+      emitClientBlocks(
+        resolveConfig(
+          { blocks: install, gen: { clientBlocks: ["nope"] } },
+          "/project",
+        ),
+      ),
+    ).toThrow(/doesn't install/);
   });
 });

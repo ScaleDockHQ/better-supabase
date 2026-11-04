@@ -10,7 +10,7 @@ import {
   rpcTransport,
 } from "better-supabase/blocks/attachments";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 /**
  * The attachments block as the caller, in `tenant`. `db.attachments` builds it

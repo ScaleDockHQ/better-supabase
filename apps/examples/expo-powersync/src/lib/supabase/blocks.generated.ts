@@ -6,8 +6,8 @@ import {
   defineEvents,
   event,
   type Events,
-  type GeneratedBlocks,
 } from "better-supabase/blocks";
+import { blockConfig } from "./blocks.config.ts";
 import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
@@ -25,73 +25,8 @@ import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/s
 import { tagsBlock as tagsBlockInstance } from "better-supabase/blocks/tags";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
-/**
- * The installed blocks' settings from the `blocks` config, for
- * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema
- * and the options its SQL and TypeScript halves share.
- */
-export const blockConfig = {
-  permissions: {
-    schema: "better_supabase",
-    api: "api",
-    options: {},
-  },
-  comments: {
-    schema: "better_supabase",
-    api: "api",
-    options: {},
-  },
-  messaging: {
-    schema: "better_supabase",
-    options: {
-      topic: "messages",
-    },
-  },
-  notifications: {
-    schema: "better_supabase",
-    api: "api",
-    options: {
-      topic: "notifications:{userId}",
-    },
-  },
-  organizations: {
-    schema: "better_supabase",
-    api: "api",
-    options: {},
-  },
-  profiles: {
-    schema: "better_supabase",
-    api: "api",
-    options: {},
-  },
-  sessions: {
-    schema: "better_supabase",
-    api: "api",
-    options: {},
-  },
-  subjects: {
-    schema: "better_supabase",
-    options: {},
-  },
-  tags: {
-    schema: "better_supabase",
-    api: "api",
-    options: {},
-  },
-  teams: {
-    schema: "better_supabase",
-    api: "api",
-    options: {},
-  },
-  memberships: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "updated-at": {
-    schema: "better_supabase",
-    options: {},
-  },
-} as const satisfies GeneratedBlocks;
+/** Re-exported for server code; client code imports `blocks.config.ts`. */
+export { blockConfig };
 
 /**
  * Every installed block instance with a client, under its key, for

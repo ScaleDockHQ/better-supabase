@@ -5,7 +5,7 @@ import { generatedOptions } from "better-supabase/blocks";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 import { createUsage } from "better-supabase/blocks/usage";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 let registered = false;

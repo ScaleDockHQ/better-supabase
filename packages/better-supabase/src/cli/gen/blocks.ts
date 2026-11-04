@@ -40,6 +40,17 @@ export function blockConfigPath(
   return posix.join(posix.dirname(config.output), "blocks.generated.ts");
 }
 
+/**
+ * `blocks.config.ts`: `blockConfig` alone, with no import of any block, so
+ * client code reads a block's API name or schema without bundling the blocks
+ * `blocks.generated.ts` imports.
+ */
+export function blockConfigModulePath(
+  config: Pick<ResolvedConfig, "output">,
+): string {
+  return posix.join(posix.dirname(config.output), "blocks.config.ts");
+}
+
 function hasSchema(
   module: string,
 ): module is keyof typeof BLOCK_OPTION_SCHEMAS {
@@ -925,7 +936,6 @@ export function emitBlockConfig(
     ...(events.length === 0
       ? []
       : ["type AppTableEventData", "defineEvents", "event"]),
-    "type GeneratedBlocks",
     ...renamed.specifiers,
     ...constants.specifiers,
   ].toSorted((a, b) =>
@@ -933,8 +943,8 @@ export function emitBlockConfig(
   );
 
   const blocksImport =
-    specifiers.length === 1
-      ? `import type { GeneratedBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`
+    specifiers.length === 0
+      ? undefined
       : `import {\n${specifiers.map((name) => `  ${name},`).join("\n")}\n} from ${q(runtimeSubpath(runtime, "blocks"))};`;
 
   return {
@@ -942,21 +952,128 @@ export function emitBlockConfig(
     contents: [
       GENERATED_HEADER,
       "",
-      blocksImport,
+      ...(blocksImport === undefined ? [] : [blocksImport]),
+      `import { blockConfig } from "./blocks.config.ts";`,
       ...renamed.imports,
       ...constants.imports,
       ...instances.imports,
+      "",
+      "/** Re-exported for server code; client code imports `blocks.config.ts`. */",
+      "export { blockConfig };",
+      ...renamed.lines,
+      ...instances.lines,
+      ...appTableEventLines(events),
+      ...constants.lines,
+      "",
+    ].join("\n"),
+  };
+}
+
+/**
+ * `blocks.config.ts`: `blockConfig` as plain data. It imports no block, so a
+ * client component that reads `blockConfig.push.api` doesn't bundle the
+ * manifests `blocks.generated.ts` pulls in (ADR 0232).
+ */
+export function emitBlockConfigModule(
+  config: Parameters<typeof emitBlockConfig>[0],
+  options: { readonly runtimeImport?: string } = {},
+): GeneratedFile | undefined {
+  if (config.blockNames.length === 0) {
+    return undefined;
+  }
+
+  const runtime = options.runtimeImport ?? "better-supabase";
+
+  return {
+    path: blockConfigModulePath(config),
+    contents: [
+      GENERATED_HEADER,
+      "",
+      `import type { GeneratedBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`,
       "",
       "/**",
       " * The installed blocks' settings from the `blocks` config, for",
       " * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema",
       " * and the options its SQL and TypeScript halves share.",
       " */",
-      `export const blockConfig = ${literal(entries, "")} as const satisfies GeneratedBlocks;`,
-      ...renamed.lines,
-      ...instances.lines,
-      ...appTableEventLines(events),
-      ...constants.lines,
+      `export const blockConfig = ${literal(blockConfigEntries(config), "")} as const satisfies GeneratedBlocks;`,
+      "",
+    ].join("\n"),
+  };
+}
+
+/** `blocks.client.ts`, next to `blocks.config.ts`. */
+export function blockClientPath(
+  config: Pick<ResolvedConfig, "output">,
+): string {
+  return posix.join(posix.dirname(config.output), "blocks.client.ts");
+}
+
+/**
+ * `blocks.client.ts`: `clientBlocks`, a `defineBlocks` set over the instances
+ * `gen.clientBlocks` lists, each imported from its own subpath, so a browser
+ * client gets `db.<instance>` for those and no other block (ADR 0232).
+ * `undefined` when `gen.clientBlocks` is empty.
+ */
+export function emitClientBlocks(
+  config: Parameters<typeof emitBlockConfig>[0],
+  options: { readonly runtimeImport?: string } = {},
+): GeneratedFile | undefined {
+  const listed = config.gen.clientBlocks ?? [];
+
+  if (listed.length === 0 || config.blockNames.length === 0) {
+    return undefined;
+  }
+
+  const entries = blockConfigEntries(config);
+  const renamed = renamedBlockLines(entries).constants;
+  const runtime = options.runtimeImport ?? "better-supabase";
+
+  for (const instance of listed) {
+    if (entries[instance] === undefined) {
+      throw new Error(
+        `gen.clientBlocks lists "${instance}", which \`blocks\` doesn't install.`,
+      );
+    }
+
+    if (renamed.has(instance)) {
+      throw new Error(
+        `gen.clientBlocks lists "${instance}", which renames its entities. Import its block from blocks.generated.ts in your own client module instead.`,
+      );
+    }
+  }
+
+  const picked = Object.fromEntries(
+    Object.entries(entries).filter(([instance]) => listed.includes(instance)),
+  );
+
+  const map = instanceMapLines(picked, renamed, undefined);
+
+  if (map.lines.length === 0) {
+    throw new Error(
+      `gen.clientBlocks lists ${listed.map((name) => `"${name}"`).join(", ")}, which have no client.`,
+    );
+  }
+
+  return {
+    path: blockClientPath(config),
+    contents: [
+      GENERATED_HEADER,
+      "",
+      `import { defineBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`,
+      ...map.imports,
+      `import { blockConfig } from "./blocks.config.ts";`,
+      "",
+      ...map.lines
+        .join("\n")
+        .replace("export const blocks = {", "const instances = {")
+        .split("\n"),
+      "",
+      "/**",
+      " * The instances in `gen.clientBlocks`. Wire them on the browser client:",
+      " * `createClient(app.blocks(clientBlocks), { blocks: blockConfig })`.",
+      " */",
+      "export const clientBlocks = defineBlocks(blockConfig, instances);",
       "",
     ].join("\n"),
   };

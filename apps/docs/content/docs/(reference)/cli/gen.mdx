@@ -64,13 +64,18 @@ the same generator behind `supabase gen types typescript`, and writes:
    imports the main module. Each table and function is one line of JSON, which
    keeps the module small to load and a schema change visible per entry in a
    diff. Commit both files with the main module;
-4. with `blocks` configured, `blocks.generated.ts` next to the main module:
-   each installed block's schema, API schema and the options its SQL and
-   TypeScript halves share, with the module defaults filled in, for
-   [`defineBlocks(blockConfig, ...)`](/docs/blocks/create-blocks#the-generated-config),
-   and `blocks`, each instance's manifest under its key, for
-   [`betterSupabase.blocks()`](/docs/blocks/create-blocks#block-instances-on-db).
-   It needs no database, only the config;
+4. with `blocks` configured, `blocks.config.ts` next to the main module: each
+   installed block's schema, API schema and the options its SQL and TypeScript
+   halves share, with the module defaults filled in, as data only, for
+   [`defineBlocks(blockConfig, ...)`](/docs/blocks/create-blocks#the-generated-config)
+   and `createClient(app, { blocks: blockConfig })`. Browser code imports it
+   without pulling in any block client. `blocks.generated.ts` re-exports
+   `blockConfig` and adds `blocks`, each instance's manifest under its key, for
+   [`betterSupabase.blocks()`](/docs/blocks/create-blocks#block-instances-on-db):
+   import it from server code only. With `gen.clientBlocks` set, `blocks.client.ts`
+   holds `clientBlocks`, `defineBlocks` over just the listed instances, so the
+   browser bundle carries those clients and no others. None of this needs a
+   database, only the config;
 5. with blocks that have a record binding installed, a
    [record type](/docs/repository/record-bindings#generated-record-types) per type in
    `config.subjects`, in `records/<type>.ts` next to the main module, unless

@@ -731,6 +731,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "0.53",
+        description:
+          "Changes from 0.52 to 0.53: blockConfig is imported from blocks.config.ts, so client components stop importing every installed block client",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "read-many",
         description:
           "List Promise.all groups of repository reads that db.$many or a read set can load in one round trip",

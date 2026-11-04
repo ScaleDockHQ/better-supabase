@@ -3,7 +3,7 @@ import { posix } from "node:path";
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 
 import { GENERATED_HEADER } from "./emit.ts";
-import { destructuredCall, importGroup, sortImports } from "./layout.ts";
+import { importGroup, pureExport, sortImports } from "./layout.ts";
 import { pascal, q, runtimeSubpath, singular } from "./shared.ts";
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
@@ -56,7 +56,7 @@ export function emitHooks(
   const wrap = (fn: string): string =>
     select === undefined ? fn : `${select.export}(${fn})`;
 
-  const hooksImport = `import { defineDataHooks } from ${q(runtimeSubpath(runtime, config.hooks))};`;
+  const hooksImport = `import { defineListHook, defineOneHook } from ${q(runtimeSubpath(runtime, config.hooks))};`;
 
   const selectImport =
     select && `import { ${select.export} } from ${q(select.module)};`;
@@ -67,6 +67,7 @@ export function emitHooks(
     path: hooksPath(config),
     contents: [
       GENERATED_HEADER,
+      "/* oxlint-disable no-inline-comments -- the PURE annotations sit inline. */",
       ...(config.hooks === "react" ? ['"use client";'] : []),
       "",
       `import type { DbOf } from ${q(runtime)};`,
@@ -83,16 +84,16 @@ export function emitHooks(
       ...tables.flatMap((property) => {
         const names = hookNames(property);
 
+        const select = [
+          q(property),
+          wrap(`(db: AppDb) => ${access(property)}`),
+        ];
+
         return [
           "",
-          ...destructuredCall(
-            [
-              ["useList", names.list],
-              ["useOne", names.one],
-            ],
-            "defineDataHooks",
-            [q(property), wrap(`(db: AppDb) => ${access(property)}`)],
-          ),
+          ...pureExport(names.list, "defineListHook", select),
+          "",
+          ...pureExport(names.one, "defineOneHook", select),
         ];
       }),
       "",

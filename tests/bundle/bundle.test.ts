@@ -74,6 +74,36 @@ export const hooks = createHooks();
 export const queries = createQueries(betterSupabase, client.db);
 export { BetterSupabaseProvider, invalidateOnMutation };
 `,
+  // An app that wires blocks into the browser client, as the generated
+  // `client.ts` does: every manifest it names ships (ADR 0232).
+  "saas client with blocks": `
+import { defineSchema, defineSupabase } from "better-supabase";
+import { defineBlocks } from "better-supabase/blocks";
+import { commentsBlock } from "better-supabase/blocks/comments";
+import { metricsBlock } from "better-supabase/blocks/metrics";
+import { notificationsBlock } from "better-supabase/blocks/notifications";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
+import { settingsBlock } from "better-supabase/blocks/settings";
+import { trashBlock } from "better-supabase/blocks/trash";
+import { createClient } from "better-supabase/client";
+import meta from "./generated.meta.js";
+const betterSupabase = defineSupabase(defineSchema(meta));
+const blocks = defineBlocks({}, {
+  comments: commentsBlock,
+  metrics: metricsBlock,
+  notifications: notificationsBlock,
+  permissions: permissionsBlock,
+  settings: settingsBlock,
+  trash: trashBlock,
+});
+export const bsb = createClient(betterSupabase);
+export { blocks };
+`,
+  // A client component that builds one block's controller and nothing else.
+  "one block controller": `
+import { createCommentsController } from "better-supabase/blocks/comments";
+export { createCommentsController };
+`,
 } satisfies Readonly<Record<string, string>>;
 
 /**

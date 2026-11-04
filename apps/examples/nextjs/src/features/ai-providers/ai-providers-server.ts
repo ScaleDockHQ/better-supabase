@@ -7,7 +7,7 @@ import { generatedOptions } from "better-supabase/blocks";
 import { createAiKeys, rpcTransport } from "better-supabase/blocks/ai-keys";
 import { vaultCredentials } from "better-supabase/credentials";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig["ai-keys"].api;

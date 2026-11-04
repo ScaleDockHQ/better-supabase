@@ -27,10 +27,10 @@ describe("hooks.ts", () => {
     expect(file?.path).toBe("src/lib/supabase/hooks.ts");
     expect(file?.contents).toContain('"use client";');
     expect(file?.contents).toContain(
-      'import { defineDataHooks } from "better-supabase/react";',
+      'import { defineListHook, defineOneHook } from "better-supabase/react";',
     );
     expect(file?.contents).toContain(
-      'export const { useList: useCustomers, useOne: useCustomer } = defineDataHooks(\n  "customers",\n  (db: AppDb) => db.customers,\n);',
+      'export const useCustomers = /*#__PURE__*/ defineListHook(\n  "customers",\n  (db: AppDb) => db.customers,\n);',
     );
     expect(file?.contents).not.toContain('"comments"');
 

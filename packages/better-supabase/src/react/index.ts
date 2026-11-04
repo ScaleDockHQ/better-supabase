@@ -59,7 +59,11 @@ export { useController, useLatest } from "../blocks/react-controller.ts";
 
 export { useBlockEnv, useBlockTenant } from "../blocks/react-env.ts";
 
-export { defineDataHooks } from "./data-hooks.ts";
+export {
+  defineDataHooks,
+  defineListHook,
+  defineOneHook,
+} from "./data-hooks.ts";
 
 export type { DataHooks, DataView } from "./data-hooks.ts";
 

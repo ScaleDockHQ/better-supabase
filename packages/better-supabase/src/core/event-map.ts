@@ -15,6 +15,7 @@ export interface EventSpec<T extends object> {
 }
 
 /** The event `type` and its data type `T`, for `defineEvents`. */
+/*#__NO_SIDE_EFFECTS__*/
 export function event<T extends object>(): EventSpec<T> {
   return {};
 }
@@ -41,6 +42,7 @@ type DataOf<S> = S extends EventSpec<infer T> ? T : never;
  * their data: `defineEvents({ "invoice.sent": event<{ invoiceId: string }>()
  * })`.
  */
+/*#__NO_SIDE_EFFECTS__*/
 export function defineEvents<
   const S extends Readonly<Record<string, EventSpec<object>>>,
 >(spec: S): Events<{ readonly [K in keyof S & string]: DataOf<S[K]> }> {

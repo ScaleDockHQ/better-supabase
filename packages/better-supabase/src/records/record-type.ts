@@ -73,6 +73,7 @@ export interface RecordType<
 }
 
 /** Describes one subject's record page from the blocks that own its bindings. */
+/*#__NO_SIDE_EFFECTS__*/
 export function defineRecordType<
   const T extends string,
   const B extends RecordTypeBlocks,

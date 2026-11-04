@@ -15,7 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUsageMeter } from "@/hooks/use-usage";
 import { useAuth } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 /** The API schema `gen` wrote for the usage block. */
 const API_SCHEMA = blockConfig.usage.api;

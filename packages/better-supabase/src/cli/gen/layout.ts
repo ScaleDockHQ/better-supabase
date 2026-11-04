@@ -85,6 +85,35 @@ function call(
 }
 
 /**
+ * `export const name = /*#__PURE__*\/ callee(args);` as the formatter prints
+ * it: on one line when it fits, else one argument per line. The annotation lets
+ * a bundler drop the binding when nothing imports it.
+ */
+export function pureExport(
+  name: string,
+  callee: string,
+  args: readonly string[],
+): string[] {
+  const head = `export const ${name} = /*#__PURE__*/ ${callee}`;
+  const flat = `${head}(${args.join(", ")});`;
+
+  if (flat.length <= WIDTH) {
+    return [flat];
+  }
+
+  if (`${head}(`.length <= WIDTH) {
+    return [`${head}(`, ...args.map((arg) => `  ${arg},`), ");"];
+  }
+
+  return [
+    `export const ${name} =`,
+    `  /*#__PURE__*/ ${callee}(`,
+    ...args.map((arg) => `    ${arg},`),
+    "  );",
+  ];
+}
+
+/**
  * `export const { key: name, … } = callee(args);` laid out as the formatter
  * prints it: on one line, then with the arguments broken, then broken after
  * `=`, and with the pattern broken when it is wider than 80 on its own.

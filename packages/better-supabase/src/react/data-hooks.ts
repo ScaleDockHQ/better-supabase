@@ -43,6 +43,48 @@ function useClient(): Parameters<typeof dataTarget>[0] {
 }
 
 /**
+ * The list hook for one table or block instance, for a module that wants to
+ * tree-shake each hook on its own. `defineDataHooks` makes both.
+ */
+export const defineListHook =
+  /*#__NO_SIDE_EFFECTS__*/
+  <D, S extends DataSource>(
+    name: string,
+    select: (db: D) => S,
+  ): DataHooks<S>["useList"] =>
+    (args) => {
+      const client = useClient();
+      const target = dataTarget(client, name, select);
+
+      return useController(
+        () => createDataList(target, args),
+        [
+          client.db,
+          target.engine,
+          dataArgsKey(target.scope),
+          dataArgsKey(args),
+        ],
+      ).view;
+    };
+
+/** The record hook for one table or block instance (see `defineListHook`). */
+export const defineOneHook =
+  /*#__NO_SIDE_EFFECTS__*/
+  <D, S extends DataSource>(
+    name: string,
+    select: (db: D) => S,
+  ): DataHooks<S>["useOne"] =>
+    (id) => {
+      const client = useClient();
+      const target = dataTarget(client, name, select);
+
+      return useController(
+        () => createDataOne(target, id),
+        [client.db, target.engine, dataArgsKey(target.scope), dataArgsKey(id)],
+      ).view;
+    };
+
+/**
  * The list and record hooks for one table or block instance. The generated
  * `hooks.ts` calls it once per table (`useTickets`, `useTicket`); `select`
  * picks the source from the provider's `db`.
@@ -57,28 +99,7 @@ export function defineDataHooks<D, S extends DataSource>(
   select: (db: D) => S,
 ): DataHooks<S> {
   return {
-    useList: (args) => {
-      const client = useClient();
-      const target = dataTarget(client, name, select);
-
-      return useController(
-        () => createDataList(target, args),
-        [
-          client.db,
-          target.engine,
-          dataArgsKey(target.scope),
-          dataArgsKey(args),
-        ],
-      ).view;
-    },
-    useOne: (id) => {
-      const client = useClient();
-      const target = dataTarget(client, name, select);
-
-      return useController(
-        () => createDataOne(target, id),
-        [client.db, target.engine, dataArgsKey(target.scope), dataArgsKey(id)],
-      ).view;
-    },
+    useList: defineListHook(name, select),
+    useOne: defineOneHook(name, select),
   };
 }

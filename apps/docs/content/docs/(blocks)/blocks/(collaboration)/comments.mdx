@@ -122,7 +122,7 @@ client for the request: it calls through `ctx.db` and reads the tenant from
 import { createBlockClient } from "better-supabase/blocks";
 import { commentsBlock } from "better-supabase/blocks/comments";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 const ctx = await bsb.context();

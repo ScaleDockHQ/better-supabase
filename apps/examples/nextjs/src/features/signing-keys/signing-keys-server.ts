@@ -7,7 +7,7 @@ import type {
 import { rpcTransport } from "better-supabase/blocks/organizations";
 import { createSigningKeys } from "better-supabase/blocks/signing-keys";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig["signing-keys"].api;

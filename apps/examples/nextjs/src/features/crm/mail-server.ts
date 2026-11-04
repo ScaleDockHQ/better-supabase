@@ -11,7 +11,7 @@ import {
 } from "better-supabase/blocks/mail-sync";
 
 import { connectCredentials } from "@/features/integrations/integrations-server";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig["mail-sync"].api;

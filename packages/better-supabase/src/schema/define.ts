@@ -12,6 +12,7 @@ import type {
  * Binds generated model types to runtime metadata. Called from the generated
  * module; apps import the returned `schema`, never call this themselves.
  */
+/*#__NO_SIDE_EFFECTS__*/
 export function defineSchema<
   M extends AnyModels,
   D = unknown,

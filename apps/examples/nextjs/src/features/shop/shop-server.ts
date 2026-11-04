@@ -5,7 +5,7 @@ import type { Orders } from "better-supabase/blocks/orders";
 import { generatedOptions } from "better-supabase/blocks";
 import { createOrders, rpcTransport } from "better-supabase/blocks/orders";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig.orders.api;

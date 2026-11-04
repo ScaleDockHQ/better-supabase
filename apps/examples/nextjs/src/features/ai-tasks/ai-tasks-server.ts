@@ -8,7 +8,7 @@ import {
   rpcTransport,
 } from "better-supabase/blocks/ai-schedules";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig["ai-schedules"].api;

@@ -30,6 +30,7 @@ import { dbError } from "../../src/core/errors.ts";
 import { EventHub } from "../../src/core/events.ts";
 import { AsyncResult } from "../../src/core/result.ts";
 import { vaultCredentials } from "../../src/credentials/index.ts";
+import { createFakeClient } from "../../src/testing/fake-client.ts";
 
 const transport = rpcTransport({
   schema: () => ({ rpc: () => Promise.resolve({ data: null, error: null }) }),
@@ -621,6 +622,41 @@ describe("defineBlocks", () => {
     expect(set.config).toBe(config);
     expect(typeof blocks.organizations.create).toBe("function");
     blocks.close();
+  });
+
+  it("describes an instance once and returns nothing for an unknown key", () => {
+    const surface = set.describe("organizations");
+
+    expect(surface).toBeDefined();
+    expect(set.describe("organizations")).toBe(surface);
+    expect(set.describe("missing")).toBeUndefined();
+  });
+
+  it("refuses a raw call when no block has an API schema", async () => {
+    const bare = defineBlocks(
+      { organizations: { schema: "better_supabase", options: {} } },
+      { organizations: organizationsBlock },
+    );
+
+    const result = await bare.call({} as never, "anything", {});
+
+    expect(!result.ok && result.error.kind).toBe("unsupported");
+  });
+
+  it("builds service clients lazily and caches each one", async () => {
+    const calls: string[] = [];
+
+    const admin = createFakeClient((request) => {
+      calls.push(request.path);
+
+      return { data: [] };
+    });
+
+    const services = set.serviceBlocks(admin);
+
+    expect(calls).toEqual([]);
+    expect(services.organizations).toBe(services.organizations);
+    expect(Object.keys(services)).toContain("organizations");
   });
 });
 

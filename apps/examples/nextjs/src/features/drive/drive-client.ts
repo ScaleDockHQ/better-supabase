@@ -9,7 +9,7 @@ import {
 import type { AppDb } from "@/lib/supabase";
 
 import { knowledge } from "@/features/knowledge/knowledge-server";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 /**
  * The drive client with the caller's Storage, which `db.drive` leaves out:

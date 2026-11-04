@@ -30,7 +30,7 @@ import {
 } from "better-supabase/blocks/notifications";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 
-import { blockConfig } from "./supabase/blocks.generated";
+import { blockConfig } from "./supabase/blocks.config";
 
 export const blockSet = defineBlocks(blockConfig, {
   organizations: organizationsBlock,
@@ -221,7 +221,7 @@ that passes the organization:
 import { createBlockClient } from "better-supabase/blocks";
 import { commentsBlock } from "better-supabase/blocks/comments";
 
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 const ctx = await bsb.context();
@@ -286,7 +286,7 @@ import {
 } from "better-supabase/blocks";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 
-import { blockConfig } from "./supabase/blocks.generated";
+import { blockConfig } from "./supabase/blocks.config";
 
 const blockSet = defineBlocks(blockConfig, {
   organizations: organizationsBlock,
@@ -349,7 +349,7 @@ import {
 } from "better-supabase/blocks";
 import { createOrganizations } from "better-supabase/blocks/organizations";
 
-import { blockConfig } from "./supabase/blocks.generated";
+import { blockConfig } from "./supabase/blocks.config";
 
 const entry = blockConfig.organizations;
 const organizations = createOrganizations({
@@ -417,7 +417,7 @@ import { metricsBlock } from "better-supabase/blocks/metrics";
 import { searchBlock } from "better-supabase/blocks/search";
 
 import { outbox } from "@/lib/outbox";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 
 const app = defineBlocks(blockConfig, {
   search: searchBlock,
@@ -461,7 +461,7 @@ builds the blocks with the generated config:
 ```ts title="src/lib/blocks.ts"
 import { defineBlocks, defineEvents, event } from "better-supabase/blocks";
 
-import { blockConfig } from "./supabase/blocks.generated";
+import { blockConfig } from "./supabase/blocks.config";
 
 const appEvents = defineEvents({
   "invoice.sent": event<{ readonly invoiceId: string }>(),
