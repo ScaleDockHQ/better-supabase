@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:9329bcf064594400c5b37327e92ab429ff3d5f45fe35188183b874ca8b7bf81a
+-- @bsb-hash sha256:fb3077803e9f1bf6a5bf9e8b82b5b65d5d7c7d97f033fc98801daa625438837a
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -119,6 +119,30 @@ $$;
 
 revoke execute on function better_supabase.last_sign_ins(uuid[]) from public, anon, authenticated;
 grant execute on function better_supabase.last_sign_ins(uuid[]) to service_role;
+
+-- Deletes every session and refresh token of a user and returns how many
+-- sessions went. Only the service role calls this, over SQL or the Data API.
+create or replace function better_supabase.end_sessions(p_user uuid)
+returns int
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  ended int;
+begin
+  with gone as (
+    delete from auth.sessions s where s.user_id = end_sessions.p_user returning s.id
+  )
+  select count(*)::int into ended from gone;
+  delete from auth.refresh_tokens t where t.user_id = end_sessions.p_user::text;
+  return ended;
+end;
+$$;
+
+revoke execute on function better_supabase.end_sessions(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.end_sessions(uuid) to service_role;
 
 -- The caller's own unexpired sessions, most recently active first, with the
 -- one behind the current token marked.
@@ -481,6 +505,15 @@ set search_path = ''
 as $$ select * from "better_supabase"."last_sign_ins"($1) $$;
 revoke execute on function "api"."last_sign_ins"(uuid[]) from public, anon, authenticated;
 grant execute on function "api"."last_sign_ins"(uuid[]) to service_role;
+
+create or replace function "api"."end_sessions"(p_user uuid)
+returns int
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."end_sessions"($1) $$;
+revoke execute on function "api"."end_sessions"(uuid) from public, anon, authenticated;
+grant execute on function "api"."end_sessions"(uuid) to service_role;
 
 create or replace function "api"."list_my_sessions"()
 returns jsonb
