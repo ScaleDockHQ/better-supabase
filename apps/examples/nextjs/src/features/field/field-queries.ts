@@ -11,7 +11,7 @@ import type {
 import { tenantOf } from "better-supabase/next";
 import { Temporal } from "temporal-polyfill";
 
-import { getMembers } from "@/features/organization/organization-queries";
+import { readMembers } from "@/features/organization/organization-queries";
 import { bsb } from "@/lib/supabase/server";
 
 /** One work order as the board and the day plan show it. */
@@ -105,7 +105,8 @@ export async function loadDispatchWeek(
   monday: string,
 ): Promise<DispatchWeek | null> {
   "use cache: private";
-  const { session, db } = await bsb.cached();
+  const request = await bsb.cached();
+  const { session, db } = request;
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -117,7 +118,7 @@ export async function loadDispatchWeek(
 
   const [board, members] = await Promise.all([
     db.dispatch.board({ from, to }).orThrow(),
-    getMembers(tenant),
+    readMembers(request, tenant),
   ]);
 
   const names = new Map(

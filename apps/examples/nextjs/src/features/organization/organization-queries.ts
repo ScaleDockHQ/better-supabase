@@ -117,8 +117,15 @@ export async function getMembers(
   organizationId: string,
 ): Promise<readonly Member[]> {
   "use cache: private";
-  const { db, supabase } = await bsb.cached();
 
+  return readMembers(await bsb.cached(), organizationId);
+}
+
+/** The same read for a function that already runs in a private scope. */
+export async function readMembers(
+  { db, supabase }: Awaited<ReturnType<typeof bsb.cached>>,
+  organizationId: string,
+): Promise<readonly Member[]> {
   const rows = await db
     .$rpc("organization_members", { organization: organizationId })
     .orThrow();

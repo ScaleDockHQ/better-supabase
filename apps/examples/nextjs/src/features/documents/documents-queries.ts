@@ -2,7 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { notFound, unstable_rethrow } from "next/navigation";
 
-import { getPermissions } from "@/features/user/permission-snapshot";
+import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
@@ -74,10 +74,9 @@ async function loadTarget(
 ): Promise<DocumentTarget | "not-found" | null> {
   "use cache: private";
 
-  const [{ session, db }, permissions] = await Promise.all([
-    bsb.cached(),
-    getPermissions(),
-  ]);
+  const request = await bsb.cached();
+  const { session, db } = request;
+  const permissions = await readPermissions(request);
 
   const organizationId = tenantOf(session);
 
