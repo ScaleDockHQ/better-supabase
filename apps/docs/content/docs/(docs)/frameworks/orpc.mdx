@@ -251,7 +251,7 @@ const limited = os.$context<OrpcRequestContext>().use(
 ```
 
 The headers reach the client through `bsb.fetchHandler`, or through oRPC's
-own handler when it uses `ResponseHeadersPlugin`: the middleware then sets
+own handler when it uses `ResponseHeadersHandlerPlugin`: the middleware then sets
 them on `context.resHeaders`.
 
 To count one call against several limits, such as per user and per

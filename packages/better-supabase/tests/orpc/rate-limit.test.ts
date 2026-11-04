@@ -1,6 +1,6 @@
 import { os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
-import { ResponseHeadersPlugin } from "@orpc/server/plugins";
+import { ResponseHeadersHandlerPlugin } from "@orpc/server/plugins";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
@@ -155,7 +155,7 @@ describe("createOrpc().rateLimit with hits", () => {
           })
           .handler(() => ({ pong: true })),
       },
-      { plugins: [new ResponseHeadersPlugin()] },
+      { plugins: [new ResponseHeadersHandlerPlugin()] },
     ),
     { prefix: "/rpc" },
   );

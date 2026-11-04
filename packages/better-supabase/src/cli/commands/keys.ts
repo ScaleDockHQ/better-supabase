@@ -68,7 +68,7 @@ async function createSigningKey(): Promise<SigningKey> {
   };
 }
 
-export async function runKeys(
+async function runKeys(
   config: ResolvedConfig,
   args: KeysArgs,
 ): Promise<CommandResult> {

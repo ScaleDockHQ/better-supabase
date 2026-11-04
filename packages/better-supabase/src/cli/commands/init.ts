@@ -348,7 +348,7 @@ function withDesign(
   return out;
 }
 
-export async function runInit(
+async function runInit(
   config: ResolvedConfig,
   given: InitArgs,
   prompts?: Prompter,
