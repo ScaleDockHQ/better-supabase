@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@10 managed
--- @bsb-hash sha256:ee1614d92c6f2764e51a62082a770269be0b8308d30e287005f5db0a3acd4143
+-- @bsb-hash sha256:052db899b64157714a98cdc62fb948d6177198073c3f321ca855584ad151a60b
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -37,6 +37,24 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+
+create or replace function better_supabase.memo_get(key text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select nullif(pg_catalog.current_setting('better_supabase.memo.' || key, true), '')
+$$;
+
+create or replace function better_supabase.memo_set(key text, value text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select pg_catalog.set_config('better_supabase.memo.' || key, value, true)
+$$;
 
 create table if not exists "better_supabase"."audited_tables" (
   "target" regclass primary key,
@@ -179,12 +197,14 @@ declare
   row_tenant uuid;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
+  v_label text;
   path_value text;
   path_step jsonb;
 begin
   -- An import run with imports.audit 'summary' audits one entry per entity at
   -- its end instead of one per row (ADR 0141).
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -662,10 +682,11 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "centrakit"."audit_logs"."id"%type;
 begin
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
@@ -833,10 +854,11 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "centrakit"."audit_logs"."id"%type;
 begin
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   actor_id := coalesce(actor_id, auth.uid());
