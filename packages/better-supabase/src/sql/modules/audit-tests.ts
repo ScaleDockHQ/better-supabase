@@ -71,16 +71,22 @@ begin
 end;
 $$;`;
 
+/** One table's section of the audit pgTAP file: its setup and its assertions. */
+interface AuditSection {
+  readonly setup: string;
+  readonly checks: readonly string[];
+}
+
 /**
- * The pgTAP file for one audited table: the trigger and registration match the
+ * The section for one audited table: the trigger and registration match the
  * `audit()` call, and inserts, updates and deletes on a copy of the table write
  * entries without the ignored columns and with the redacted values masked.
  */
-function auditTableTest(
+function auditTableSection(
   ctx: BlockSqlContext,
   table: AuditedTable,
   restricted: boolean,
-): string {
+): AuditSection {
   const dot = table.target.indexOf(".");
   const schema = sqlString(table.target.slice(0, dot));
   const name = sqlString(table.target.slice(dot + 1));
@@ -98,14 +104,7 @@ function auditTableTest(
   const behaviour = ctx.has("log", "table") && ctx.has("log", "op");
 
   if (!behaviour) {
-    return `begin;
-create extension if not exists pgtap with schema extensions;
-select extensions.plan(${String(checks.length)});
-
-${checks.join("\n")}
-
-select * from extensions.finish();
-rollback;`;
+    return { setup: "", checks };
   }
 
   const joined = restricted && ctx.hasTable("restricted");
@@ -159,26 +158,48 @@ rollback;`;
     );
   }
 
-  return `begin;
-create extension if not exists pgtap with schema extensions;
-select extensions.plan(${String(checks.length)});
-
-${probe(table)}
-
-${checks.join("\n")}
-
-select * from extensions.finish();
-rollback;`;
+  return { setup: probe(table), checks };
 }
 
-/** One pgTAP file per table in `audited`, named after the table. */
+/**
+ * One pgTAP file for every table in `audited`, with each table's assertion
+ * names. The probe copy is dropped after its table, so the next table's copy
+ * can reuse the name inside the one transaction.
+ */
 export function auditTests(
   ctx: BlockSqlContext,
   audited: readonly AuditedTable[],
   restricted: boolean,
 ): BlockSqlTestFile[] {
-  return audited.map((table) => ({
-    name: table.target.toLowerCase().replaceAll(/[^a-z0-9]+/g, "_"),
-    sql: auditTableTest(ctx, table, restricted),
-  }));
+  if (audited.length === 0) {
+    return [];
+  }
+
+  const sections = audited.map((table) =>
+    auditTableSection(ctx, table, restricted),
+  );
+
+  const total = sections.reduce((sum, each) => sum + each.checks.length, 0);
+
+  const body = sections
+    .map(({ setup, checks }) =>
+      [setup, ...checks, ...(setup === "" ? [] : [`drop table ${PROBE};`])]
+        .filter((part) => part !== "")
+        .join("\n"),
+    )
+    .join("\n\n");
+
+  return [
+    {
+      name: "tables",
+      sql: `begin;
+create extension if not exists pgtap with schema extensions;
+select extensions.plan(${String(total)});
+
+${body}
+
+select * from extensions.finish();
+rollback;`,
+    },
+  ];
 }

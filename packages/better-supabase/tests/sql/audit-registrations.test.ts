@@ -78,25 +78,24 @@ describe("audit pgTAP files", () => {
     { target: "crm.Deals", ignore: [], redact: [] },
   ];
 
-  it("writes one test file per audited table", () => {
+  it("writes one test file for all audited tables", () => {
     const tests = renderBlocks(["audit"], { auditedTables: audited }).filter(
       (entry) => entry.kind === "test",
     );
 
     expect(tests.map((entry) => entry.path)).toEqual([
-      "supabase/tests/900_better_supabase_audit_public_customers.test.sql",
-      "supabase/tests/900_better_supabase_audit_crm_deals.test.sql",
+      "supabase/tests/900_better_supabase_audit_tables.test.sql",
     ]);
-    const [customers, deals] = tests.map((entry) => entry.contents);
+    const customers = tests[0]!.contents;
+    const deals = customers;
     expect(customers).toContain("-- @bsb-block-test audit");
-    expect(customers).toContain("select extensions.plan(7);");
+    expect(customers).toContain("select extensions.plan(12);");
     expect(customers).toContain(`like "public"."customers" including defaults`);
     expect(customers).toContain(
       `ignore => '{"updated_at"}'::text[], redact => '{"kvk"}'::text[]`,
     );
     expect(customers).toContain("leave out updated_at");
     expect(customers).toContain("mask kvk");
-    expect(deals).toContain("select extensions.plan(5);");
     expect(deals).toContain(`'"crm"."Deals"'::regclass`);
   });
 

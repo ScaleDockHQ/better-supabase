@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@10 managed
--- @bsb-hash sha256:d17307f0ed9a03303a7099a1aba60dd34dc438db8411654308ee19ca2c5eab89
+-- @bsb-hash sha256:0efae5c4f897dbbd0c59d6a4fb0384f3820e2b5b981e269cbdcbe2ef01f76fc5
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,6 +38,24 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+
+create or replace function better_supabase.memo_get(key text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select nullif(pg_catalog.current_setting('better_supabase.memo.' || key, true), '')
+$$;
+
+create or replace function better_supabase.memo_set(key text, value text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select pg_catalog.set_config('better_supabase.memo.' || key, value, true)
+$$;
 
 create table if not exists "better_supabase"."audited_tables" (
   "target" regclass primary key,
@@ -207,12 +225,14 @@ declare
   row_tenant uuid;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
+  v_label text;
   path_value text;
   path_step jsonb;
 begin
   -- An import run with imports.audit 'summary' audits one entry per entity at
   -- its end instead of one per row (ADR 0141).
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -296,7 +316,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -333,8 +353,9 @@ declare
   settings jsonb;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
 begin
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -409,7 +430,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -469,7 +490,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -531,7 +552,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -940,6 +961,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "better_supabase"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -947,7 +969,7 @@ begin
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
@@ -997,7 +1019,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -1133,6 +1155,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "better_supabase"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -1140,7 +1163,7 @@ begin
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   actor_id := coalesce(actor_id, auth.uid());
@@ -1174,7 +1197,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -1563,7 +1586,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@10 managed
--- @bsb-hash sha256:dc08ddf52dd81e9786332cbbeb2aaed0ce5e0ba721af1a53e3ac8bc9341fa8fb
+-- @bsb-hash sha256:667a9f7b5253e4a159b30c03dddcf56e6da758403e1aa454123afbdb2450dbbc
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1600,6 +1623,24 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+
+create or replace function better_supabase.memo_get(key text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select nullif(pg_catalog.current_setting('better_supabase.memo.' || key, true), '')
+$$;
+
+create or replace function better_supabase.memo_set(key text, value text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select pg_catalog.set_config('better_supabase.memo.' || key, value, true)
+$$;
 
 create table if not exists "better_supabase"."audited_tables" (
   "target" regclass primary key,
@@ -1769,12 +1810,14 @@ declare
   row_tenant uuid;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
+  v_label text;
   path_value text;
   path_step jsonb;
 begin
   -- An import run with imports.audit 'summary' audits one entry per entity at
   -- its end instead of one per row (ADR 0141).
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -1825,6 +1868,13 @@ begin
     execute format('select %s($1)::text', (entry.tenant_function::regprocedure)::oid::regproc) into path_value using row_data;
     row_tenant := case when path_value ~* '^[0-9a-f-]{36}$' then (path_value)::uuid end;
   end if;
+  if row_tenant is not null then
+    v_label := better_supabase.memo_get('audit.tenant_label.' || row_tenant::text);
+    if v_label is null then
+      v_label := (select o."name"::text from "better_supabase"."organizations" o where o."id" = row_tenant);
+      perform better_supabase.memo_set('audit.tenant_label.' || row_tenant::text, coalesce(v_label, ''));
+    end if;
+  end if;
   old_row := old_row - entry.ignore;
   new_row := new_row - entry.ignore;
   if tg_op = 'UPDATE' then
@@ -1858,7 +1908,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -1867,7 +1917,7 @@ begin
       else 'system'
     end,
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
-    (select o."name"::text from "better_supabase"."organizations" o where o."id" = row_tenant),
+    v_label,
     row_data ->> entry.label_column,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
@@ -1895,8 +1945,9 @@ declare
   settings jsonb;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
 begin
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -1951,6 +2002,9 @@ begin
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
+    ), labels as (
+      select t.row_tenant as tenant_key, (select o."name"::text from "better_supabase"."organizations" o where o."id" = t.row_tenant) as label
+      from (select distinct row_tenant from kept) t
     )
     insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
@@ -1971,7 +2025,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -1980,13 +2034,14 @@ begin
       else 'system'
     end,
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
-    (select o."name"::text from "better_supabase"."organizations" o where o."id" = row_tenant),
+    l.label,
     row_data ->> entry.label_column,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
-    from final;
+    from final
+    left join labels l on l.tenant_key is not distinct from final.row_tenant;
   elsif tg_op = 'DELETE' then
     with src as (
       select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
@@ -2011,6 +2066,9 @@ begin
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
+    ), labels as (
+      select t.row_tenant as tenant_key, (select o."name"::text from "better_supabase"."organizations" o where o."id" = t.row_tenant) as label
+      from (select distinct row_tenant from kept) t
     )
     insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
@@ -2031,7 +2089,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -2040,13 +2098,14 @@ begin
       else 'system'
     end,
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
-    (select o."name"::text from "better_supabase"."organizations" o where o."id" = row_tenant),
+    l.label,
     row_data ->> entry.label_column,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
-    from final;
+    from final
+    left join labels l on l.tenant_key is not distinct from final.row_tenant;
   else
     with src as (
       select o.j as old_row, n.j as new_row
@@ -2073,6 +2132,9 @@ begin
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
+    ), labels as (
+      select t.row_tenant as tenant_key, (select o."name"::text from "better_supabase"."organizations" o where o."id" = t.row_tenant) as label
+      from (select distinct row_tenant from kept) t
     )
     insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
@@ -2093,7 +2155,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -2102,13 +2164,14 @@ begin
       else 'system'
     end,
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
-    (select o."name"::text from "better_supabase"."organizations" o where o."id" = row_tenant),
+    l.label,
     row_data ->> entry.label_column,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
-    from final;
+    from final
+    left join labels l on l.tenant_key is not distinct from final.row_tenant;
   end if;
   return null;
 end;
@@ -2502,6 +2565,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "better_supabase"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -2509,7 +2573,7 @@ begin
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
@@ -2559,7 +2623,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -2695,6 +2759,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "better_supabase"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -2702,7 +2767,7 @@ begin
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   actor_id := coalesce(actor_id, auth.uid());
@@ -2736,7 +2801,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -3290,7 +3355,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@10 managed
--- @bsb-hash sha256:7303978f63ba3e666681b26e7c32c62d32124307a5bf3747ad8f6d65b45619fd
+-- @bsb-hash sha256:2f5ce8de013e56d264a341c4160b2a2012649c24ee4579873c08a6b06ad83b11
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3327,6 +3392,24 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+
+create or replace function better_supabase.memo_get(key text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select nullif(pg_catalog.current_setting('better_supabase.memo.' || key, true), '')
+$$;
+
+create or replace function better_supabase.memo_set(key text, value text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select pg_catalog.set_config('better_supabase.memo.' || key, value, true)
+$$;
 
 create table if not exists "app_private"."audited_tables" (
   "target" regclass primary key,
@@ -3496,12 +3579,14 @@ declare
   row_tenant uuid;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
+  v_label text;
   path_value text;
   path_step jsonb;
 begin
   -- An import run with imports.audit 'summary' audits one entry per entity at
   -- its end instead of one per row (ADR 0141).
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -3585,7 +3670,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -3622,8 +3707,9 @@ declare
   settings jsonb;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
 begin
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -3698,7 +3784,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -3758,7 +3844,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -3820,7 +3906,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -4229,6 +4315,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "app_private"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -4236,7 +4323,7 @@ begin
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
@@ -4286,7 +4373,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -4422,6 +4509,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "app_private"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -4429,7 +4517,7 @@ begin
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   actor_id := coalesce(actor_id, auth.uid());
@@ -4463,7 +4551,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -4852,7 +4940,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@10 managed
--- @bsb-hash sha256:5572bf60ae9cdc6d68212b6c6c479bc80d2b0d0b039be97fb66d93866c81df86
+-- @bsb-hash sha256:dba21c69a1222e3dec1ae9be79411d2b4fb9073989343a48813d89d9bffdc18f
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4889,6 +4977,24 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+
+create or replace function better_supabase.memo_get(key text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select nullif(pg_catalog.current_setting('better_supabase.memo.' || key, true), '')
+$$;
+
+create or replace function better_supabase.memo_set(key text, value text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select pg_catalog.set_config('better_supabase.memo.' || key, value, true)
+$$;
 
 create table if not exists "better_supabase"."audited_tables" (
   "target" regclass primary key,
@@ -5058,12 +5164,14 @@ declare
   row_tenant uuid;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
+  v_label text;
   path_value text;
   path_step jsonb;
 begin
   -- An import run with imports.audit 'summary' audits one entry per entity at
   -- its end instead of one per row (ADR 0141).
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -5147,7 +5255,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -5184,8 +5292,9 @@ declare
   settings jsonb;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
 begin
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -5260,7 +5369,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -5320,7 +5429,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -5382,7 +5491,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -5791,6 +5900,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "better_supabase"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -5798,7 +5908,7 @@ begin
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
@@ -5848,7 +5958,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -5984,6 +6094,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "better_supabase"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -5991,7 +6102,7 @@ begin
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   actor_id := coalesce(actor_id, auth.uid());
@@ -6025,7 +6136,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -6510,7 +6621,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@10 managed
--- @bsb-hash sha256:cc544b3dac1541e2bfacd7146ac109c6385375d7a7bbf73b60e5f3437a65f2c2
+-- @bsb-hash sha256:0f45d9ea5c9126daa5012b79105d99bc189131bd4ff943fee21ca40d8c790e8d
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6547,6 +6658,24 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+
+create or replace function better_supabase.memo_get(key text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select nullif(pg_catalog.current_setting('better_supabase.memo.' || key, true), '')
+$$;
+
+create or replace function better_supabase.memo_set(key text, value text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select pg_catalog.set_config('better_supabase.memo.' || key, value, true)
+$$;
 
 -- better_supabase.audited_tables is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."audited_tables" add column if not exists "target" regclass;
@@ -6698,12 +6827,14 @@ declare
   row_tenant uuid;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
+  v_label text;
   path_value text;
   path_step jsonb;
 begin
   -- An import run with imports.audit 'summary' audits one entry per entity at
   -- its end instead of one per row (ADR 0141).
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -6808,8 +6939,9 @@ declare
   settings jsonb;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
 begin
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -7367,6 +7499,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "better_supabase"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -7374,7 +7507,7 @@ begin
       using errcode = '22023', hint = 'Map blocks.audit.tables.restricted to the table for sensitive details.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
@@ -7544,6 +7677,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "better_supabase"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -7551,7 +7685,7 @@ begin
       using errcode = '22023', hint = 'Map blocks.audit.tables.restricted to the table for sensitive details.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   actor_id := coalesce(actor_id, auth.uid());
@@ -7910,7 +8044,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@10 managed
--- @bsb-hash sha256:d680d006a5f2a1ea66067882f02dea2959c0d7e3c66b9c78807e2cac2cac193b
+-- @bsb-hash sha256:5b8ff77782412c82215e84100d499b9baad2566829255308f1aa0c18bb70c5fb
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7947,6 +8081,24 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+
+create or replace function better_supabase.memo_get(key text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select nullif(pg_catalog.current_setting('better_supabase.memo.' || key, true), '')
+$$;
+
+create or replace function better_supabase.memo_set(key text, value text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select pg_catalog.set_config('better_supabase.memo.' || key, value, true)
+$$;
 
 create table if not exists "better_supabase"."audited_tables" (
   "target" regclass primary key,
@@ -8116,12 +8268,14 @@ declare
   row_tenant uuid;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
+  v_label text;
   path_value text;
   path_step jsonb;
 begin
   -- An import run with imports.audit 'summary' audits one entry per entity at
   -- its end instead of one per row (ADR 0141).
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -8205,7 +8359,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -8242,8 +8396,9 @@ declare
   settings jsonb;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
 begin
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if tg_nargs > 0 then
@@ -8318,7 +8473,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -8378,7 +8533,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -8440,7 +8595,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -8849,6 +9004,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "better_supabase"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -8856,7 +9012,7 @@ begin
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
@@ -8906,7 +9062,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -9042,6 +9198,7 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id "better_supabase"."audit_events"."id"%type;
 begin
   if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
@@ -9049,7 +9206,7 @@ begin
       using errcode = '22023', hint = 'Set blocks.audit.options.restricted to true.';
   end if;
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   actor_id := coalesce(actor_id, auth.uid());
@@ -9083,7 +9240,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when (select better_supabase.import_run()) is not null then 'integration'
+      when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'

@@ -5,11 +5,11 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
-import type { BatchArgument } from "../shared.ts";
 import type { AuditInsert } from "./audit-metadata.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { ACTING_MEMBER } from "../actor-guard.ts";
+import { MEMO_FUNCTIONS } from "../memo.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   batchFunction,
@@ -34,6 +34,12 @@ import {
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import { castId, entrySql, tenantFallbackSql } from "./audit-entry.ts";
 import {
+  EVENT_ARGS,
+  EVENT_KEYS,
+  PREVIOUS_EVENT_ARGS,
+  PREVIOUS_TRUSTED_ARGS,
+} from "./audit-event-args.ts";
+import {
   eventInsert,
   metadataColumns,
   storedMetadata,
@@ -51,12 +57,17 @@ import { rowPairs } from "./audit-row.ts";
 import { once, statementFunction } from "./audit-statement.ts";
 import {
   actorKind,
+  INTEGRATION_TEST,
   requestIpSql,
   subjectColumnsSql,
 } from "./audit-subjects.ts";
 import { auditTests } from "./audit-tests.ts";
 import { AUDIT_UPGRADES } from "./audit-upgrades.ts";
-import { auditWrite, tenantLabel } from "./audit-values.ts";
+import {
+  auditWrite,
+  memoizedTenantLabel,
+  tenantLabel,
+} from "./audit-values.ts";
 import { OPERATIONS, modulePermission } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<AuditEvents> = {
@@ -542,6 +553,8 @@ function triggerFunction(
   from unnest(coalesce(changed_columns, array(select jsonb_object_keys(coalesce(new_row, old_row))))) k;`
     : "";
 
+  const memo = memoizedTenantLabel(ctx, insert.values);
+
   return `create or replace function better_supabase.audit_row_change()
 returns trigger
 language plpgsql
@@ -560,17 +573,19 @@ declare
   row_tenant ${ctx.idType};
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
+  v_label text;
   path_value text;
   path_step jsonb;
 begin
   -- An import run with imports.audit 'summary' audits one entry per entity at
   -- its end instead of one per row (ADR 0141).
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
 ${entrySql(ctx)}
   row_tenant := ${tenantValue};
-${tenantFallbackSql(ctx.idType)}
+${tenantFallbackSql(ctx.idType)}${memo.sql}
   old_row := old_row - entry.ignore;
   new_row := new_row - entry.ignore;
   if tg_op = 'UPDATE' then
@@ -586,7 +601,7 @@ ${tenantFallbackSql(ctx.idType)}
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');${changedValues}
   insert into ${ctx.table("log")} (${insert.columns})
   values (
-    ${once(insert.values)}
+    ${once(memo.values)}
   )
   returning ${ctx.col("log", "id")} into entry_id;${once(restrictedInsert(ctx, restricted, { old: "old_row", new: "new_row", metadata: "'{}'::jsonb", changed: "changed_values" }))}
   return null;
@@ -624,49 +639,6 @@ function statementTrigger(
     grant: triggerGrant("better_supabase.audit_statement_change()"),
   });
 }
-
-/** `audit_event`'s argument types. */
-const EVENT_ARGS = (id: string): string =>
-  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text`;
-
-/** `audit_event`'s arguments, as the keys of an `audit_event_many` element. */
-const EVENT_KEYS = (id: string): readonly BatchArgument[] => [
-  ["event_type", "text"],
-  ["category", "text"],
-  ["outcome", "text", "'success'"],
-  ["source", "text"],
-  ["target_type", "text"],
-  ["record_id", "text"],
-  ["tenant", id],
-  ["metadata", "jsonb", "'{}'"],
-  ["idempotency_key", "text"],
-  ["restricted", "jsonb"],
-  ["actor_id", "uuid"],
-  ["summary", "text"],
-  ["target_label", "text"],
-  ["correlation_id", "text"],
-  ["actor_kind", "text"],
-  ["actor_label", "text"],
-  ["ip", "inet"],
-  ["user_agent", "text"],
-  ["session_id", "text"],
-  ["request_id", "text"],
-  ["scope", "text"],
-  ["support_session", "uuid"],
-  ["impersonated_by", "uuid"],
-  ["impersonation_reason", "text"],
-];
-
-const PREVIOUS_EVENT_ARGS = (id: string): readonly string[] => [
-  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text`,
-  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text`,
-  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text`,
-];
-
-/** `audit_event_trusted`'s signatures before the current one. */
-const PREVIOUS_TRUSTED_ARGS = (id: string): readonly string[] => [
-  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text`,
-];
 
 function auditEvent(ctx: BlockSqlContext, restricted: boolean): string {
   const id = ctx.idType;
@@ -790,10 +762,11 @@ set search_path = ''
 as $$
 declare
   existing text;
+  v_integration boolean := better_supabase.import_run() is not null;
   entry_id ${log}.${c("id")}%type;${extra.length > 0 ? "\n  entry_row jsonb;\n  entry_columns text;" : ""}
 begin${noRestricted}
   -- imports.audit 'summary' (ADR 0141): the run audits per entity at its end.
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
   ${
@@ -820,7 +793,9 @@ begin${noRestricted}
   return entry_id::text;
 end;
 $$;
-`.replaceAll("audit_event.", `${name}.`);
+`
+      .replaceAll("audit_event.", `${name}.`)
+      .replaceAll(INTEGRATION_TEST, "v_integration");
 
   return `-- Records a semantic app event (invoice.sent, member.invited) next to the
 -- row changes. A repeated idempotency_key returns the first entry's id.
@@ -961,6 +936,7 @@ function auditSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   return [
     SCHEMA,
+    MEMO_FUNCTIONS.trim(),
     registry(ctx),
     requestIpSql(ctx),
     ctx.manages ? managedTables(ctx, restricted) : "",

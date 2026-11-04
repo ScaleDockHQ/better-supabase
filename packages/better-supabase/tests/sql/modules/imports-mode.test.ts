@@ -116,9 +116,7 @@ describe("imports.audit", () => {
   it("tags entries as integration and skips row entries in summary mode", () => {
     const sql = body("audit");
 
-    expect(sql).toContain(
-      "when (select better_supabase.import_run()) is not null then 'integration'",
-    );
+    expect(sql).toContain("when v_integration then 'integration'");
     expect(sql).toContain(
       "current_setting('better_supabase.import_audit', true) = 'summary'",
     );

@@ -1,6 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { entryLoadSql, recordedPredicate } from "./audit-entry.ts";
+import { INTEGRATION_TEST } from "./audit-subjects.ts";
+import { tenantLabel } from "./audit-values.ts";
 
 /**
  * The trigger reads the JWT and the request headers once per call, not once per
@@ -8,6 +10,7 @@ import { entryLoadSql, recordedPredicate } from "./audit-entry.ts";
  */
 export function once(sql: string): string {
   return sql
+    .replaceAll(INTEGRATION_TEST, "v_integration")
     .replaceAll("auth.jwt()", "v_jwt")
     .replaceAll(
       /better_supabase\.request_header\(('[^']*')\)/g,
@@ -33,6 +36,14 @@ export function statementFunction(
     grant: string;
   },
 ): string {
+  // One lookup per distinct tenant of the statement, not one per row.
+  const label = tenantLabel(ctx, "row_tenant");
+  const labels = label !== "null" && parts.insert.values.includes(label);
+
+  const values = labels
+    ? parts.insert.values.replaceAll(label, "l.label")
+    : parts.insert.values;
+
   const write = (source: string): string => `with src as (
       ${source}
     ), paired as (
@@ -56,10 +67,17 @@ export function statementFunction(
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
-    )
+    )${
+      labels
+        ? `, labels as (
+      select t.row_tenant as tenant_key, ${tenantLabel(ctx, "t.row_tenant")} as label
+      from (select distinct row_tenant from kept) t
+    )`
+        : ""
+    }
     insert into ${ctx.table("log")} (${parts.insert.columns})
-    select ${once(parts.insert.values)}
-    from final;`;
+    select ${once(values)}
+    from final${labels ? "\n    left join labels l on l.tenant_key is not distinct from final.row_tenant" : ""};`;
 
   const sides = {
     insert:
@@ -86,8 +104,9 @@ declare
   settings jsonb;
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  v_integration boolean := better_supabase.import_run() is not null;
 begin
-  if current_setting('better_supabase.import_audit', true) = 'summary' and better_supabase.import_run() is not null then
+  if v_integration and current_setting('better_supabase.import_audit', true) = 'summary' then
     return null;
   end if;
 ${entryLoadSql(ctx)}
