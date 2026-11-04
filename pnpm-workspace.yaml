@@ -123,7 +123,9 @@ catalog:
   date-fns: 4.4.0
   diff: 9.0.0
   dotenv-cli: 11.1.0
-  effect: 4.1.1
+  # Stays on 4.0 with @effect/platform-node: @supabase/config 0.11 fails to
+  # load on effect 4.1 (Schema.optionalKey with index signatures).
+  effect: 4.0.6
   elysia: 1.4.30
   # eve peers on a recent ai floor (0.80.0 on ^7.0.137), so it moves with the ai pin above.
   eve: 0.83.2
