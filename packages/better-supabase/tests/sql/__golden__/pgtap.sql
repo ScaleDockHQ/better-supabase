@@ -1,7 +1,7 @@
 -- ==== alone: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:581c19ca94f5162a856dc5d005179810aaeb45800a32b77b591ff168fdbadcd8
+-- @bsb-hash sha256:5d89eee18649144d568b45facef80945cc9c29ee82c5eb4a303a4ae197f9b24a
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -56,7 +56,9 @@ begin
 end;
 $$;
 
--- The same by email address: tests.authenticate_as('member@acme.test').
+-- The same by email address: tests.authenticate_as('member@acme.test'). An
+-- untyped literal or parameter resolves to this overload, so a uuid string
+-- is taken as the user's id.
 create or replace function tests.authenticate_as(user_email text)
 returns void
 language plpgsql
@@ -65,6 +67,10 @@ as $$
 declare
   found_id uuid;
 begin
+  if user_email ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    perform tests.authenticate_as(user_email::uuid);
+    return;
+  end if;
   select u.id into found_id from auth.users u where u.email = user_email;
   if found_id is null then
     raise exception 'tests.authenticate_as: no user with email %', user_email;
@@ -249,7 +255,7 @@ select * from extensions.finish();
 -- ==== schema app_private: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:581c19ca94f5162a856dc5d005179810aaeb45800a32b77b591ff168fdbadcd8
+-- @bsb-hash sha256:5d89eee18649144d568b45facef80945cc9c29ee82c5eb4a303a4ae197f9b24a
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -304,7 +310,9 @@ begin
 end;
 $$;
 
--- The same by email address: tests.authenticate_as('member@acme.test').
+-- The same by email address: tests.authenticate_as('member@acme.test'). An
+-- untyped literal or parameter resolves to this overload, so a uuid string
+-- is taken as the user's id.
 create or replace function tests.authenticate_as(user_email text)
 returns void
 language plpgsql
@@ -313,6 +321,10 @@ as $$
 declare
   found_id uuid;
 begin
+  if user_email ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    perform tests.authenticate_as(user_email::uuid);
+    return;
+  end if;
   select u.id into found_id from auth.users u where u.email = user_email;
   if found_id is null then
     raise exception 'tests.authenticate_as: no user with email %', user_email;
@@ -497,7 +509,7 @@ select * from extensions.finish();
 -- ==== api schema: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:581c19ca94f5162a856dc5d005179810aaeb45800a32b77b591ff168fdbadcd8
+-- @bsb-hash sha256:5d89eee18649144d568b45facef80945cc9c29ee82c5eb4a303a4ae197f9b24a
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -552,7 +564,9 @@ begin
 end;
 $$;
 
--- The same by email address: tests.authenticate_as('member@acme.test').
+-- The same by email address: tests.authenticate_as('member@acme.test'). An
+-- untyped literal or parameter resolves to this overload, so a uuid string
+-- is taken as the user's id.
 create or replace function tests.authenticate_as(user_email text)
 returns void
 language plpgsql
@@ -561,6 +575,10 @@ as $$
 declare
   found_id uuid;
 begin
+  if user_email ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    perform tests.authenticate_as(user_email::uuid);
+    return;
+  end if;
   select u.id into found_id from auth.users u where u.email = user_email;
   if found_id is null then
     raise exception 'tests.authenticate_as: no user with email %', user_email;

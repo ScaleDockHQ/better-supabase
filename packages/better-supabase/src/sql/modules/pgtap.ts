@@ -58,7 +58,9 @@ begin
 end;
 $$;
 
--- The same by email address: tests.authenticate_as('member@acme.test').
+-- The same by email address: tests.authenticate_as('member@acme.test'). An
+-- untyped literal or parameter resolves to this overload, so a uuid string
+-- is taken as the user's id.
 create or replace function tests.authenticate_as(user_email text)
 returns void
 language plpgsql
@@ -67,6 +69,10 @@ as $$
 declare
   found_id uuid;
 begin
+  if user_email ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    perform tests.authenticate_as(user_email::uuid);
+    return;
+  end if;
   select u.id into found_id from auth.users u where u.email = user_email;
   if found_id is null then
     raise exception 'tests.authenticate_as: no user with email %', user_email;
