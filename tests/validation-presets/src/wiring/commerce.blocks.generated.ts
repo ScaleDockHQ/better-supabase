@@ -558,6 +558,21 @@ export type InventoryOverviewResult = {
   }[];
 };
 
+/** The arguments of `reads.notifications.inbox`. @public */
+export type NotificationsInboxArgs = { readonly tenant?: string; readonly status?: string; readonly maxItems?: number };
+
+/** What `reads.notifications.inbox` returns. @public */
+export type NotificationsInboxResult = {
+  readonly items: readonly unknown[];
+  readonly total: number;
+};
+
+/** The arguments of `reads.notifications.counts`. @public */
+export type NotificationsCountsArgs = { readonly tenant?: string; readonly actionable?: readonly string[] };
+
+/** What `reads.notifications.counts` returns. @public */
+export type NotificationsCountsResult = unknown;
+
 /** The arguments of `reads.orders.board`. @public */
 export type OrdersBoardArgs = { readonly organizationId: string; readonly perStatus?: number };
 
@@ -618,6 +633,10 @@ export const reads = {
   },
   inventory: {
     overview: blockRead<InventoryOverviewArgs, InventoryOverviewResult>("inventory_overview", { organizationId: "tenant", limit: "row_limit", expiryDays: "expiry_days" }, ["levels", "lots", "buckets"], "better_supabase"),
+  },
+  notifications: {
+    inbox: blockRead<NotificationsInboxArgs, NotificationsInboxResult>("notification_page", { tenant: "tenant", status: "status", maxItems: "max_items" }, ["notification_recipients", "notification_events"], "better_supabase"),
+    counts: blockRead<NotificationsCountsArgs, NotificationsCountsResult>("notification_counts", { tenant: "tenant", actionable: "actionable" }, ["notification_recipients", "notification_events"], "better_supabase"),
   },
   orders: {
     board: blockRead<OrdersBoardArgs, OrdersBoardResult>("order_status_board", { organizationId: "tenant", perStatus: "per_status" }, ["orders"], "better_supabase"),

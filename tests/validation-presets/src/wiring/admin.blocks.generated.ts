@@ -446,6 +446,21 @@ export type BillingOverviewResult = {
   readonly usage: readonly unknown[];
 };
 
+/** The arguments of `reads.notifications.inbox`. @public */
+export type NotificationsInboxArgs = { readonly tenant?: string; readonly status?: string; readonly maxItems?: number };
+
+/** What `reads.notifications.inbox` returns. @public */
+export type NotificationsInboxResult = {
+  readonly items: readonly unknown[];
+  readonly total: number;
+};
+
+/** The arguments of `reads.notifications.counts`. @public */
+export type NotificationsCountsArgs = { readonly tenant?: string; readonly actionable?: readonly string[] };
+
+/** What `reads.notifications.counts` returns. @public */
+export type NotificationsCountsResult = unknown;
+
 /** The arguments of `reads.organizations.overview`. @public */
 export type OrganizationsOverviewArgs = { readonly organizationId: string };
 
@@ -470,6 +485,24 @@ export type OrganizationsOverviewResult = {
   }[];
 };
 
+/** The arguments of `reads.savedViews.list`. @public */
+export type SavedViewsListArgs = { readonly tenant: string; readonly list: string };
+
+/** What `reads.savedViews.list` returns. @public */
+export type SavedViewsListResult = readonly {
+  readonly id: string;
+  readonly list: string;
+  readonly scope: string;
+  readonly ownerId: string | null;
+  readonly teamId: string | null;
+  readonly name: string;
+  readonly kind: string;
+  readonly state: unknown;
+  readonly rank: string;
+  readonly isDefault: boolean;
+  readonly updatedAt: string;
+}[];
+
 /**
  * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
  * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
@@ -479,7 +512,14 @@ export const reads = {
   billing: {
     overview: blockRead<BillingOverviewArgs, BillingOverviewResult>("billing_overview", { organizationId: "tenant", invoiceLimit: "invoice_limit" }, ["customers", "subscriptions"], "better_supabase"),
   },
+  notifications: {
+    inbox: blockRead<NotificationsInboxArgs, NotificationsInboxResult>("notification_page", { tenant: "tenant", status: "status", maxItems: "max_items" }, ["notification_recipients", "notification_events"], "better_supabase"),
+    counts: blockRead<NotificationsCountsArgs, NotificationsCountsResult>("notification_counts", { tenant: "tenant", actionable: "actionable" }, ["notification_recipients", "notification_events"], "better_supabase"),
+  },
   organizations: {
     overview: blockRead<OrganizationsOverviewArgs, OrganizationsOverviewResult>("organization_overview", { organizationId: "organization" }, ["organizations", "memberships", "invitations"], "better_supabase"),
+  },
+  savedViews: {
+    list: blockRead<SavedViewsListArgs, SavedViewsListResult>("list_views", { tenant: "tenant", list: "list" }, ["saved_views"], "better_supabase"),
   },
 } as const;
