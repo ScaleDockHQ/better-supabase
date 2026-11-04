@@ -101,7 +101,7 @@ describe("BS426", () => {
     ]);
   });
 
-  it("reports roleThrough and disabledAt values equal to the provider's", () => {
+  it("reports roleThrough and disabledAt values equal to the provider's", async () => {
     const through = { table: "app.roles", id: "id", column: "name" };
 
     const provider: AuthorizationProvider = {
@@ -109,7 +109,15 @@ describe("BS426", () => {
       roleSources: [
         { table: "app.members", role: { column: "role_id", through } },
       ],
-      memberships: [{ table: "app.members", disabledAt: "disabled_at" }],
+      memberships: [
+        {
+          table: "app.members",
+          userColumn: "user_id",
+          scope: { column: "org_id" },
+          idColumn: "id",
+          disabledAt: "disabled_at",
+        },
+      ],
     };
 
     const config = resolveConfig(
@@ -130,7 +138,7 @@ describe("BS426", () => {
     // SAFETY: BS426 reads only `config`.
     const found = rule?.check({ config } as unknown as DoctorContext);
 
-    expect(found?.map((finding) => finding.target)).toEqual([
+    expect((await found)?.map((finding) => finding.target)).toEqual([
       "blocks.memberships.options.roleThrough",
       "blocks.memberships.columns.memberships.disabledAt",
     ]);

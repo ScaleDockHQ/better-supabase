@@ -214,7 +214,15 @@ describe("membership suspension", () => {
         modules,
         accessProvider: {
           ...moduleProvider,
-          memberships: [{ table, ...(disabledAt ? { disabledAt } : {}) }],
+          memberships: [
+            {
+              table,
+              userColumn: "user_id",
+              scope: { column: "org_id" },
+              idColumn: "id",
+              ...(disabledAt ? { disabledAt } : {}),
+            },
+          ],
         },
         ownTables: APP_TABLES,
       }).find((file) => file.module === "memberships")?.contents ?? "";

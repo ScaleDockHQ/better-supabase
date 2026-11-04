@@ -288,7 +288,7 @@ describe("providerPersonaTests", () => {
 
   it("takes subs and a directory, and passes when nothing is sqlComplete", () => {
     const [file] = providerPersonaTests(
-      { ...provider, permissions: undefined },
+      { ...provider, permissions: [] },
       {
         tenant: "00000000-0000-4000-8000-000000000a01",
         directory: "tests/db",

@@ -240,7 +240,15 @@ describe("accessProviderMode", () => {
       role: "role",
     };
 
-    const memberships = [{ table: "app.members", disabledAt: "disabled_at" }];
+    const memberships = [
+      {
+        table: "app.members",
+        userColumn: "user_id",
+        scope: { column: "org_id" },
+        idColumn: "id",
+        disabledAt: "disabled_at",
+      },
+    ];
 
     expect(
       accessProviderMode(
