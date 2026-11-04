@@ -7,9 +7,9 @@ import { bsb } from "@/lib/supabase/server";
 export const SCOPE_COUNT = 12;
 
 /** `plain` reads the request in every scope; `session` resolves a handle. */
-export type ScopeVariant = "plain" | "session";
-
-export function scopeVariant(value: string | string[] | undefined) {
+export function scopeVariant(
+  value: string | string[] | undefined,
+): "plain" | "session" {
   return value === "session" ? "session" : "plain";
 }
 

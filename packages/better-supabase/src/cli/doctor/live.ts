@@ -152,7 +152,7 @@ async function definerFunctions(db: LiveDatabase): Promise<Set<string>> {
 }
 
 /** Share of the execution time spent in security definer helpers, 0 to 100. */
-export function policyShare(
+function policyShare(
   functions: readonly FunctionTime[],
   executionMs: number,
 ): number {
@@ -389,7 +389,7 @@ const NUMBER_TYPE = /^(smallint|integer|bigint)$/;
  * column, for `--explain-write`. Throws with the reason when a key has no value
  * to make up.
  */
-export async function writeStatements(
+async function writeStatements(
   db: LiveDatabase,
   table: CatalogTable,
 ): Promise<{ insert: string; update: string }> {

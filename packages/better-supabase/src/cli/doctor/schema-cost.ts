@@ -6,7 +6,7 @@ import { catalogOf, exposedSchemas } from "./shared.ts";
 export const LITERAL_LIMIT = 1024;
 
 /** Tables plus functions in one exposed schema before PostgREST's cache slows. */
-export const SCHEMA_OBJECT_LIMIT = 1500;
+const SCHEMA_OBJECT_LIMIT = 1500;
 
 /** SQL text of the module files, in characters, before BS244 reports it. */
 export const MODULE_SQL_LIMIT = 2_000_000;
