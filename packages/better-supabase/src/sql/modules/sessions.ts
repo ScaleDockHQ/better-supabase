@@ -66,7 +66,7 @@ const FUNCTION_NAME = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
 
 function isReadSetRef(
   value: unknown,
-): value is { readonly readSet: string; readonly subject?: string } {
+): value is { readonly readSet: string; readonly subject?: string | false } {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -80,7 +80,7 @@ function isReadSetsRef(
 ): value is {
   readonly readSets: readonly string[];
   readonly shell?: string;
-  readonly subject?: string;
+  readonly subject?: string | false;
 } {
   return (
     typeof value === "object" &&
@@ -105,8 +105,16 @@ interface BootstrapTarget {
  * a read set (the function `public.rs_<name>`), or to `{ readSets, shell? }`,
  * where the caller picks one of the read sets per call.
  */
-function subjectOf(name: string, subject: unknown): string | undefined {
+function subjectOf(
+  name: string,
+  subject: unknown,
+  fallback: string | undefined,
+): string | undefined {
   if (subject === undefined) {
+    return fallback;
+  }
+
+  if (subject === false) {
     return undefined;
   }
 
@@ -119,7 +127,12 @@ function subjectOf(name: string, subject: unknown): string | undefined {
   return subject;
 }
 
-function bootstrapFunctions(ctx: BlockSqlContext): readonly BootstrapTarget[] {
+function bootstrapFunctions(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): readonly BootstrapTarget[] {
+  const fallback = layout.accessProvider?.functions.subject;
+
   const raw = ctx.option("bootstrap");
 
   if (raw === undefined) {
@@ -161,7 +174,7 @@ function bootstrapFunctions(ctx: BlockSqlContext): readonly BootstrapTarget[] {
         name,
         fn: fn.shell,
         readSets: fn.readSets,
-        subject: subjectOf(name, fn.subject),
+        subject: subjectOf(name, fn.subject, fallback),
       };
     }
 
@@ -176,7 +189,7 @@ function bootstrapFunctions(ctx: BlockSqlContext): readonly BootstrapTarget[] {
         name,
         fn: `public.rs_${fn.readSet}`,
         readSets: [],
-        subject: subjectOf(name, fn.subject),
+        subject: subjectOf(name, fn.subject, fallback),
       };
     }
 
@@ -186,7 +199,7 @@ function bootstrapFunctions(ctx: BlockSqlContext): readonly BootstrapTarget[] {
       );
     }
 
-    return { name, fn, readSets: [] };
+    return { name, fn, readSets: [], subject: fallback };
   });
 }
 
@@ -216,7 +229,7 @@ function bootstrapWrappers(
   ctx: BlockSqlContext,
   layout: BlockSqlLayout,
 ): string {
-  const functions = bootstrapFunctions(ctx);
+  const functions = bootstrapFunctions(ctx, layout);
 
   if (functions.length === 0) {
     return "";

@@ -33,6 +33,7 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   rowsWithFor: ["user", "permission", "resource", "ids"],
   portalSubjects: ["action"],
   portalParties: [],
+  subject: [],
 };
 
 /** The Postgres types a scope's ids can have. */

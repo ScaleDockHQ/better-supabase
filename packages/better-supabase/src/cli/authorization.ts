@@ -214,6 +214,12 @@ export function accessProviderMode(
       ...(provider.roleSources && provider.roleSources.length > 0
         ? { roleSources: provider.roleSources }
         : {}),
+      ...(provider.platformRoles
+        ? { platformRoles: provider.platformRoles }
+        : {}),
+      ...(provider.memberships && provider.memberships.length > 0
+        ? { memberships: provider.memberships }
+        : {}),
       ...(provider.approvals?.distinctApprover === true
         ? { approvals: { distinctApprover: true } }
         : {}),

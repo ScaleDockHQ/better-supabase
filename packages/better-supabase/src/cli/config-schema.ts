@@ -251,6 +251,7 @@ const authorization = v.strictObject({
     rowsWithFor: v.optional(v.string()),
     portalSubjects: v.optional(v.string()),
     portalParties: v.optional(v.string()),
+    subject: v.optional(v.string()),
   }),
   requires: v.optional(
     v.array(
@@ -295,6 +296,7 @@ const authorization = v.strictObject({
         scope: membershipScope,
         idColumn: v.string(),
         rolesTable: v.optional(v.string()),
+        disabledAt: v.optional(v.string()),
       }),
     ),
   ),
@@ -314,8 +316,37 @@ const authorization = v.strictObject({
             table: v.string(),
             id: v.string(),
             column: v.string(),
+            tenant: v.optional(v.string()),
+            where: v.optional(v.string()),
           }),
         }),
+      }),
+    ),
+  ),
+  platformRoles: v.optional(
+    v.strictObject({
+      table: v.string(),
+      user: v.string(),
+      role: v.string(),
+      through: v.optional(
+        v.strictObject({
+          table: v.string(),
+          id: v.string(),
+          column: v.string(),
+          where: v.optional(v.string()),
+        }),
+      ),
+      canAssign: v.optional(v.string()),
+      canAssignFor: v.optional(v.string()),
+    }),
+  ),
+  personas: v.optional(
+    v.array(
+      v.strictObject({
+        name: scopeName,
+        setup: v.string(),
+        claims: v.optional(v.record(v.string(), v.unknown())),
+        permissions: strings,
       }),
     ),
   ),

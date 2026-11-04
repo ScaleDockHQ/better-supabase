@@ -1,6 +1,8 @@
+import type { AuthorizationProvider } from "../../config/authorization.ts";
 import type { PresetMigrationFile } from "../types.ts";
 import type { MatrixCell, MatrixCommand, MatrixRole } from "./verify.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { MATRIX_COMMANDS } from "./verify.ts";
 
 /** A caller the generated access tests act as (ADR 0105). */
@@ -261,4 +263,90 @@ export function accessMatrixTests(
   const cells = matrix.filter((cell) => known.has(cell.command));
 
   return personas.map((persona) => fileOf(persona, cells, options));
+}
+
+export interface ProviderPersonaOptions {
+  /** The tenant id (a uuid) the personas' memberships are created in. */
+  readonly tenant: string;
+  /** The user id of each persona by name; a fixed default otherwise. */
+  readonly subs?: Readonly<Record<string, string>>;
+  /** The folder of the files; `supabase/tests/database` by default. */
+  readonly directory?: string;
+}
+
+const PERSONA_SUB_PREFIX = "00000000-0000-4000-8000-0000000001";
+
+/**
+ * One pgTAP file per `provider.personas` entry. Each file runs the persona's
+ * setup, signs in as that user and asks the provider's own `idsWith` function
+ * about every permission it marks `sqlComplete` (the functions decide no
+ * other): the keys the persona holds must reach the tenant and every other key
+ * must not.
+ */
+export function providerPersonaTests(
+  provider: AuthorizationProvider,
+  options: ProviderPersonaOptions,
+): readonly PresetMigrationFile[] {
+  const directory = options.directory ?? "supabase/tests/database";
+  const scope = provider.tenantScope;
+
+  return (provider.personas ?? []).map(
+    (persona, index): PresetMigrationFile => {
+      const sub =
+        options.subs?.[persona.name] ??
+        `${PERSONA_SUB_PREFIX}${String(index).padStart(2, "0")}`;
+
+      const held = new Set<string>(persona.permissions);
+
+      const fill = (template: string): string =>
+        template
+          .replaceAll("{user}", `${quoteLiteral(sub)}::uuid`)
+          .replaceAll("{tenant}", `${quoteLiteral(options.tenant)}::uuid`);
+
+      const assertions = (provider.permissions ?? [])
+        .filter((permission) => permission.sqlComplete === true)
+        .map(({ key }) => {
+          const ids = fillTemplate(
+            `personas.${persona.name}`,
+            provider.functions.idsWith,
+            { permission: quoteLiteral(key), scope: quoteLiteral(scope) },
+          );
+
+          const reaches = `(select ${quoteLiteral(options.tenant)} in (select t.id::text from ${ids} as t(id)))`;
+
+          return `select extensions.is(${reaches}, ${held.has(key) ? "true" : "false"}, ${quoteLiteral(`${persona.name} ${held.has(key) ? "holds" : "lacks"} ${key}`)});`;
+        });
+
+      const claims = JSON.stringify({
+        sub,
+        role: "authenticated",
+        aud: "authenticated",
+        ...persona.claims,
+      });
+
+      return {
+        path: `${directory}/access_matrix_provider_${persona.name}.test.sql`,
+        module: "access-matrix",
+        contents: [
+          `-- Generated access matrix for the provider persona ${persona.name} (ADR 0105).`,
+          "begin;",
+          "create extension if not exists pgtap with schema extensions;",
+          `select extensions.plan(${Math.max(assertions.length, 1)});`,
+          "",
+          fill(persona.setup),
+          "",
+          `select set_config('request.jwt.claims', ${quoteLiteral(claims)}, true);`,
+          "set local role authenticated;",
+          "",
+          ...(assertions.length === 0
+            ? ["select extensions.pass('nothing to check');"]
+            : assertions),
+          "",
+          "select * from extensions.finish();",
+          "rollback;",
+          "",
+        ].join("\n"),
+      };
+    },
+  );
 }

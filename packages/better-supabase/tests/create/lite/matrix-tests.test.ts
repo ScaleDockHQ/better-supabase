@@ -10,6 +10,7 @@ import { previewFiles } from "../../../src/create/index.ts";
 import {
   accessMatrix,
   accessMatrixTests,
+  providerPersonaTests,
   MATRIX_PERSONAS,
   openSandbox,
   readSecurityCatalog,
@@ -244,4 +245,60 @@ describe("access matrix over random projects", () => {
     },
     120_000,
   );
+});
+
+describe("providerPersonaTests", () => {
+  const provider = {
+    apiVersion: 1,
+    name: "stub",
+    scopes: [{ name: "organization", idType: "uuid" }],
+    tenantScope: "organization",
+    functions: {
+      idsWith: "app.org_ids_with({permission}, {scope})",
+      isPlatform: "app.is_platform({permission})",
+    },
+    permissions: [
+      { key: "tasks.read", sqlComplete: true },
+      { key: "tasks.write", sqlComplete: true },
+      { key: "ui.only" },
+    ],
+    personas: [
+      {
+        name: "viewer",
+        setup: "insert into app.members values ({user}, {tenant}, 'viewer');",
+        permissions: ["tasks.read"],
+      },
+    ],
+  } as const;
+
+  it("asserts held and lacking sqlComplete keys per persona", () => {
+    const [file] = providerPersonaTests(provider, {
+      tenant: "00000000-0000-4000-8000-000000000a01",
+    });
+
+    expect(file?.path).toBe(
+      "supabase/tests/database/access_matrix_provider_viewer.test.sql",
+    );
+    expect(file?.contents).toContain("viewer holds tasks.read");
+    expect(file?.contents).toContain("viewer lacks tasks.write");
+    expect(file?.contents).not.toContain("ui.only");
+    expect(file?.contents).toContain("plan(2)");
+    expect(file?.contents).not.toContain("{user}");
+  });
+
+  it("takes subs and a directory, and passes when nothing is sqlComplete", () => {
+    const [file] = providerPersonaTests(
+      { ...provider, permissions: [] },
+      {
+        tenant: "00000000-0000-4000-8000-000000000a01",
+        directory: "tests/db",
+        subs: { viewer: "00000000-0000-4000-8000-0000000000ff" },
+      },
+    );
+
+    expect(file?.path).toBe("tests/db/access_matrix_provider_viewer.test.sql");
+    expect(file?.contents).toContain("00000000-0000-4000-8000-0000000000ff");
+    expect(file?.contents).toContain("plan(1)");
+    expect(file?.contents).toContain("nothing to check");
+  });
 });

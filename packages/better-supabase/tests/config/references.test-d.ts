@@ -1,5 +1,6 @@
 import { describe, expectTypeOf, it } from "vitest";
 
+import type { AuthorizationProvider } from "../../src/config/authorization.ts";
 import type {
   BlockTableReference,
   RoleNames,
@@ -35,6 +36,55 @@ describe("defineConfig", () => {
     });
 
     defineConfig({ blocks: { sso: { options: { defaultRole: "anything" } } } });
+  });
+
+  it("types permission keys from a typed provider", () => {
+    const provider = {
+      apiVersion: 1,
+      name: "typed",
+      scopes: [{ name: "organization", idType: "uuid" }],
+      tenantScope: "organization",
+      functions: {
+        idsWith: "a.ids({permission})",
+        isPlatform: "a.is({permission})",
+      },
+      permissions: [{ key: "tasks.read" }, { key: "tasks.write" }],
+    } as const satisfies AuthorizationProvider<"tasks.read" | "tasks.write">;
+
+    const typed: AuthorizationProvider<"tasks.read" | "tasks.write"> = provider;
+
+    defineConfig({
+      auth: { authorization: typed },
+      blocks: {
+        tasks: { permissions: { read: "tasks.read" } },
+        permissions: { roles: { member: ["tasks.read"] } },
+      },
+      subjects: {
+        task: { table: "public.tasks", permissions: { read: "tasks.read" } },
+      },
+    });
+
+    defineConfig({
+      auth: { authorization: typed },
+      // @ts-expect-error -- "tasks.raed" is not a key the provider declares.
+      blocks: { tasks: { permissions: { read: "tasks.raed" } } },
+    });
+
+    defineConfig({
+      auth: { authorization: typed },
+      blocks: { permissions: { roles: { member: ["tasks.read"] } } },
+      // @ts-expect-error -- "tasks.delete" is not a key the provider declares.
+      subjects: {
+        task: {
+          table: "public.tasks",
+          permissions: { write: { key: "tasks.delete" } },
+        },
+      },
+    });
+
+    defineConfig({
+      blocks: { tasks: { permissions: { read: "anything.goes" } } },
+    });
   });
 
   it("suggests bucket names in storagePaths", () => {

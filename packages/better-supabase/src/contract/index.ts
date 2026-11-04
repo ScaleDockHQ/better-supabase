@@ -10,6 +10,8 @@ export type {
   AuthorizationMembership,
   AuthorizationOperation,
   AuthorizationPermission,
+  AuthorizationPersona,
+  AuthorizationPlatformRoles,
   AuthorizationProvider,
   AuthorizationRequirement,
   AuthorizationRoleSource,

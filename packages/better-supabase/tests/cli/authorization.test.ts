@@ -171,6 +171,7 @@ describe("accessProviderMode", () => {
         scopes: ["organization", "project"],
         idType: "uuid",
         functions: stubProvider.functions,
+        memberships: stubProvider.memberships,
         sqlCompleteKeys: sqlCompleteKeys(stubProvider),
         truncatedClaim: "memberships_truncated",
       },
@@ -230,6 +231,33 @@ describe("accessProviderMode", () => {
     expect(
       accessProviderMode(config({}, withProvider({ roleSources: [] }))),
     ).not.toHaveProperty("access.roleSources");
+  });
+
+  it("passes on platform roles and memberships", () => {
+    const platformRoles = {
+      table: "app.platform_roles",
+      user: "user_id",
+      role: "role",
+    };
+
+    const memberships = [
+      {
+        table: "app.members",
+        userColumn: "user_id",
+        scope: { column: "org_id" },
+        idColumn: "id",
+        disabledAt: "disabled_at",
+      },
+    ];
+
+    expect(
+      accessProviderMode(
+        config({}, withProvider({ platformRoles, memberships })),
+      ),
+    ).toMatchObject({ access: { platformRoles, memberships } });
+    expect(
+      accessProviderMode(config({}, withProvider({ memberships: [] }))),
+    ).not.toHaveProperty("access.memberships");
   });
 
   it("is off for the other models", () => {

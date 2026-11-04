@@ -153,7 +153,13 @@ export function withProviderDefaults(
 export function viewColumnsOf(layout: BlockSqlLayout): ViewColumns {
   return viewColumns(
     layout,
-    withProviderRoles(layout, withProviderSuspension(layout)),
+    withProviderPlatformRoles(
+      layout,
+      withProviderDisabledAt(
+        layout,
+        withProviderRoles(layout, withProviderSuspension(layout)),
+      ),
+    ),
     (module) => registry().modules[module]?.names,
   );
 }
@@ -193,6 +199,86 @@ function withProviderSuspension(
   }
 
   return { ...modules, permissions: { ...access, disabled } };
+}
+
+/**
+ * `blocks.memberships.columns.memberships.disabledAt` from the provider's
+ * membership table, unless the config maps it.
+ */
+function withProviderDisabledAt(
+  layout: BlockSqlLayout,
+  modules: AnyBlocksConfig | undefined,
+): AnyBlocksConfig | undefined {
+  const members = layout.accessProvider?.memberships;
+  const tenant = modules?.["memberships"];
+
+  if (
+    !modules ||
+    !members ||
+    tenant === undefined ||
+    tenant.mode === "custom" ||
+    tenant.columns?.["memberships"]?.["disabledAt"] !== undefined
+  ) {
+    return modules;
+  }
+
+  const mapped = tenant.tables?.["memberships"];
+
+  if (typeof mapped !== "string") {
+    return modules;
+  }
+
+  const table = mapped.includes(".")
+    ? mapped
+    : `${tenant.schema ?? "better_supabase"}.${mapped}`;
+
+  const disabledAt = members.find((entry) => entry.table === table)?.disabledAt;
+
+  if (disabledAt === undefined || layout.ownTables?.[table] === undefined) {
+    return modules;
+  }
+
+  return {
+    ...modules,
+    memberships: {
+      ...tenant,
+      columns: {
+        ...tenant.columns,
+        memberships: { ...tenant.columns?.["memberships"], disabledAt },
+      },
+    },
+  };
+}
+
+/**
+ * `blocks.invitations.options.platformRoles` from the provider's
+ * `platformRoles` under the `provider` model, unless the config sets it.
+ */
+function withProviderPlatformRoles(
+  layout: BlockSqlLayout,
+  modules: AnyBlocksConfig | undefined,
+): AnyBlocksConfig | undefined {
+  const platform = layout.accessProvider?.platformRoles;
+  const invitations = modules?.["invitations"];
+
+  if (
+    !modules ||
+    !platform ||
+    modules.permissions?.model !== "provider" ||
+    invitations === undefined ||
+    invitations.mode === "custom" ||
+    invitations.options?.["platformRoles"] !== undefined
+  ) {
+    return modules;
+  }
+
+  return {
+    ...modules,
+    invitations: {
+      ...invitations,
+      options: { ...invitations.options, platformRoles: platform },
+    },
+  };
 }
 
 function withProviderRoles(

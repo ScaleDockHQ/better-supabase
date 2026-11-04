@@ -203,4 +203,47 @@ describe("membership suspension", () => {
       'then not exists (select 1 from "public"."organization_users" sm where sm."organization_id" = tenant and sm."user_id" = member and sm."suspended_at" is not null) and coalesce((public.can_user(',
     );
   });
+
+  describe("provider disabledAt default", () => {
+    const withMembers = (
+      modules: AnyBlocksConfig,
+      table: string,
+      disabledAt?: string,
+    ): string =>
+      renderBlocks(["memberships"], {
+        modules,
+        accessProvider: {
+          ...moduleProvider,
+          memberships: [
+            {
+              table,
+              userColumn: "user_id",
+              scope: { column: "org_id" },
+              idColumn: "id",
+              ...(disabledAt ? { disabledAt } : {}),
+            },
+          ],
+        },
+        ownTables: APP_TABLES,
+      }).find((file) => file.module === "memberships")?.contents ?? "";
+
+    it("reads the provider's column on an app-owned memberships table", () => {
+      expect(
+        withMembers(APP_OWNED, "public.organization_users", "gone_at"),
+      ).toContain("gone_at");
+    });
+
+    it("leaves a managed table and a provider without the column alone", () => {
+      expect(
+        withMembers(
+          { memberships: {} },
+          "public.organization_users",
+          "gone_at",
+        ),
+      ).not.toContain("gone_at");
+      expect(withMembers(APP_OWNED, "public.organization_users")).not.toContain(
+        "gone_at",
+      );
+    });
+  });
 });

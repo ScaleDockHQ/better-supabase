@@ -2,6 +2,7 @@ import type {
   AuthorizationFunctions,
   AuthorizationMembership,
   AuthorizationOperation,
+  AuthorizationPlatformRoles,
   AuthorizationRoleSource,
 } from "../config/authorization.ts";
 import type {
@@ -491,6 +492,10 @@ export interface BlockSqlAccessProvider {
    * way.
    */
   readonly roleSources?: readonly AuthorizationRoleSource[];
+  /** The provider's membership tables, for their `disabledAt` column. */
+  readonly memberships?: readonly AuthorizationMembership[];
+  /** `blocks.invitations.options.platformRoles` defaults to this. */
+  readonly platformRoles?: AuthorizationPlatformRoles;
   /** How `ai-chat` applies `functions.canApprove`. */
   readonly approvals?: { readonly distinctApprover?: boolean };
   /** The provider's operations table; `operationPermission` reads it. */

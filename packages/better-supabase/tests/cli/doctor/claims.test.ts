@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { DoctorContext, TextFile } from "../../../src/cli/doctor/rules.ts";
 import type { AuthorizationProvider } from "../../../src/config/index.ts";
 
+import { AUTHORIZATION_RULES } from "../../../src/cli/doctor/authorization.ts";
 import { CLAIM_RULES } from "../../../src/cli/doctor/claims.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { stubProvider } from "../../fixtures/authorization-provider.ts";
@@ -66,5 +67,80 @@ describe("BS419", () => {
     expect(
       check(stubProvider, [{ path: "src/app.ts", text: "export {};" }]),
     ).toEqual([]);
+  });
+});
+
+describe("BS426", () => {
+  it("reports config values equal to the provider's", () => {
+    const platformRoles = {
+      table: "app.platform_roles",
+      user: "user_id",
+      role: "role",
+    };
+
+    const provider: AuthorizationProvider = { ...stubProvider, platformRoles };
+
+    const config = resolveConfig(
+      {
+        auth: { authorization: provider },
+        blocks: { invitations: { options: { platformRoles } } },
+      },
+      "/project",
+    );
+
+    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS426");
+
+    // SAFETY: BS426 reads only `config`.
+    const found = rule?.check({ config } as unknown as DoctorContext);
+
+    expect(rule?.severity).toBe("info");
+    expect(found).toEqual([
+      expect.objectContaining({
+        target: "blocks.invitations.options.platformRoles",
+      }),
+    ]);
+  });
+
+  it("reports roleThrough and disabledAt values equal to the provider's", async () => {
+    const through = { table: "app.roles", id: "id", column: "name" };
+
+    const provider: AuthorizationProvider = {
+      ...stubProvider,
+      roleSources: [
+        { table: "app.members", role: { column: "role_id", through } },
+      ],
+      memberships: [
+        {
+          table: "app.members",
+          userColumn: "user_id",
+          scope: { column: "org_id" },
+          idColumn: "id",
+          disabledAt: "disabled_at",
+        },
+      ],
+    };
+
+    const config = resolveConfig(
+      {
+        auth: { authorization: provider },
+        blocks: {
+          memberships: {
+            options: { roleThrough: through },
+            columns: { memberships: { disabledAt: "disabled_at" } },
+          },
+        },
+      },
+      "/project",
+    );
+
+    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS426");
+
+    // SAFETY: BS426 reads only `config`.
+    const found = rule?.check({ config } as unknown as DoctorContext);
+
+    expect((await found)?.map((finding) => finding.target)).toEqual([
+      "blocks.memberships.options.roleThrough",
+      "blocks.memberships.columns.memberships.disabledAt",
+    ]);
   });
 });

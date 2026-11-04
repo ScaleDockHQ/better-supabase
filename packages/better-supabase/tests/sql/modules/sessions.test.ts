@@ -156,6 +156,39 @@ describe("sessions authorization versions", () => {
     expect(token).toContain("'authz_version', auth.jwt() -> 'authz_ver'");
   });
 
+  it("takes the subject function from the authorization provider unless an entry says otherwise", () => {
+    const render = (home: unknown, other: unknown = "app.other") =>
+      moduleBody("sessions", {
+        modules: { sessions: { options: { bootstrap: { home, other } } } },
+        accessProvider: {
+          name: "acme-authz",
+          scope: "organization",
+          idType: "uuid",
+          functions: {
+            idsWith: "acme.ids({permission})",
+            isPlatform: "acme.is({permission})",
+            subject: "acme.own_subject",
+          },
+        },
+      })!;
+
+    const sql = render({ readSet: "home" });
+
+    expect(sql).toContain("'subject', to_jsonb(acme.own_subject())");
+    expect(render("app.home_data", "app.other")).toContain(
+      "'subject', to_jsonb(acme.own_subject())",
+    );
+    expect(render({ readSet: "home", subject: "app.mine" })).toContain(
+      "'subject', to_jsonb(app.mine())",
+    );
+    expect(
+      render(
+        { readSet: "home", subject: false },
+        { readSet: "x", subject: false },
+      ),
+    ).not.toContain("'subject'");
+  });
+
   it("reads the provider's function and writes no table when the provider keeps the versions", async () => {
     const sql = moduleBody("sessions", {
       modules: {
