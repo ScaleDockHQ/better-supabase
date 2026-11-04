@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@10 managed
--- @bsb-hash sha256:1800d48f940c286b7c60eac606588d640acac924a8f74ab1ba048a1fb82762d7
+-- @bsb-hash sha256:cfe503c735bd41dae35ba50a096792cb64b2c9d1df99a9f2ccf66db4abc71497
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -296,7 +296,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when better_supabase.import_run() is not null then 'integration'
+      when (select better_supabase.import_run()) is not null then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -409,7 +409,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when better_supabase.import_run() is not null then 'integration'
+      when (select better_supabase.import_run()) is not null then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -469,7 +469,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when better_supabase.import_run() is not null then 'integration'
+      when (select better_supabase.import_run()) is not null then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -531,7 +531,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when better_supabase.import_run() is not null then 'integration'
+      when (select better_supabase.import_run()) is not null then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
       when v_jwt -> 'act' is not null then 'impersonation'
@@ -997,7 +997,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when better_supabase.import_run() is not null then 'integration'
+      when (select better_supabase.import_run()) is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'
@@ -1174,7 +1174,7 @@ begin
     coalesce(metadata, '{}'),
     idempotency_key,
     coalesce(actor_kind, case
-      when better_supabase.import_run() is not null then 'integration'
+      when (select better_supabase.import_run()) is not null then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' is not null then 'impersonation'

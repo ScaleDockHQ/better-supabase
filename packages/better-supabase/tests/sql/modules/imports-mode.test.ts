@@ -117,7 +117,7 @@ describe("imports.audit", () => {
     const sql = body("audit");
 
     expect(sql).toContain(
-      "when better_supabase.import_run() is not null then 'integration'",
+      "when (select better_supabase.import_run()) is not null then 'integration'",
     );
     expect(sql).toContain(
       "current_setting('better_supabase.import_audit', true) = 'summary'",
