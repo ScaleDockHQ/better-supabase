@@ -1003,9 +1003,7 @@ export function emitBlockConfigModule(
 }
 
 /** `blocks.client.ts`, next to `blocks.config.ts`. */
-export function blockClientPath(
-  config: Pick<ResolvedConfig, "output">,
-): string {
+function blockClientPath(config: Pick<ResolvedConfig, "output">): string {
   return posix.join(posix.dirname(config.output), "blocks.client.ts");
 }
 

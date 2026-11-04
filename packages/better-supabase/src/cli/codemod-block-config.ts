@@ -10,7 +10,7 @@ const BLOCK_CONFIG = /^(?:type\s+)?blockConfig(?:\s+as\s+\w+)?$/;
  * `blocks.config.ts`, so a client component that needs it no longer pulls in
  * every installed block client.
  */
-export function moveBlockConfigImport(text: string): {
+function moveBlockConfigImport(text: string): {
   readonly text: string;
   readonly review: readonly ReviewLine[];
 } {
