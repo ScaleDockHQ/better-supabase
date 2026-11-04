@@ -1586,7 +1586,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@10 managed
--- @bsb-hash sha256:667a9f7b5253e4a159b30c03dddcf56e6da758403e1aa454123afbdb2450dbbc
+-- @bsb-hash sha256:008ffaf889eb4e8025a02437e85bb3b3b9a36f6a10258b018dec0b9144a3a61f
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1869,10 +1869,10 @@ begin
     row_tenant := case when path_value ~* '^[0-9a-f-]{36}$' then (path_value)::uuid end;
   end if;
   if row_tenant is not null then
-    v_label := better_supabase.memo_get('audit.tenant_label.' || row_tenant::text);
+    v_label := better_supabase.memo_get('audit.tenant_label.t' || replace(row_tenant::text, '-', ''));
     if v_label is null then
       v_label := (select o."name"::text from "better_supabase"."organizations" o where o."id" = row_tenant);
-      perform better_supabase.memo_set('audit.tenant_label.' || row_tenant::text, coalesce(v_label, ''));
+      perform better_supabase.memo_set('audit.tenant_label.t' || replace(row_tenant::text, '-', ''), coalesce(v_label, ''));
     end if;
   end if;
   old_row := old_row - entry.ignore;

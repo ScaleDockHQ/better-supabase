@@ -37,13 +37,15 @@ select is(
   'owner',
   'the creator owns the private channel they made'
 );
+insert into ids
+select 'deal-room', (api.create_channel(
+  '00000000-0000-4000-8000-000000000001',
+  'deal-room',
+  '{"subjectType":"customer","subjectId":"00000000-0000-4000-8000-00000000a001"}'
+) ->> 'id')::uuid;
 select is(
   (select array_agg(x ->> 'name') from jsonb_array_elements(api.channels_for_record(
-    'customer', (api.create_channel(
-      '00000000-0000-4000-8000-000000000001',
-      'deal-room',
-      '{"subjectType":"customer","subjectId":"00000000-0000-4000-8000-00000000a001"}'
-    ) ->> 'subject_id')
+    'customer', '00000000-0000-4000-8000-00000000a001'
   )) x),
   array['deal-room'],
   'a channel linked to a record is listed for that record'
