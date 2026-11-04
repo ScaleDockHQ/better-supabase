@@ -1,5 +1,117 @@
 # better-supabase
 
+## 0.53.0
+
+### Minor Changes
+
+- [#714](https://github.com/ScaleDockHQ/better-supabase/pull/714) [`4988469`](https://github.com/ScaleDockHQ/better-supabase/commit/49884691cfb84b97e26254c2690754bb7b1f47cb) Thanks [@martijn00](https://github.com/martijn00)! - Doctor reports eight shims the library now covers (BS612 to BS619): proxy cookie re-sync with
+  `setAll`, an Auth call after `bootstrap`, a hand-made authorization version seed, comment paging
+  that filters `deletedAt`, an author re-read after a comment list, `withPublicPolicyRoles`, a unique
+  violation found by code or message, and a hand-built support `AuthState`. The shim registry in
+  `src/cli/doctor/shims.ts` holds them.
+  
+  `Bootstrap.endReason` is required. A bootstrap wrapper generated before 0.44 returns no `end_reason`
+  and the call now fails with an error that tells the app to run `sql upgrade`; regenerate the wrapper
+  and apply the migration.
+  
+  `createEmployees` accepts the app's own status values in `create`: `gen` writes
+  `blocks.employees.values.employees.status` into the generated entry as `options.statuses`.
+  
+  | Old                                           | New                                   |
+  | --------------------------------------------- | ------------------------------------- |
+  | A bootstrap wrapper without `end_reason`      | `sql upgrade` and apply the migration |
+  | `Bootstrap` built without `endReason` (tests) | `endReason: null` or the reason       |
+
+- [#714](https://github.com/ScaleDockHQ/better-supabase/pull/714) [`522a64b`](https://github.com/ScaleDockHQ/better-supabase/commit/522a64b06d5cf4f2c80ffb8d47895b0e5559e3c1) Thanks [@martijn00](https://github.com/martijn00)! - Generated block entries can carry `columns`, and `generatedOptions` turns them into the `fields`
+  option so block rows are typed from the app's own columns. `BlockSet.serviceBlocks(admin)` builds
+  block clients that run as `service_role`. `db.$decode(table)` reads rows from `$client` or
+  `queryRaw` (database names) into the table's shape and codecs, and returns a `Result`. The
+  api-keys `prefix` option is emitted into `blocks.generated.ts`. `create_employee` rejects every
+  app value mapped to the offboarded label, not only the literal `offboarded`.
+
+- [#714](https://github.com/ScaleDockHQ/better-supabase/pull/714) [`cfeae7b`](https://github.com/ScaleDockHQ/better-supabase/commit/cfeae7bf31bf268e6fcd039357be2b80611f2efc) Thanks [@martijn00](https://github.com/martijn00)! - `createNext` keeps the schema's `Database` type: `ctx.supabase` is `SupabaseClient<Database>` in
+  `bsb.context()`, `cached()`, `getAccess()` and `action`. `ServerContext`, `BetterNext`, `CachedContext`
+  and `NextResource` take `D` as a last type parameter that defaults to `any`, so code that names them
+  keeps compiling.
+  
+  `bsb.action` takes a `bound` schema for the leading arguments of `action.bind(null, id)`, and `tenant`
+  and the body read the validated tuple. `bsb.withContext(factory)` returns `cached`, `getAccess` and
+  `action` with the app's own context, built once per scope. `cached({ readSet })` tags the entry with the
+  read set's tables.
+  
+  `gen` warns about bare strings in `blocks.audit.options.exempt`; they become a doctor failure in the
+  next minor.
+
+- [#714](https://github.com/ScaleDockHQ/better-supabase/pull/714) [`a6fa662`](https://github.com/ScaleDockHQ/better-supabase/commit/a6fa6620b1a2bf063ceae754f9b9afbf2324c195) Thanks [@martijn00](https://github.com/martijn00)! - Adds `authErrorKind(error)` to `better-supabase/auth` (`retryable`, `session-missing`,
+  `invalid-credentials`, `rate-limited`, `banned` or `unknown`; it reads `code` and `status` first).
+  The block auth failures and `deleteAccount` use it, so a 429 is a `rate_limited` error. The
+  `SupportApi` methods accept a `SupportCaller`: an `AuthState`, or `{ token, claims }`. `bsb.action`
+  takes `guard(tenant, ctx)`, which runs after authentication and the permission check, and
+  `result(outcome)`, which maps the `ActionResult`.
+
+- [#714](https://github.com/ScaleDockHQ/better-supabase/pull/714) [`cdf1e8d`](https://github.com/ScaleDockHQ/better-supabase/commit/cdf1e8d1ddf9112849f4c9ce526aa0d5f7ebaaa3) Thanks [@martijn00](https://github.com/martijn00)! - Audit is cheaper per row. The row and statement triggers and `audit_event` read `import_run()` once
+  into a variable. The row trigger looks up the tenant's name once per tenant and transaction
+  (`memo_get`/`memo_set`), and the statement trigger joins the organizations table once per distinct
+  tenant instead of once per row. `sql upgrade` writes one pgTAP file for all audited tables,
+  `900_better_supabase_audit_tables.test.sql`, and removes the old per-table files.
+  `blocks.audit.options.exempt` is typed as `readonly (string | { table, reason })[]`; a bare glob
+  string still works, and doctor reports it (BS315).
+  
+  The `webhooks-out` delivery indexes (`due`, `open`) use the mapped status values, so an adopted
+  table with other labels is indexed correctly. Doctor reports a live partial index that differs from
+  the module's definition (BS363); `create index if not exists` leaves such an index as it was, so
+  drop it and run `sql upgrade`. The `gen.api` wrappers copy `stable` and `immutable` from the
+  function they wrap instead of being volatile, so Postgres can inline and cache them; run
+  `sql upgrade` to rewrite existing wrappers. Doctor reports a volatile wrapper around a stable
+  function (BS364).
+  
+  `approvals` adds `approval_eligible_ids(tenant)`, the pending requests the caller may decide, as a
+  set for `id in (select ...)` in policies and for `list_approvals`. It calls `approval_eligible`, so
+  the two agree, and a pgTAP file checks that for each user. `sql upgrade` writes the function.
+
+- [#714](https://github.com/ScaleDockHQ/better-supabase/pull/714) [`be18b60`](https://github.com/ScaleDockHQ/better-supabase/commit/be18b60454591bd4d98e6827e7ae63fa761c8e04) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/testing` gains `createFakeClient(handler)`, a supabase-js stand-in that records
+  each request (method, path, query, body), answers `.single()` and `.maybeSingle()` like PostgREST
+  (a miss is `PGRST116`) and supports `.schema()` and `.rpc()`. Test tokens still come from
+  `signTestJwt`. The pgTAP helpers add `tests.authenticate_as(email)` and
+  `tests.authenticate_as_issued(user_id, hook)`, which runs your custom access token hook for the
+  claims. `hook` defaults to `auth.hook.custom_access_token` from `config.toml` when `sql sync`
+  writes the helpers.
+
+- [#714](https://github.com/ScaleDockHQ/better-supabase/pull/714) [`d7f9b22`](https://github.com/ScaleDockHQ/better-supabase/commit/d7f9b22ad31b151cb49a3df6060b34686c6b5de7) Thanks [@martijn00](https://github.com/martijn00)! - `endSessions`, `lastSignIns` and `suspendAccount` accept a `BlockTransport` besides a `SqlClient`, and
+  the sessions module gains `better_supabase.end_sessions(p_user)`. `server.endSessions` and
+  `server.suspendAccount` use the service role's Data API when `postgres` is not configured, and
+  `server.lastSignIns` is new. `gen` adds the block API schemas that `schemas` does not list to
+  `database.types.ts` (turn it off with `gen.api.types: false`), so `client.schema("api").rpc(...)` is
+  typed. `blockSet.serviceBlocks(admin)` builds the block clients over one `rpcTransport`, calling the
+  API schema each generated entry names.
+
+- [#718](https://github.com/ScaleDockHQ/better-supabase/pull/718) [`41034de`](https://github.com/ScaleDockHQ/better-supabase/commit/41034dee016e082efca255291b68942c051b8366) Thanks [@martijn00](https://github.com/martijn00)! - `AuthorizationProvider` gains optional fields that fill config defaults: `functions.subject` (the bootstrap subject), role `through` with `tenant` and `where`, membership `disabledAt`, `platformRoles` and `personas`. `AuthorizationProvider<Key>` types the permission keys in `blocks.*.permissions`, `subjects.*.permissions` and role lists. `providerPersonaTests` writes one access matrix file per persona, and doctor BS426 reports config values that repeat the provider's.
+
+- [#717](https://github.com/ScaleDockHQ/better-supabase/pull/717) [`d6caeb0`](https://github.com/ScaleDockHQ/better-supabase/commit/d6caeb064d34fda75691f66f4b8092d2d1d89d3a) Thanks [@martijn00](https://github.com/martijn00)! - Keeps block code out of the browser bundle. `gen` writes `blocks.config.ts` (data only), the
+  scaffold splits `index.ts` into `app.ts` and a server `index.ts`, and `gen.clientBlocks` lists
+  the instances the browser needs, written to `blocks.client.ts`. Generated data hooks use the new
+  `defineListHook` and `defineOneHook`, and the block and schema definers are annotated as side-effect
+  free so bundlers drop what the app doesn't import. Run `better-supabase codemod 0.53`, then
+  `gen`. `doctor` rule BS511 flags a client component that imports `blocks.generated`, `providers.ts` or
+  `defineBlocks`.
+  
+  | Before                                                                | After                                                                                     |
+  | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+  | `import { blockConfig } from "./blocks.generated"` in client code     | `import { blockConfig } from "./blocks.config"`                                           |
+  | `createClient(betterSupabase, ...)` in `client.ts`                    | `createClient(app, { blocks: blockConfig })` with `app` from `app.ts`                     |
+  | `export const { useList: useX, useOne: useY } = defineDataHooks(...)` | `useX = defineListHook(...)`, `useY = defineOneHook(...)` (`defineDataHooks` still works) |
+
+### Patch Changes
+
+- [#719](https://github.com/ScaleDockHQ/better-supabase/pull/719) [`4baba8e`](https://github.com/ScaleDockHQ/better-supabase/commit/4baba8e7873f4ef4eb445d1e55df01a912b57ba4) Thanks [@mick340](https://github.com/mick340)! - The approvals module (version 4) reads the caller's role, team and manager approvals once per
+  statement through the new `approval_fact`, kept with `memo_get` and `memo_set` under the statement
+  start and a generation that statement triggers on memberships, the roles table, team members and
+  employees move. Permission approvers still call `can()` for each request, so any authorization
+  provider decides them live. The request's status, step and decisions stay live per row.
+  `approval_eligible` gains an `approval_eligible(approval_requests)` overload, so
+  `approval_eligible_ids`, `my_work` and app policies pass the row instead of fetching it again. Run
+  `better-supabase upgrade`, then `add --adopt` for the block row.
+
 ## 0.52.0
 
 ### Minor Changes
