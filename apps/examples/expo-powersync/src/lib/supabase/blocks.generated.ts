@@ -344,6 +344,33 @@ export const topics = {
   notifications: (v: { readonly userId: string }) => `notifications:${String(v.userId)}`,
 } as const;
 
+/** The arguments of `reads.comments.list`. @public */
+export type CommentsListArgs = { readonly tenant: string; readonly subjectType: string; readonly subjectId: string; readonly maxRows?: number };
+
+/** What `reads.comments.list` returns. @public */
+export type CommentsListResult = readonly unknown[];
+
+/** The arguments of `reads.comments.counts`. @public */
+export type CommentsCountsArgs = { readonly tenant: string; readonly subjectType: string; readonly subjectIds: readonly string[] };
+
+/** What `reads.comments.counts` returns. @public */
+export type CommentsCountsResult = unknown;
+
+/** The arguments of `reads.notifications.inbox`. @public */
+export type NotificationsInboxArgs = { readonly tenant?: string; readonly status?: string; readonly maxItems?: number };
+
+/** What `reads.notifications.inbox` returns. @public */
+export type NotificationsInboxResult = {
+  readonly items: readonly unknown[];
+  readonly total: number;
+};
+
+/** The arguments of `reads.notifications.counts`. @public */
+export type NotificationsCountsArgs = { readonly tenant?: string; readonly actionable?: readonly string[] };
+
+/** What `reads.notifications.counts` returns. @public */
+export type NotificationsCountsResult = unknown;
+
 /** The arguments of `reads.organizations.overview`. @public */
 export type OrganizationsOverviewArgs = { readonly organizationId: string };
 
@@ -386,16 +413,47 @@ export type SessionsOverviewResult = {
   }[];
 };
 
+/** The arguments of `reads.tags.list`. @public */
+export type TagsListArgs = { readonly tenant: string; readonly kind?: string };
+
+/** What `reads.tags.list` returns. @public */
+export type TagsListResult = readonly {
+  readonly id: string;
+  readonly kind: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly color: string | null;
+  readonly description: string | null;
+}[];
+
+/** The arguments of `reads.tags.forSubjects`. @public */
+export type TagsForSubjectsArgs = { readonly tenant: string; readonly subjectType: string; readonly subjectIds: readonly string[] };
+
+/** What `reads.tags.forSubjects` returns. @public */
+export type TagsForSubjectsResult = unknown;
+
 /**
  * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
  * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
  * @public
  */
 export const reads = {
+  comments: {
+    list: blockRead<CommentsListArgs, CommentsListResult>("list_comments", { tenant: "tenant", subjectType: "subject_type", subjectId: "subject_id", maxRows: "max_rows" }, ["messages", "conversations"], "api"),
+    counts: blockRead<CommentsCountsArgs, CommentsCountsResult>("comment_counts", { tenant: "tenant", subjectType: "subject_type", subjectIds: "subject_ids" }, ["messages", "conversations"], "api"),
+  },
+  notifications: {
+    inbox: blockRead<NotificationsInboxArgs, NotificationsInboxResult>("notification_page", { tenant: "tenant", status: "status", maxItems: "max_items" }, ["notification_recipients", "notification_events"], "api"),
+    counts: blockRead<NotificationsCountsArgs, NotificationsCountsResult>("notification_counts", { tenant: "tenant", actionable: "actionable" }, ["notification_recipients", "notification_events"], "api"),
+  },
   organizations: {
     overview: blockRead<OrganizationsOverviewArgs, OrganizationsOverviewResult>("organization_overview", { organizationId: "organization" }, ["organizations", "memberships", "invitations"], "api"),
   },
   sessions: {
     overview: blockRead<SessionsOverviewArgs, SessionsOverviewResult>("sessions_overview", {  }, [], "api"),
+  },
+  tags: {
+    list: blockRead<TagsListArgs, TagsListResult>("list_tags", { tenant: "tenant", kind: "kind" }, ["tags"], "api"),
+    forSubjects: blockRead<TagsForSubjectsArgs, TagsForSubjectsResult>("subjects_tags", { tenant: "tenant", subjectType: "subject_type", subjectIds: "subject_ids" }, ["tags", "taggings"], "api"),
   },
 } as const;

@@ -58,6 +58,11 @@ export const SCHEMA_COST_RULES: readonly Rule[] = [
 
           const name = FUNCTION_START.exec(statement)![1]!;
 
+          // The library's own functions are generated; a project can't edit them.
+          if (/^"?better_supabase"?\./.test(name)) {
+            return [];
+          }
+
           return [
             {
               message: `${name} is a security definer function with a ${size}-character literal (the limit is ${LITERAL_LIMIT}). Postgres parses it on every call. Store the data in a table, or parse it once per transaction with better_supabase.memo_get and memo_set.`,
