@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
+import { DbException, dbError } from "../../src/core/errors.ts";
 import {
   endSessions,
   lastSignIns,
@@ -88,6 +89,17 @@ describe("endSessions", () => {
     });
   });
 
+  it("keeps a database error that is already a DbError", async () => {
+    const { sql } = setup({
+      sqlError: new DbException(dbError("forbidden", "denied")),
+    });
+
+    expect(await endSessions(sql, USER)).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden" },
+    });
+  });
+
   it("is exported from the server entry", async () => {
     const server = await import("../../src/server/index.ts");
     expect(server.endSessions).toBe(endSessions);
@@ -158,6 +170,19 @@ describe("suspendAccount", () => {
       await suspendAccount(client, sql, USER, { suspended: false }),
     ).toMatchObject({ ok: false, error: { kind: "unexpected" } });
     expect(updateUserById).not.toHaveBeenCalled();
+  });
+
+  it("reports a refused unban after the sessions ended", async () => {
+    const { sql, client, order } = setup({
+      updateUser: async () => ({
+        error: { message: "User not found", status: 404 },
+      }),
+    });
+
+    expect(
+      await suspendAccount(client, sql, USER, { suspended: false }),
+    ).toMatchObject({ ok: false, error: { kind: "not_found" } });
+    expect(order).toEqual(["sessions", "ban:none"]);
   });
 
   it("maps a thrown Auth failure", async () => {

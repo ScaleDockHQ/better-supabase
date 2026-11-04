@@ -72,6 +72,27 @@ describe("audit subjectColumns", () => {
     );
   });
 
+  it("casts a text subject column without a guard", () => {
+    const sql = audit({ subjectColumns: { label: { type: "text" } } });
+
+    expect(sql).toContain(
+      `"label" text generated always as (coalesce("new_record" ->> 'label', "old_record" ->> 'label', "metadata" ->> 'label')) stored;`,
+    );
+  });
+
+  it("refuses a list, an empty key, a long name and a header without a name", () => {
+    expect(() => audit({ subjectColumns: [] as never })).toThrow(
+      /must map column names to/,
+    );
+    expect(() =>
+      audit({ subjectColumns: { job_id: { type: "uuid", from: "" } } }),
+    ).toThrow(/from must be a non-empty key/);
+    expect(() =>
+      audit({ subjectColumns: { [`a${"b".repeat(46)}`]: { type: "text" } } }),
+    ).toThrow(/is not a valid column name/);
+    expect(() => audit({ ipHeader: {} })).toThrow(/must be a header name or/);
+  });
+
   it("refuses a bad name, a taken name or an unknown type", () => {
     expect(() =>
       audit({ subjectColumns: { "Job Id": { type: "uuid" } } }),
