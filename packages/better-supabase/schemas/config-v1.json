@@ -2673,6 +2673,9 @@
               "items": {
                 "type": "string"
               }
+            },
+            "types": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false

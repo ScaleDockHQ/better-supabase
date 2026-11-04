@@ -19,7 +19,6 @@ import {
   blockFormerFunctions,
   tenantNameOf,
 } from "../../config/index.ts";
-import { isRecord } from "../../core/guards.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   appTableEventTypes,
@@ -340,7 +339,7 @@ function generatedEntry(
     const configured = resolveBlock(config.blocks[module]).options;
     const extra = configured["extraColumns"];
 
-    if (columns === undefined && isRecord(extra)) {
+    if (columns === undefined && typeof extra === "object" && extra !== null) {
       const typed = Object.entries(extra).flatMap(([name, type]) =>
         typeof type === "string" ? [[name, type] as const] : [],
       );
