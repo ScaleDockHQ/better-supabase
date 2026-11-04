@@ -72,3 +72,50 @@ describe("generatedOptions", () => {
     );
   });
 });
+
+describe("columnsSchema required columns", () => {
+  const required = columnsSchema({ name: "text not null", seats: "int4" });
+
+  const issues = (value: unknown): readonly string[] => {
+    const outcome = required["~standard"].validate(value);
+
+    if (outcome instanceof Promise) {
+      throw new TypeError("expected a synchronous schema");
+    }
+
+    return (outcome.issues ?? []).map((issue) => issue.message);
+  };
+
+  it("reports a missing and a null required column", () => {
+    expect(issues({})).toEqual(["name is required"]);
+    expect(issues({ name: null })).toEqual(["name can't be null"]);
+  });
+
+  it("lets an optional column be missing or null", () => {
+    expect(issues({ name: "a", seats: null })).toEqual([]);
+    expect(issues({ name: "a" })).toEqual([]);
+  });
+});
+
+describe("columnsSchema types", () => {
+  const typed = columnsSchema({ active: "boolean", meta: "jsonb" });
+
+  const issues = (value: unknown): readonly string[] => {
+    const outcome = typed["~standard"].validate(value);
+
+    if (outcome instanceof Promise) {
+      throw new TypeError("expected a synchronous schema");
+    }
+
+    return (outcome.issues ?? []).map((issue) => issue.message);
+  };
+
+  it("checks booleans and accepts any value for other types", () => {
+    expect(issues({ active: true, meta: { a: 1 } })).toEqual([]);
+    expect(issues({ active: "yes" })).toHaveLength(1);
+  });
+
+  it("rejects a value that is not an object", () => {
+    expect(issues("row")).toEqual(["Expected an object"]);
+  });
+});
