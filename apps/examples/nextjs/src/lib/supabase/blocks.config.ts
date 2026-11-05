@@ -854,9 +854,11 @@ export const blockConfig = {
     names: {
       functions: {
         archive_task: "archive_work_item",
+        archive_tasks: "archive_work_items",
         create_task: "create_work_item",
         delete_task: "delete_work_item",
         delete_task_checklist_item: "delete_work_item_checklist_item",
+        delete_tasks: "delete_work_items",
         get_task: "get_work_item",
         list_task_checklist: "list_work_item_checklist",
         list_tasks: "list_work_items",
@@ -888,9 +890,11 @@ export const blockConfig = {
     names: {
       functions: {
         archive_task: "archive_maintenance_request",
+        archive_tasks: "archive_maintenance_requests",
         create_task: "create_maintenance_request",
         delete_task: "delete_maintenance_request",
         delete_task_checklist_item: "delete_maintenance_request_checklist_item",
+        delete_tasks: "delete_maintenance_requests",
         get_task: "get_maintenance_request",
         list_task_checklist: "list_maintenance_request_checklist",
         list_tasks: "list_maintenance_requests",

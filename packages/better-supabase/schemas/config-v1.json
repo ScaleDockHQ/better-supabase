@@ -7118,6 +7118,10 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "avatarSource": {
+                "type": "string",
+                "default": "url"
+              },
               "columnGrants": {
                 "type": "boolean"
               },

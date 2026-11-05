@@ -135,9 +135,11 @@ export const blockConfig = {
     names: {
       functions: {
         archive_task: "archive_maintenance_request",
+        archive_tasks: "archive_maintenance_requests",
         create_task: "create_maintenance_request",
         delete_task: "delete_maintenance_request",
         delete_task_checklist_item: "delete_maintenance_request_checklist_item",
+        delete_tasks: "delete_maintenance_requests",
         get_task: "get_maintenance_request",
         list_task_checklist: "list_maintenance_request_checklist",
         list_tasks: "list_maintenance_requests",

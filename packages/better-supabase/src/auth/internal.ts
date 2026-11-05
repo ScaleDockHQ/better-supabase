@@ -1,15 +1,10 @@
 export { authContext } from "./context.ts";
 
-export { authErrorKind } from "./error-kind.ts";
-
-export type { AuthErrorKind } from "./error-kind.ts";
-
 export { clientIp, resolveAuth } from "./resolve.ts";
 
-export { accessTokenResolver, isAccessTokenJwt } from "./access-token.ts";
+export { accessTokenResolver } from "./access-token.ts";
 
 export type {
-  AccessTokenReservedClaim,
   AccessTokenResolverOptions,
   AccessTokenRevocation,
 } from "./access-token.ts";
@@ -24,7 +19,7 @@ export type {
   SessionRejection,
 } from "./resolve.ts";
 
-export { permissionsOf, tenantOf, toSession } from "./view.ts";
+export { permissionsOf, toSession } from "./view.ts";
 
 export type { PermissionsOfOptions } from "./view.ts";
 
@@ -65,12 +60,7 @@ export type {
   SessionDelegation,
 } from "./actor.ts";
 
-export {
-  type EntitlementClaimOptions,
-  hasEntitlement,
-} from "./entitlements.ts";
-
-export type { EntitlementKey, MembershipClaim } from "./entitlements.ts";
+export type { MembershipClaim } from "./entitlements.ts";
 
 export {
   applyCookieWrites,

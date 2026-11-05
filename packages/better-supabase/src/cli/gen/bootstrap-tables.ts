@@ -51,7 +51,7 @@ const REFERENCE =
  * The model keys of the known tables a function body reads: a qualified name
  * must match the schema, an unqualified one matches the name in any schema.
  */
-export function tablesInSource(
+function tablesInSource(
   source: string,
   known: readonly KnownTable[],
 ): string[] {

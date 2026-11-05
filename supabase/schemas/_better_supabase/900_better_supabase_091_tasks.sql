@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
--- @bsb-block tasks@4 managed
--- @bsb-hash sha256:89f24ccf5445c5e6a9fba6e6dea05615799f23f8abfe72bfd4787f281c4088e4
+-- @bsb-block tasks@5 managed
+-- @bsb-hash sha256:3fd3a13babcb92cfbc7b5771ae35da3d879ba64880ee9674aa72f1f8c7a918d4
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -612,6 +612,43 @@ $$;
 revoke execute on function "better_supabase"."archive_work_item"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."archive_work_item"(uuid, boolean) to authenticated, service_role;
 
+-- The set form of archive_task: one update for every id, so the access check
+-- runs once per statement. Returns { ids, skipped }: skipped lists the ids
+-- that don't exist or that you can't edit.
+create or replace function "better_supabase"."archive_work_items"(ids uuid[], archived boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."work_items";
+  v_ids uuid[] := '{}';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  for v_row in
+    with changed as (
+      update "better_supabase"."work_items" x set "archived_at" = case when archive_work_items.archived then coalesce(x."archived_at", now()) end
+      where x."id" = any (coalesce(archive_work_items.ids, '{}')) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
+      returning x.*
+    )
+    select * from changed
+  loop
+    v_ids := array_append(v_ids, v_row."id");
+    if archive_work_items.archived then
+      perform "better_supabase".emit_event('task.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+    end if;
+  end loop;
+  return jsonb_build_object(
+    'ids', to_jsonb(v_ids),
+    'skipped', to_jsonb(array(select distinct i from unnest(coalesce(archive_work_items.ids, '{}')) i where i is not null and not (i = any (v_ids)))));
+end;
+$$;
+revoke execute on function "better_supabase"."archive_work_items"(uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."archive_work_items"(uuid[], boolean) to authenticated, service_role;
+
 -- Deletes an item and its children. Needs work_items.manage, or its author.
 create or replace function "better_supabase"."delete_work_item"(work_item uuid)
 returns boolean
@@ -638,6 +675,41 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_work_item"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_work_item"(uuid) to authenticated, service_role;
+
+-- The set form of delete_task: one delete, one access check per statement.
+-- Returns { ids, skipped } like archive_tasks.
+create or replace function "better_supabase"."delete_work_items"(ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."work_items";
+  v_ids uuid[] := '{}';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  for v_row in
+    with removed as (
+      delete from "better_supabase"."work_items" x
+      where x."id" = any (coalesce(delete_work_items.ids, '{}'))
+        and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
+      returning x.*
+    )
+    select * from removed
+  loop
+    v_ids := array_append(v_ids, v_row."id");
+    perform "better_supabase".emit_event('task.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  end loop;
+  return jsonb_build_object(
+    'ids', to_jsonb(v_ids),
+    'skipped', to_jsonb(array(select distinct i from unnest(coalesce(delete_work_items.ids, '{}')) i where i is not null and not (i = any (v_ids)))));
+end;
+$$;
+revoke execute on function "better_supabase"."delete_work_items"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."delete_work_items"(uuid[]) to authenticated, service_role;
 
 -- An item and everything under it with its depth. An item without its own
 -- progress takes the share of its open and completed children that are
@@ -1246,6 +1318,15 @@ as $$ select "better_supabase"."archive_work_item"($1, $2) $$;
 revoke execute on function "api"."archive_work_item"(uuid, boolean) from public, anon;
 grant execute on function "api"."archive_work_item"(uuid, boolean) to authenticated, service_role;
 
+create or replace function "api"."archive_work_items"(ids uuid[], archived boolean default true)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_work_items"($1, $2) $$;
+revoke execute on function "api"."archive_work_items"(uuid[], boolean) from public, anon;
+grant execute on function "api"."archive_work_items"(uuid[], boolean) to authenticated, service_role;
+
 create or replace function "api"."delete_work_item"(work_item uuid)
 returns boolean
 language sql
@@ -1254,6 +1335,15 @@ set search_path = ''
 as $$ select "better_supabase"."delete_work_item"($1) $$;
 revoke execute on function "api"."delete_work_item"(uuid) from public, anon;
 grant execute on function "api"."delete_work_item"(uuid) to authenticated, service_role;
+
+create or replace function "api"."delete_work_items"(ids uuid[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_work_items"($1) $$;
+revoke execute on function "api"."delete_work_items"(uuid[]) from public, anon;
+grant execute on function "api"."delete_work_items"(uuid[]) to authenticated, service_role;
 
 create or replace function "api"."work_item_tree"(root uuid)
 returns jsonb

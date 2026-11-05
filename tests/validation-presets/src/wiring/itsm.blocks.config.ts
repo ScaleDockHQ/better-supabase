@@ -122,9 +122,11 @@ export const blockConfig = {
     names: {
       functions: {
         archive_task: "archive_ticket",
+        archive_tasks: "archive_tickets",
         create_task: "create_ticket",
         delete_task: "delete_ticket",
         delete_task_checklist_item: "delete_ticket_checklist_item",
+        delete_tasks: "delete_tickets",
         get_task: "get_ticket",
         list_task_checklist: "list_ticket_checklist",
         list_tasks: "list_tickets",

@@ -24,6 +24,7 @@ import {
   type WorkItemNode,
   type WorkItemRecurrence,
   type WorkItemRecurrenceSinkOptions,
+  type WorkItemSetResult,
   type WorkItemState,
   type WorkItemUpdateOptions,
   type WorkItemWatcher,
@@ -138,6 +139,9 @@ export type TicketRecurrence = RenamedType<WorkItemRecurrence, TasksRenames>;
 
 /** @public */
 export type TicketRecurrenceSinkOptions = RenamedType<WorkItemRecurrenceSinkOptions, TasksRenames>;
+
+/** @public */
+export type TicketSetResult = RenamedType<WorkItemSetResult, TasksRenames>;
 
 /** @public */
 export type TicketState = RenamedType<WorkItemState, TasksRenames>;

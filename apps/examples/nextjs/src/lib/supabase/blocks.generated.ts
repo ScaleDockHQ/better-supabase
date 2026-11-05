@@ -27,6 +27,7 @@ import {
   type WorkItemNode,
   type WorkItemRecurrence,
   type WorkItemRecurrenceSinkOptions,
+  type WorkItemSetResult,
   type WorkItemState,
   type WorkItemUpdateOptions,
   type WorkItemWatcher,
@@ -368,6 +369,9 @@ export type MaintenanceRequestRecurrence = RenamedType<WorkItemRecurrence, Facil
 
 /** @public */
 export type MaintenanceRequestRecurrenceSinkOptions = RenamedType<WorkItemRecurrenceSinkOptions, FacilitiesRenames>;
+
+/** @public */
+export type MaintenanceRequestSetResult = RenamedType<WorkItemSetResult, FacilitiesRenames>;
 
 /** @public */
 export type MaintenanceRequestState = RenamedType<WorkItemState, FacilitiesRenames>;
