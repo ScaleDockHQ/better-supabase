@@ -1,12 +1,9 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { AuditCheckpointSigner } from "../../src/blocks/audit/index.ts";
+import type { ChainSigner } from "../../src/blocks/audit/index.ts";
 
-import {
-  createAuditChain,
-  sqlTransport,
-} from "../../src/blocks/audit/index.ts";
+import { createChain, sqlTransport } from "../../src/blocks/audit/index.ts";
 import {
   createRetention,
   sqlTransport as lifecycleTransport,
@@ -17,12 +14,14 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const signer: AuditCheckpointSigner = {
+const signer: ChainSigner = {
   signJwt: (claims) =>
     AsyncResult.ok(
       `${toBase64Url(JSON.stringify({ alg: "EdDSA", kid: "k1" }))}.${toBase64Url(JSON.stringify(claims))}.sig`,
     ),
 };
+
+const LOG = "better_supabase.audit_events";
 
 const chained = { modules: { audit: { options: { chain: true } } } };
 
@@ -51,42 +50,38 @@ describe.skipIf(!live)("audit hash chain", () => {
       await s.service();
       await s.client.query("set local role service_role");
 
-      const chain = createAuditChain({
+      const chain = createChain({
         transport: sqlTransport(s.sql),
+        table: LOG,
+        tenantColumn: "organization_id",
         signer,
         issuer: "https://app.example",
       });
 
-      const verdict = await chain.verify({ organizationId: tenant }).orThrow();
+      const verdict = await chain.verify({ tenant }).orThrow();
       expect(verdict).toMatchObject({ valid: true, checked: 3, seq: 3 });
 
       const heads = await chain.heads().orThrow();
       expect(heads).toContainEqual({
-        organizationId: tenant,
+        tenant,
         seq: 3,
         hash: verdict.valid ? verdict.hash : "",
-        entryId: ids[2],
       });
       const made = await chain.checkpoint().orThrow();
-      expect(made.find((c) => c.organizationId === tenant)).toMatchObject({
+      expect(made.find((c) => c.tenant === tenant)).toMatchObject({
         seq: 3,
         keyId: "k1",
-        entryId: ids[2],
       });
       expect(
-        (await chain.heads().orThrow()).some(
-          (h) => h.organizationId === tenant,
-        ),
+        (await chain.heads().orThrow()).some((h) => h.tenant === tenant),
       ).toBe(false);
-      expect(
-        await chain.checkpoints({ organizationId: tenant }).orThrow(),
-      ).toHaveLength(1);
+      expect(await chain.checkpoints({ tenant }).orThrow()).toHaveLength(1);
       expect(
         await s.hint(
-          "select better_supabase.record_audit_checkpoint($1, 3, '00', 'k1', 'x')",
-          [tenant],
+          "select better_supabase.record_chain_checkpoint($1::regclass, 'organization_id', $2, 3, '00', 'k1', 'x')",
+          [LOG, tenant],
         ),
-      ).toBe("AUDIT_CHECKPOINT_MISMATCH");
+      ).toBe("CHECKPOINT_MISMATCH");
 
       await s.client.query("reset role");
       await s.client.query("set local session_replication_role = replica");
@@ -96,11 +91,10 @@ describe.skipIf(!live)("audit hash chain", () => {
       );
       await s.client.query("set local session_replication_role = origin");
       await s.client.query("set local role service_role");
-      expect(await chain.verify({ organizationId: tenant }).orThrow()).toEqual({
+      expect(await chain.verify({ tenant }).orThrow()).toEqual({
         valid: false,
         checked: 1,
         seq: 2,
-        brokenAt: ids[1],
         reason: "hash",
       });
     } finally {
@@ -128,13 +122,15 @@ describe.skipIf(!live)("audit hash chain", () => {
       await s.service();
       await s.client.query("set local role service_role");
 
-      const chain = createAuditChain({
+      const chain = createChain({
         transport: sqlTransport(s.sql),
+        table: LOG,
+        tenantColumn: "organization_id",
         signer,
         issuer: "https://app.example",
       });
 
-      const verify = () => chain.verify({ organizationId: tenant }).orThrow();
+      const verify = () => chain.verify({ tenant }).orThrow();
 
       /** Runs `sql` past the append-only triggers, then undoes it after `check`. */
       const tampered = async (
@@ -160,7 +156,6 @@ describe.skipIf(!live)("audit hash chain", () => {
             valid: false,
             checked: 1,
             seq: 3,
-            brokenAt: ids[2],
             reason: "gap",
           });
         },
@@ -174,7 +169,6 @@ describe.skipIf(!live)("audit hash chain", () => {
             valid: false,
             checked: 2,
             seq: 3,
-            brokenAt: ids[2],
             reason: "link",
           });
         },
@@ -275,7 +269,11 @@ describe.skipIf(!live)("audit hash chain", () => {
         await s.value<number>("better_supabase.maintain_partitions()"),
       ).toBe(0);
       expect(
-        await createAuditChain({ transport: sqlTransport(s.sql) })
+        await createChain({
+          transport: sqlTransport(s.sql),
+          table: LOG,
+          tenantColumn: "organization_id",
+        })
           .verify()
           .orThrow(),
       ).toMatchObject({ valid: true, checked: 3 });

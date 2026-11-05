@@ -2,11 +2,6 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Jwks } from "../../core/jws.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
-import type {
-  AuditCheckpointSigner,
-  AuditChainBreak,
-  AuditChainVerdict,
-} from "./chain.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { verifyCompact } from "../../core/jws.ts";
@@ -20,6 +15,33 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+
+/**
+ * Why `verify` stopped: the row changed, a link or a row is missing, or a
+ * signed head disagrees.
+ */
+export type ChainBreak = "hash" | "link" | "gap" | "checkpoint";
+
+export type ChainVerdict =
+  | {
+      readonly valid: true;
+      readonly checked: number;
+      /** The last row's position, absent for an empty chain. */
+      readonly seq: number | undefined;
+      /** The last row's hash (hex), to compare with a checkpoint kept elsewhere. */
+      readonly hash: string | undefined;
+    }
+  | {
+      readonly valid: false;
+      readonly checked: number;
+      readonly seq: number;
+      readonly reason: ChainBreak;
+    };
+
+/** What signs a checkpoint: the signing-keys block's `Signer` fits. */
+export interface ChainSigner {
+  signJwt(claims: Readonly<Record<string, unknown>>): AsyncResult<string>;
+}
 
 /** A tenant's latest row of a chained table that no checkpoint covers. */
 export interface ChainHead {
@@ -68,14 +90,14 @@ export interface ChainOptions extends BlockTemporalOptions {
   /** The tenant column the chain is split by; none for one chain. */
   readonly tenantColumn?: string;
   /** Required for `checkpoint()`. */
-  readonly signer?: AuditCheckpointSigner;
+  readonly signer?: ChainSigner;
   readonly issuer?: string;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }
 
 export interface Chain {
-  verify(range?: { readonly tenant?: string }): AsyncResult<AuditChainVerdict>;
+  verify(range?: { readonly tenant?: string }): AsyncResult<ChainVerdict>;
   heads(): AsyncResult<readonly ChainHead[]>;
   /** Signs and records every head; run it on a schedule. */
   checkpoint(): AsyncResult<readonly ChainCheckpoint[]>;
@@ -108,7 +130,7 @@ function checkpointOf(value: unknown): ChainCheckpoint {
   };
 }
 
-function verdictOf(value: unknown): AuditChainVerdict {
+function verdictOf(value: unknown): ChainVerdict {
   const row = recordOf(value, "verify_chain");
   const seq = row["seq"] === null ? undefined : Number(row["seq"]);
 
@@ -122,13 +144,12 @@ function verdictOf(value: unknown): AuditChainVerdict {
   }
 
   // SAFETY: verify_chain only returns these reasons.
-  const reason = textOf(row["reason"]) as AuditChainBreak;
+  const reason = textOf(row["reason"]) as ChainBreak;
 
   return {
     valid: false,
     checked: Number(row["checked"]),
     seq: seq ?? 0,
-    brokenAt: undefined,
     reason,
   };
 }
@@ -198,7 +219,7 @@ export function createChain(options: ChainOptions): Chain {
       (Array.isArray(value) ? value : []).map(headOf),
     );
 
-  const sign = (head: ChainHead, signer: AuditCheckpointSigner) =>
+  const sign = (head: ChainHead, signer: ChainSigner) =>
     signer
       .signJwt({
         ...(options.issuer === undefined ? {} : { iss: options.issuer }),
@@ -282,11 +303,7 @@ function bytesOf(hex: string | undefined): Uint8Array {
 }
 
 /** Why `verifyChainProof` refused a proof. */
-export type ChainProofFailure =
-  | AuditChainBreak
-  | "empty"
-  | "signature"
-  | "unsigned";
+export type ChainProofFailure = ChainBreak | "empty" | "signature" | "unsigned";
 
 export type ChainProofVerdict =
   | { readonly valid: true; readonly signed: boolean; readonly checked: number }

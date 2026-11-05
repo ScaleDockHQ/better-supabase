@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@12 managed
--- @bsb-hash sha256:204c082f2edd9f9fd65005a86c3352544da2ea3a82076769faf8767862e8a47e
+-- @bsb-block audit@13 managed
+-- @bsb-hash sha256:56e9d0dc18583bed4dc4bd138e645f6520e876d8553f878d14e86f356bef94f5
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1254,8 +1254,6 @@ drop trigger if exists "bsb_audit_no_truncate" on "better_supabase"."audit_event
 create trigger "bsb_audit_no_truncate" before truncate on "better_supabase"."audit_events"
   for each statement execute function better_supabase.audit_append_only();
 
-drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";
-
 -- Tables the app must not edit: append_only refuses update, delete and
 -- truncate for every role; function_writes also takes the Data API write
 -- privileges away, so rows arrive only through security definer functions.
@@ -1573,7 +1571,7 @@ begin
   insert into better_supabase.chain_checkpoints (table_name, tenant, chain_seq, row_hash, key_id, signature)
   values (target::text, record_chain_checkpoint.tenant, seq, decode(hash, 'hex'), key_id, signature)
   returning id into v_id;
-  return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
+  return jsonb_build_object('id', v_id::text, 'tenant', record_chain_checkpoint.tenant, 'seq', seq, 'hash', hash, 'keyId', key_id, 'signature', record_chain_checkpoint.signature);
 end;
 $$;
 revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
@@ -1590,6 +1588,9 @@ revoke execute on function better_supabase.verify_chain(regclass, text, text) fr
 revoke execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) from public, anon, authenticated;
 grant execute on function better_supabase.verify_chain(regclass, text, text) to service_role;
 grant execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) to service_role;
+
+drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";
+drop trigger if exists bsb_chain on "better_supabase"."audit_events";
 
 drop policy if exists bsb_audit_read on "better_supabase"."audit_events";
 drop function if exists "better_supabase"."audit_read_tenants"();
@@ -1898,7 +1899,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:23abd9b5aaa97bf65d683852ae22bed5178ef00bfb171faabe76168bfb313611
+-- @bsb-hash sha256:ae40eec0a710f599132f0fc31f826c2f6f26c65201f39d5e19c56615749e57e9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1914,14 +1915,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 12, 'managed')
+values ('audit', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@12 managed
--- @bsb-hash sha256:5ce020b7ee8fd42734a413d5f5926d6fb6ebee043cc687a15ea534b6fd11c12f
+-- @bsb-block audit@13 managed
+-- @bsb-hash sha256:05d8f77dff30717a7790baf251e14a5d902672c8898398460205c3334a68b783
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3193,8 +3194,6 @@ drop trigger if exists "bsb_audit_no_truncate" on "better_supabase"."audit_event
 create trigger "bsb_audit_no_truncate" before truncate on "better_supabase"."audit_events"
   for each statement execute function better_supabase.audit_append_only();
 
-drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";
-
 -- Tables the app must not edit: append_only refuses update, delete and
 -- truncate for every role; function_writes also takes the Data API write
 -- privileges away, so rows arrive only through security definer functions.
@@ -3512,7 +3511,7 @@ begin
   insert into better_supabase.chain_checkpoints (table_name, tenant, chain_seq, row_hash, key_id, signature)
   values (target::text, record_chain_checkpoint.tenant, seq, decode(hash, 'hex'), key_id, signature)
   returning id into v_id;
-  return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
+  return jsonb_build_object('id', v_id::text, 'tenant', record_chain_checkpoint.tenant, 'seq', seq, 'hash', hash, 'keyId', key_id, 'signature', record_chain_checkpoint.signature);
 end;
 $$;
 revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
@@ -3529,6 +3528,9 @@ revoke execute on function better_supabase.verify_chain(regclass, text, text) fr
 revoke execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) from public, anon, authenticated;
 grant execute on function better_supabase.verify_chain(regclass, text, text) to service_role;
 grant execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) to service_role;
+
+drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";
+drop trigger if exists bsb_chain on "better_supabase"."audit_events";
 
 drop policy if exists bsb_audit_read on "better_supabase"."audit_events";
 drop function if exists "better_supabase"."audit_read_tenants"();
@@ -4002,7 +4004,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:23abd9b5aaa97bf65d683852ae22bed5178ef00bfb171faabe76168bfb313611
+-- @bsb-hash sha256:ae40eec0a710f599132f0fc31f826c2f6f26c65201f39d5e19c56615749e57e9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4018,14 +4020,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 12, 'managed')
+values ('audit', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@12 managed
--- @bsb-hash sha256:02d191cd31f2162e130d548f5d3da2503ad5095a758f39c57d10ed44762db134
+-- @bsb-block audit@13 managed
+-- @bsb-hash sha256:acbda016bd3edc10e92196a2d509b7731951dae927a5d3f2bb8c0b0a77e1a9a7
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5278,8 +5280,6 @@ drop trigger if exists "bsb_audit_no_truncate" on "app_private"."audit_events";
 create trigger "bsb_audit_no_truncate" before truncate on "app_private"."audit_events"
   for each statement execute function better_supabase.audit_append_only();
 
-drop trigger if exists "bsb_audit_chain" on "app_private"."audit_events";
-
 -- Tables the app must not edit: append_only refuses update, delete and
 -- truncate for every role; function_writes also takes the Data API write
 -- privileges away, so rows arrive only through security definer functions.
@@ -5597,7 +5597,7 @@ begin
   insert into better_supabase.chain_checkpoints (table_name, tenant, chain_seq, row_hash, key_id, signature)
   values (target::text, record_chain_checkpoint.tenant, seq, decode(hash, 'hex'), key_id, signature)
   returning id into v_id;
-  return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
+  return jsonb_build_object('id', v_id::text, 'tenant', record_chain_checkpoint.tenant, 'seq', seq, 'hash', hash, 'keyId', key_id, 'signature', record_chain_checkpoint.signature);
 end;
 $$;
 revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
@@ -5614,6 +5614,9 @@ revoke execute on function better_supabase.verify_chain(regclass, text, text) fr
 revoke execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) from public, anon, authenticated;
 grant execute on function better_supabase.verify_chain(regclass, text, text) to service_role;
 grant execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) to service_role;
+
+drop trigger if exists "bsb_audit_chain" on "app_private"."audit_events";
+drop trigger if exists bsb_chain on "app_private"."audit_events";
 
 drop policy if exists bsb_audit_read on "app_private"."audit_events";
 drop function if exists "app_private"."audit_read_tenants"();
@@ -5922,7 +5925,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:ad5e1222c497b1f2ba993c8a7e4ce2798d80932c8224dc93d2c4c61ad780049f
+-- @bsb-hash sha256:99ba27befd70ff5a74b14ebed5403cceed9f7c385ad0248bec5c72dcdffeeea9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5938,14 +5941,14 @@ delete from "app_private"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 12, 'managed')
+values ('audit', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@12 managed
--- @bsb-hash sha256:6c1b7ae665384ede2ad8b46c91dff2ab30623877005ca8fb59d3c9b3319762d4
+-- @bsb-block audit@13 managed
+-- @bsb-hash sha256:a26fea976c52daf872736bdb88aecb275f0e198d7b58c0715280c167285d38bc
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7198,8 +7201,6 @@ drop trigger if exists "bsb_audit_no_truncate" on "better_supabase"."audit_event
 create trigger "bsb_audit_no_truncate" before truncate on "better_supabase"."audit_events"
   for each statement execute function better_supabase.audit_append_only();
 
-drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";
-
 -- Tables the app must not edit: append_only refuses update, delete and
 -- truncate for every role; function_writes also takes the Data API write
 -- privileges away, so rows arrive only through security definer functions.
@@ -7517,7 +7518,7 @@ begin
   insert into better_supabase.chain_checkpoints (table_name, tenant, chain_seq, row_hash, key_id, signature)
   values (target::text, record_chain_checkpoint.tenant, seq, decode(hash, 'hex'), key_id, signature)
   returning id into v_id;
-  return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
+  return jsonb_build_object('id', v_id::text, 'tenant', record_chain_checkpoint.tenant, 'seq', seq, 'hash', hash, 'keyId', key_id, 'signature', record_chain_checkpoint.signature);
 end;
 $$;
 revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
@@ -7534,6 +7535,9 @@ revoke execute on function better_supabase.verify_chain(regclass, text, text) fr
 revoke execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) from public, anon, authenticated;
 grant execute on function better_supabase.verify_chain(regclass, text, text) to service_role;
 grant execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) to service_role;
+
+drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";
+drop trigger if exists bsb_chain on "better_supabase"."audit_events";
 
 drop policy if exists bsb_audit_read on "better_supabase"."audit_events";
 drop function if exists "better_supabase"."audit_read_tenants"();
@@ -7992,7 +7996,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:23abd9b5aaa97bf65d683852ae22bed5178ef00bfb171faabe76168bfb313611
+-- @bsb-hash sha256:ae40eec0a710f599132f0fc31f826c2f6f26c65201f39d5e19c56615749e57e9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -8008,14 +8012,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 12, 'managed')
+values ('audit', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@12 managed
--- @bsb-hash sha256:86f8a0716d12511a0fb40a4bfe956ee0f62a1f40b115b706a68703936dcd0e45
+-- @bsb-block audit@13 managed
+-- @bsb-hash sha256:2c53819ec898de34dbae6ddbc040813989886d767dc3201a4a042f64279d8a9c
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9443,7 +9447,7 @@ begin
   insert into better_supabase.chain_checkpoints (table_name, tenant, chain_seq, row_hash, key_id, signature)
   values (target::text, record_chain_checkpoint.tenant, seq, decode(hash, 'hex'), key_id, signature)
   returning id into v_id;
-  return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
+  return jsonb_build_object('id', v_id::text, 'tenant', record_chain_checkpoint.tenant, 'seq', seq, 'hash', hash, 'keyId', key_id, 'signature', record_chain_checkpoint.signature);
 end;
 $$;
 revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
@@ -9750,7 +9754,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:23abd9b5aaa97bf65d683852ae22bed5178ef00bfb171faabe76168bfb313611
+-- @bsb-hash sha256:ae40eec0a710f599132f0fc31f826c2f6f26c65201f39d5e19c56615749e57e9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -9766,14 +9770,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 12, 'managed')
+values ('audit', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@12 managed
--- @bsb-hash sha256:35cf53bfa3fe96635361e6ef9b399b21e704d228d30cca8a3a687a46340ac979
+-- @bsb-block audit@13 managed
+-- @bsb-hash sha256:2869c760344458aa1c8c3c50b552a38802acfa6da61ecf7c733cd14461ce05c6
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11026,8 +11030,6 @@ drop trigger if exists "bsb_audit_no_truncate" on "better_supabase"."audit_event
 create trigger "bsb_audit_no_truncate" before truncate on "better_supabase"."audit_events"
   for each statement execute function better_supabase.audit_append_only();
 
-drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";
-
 -- Tables the app must not edit: append_only refuses update, delete and
 -- truncate for every role; function_writes also takes the Data API write
 -- privileges away, so rows arrive only through security definer functions.
@@ -11345,7 +11347,7 @@ begin
   insert into better_supabase.chain_checkpoints (table_name, tenant, chain_seq, row_hash, key_id, signature)
   values (target::text, record_chain_checkpoint.tenant, seq, decode(hash, 'hex'), key_id, signature)
   returning id into v_id;
-  return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
+  return jsonb_build_object('id', v_id::text, 'tenant', record_chain_checkpoint.tenant, 'seq', seq, 'hash', hash, 'keyId', key_id, 'signature', record_chain_checkpoint.signature);
 end;
 $$;
 revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
@@ -11362,6 +11364,9 @@ revoke execute on function better_supabase.verify_chain(regclass, text, text) fr
 revoke execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) from public, anon, authenticated;
 grant execute on function better_supabase.verify_chain(regclass, text, text) to service_role;
 grant execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) to service_role;
+
+drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";
+drop trigger if exists bsb_chain on "better_supabase"."audit_events";
 
 drop policy if exists bsb_audit_read on "better_supabase"."audit_events";
 drop function if exists "better_supabase"."audit_read_tenants"();
@@ -11670,7 +11675,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:23abd9b5aaa97bf65d683852ae22bed5178ef00bfb171faabe76168bfb313611
+-- @bsb-hash sha256:ae40eec0a710f599132f0fc31f826c2f6f26c65201f39d5e19c56615749e57e9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -11686,6 +11691,6 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 12, 'managed')
+values ('audit', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

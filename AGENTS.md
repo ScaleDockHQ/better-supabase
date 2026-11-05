@@ -348,6 +348,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0235: Tag app tables `append-only`, `function-writes` and `chain`.
 - 0236: Verify chain proofs offline and seal evidence bundles.
 - 0237: A filings preset on the evidence primitives.
+- 0238: Run the audit log's hash chain on the shared chain tag.
 
 ## Pre-release pins
 

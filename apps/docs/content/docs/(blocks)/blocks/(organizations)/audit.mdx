@@ -680,21 +680,23 @@ into a partitioned copy yourself. An adopted log is never partitioned.
 
 ## Hash chain
 
-`options.chain` links each tenant's entries in a hash chain: every entry
+`options.chain` tags the audit log `chain` (see below), which links each tenant's entries in a hash chain: every entry
 stores its position, the previous entry's hash and its own hash, a SHA-256
 of the row and the previous hash. Changing, deleting or inserting an entry
-afterwards breaks the chain from that point. `createAuditChain` checks it
-and signs its heads:
+afterwards breaks the chain from that point. `createChain` checks it
+and signs its heads, pointed at the audit log and its tenant column:
 
 ```ts title="jobs/audit-checkpoint.ts"
-import { createAuditChain, sqlTransport } from "better-supabase/blocks/audit";
+import { createChain, sqlTransport } from "better-supabase/blocks/audit";
 import { createSigningKeys } from "better-supabase/blocks/signing-keys";
 
 const signingKeys = createSigningKeys({
   transport: sqlTransport(postgres.admin),
 });
-const chain = createAuditChain({
+const chain = createChain({
   transport: sqlTransport(postgres.admin),
+  table: "better_supabase.audit_events",
+  tenantColumn: "organization_id",
   signer: signingKeys.signer(
     { type: "app", id: "audit" },
     { create: "Ed25519" },
@@ -706,14 +708,14 @@ await chain.checkpoint().orThrow();
 
 const verdict = await chain.verify({ organizationId }).orThrow();
 // { valid: true, checked: 1204, seq: 1204, hash: "9f2c…" }
-// { valid: false, checked: 311, seq: 312, brokenAt: "8841", reason: "hash" }
+// { valid: false, checked: 311, seq: 312, reason: "hash" }
 ```
 
 | Method               | What it does                                                           |
 | -------------------- | ---------------------------------------------------------------------- |
 | `verify(range?)`     | Checks a tenant's entries in order, optionally between `from` and `to` |
 | `heads()`            | Each tenant's latest entry that no checkpoint covers yet               |
-| `checkpoint()`       | Signs every head as a JWS and records it in `audit_checkpoints`        |
+| `checkpoint()`       | Signs every head as a JWS and records it in `chain_checkpoints`        |
 | `checkpoints(opts?)` | A tenant's recorded checkpoints, newest first                          |
 
 A verdict's `reason` is `hash` (an entry changed), `link` (an entry points
@@ -733,8 +735,8 @@ needs a managed log.
 ## Chains on your own tables
 
 Tag a table `append-only` and `chain` (see [tables](/docs/repository/tables))
-and `createChain` signs and verifies it the way `createAuditChain` does for the
-audit log. It also builds the proof for one row, which an auditor checks
+and `createChain` signs and verifies it the way it does for the audit log, which uses
+the same functions (`verify_chain`, `chain_checkpoints`). It also builds the proof for one row, which an auditor checks
 without a database:
 
 ```ts

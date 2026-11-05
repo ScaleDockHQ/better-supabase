@@ -103,4 +103,10 @@ export const AUDIT_UPGRADES: readonly BlockSqlUpgrade[] = [
       "append_only(), function_writes() and chain() guard any app table, with verify_chain(), chain_checkpoints and record_chain_checkpoint() for the chain; the @bsb tags append-only, function-writes and chain call them.",
     sql: () => "",
   },
+  {
+    from: 12,
+    description:
+      "The chain option uses the shared chain tag: verify_audit_chain, audit_chain_heads, record_audit_checkpoint and list_audit_checkpoints are replaced by verify_chain, chain_heads, record_chain_checkpoint and list_chain_checkpoints, and audit_checkpoints moves into chain_checkpoints. Entry hashes stay valid.",
+    sql: () => "",
+  },
 ];

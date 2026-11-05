@@ -25,12 +25,7 @@ import {
 } from "../shared.ts";
 import { listEntries, reveal } from "./audit-api.ts";
 import { appendOnly } from "./audit-append-only.ts";
-import {
-  CHAIN_CONTRACT,
-  chainOn,
-  chainSql,
-  partitionedOn,
-} from "./audit-chain.ts";
+import { chainSql, partitionedOn } from "./audit-chain.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import { castId, entrySql, tenantFallbackSql } from "./audit-entry.ts";
 import {
@@ -975,8 +970,8 @@ function auditSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     register(ctx),
     auditEvent(ctx, restricted),
     appendOnly(ctx),
-    chainSql(ctx),
     tagSql(ctx),
+    chainSql(ctx),
     readPolicy(ctx),
     retention(ctx),
     listEntries(ctx, restricted, metadataColumns(ctx)),
@@ -1000,9 +995,9 @@ export const AUDIT: BlockSqlDefinition = {
       : [],
   target: "schema",
   modes: ["managed"],
-  version: 12,
+  version: 13,
   names: NAMES,
-  contract: (ctx) => [
+  contract: () => [
     {
       name: "audit",
       args: [
@@ -1054,7 +1049,6 @@ export const AUDIT: BlockSqlDefinition = {
       args: ["interval", "integer", "{id}", "boolean"],
       returns: "integer",
     },
-    ...(chainOn(ctx) ? CHAIN_CONTRACT : []),
   ],
   upgrades: AUDIT_UPGRADES,
   deprecated: [
