@@ -1616,6 +1616,7 @@
       "SuspendAccountResult",
       "TagOptions",
       "TicketSubject",
+      "TransactionOptions",
       "UserSession",
       "VersionCache",
       "VersionStore"

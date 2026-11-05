@@ -333,7 +333,9 @@ describe("createPostgres", () => {
       "begin",
       USER_SQL,
       "insert into a values (1)",
+      "savepoint bsb_sp_1",
       "insert into b values (2)",
+      "release savepoint bsb_sp_1",
       "commit",
     ]);
     expect(fake.connections).toBe(1);
@@ -450,5 +452,46 @@ describe("createPostgres", () => {
     expect(() => createPostgres()).toThrow(
       "createPostgres needs a connectionString or one of $SUPABASE_DB_URL, $DATABASE_URL, $POSTGRES_URL, $POSTGRES_URL_NON_POOLING",
     );
+  });
+});
+
+describe("nested transactions", () => {
+  it("runs a nested transaction in a savepoint and rolls back only that step", async () => {
+    const fake = recordingPool();
+    const pg = createPostgres({ pool: fake.pool });
+
+    await pg.transaction(async (tx) => {
+      await expect(
+        tx.transaction?.(async (inner) => {
+          await inner.queryRaw("select 1");
+          throw new Error("step failed");
+        }),
+      ).rejects.toThrow("step failed");
+      await tx.transaction?.((inner) => inner.queryRaw("select 2"));
+    });
+
+    expect(fake.log).toEqual([
+      "begin",
+      settingsSql(1),
+      "savepoint bsb_sp_1",
+      "select 1",
+      "rollback to savepoint bsb_sp_1",
+      "savepoint bsb_sp_2",
+      "select 2",
+      "release savepoint bsb_sp_2",
+      "commit",
+    ]);
+  });
+
+  it("binds an executor to one transaction with transactionFor", async () => {
+    const fake = recordingPool();
+    const pg = createPostgres({ pool: fake.pool });
+
+    const executor = await pg.transactionFor?.({ sub: "u1" }, (bound) =>
+      Promise.resolve(bound),
+    );
+
+    expect(executor?.name).toBe("postgres");
+    expect(fake.log.at(-1)).toBe("commit");
   });
 });

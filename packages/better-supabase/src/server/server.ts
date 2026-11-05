@@ -89,6 +89,7 @@ import {
   lastSignIns,
   suspendAccount,
 } from "./suspend-account.ts";
+import { serverTransaction } from "./transaction.ts";
 import { countVerifications } from "./verify-count.ts";
 
 /** The header `better_supabase.acting_member()` reads for a service caller. */
@@ -1029,6 +1030,7 @@ export function createServer<
         claims: full,
       });
     },
+    transaction: serverTransaction(options.postgres, betterSupabase),
     forContext: (context, forOptions = {}) =>
       AsyncResult.from(async () => {
         const subject = await ticketSubject(
