@@ -1,6 +1,6 @@
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@1 managed
--- @bsb-hash sha256:2d55fad557f828af06dac1978c48fb6d52b1afffef8099c980924effd048d6ab
+-- @bsb-hash sha256:daa714e95714806d6861c71952527c118d6cabf7f3143d4907d2fec673ae9bda
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -147,6 +147,7 @@ create table if not exists "better_supabase"."deadlines" (
   check (("result" = 'due') = ("due_on" is not null)),
   constraint "deadlines_subject_rule_key" unique ("tenant_id", "subject_type", "subject_id", "rule_key")
 );
+create index if not exists "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
 create index if not exists "deadlines_due_idx" on "better_supabase"."deadlines" ("tenant_id", "due_on") where "state" = 'pending';
 alter table "better_supabase"."deadlines" enable row level security;
 revoke all on "better_supabase"."deadlines" from public, anon, authenticated;

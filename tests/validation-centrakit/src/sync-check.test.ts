@@ -105,6 +105,13 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           !(
             finding.code === "BS235" &&
             finding.message.includes("list_schedules")
+          ) &&
+          // The attachments 8 to 9 upgrade drops the old set_attachment_status
+          // signature; the schema migration that creates the new one isn't in
+          // this project.
+          !(
+            finding.code === "BS235" &&
+            finding.message.includes("set_attachment_status")
           )
         ) {
           (warnings[`${finding.severity} ${finding.code}`] ??= []).push(

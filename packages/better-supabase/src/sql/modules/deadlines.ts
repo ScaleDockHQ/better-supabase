@@ -296,6 +296,7 @@ create table if not exists ${deadlines} (
   check ((${d("result")} = 'due') = (${d("dueOn")} is not null)),
   constraint ${sqlIdent(`${ctx.tableName("deadlines").name}_subject_rule_key`)} unique (${d("tenant")}, ${d("subjectType")}, ${d("subjectId")}, ${d("ruleKey")})
 );${appKey}
+create index if not exists ${sqlIdent(`${ctx.tableName("deadlines").name}_version_idx`)} on ${deadlines} (${d("ruleVersion")});
 create index if not exists ${sqlIdent(`${ctx.tableName("deadlines").name}_due_idx`)} on ${deadlines} (${d("tenant")}, ${d("dueOn")}) where ${d("state")} = 'pending';
 ${lockTable(deadlines, { read: true })}
 ${readPolicy}
