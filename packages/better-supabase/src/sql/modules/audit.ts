@@ -61,6 +61,7 @@ import {
   requestIpSql,
   subjectColumnsSql,
 } from "./audit-subjects.ts";
+import { tagSql } from "./audit-tags.ts";
 import { auditTests } from "./audit-tests.ts";
 import { AUDIT_UPGRADES } from "./audit-upgrades.ts";
 import {
@@ -975,6 +976,7 @@ function auditSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     auditEvent(ctx, restricted),
     appendOnly(ctx),
     chainSql(ctx),
+    tagSql(ctx),
     readPolicy(ctx),
     retention(ctx),
     listEntries(ctx, restricted, metadataColumns(ctx)),
@@ -998,7 +1000,7 @@ export const AUDIT: BlockSqlDefinition = {
       : [],
   target: "schema",
   modes: ["managed"],
-  version: 11,
+  version: 12,
   names: NAMES,
   contract: (ctx) => [
     {

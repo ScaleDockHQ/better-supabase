@@ -224,6 +224,8 @@ describe("blocks over the app's tables", () => {
 
 // The tables a module creates without a `names.tables` entry, by module.
 const SPECLESS: Readonly<Record<string, readonly string[]>> = {
+  // ADR 0235: chain() creates the table for any chained app table.
+  audit: ["chain_checkpoints"],
   // ADR 0098: the Workflow SDK owns the shape of its world's tables.
   "workflow-sdk": [
     "workflow_event_slots",

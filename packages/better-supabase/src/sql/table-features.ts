@@ -19,6 +19,9 @@ export const TABLE_FEATURES = [
   "vector-search",
   "history",
   "lifecycle",
+  "append-only",
+  "function-writes",
+  "chain",
 ] as const;
 
 export type TableFeature = (typeof TABLE_FEATURES)[number];
@@ -146,6 +149,18 @@ function featureStatement(
 ): string | undefined {
   if (feature === "audit") {
     return `select better_supabase.audit('${schema}.${table}');`;
+  }
+
+  if (feature === "append-only") {
+    return `select better_supabase.append_only('${schema}.${table}');`;
+  }
+
+  if (feature === "function-writes") {
+    return `select better_supabase.function_writes('${schema}.${table}');`;
+  }
+
+  if (feature === "chain") {
+    return `select better_supabase.chain('${schema}.${table}');`;
   }
 
   if (feature === "events") {
