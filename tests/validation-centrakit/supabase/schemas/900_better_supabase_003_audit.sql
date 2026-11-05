@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@12 managed
--- @bsb-hash sha256:514353e21725803f770c06b34374b08037010ea76828f49b051010eb879bba42
+-- @bsb-hash sha256:71fbba87633fe89fa557b84b077b0e4d267915ec8b07f8f0906920b2ecaa3b91
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1206,38 +1206,26 @@ begin
     raise exception 'chain needs the columns chain_seq bigint, prev_hash bytea and row_hash bytea on %', target
       using errcode = '42703', hint = 'CHAIN_COLUMNS';
   end if;
-  perform better_supabase.ensure_chain_checkpoints();
   execute format('drop trigger if exists bsb_chain on %s', target);
   execute format('create trigger bsb_chain before insert on %s for each row execute function better_supabase.chain_link(%L)', target, v_tenant);
 end;
 $$;
 
--- Signed heads of any chained table, recorded by a signing job. chain()
--- creates the table, so an app that chains nothing gets none.
-create or replace function better_supabase.ensure_chain_checkpoints()
-returns void
-language plpgsql
-set search_path = ''
-as $$
-begin
-  execute $ddl$
-    create table if not exists better_supabase.chain_checkpoints (
-      id bigint generated always as identity primary key,
-      table_name text not null,
-      tenant text,
-      chain_seq bigint not null,
-      row_hash bytea not null,
-      key_id text not null,
-      signature text not null,
-      created_at timestamptz not null default now()
-    );
-    create index if not exists chain_checkpoints_idx on better_supabase.chain_checkpoints (table_name, tenant, chain_seq desc);
-    alter table better_supabase.chain_checkpoints enable row level security;
+-- Signed heads of any chained table, recorded by a signing job.
+create table if not exists better_supabase.chain_checkpoints (
+  id bigint generated always as identity primary key,
+  table_name text not null,
+  tenant text,
+  chain_seq bigint not null,
+  row_hash bytea not null,
+  key_id text not null,
+  signature text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists chain_checkpoints_idx on better_supabase.chain_checkpoints (table_name, tenant, chain_seq desc);
+alter table better_supabase.chain_checkpoints enable row level security;
 revoke all on better_supabase.chain_checkpoints from public, anon, authenticated;
 grant all on better_supabase.chain_checkpoints to service_role;
-  $ddl$;
-end;
-$$;
 
 -- Walks one chain in order. Returns valid, checked and the last hash, or the
 -- first broken row and why: hash (the row changed), link (prev_hash doesn't
@@ -1251,7 +1239,10 @@ set search_path = ''
 set "TimeZone" = 'UTC'
 as $$
 declare
-  v_row record;
+  v_seq bigint;
+  v_link bytea;
+  v_hash bytea;
+  v_entry jsonb;
   v_prev_seq bigint;
   v_prev_hash bytea;
   v_checked integer := 0;
@@ -1267,29 +1258,29 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role verifies a chain' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
   end if;
-  for v_row in execute format(
+  for v_seq, v_link, v_hash, v_entry in execute format(
     'select t.chain_seq, t.prev_hash, t.row_hash, pg_catalog.to_jsonb(t) as entry from %s t where %s and t.chain_seq is not null order by t.chain_seq',
     target, v_where
   ) loop
     v_reason := case
-      when v_prev_seq is not null and v_row.chain_seq <> v_prev_seq + 1 then 'gap'
-      when v_prev_seq is not null and v_row.prev_hash is distinct from v_prev_hash then 'link'
-      when better_supabase.chain_row_hash(v_row.entry, v_row.prev_hash) is distinct from v_row.row_hash then 'hash'
+      when v_prev_seq is not null and v_seq <> v_prev_seq + 1 then 'gap'
+      when v_prev_seq is not null and v_link is distinct from v_prev_hash then 'link'
+      when better_supabase.chain_row_hash(v_entry, v_link) is distinct from v_hash then 'hash'
     end;
     if v_reason is null then
       select k.row_hash into v_signed from better_supabase.chain_checkpoints k
-      where k.table_name = target::text and k.tenant is not distinct from verify_chain.tenant and k.chain_seq = v_row.chain_seq
+      where k.table_name = target::text and k.tenant is not distinct from verify_chain.tenant and k.chain_seq = v_seq
       order by k.id desc limit 1;
-      if found and v_signed <> v_row.row_hash then
+      if found and v_signed <> v_hash then
         v_reason := 'checkpoint';
       end if;
     end if;
     if v_reason is not null then
-      return jsonb_build_object('valid', false, 'checked', v_checked, 'seq', v_row.chain_seq, 'reason', v_reason);
+      return jsonb_build_object('valid', false, 'checked', v_checked, 'seq', v_seq, 'reason', v_reason);
     end if;
     v_checked := v_checked + 1;
-    v_prev_seq := v_row.chain_seq;
-    v_prev_hash := v_row.row_hash;
+    v_prev_seq := v_seq;
+    v_prev_hash := v_hash;
   end loop;
   -- A signed head past the last row means the tail was removed.
   select max(k.chain_seq) into v_max from better_supabase.chain_checkpoints k
@@ -1442,7 +1433,6 @@ grant execute on function better_supabase.chain_proof(regclass, text, text, bigi
 revoke execute on function better_supabase.append_only(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.function_writes(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.chain(regclass, text) from public, anon, authenticated;
-revoke execute on function better_supabase.ensure_chain_checkpoints() from public, anon, authenticated;
 revoke execute on function better_supabase.chain_row_hash(jsonb, bytea) from public, anon, authenticated;
 revoke execute on function better_supabase.verify_chain(regclass, text, text) from public, anon, authenticated;
 revoke execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) from public, anon, authenticated;
