@@ -730,6 +730,49 @@ Every chain function is service-role only. The chain starts with the first
 entry written after the option is on; older entries stay outside it. It
 needs a managed log.
 
+## Chains on your own tables
+
+Tag a table `append-only` and `chain` (see [tables](/docs/repository/tables))
+and `createChain` signs and verifies it the way `createAuditChain` does for the
+audit log. It also builds the proof for one row, which an auditor checks
+without a database:
+
+```ts
+import {
+  createChain,
+  evidenceBundle,
+  sqlTransport,
+  verifyEvidenceBundle,
+} from "better-supabase/blocks/audit";
+
+const chain = createChain({
+  transport: sqlTransport(pg),
+  table: "public.facts",
+  tenantColumn: "organization_id",
+  signer,
+});
+
+await chain.checkpoint().orThrow();
+
+const proof = await chain.proof({ seq, tenant: organizationId }).orThrow();
+
+const bundle = await evidenceBundle({
+  subject: { type: "filing", id },
+  proofs: [proof],
+  sections: { auditEntries },
+  generatedAt: new Date().toISOString(),
+});
+
+// Anywhere, with the public keys:
+await verifyEvidenceBundle(bundle, jwks, { requireSigned: true });
+```
+
+A proof holds the rows from the one you asked for up to the first signed
+checkpoint that covers it. `verifyChainProof` recomputes each hash from the
+row text, checks the links and checks the checkpoint's signature on WebCrypto
+alone. `evidenceBundle` seals proofs and other sections you pass with a
+content hash; write it to storage under a legal hold.
+
 ## Without the client
 
 `db.audit` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:

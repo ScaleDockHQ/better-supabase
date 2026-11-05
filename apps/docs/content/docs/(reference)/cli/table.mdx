@@ -13,21 +13,24 @@ the table (ADR 0102). The free text of the comment stays, and the feature become
 `@bsb`. When the file has no comment yet, the command appends one. Run `db diff` afterwards to
 write the migration.
 
-| Feature         | Tag             |
-| --------------- | --------------- |
-| `realtime`      | `realtime`      |
-| `audit`         | `audit`         |
-| `audit-reads`   | `audit-reads`   |
-| `subject`       | `subject`       |
-| `json`          | `json`          |
-| `expose`        | `expose`        |
-| `encrypted`     | `encrypted`     |
-| `lookup`        | `lookup`        |
-| `server`        | `server`        |
-| `events`        | `events`        |
-| `vector-search` | `vector-search` |
-| `history`       | `history`       |
-| `lifecycle`     | `lifecycle`     |
+| Feature           | Tag               |
+| ----------------- | ----------------- |
+| `realtime`        | `realtime`        |
+| `audit`           | `audit`           |
+| `audit-reads`     | `audit-reads`     |
+| `append-only`     | `append-only`     |
+| `function-writes` | `function-writes` |
+| `chain`           | `chain`           |
+| `subject`         | `subject`         |
+| `json`            | `json`            |
+| `expose`          | `expose`          |
+| `encrypted`       | `encrypted`       |
+| `lookup`          | `lookup`          |
+| `server`          | `server`          |
+| `events`          | `events`          |
+| `vector-search`   | `vector-search`   |
+| `history`         | `history`         |
+| `lifecycle`       | `lifecycle`       |
 
 `audit` also appends `select better_supabase.audit('schema.table');` and `expose` appends a
 `grant select, insert, update, delete ... to authenticated;` statement, so the migration carries

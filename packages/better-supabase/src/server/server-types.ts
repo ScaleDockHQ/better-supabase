@@ -31,7 +31,11 @@ import type { StatsRecorder, DbStats } from "../core/stats.ts";
 import type { CredentialProvider } from "../credentials/provider.ts";
 import type { BetterSupabaseEnv, EnvSource } from "../env/index.ts";
 import type { EventSink } from "../events/index.ts";
-import type { BetterPostgres, SqlClaims } from "../postgres/pool.ts";
+import type {
+  BetterPostgres,
+  SessionOptions,
+  SqlClaims,
+} from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
 import type {
@@ -236,6 +240,16 @@ export interface ServerSessions<C = unknown, P = unknown> {
   /** Forgets a user's sessions (sign-out, role change). */
   evict(userId: string): void;
   clear(): void;
+}
+
+/** Options for `server.transaction`. */
+export interface TransactionOptions {
+  /** More claims for the user, like `actingAs`. */
+  readonly claims?: Omit<SqlClaims, "sub" | "act">;
+  /** The tenant the blocks in the transaction act in. */
+  readonly tenant?: string;
+  /** Session settings, a statement timeout or `readOnly`. */
+  readonly session?: SessionOptions;
 }
 
 export interface ForContextOptions {
@@ -513,6 +527,19 @@ export interface BetterServer<
     claims?: Omit<SqlClaims, "sub" | "act">,
     impersonation?: ImpersonationOptions,
   ): Db<M, F, E, undefined, B>;
+  /**
+   * Runs `fn` as the user in one Postgres transaction. The `Db` it receives is
+   * bound to that transaction, so repository writes and block calls
+   * (`db.audit`, `db.$blocks.*`) commit or roll back together, with RLS and the
+   * user's claims. A throw rolls back, and so does a returned `Result` that is
+   * not ok: the `Result` is still returned. A nested transaction (`$many`) runs
+   * in a savepoint. Needs `ServerOptions.postgres`.
+   */
+  transaction<T>(
+    userId: string,
+    fn: (db: Db<M, F, E, undefined, B>) => Promise<T>,
+    options?: TransactionOptions,
+  ): Promise<T>;
   /**
    * Repositories for the user in a recorded context (`job.context`), with RLS,
    * over direct Postgres: `actingAs` with the context's tenant and

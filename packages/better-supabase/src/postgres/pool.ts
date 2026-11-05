@@ -125,6 +125,16 @@ export interface BetterPostgres {
    */
   executorFor(claims: SqlClaims, options?: SessionOptions): Executor;
   /**
+   * Runs `fn` in one transaction as the user, with an executor bound to it.
+   * Everything connected to that executor, repositories and blocks alike,
+   * commits or rolls back together. A throw rolls back.
+   */
+  transactionFor?<T>(
+    claims: SqlClaims,
+    fn: (executor: Executor) => Promise<T>,
+    options?: SessionOptions,
+  ): Promise<T>;
+  /**
    * Runs `fn` in one transaction. Pass claims to run it as a user; the session
    * options apply with or without them.
    */
@@ -301,11 +311,32 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
     try {
       await begin(client, session, settingsOf(session));
 
-      // SAFETY: each caller passes the row type that its SQL selects.
+      let savepoints = 0;
+
       const scoped: SqlClient = {
+        // SAFETY: each caller passes the row type that its SQL selects.
         queryRaw: async <R>(text: string, params?: unknown[]) =>
           (await client.query(text, params?.map(encodeArgument))).rows as R[],
-        transaction: (inner) => inner(scoped),
+        // A nested transaction is a savepoint, so a failed step can roll back
+        // alone and the outer transaction stays usable.
+        transaction: async (inner) => {
+          savepoints += 1;
+          const name = `bsb_sp_${String(savepoints)}`;
+
+          await client.query(`savepoint ${name}`);
+
+          try {
+            const nested = await inner(scoped);
+            await client.query(`release savepoint ${name}`);
+
+            return nested;
+          } catch (cause) {
+            await client
+              .query(`rollback to savepoint ${name}`)
+              .catch(() => undefined);
+            throw cause;
+          }
+        },
       };
 
       const result = await fn(scoped);
@@ -360,6 +391,10 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
       clientFor(sessionFor(claims, sessionOptions)),
     executorFor: (claims, sessionOptions) =>
       postgresExecutor(clientFor(sessionFor(claims, sessionOptions))),
+    transactionFor: (claims, fn, sessionOptions) =>
+      transaction(sessionFor(claims, sessionOptions), (client) =>
+        fn(postgresExecutor(client)),
+      ),
     transaction: (fn, txOptions = {}) =>
       transaction(
         txOptions.claims

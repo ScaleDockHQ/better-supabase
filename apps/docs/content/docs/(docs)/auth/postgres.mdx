@@ -172,7 +172,38 @@ await postgres.transaction(
 ```
 
 A thrown error rolls everything back. Plugins run as usual inside the
-transaction.
+transaction. A nested transaction runs in a savepoint, so a step that fails
+rolls back alone and the outer transaction stays usable.
+
+### Blocks in the same transaction
+
+`server.transaction` does the same for a user and passes a `Db` bound to the
+transaction. Block calls on it, such as `db.audit`, share the transaction with
+repository writes. It rolls back on a throw and on a returned `Result` that
+is not ok, and still returns that `Result`:
+
+```ts
+const result = await server.transaction(
+  userId,
+  async (db) => {
+    const job = await db.jobs.update({ id, status: "ready" });
+
+    if (!job.ok) {
+      return job;
+    }
+
+    return db.audit.record({
+      eventType: "job.ready",
+      organizationId,
+      record: id,
+    });
+  },
+  { tenant: organizationId },
+);
+```
+
+It needs `createServer(betterSupabase, { postgres })` with a `postgres` that
+implements `transactionFor`, which `createPostgres()` does.
 
 ## Functions
 

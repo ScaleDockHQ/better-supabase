@@ -97,4 +97,10 @@ export const AUDIT_UPGRADES: readonly BlockSqlUpgrade[] = [
       "audit(statement => true) works with the restricted table: audit_statement_change() writes the restricted rows of a statement in one insert, next to the entries.",
     sql: () => "",
   },
+  {
+    from: 11,
+    description:
+      "append_only(), function_writes() and chain() guard any app table, with verify_chain(), chain_checkpoints and record_chain_checkpoint() for the chain; the @bsb tags append-only, function-writes and chain call them.",
+    sql: () => "",
+  },
 ];

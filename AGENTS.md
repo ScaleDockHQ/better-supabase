@@ -344,6 +344,10 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0231: Run account helpers over a transport and ship the CentraKit report fixes.
 - 0232: Keep the browser client free of block code and let apps opt blocks in.
 - 0233: Close the CentraKit gaps in 0.54.
+- 0234: Run multi-step commands in `server.transaction`, with savepoints for nesting.
+- 0235: Tag app tables `append-only`, `function-writes` and `chain`.
+- 0236: Verify chain proofs offline and seal evidence bundles.
+- 0237: A filings preset on the evidence primitives.
 
 ## Pre-release pins
 

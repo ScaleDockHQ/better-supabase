@@ -67,6 +67,7 @@ export type PresetName =
   | "scheduling"
   | "people"
   | "psa"
+  | "filings"
   | "ats"
   | "intranet"
   | "drive"
@@ -535,6 +536,30 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "signatures",
     ],
   },
+  filings: {
+    name: "filings",
+    title: "Regulated filings",
+    description:
+      "SaaS plus parties with relations, imports, numbered documents from templates, versions and signatures, staff approvals, shipments with tracking, payments on the ledger, cases, reminders and the governance trail with a hash chain.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "contacts",
+      "relations",
+      "imports",
+      "document-templates",
+      "numbering",
+      "versions",
+      "signatures",
+      "approvals",
+      "attachments",
+      "shipments",
+      "ledger",
+      "cases",
+      "reminders",
+      "governance",
+    ],
+  },
   spend: {
     name: "spend",
     title: "Expenses and spend",
@@ -902,6 +927,7 @@ export const PRESET_NAMES: readonly PresetName[] = [
   "scheduling",
   "people",
   "psa",
+  "filings",
   "ats",
   "intranet",
   "drive",
