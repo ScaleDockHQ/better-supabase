@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@10 managed
+-- @bsb-block audit@11 managed
 -- @bsb-hash sha256:2124df69da9805044b1d5d01daccd20e9e97fb6c74b7ebb3753c5771521bd58a
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1563,7 +1563,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:7bca0fe59644d4331bcb473133b4c63699621bb92c30a1b062bd62ef7a2207af
+-- @bsb-hash sha256:50ac43899687404a05f87a2ef94095e0ac949c74c25677bd3dc1c9a43fe05b55
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1579,13 +1579,13 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 10, 'managed')
+values ('audit', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@10 managed
+-- @bsb-block audit@11 managed
 -- @bsb-hash sha256:975971261409a5e942a68d89cf93025cfe1485a77ec148c2f2b639a97ba36fcd
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3332,7 +3332,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:7bca0fe59644d4331bcb473133b4c63699621bb92c30a1b062bd62ef7a2207af
+-- @bsb-hash sha256:50ac43899687404a05f87a2ef94095e0ac949c74c25677bd3dc1c9a43fe05b55
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3348,13 +3348,13 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 10, 'managed')
+values ('audit', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@10 managed
+-- @bsb-block audit@11 managed
 -- @bsb-hash sha256:10e44e38347b0da9a4a31482be41f8b06a1865955624d3a037b38e21efe2c614
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4917,7 +4917,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:f7d20931cf3e348ab6c7cf1b7f885b506857845770f902f16f9e620ebe1bb9dc
+-- @bsb-hash sha256:77c9a69b41afba5de9bc5fa064cc35975aa3f182cb4f3d54202a71d9d8f7ec8f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4933,13 +4933,13 @@ delete from "app_private"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 10, 'managed')
+values ('audit', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@10 managed
+-- @bsb-block audit@11 managed
 -- @bsb-hash sha256:fca338ebf7d2a3d931d31cf8bbe8a454cdf6eefbc179fac4d9cdafa9dc919ba9
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -6603,7 +6603,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:7bca0fe59644d4331bcb473133b4c63699621bb92c30a1b062bd62ef7a2207af
+-- @bsb-hash sha256:50ac43899687404a05f87a2ef94095e0ac949c74c25677bd3dc1c9a43fe05b55
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -6619,13 +6619,13 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 10, 'managed')
+values ('audit', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@10 managed
+-- @bsb-block audit@11 managed
 -- @bsb-hash sha256:49e152258cc0f0a5402736befbf48d63861eb661524fc8439070be2d3eb5e026
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -8026,7 +8026,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:7bca0fe59644d4331bcb473133b4c63699621bb92c30a1b062bd62ef7a2207af
+-- @bsb-hash sha256:50ac43899687404a05f87a2ef94095e0ac949c74c25677bd3dc1c9a43fe05b55
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -8042,13 +8042,13 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 10, 'managed')
+values ('audit', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@10 managed
+-- @bsb-block audit@11 managed
 -- @bsb-hash sha256:75094a7c4ab02bb2e976a1d804d7fc4b19025fa2744ae590b74066a288e71d38
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -9611,7 +9611,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:7bca0fe59644d4331bcb473133b4c63699621bb92c30a1b062bd62ef7a2207af
+-- @bsb-hash sha256:50ac43899687404a05f87a2ef94095e0ac949c74c25677bd3dc1c9a43fe05b55
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -9627,6 +9627,6 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 10, 'managed')
+values ('audit', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

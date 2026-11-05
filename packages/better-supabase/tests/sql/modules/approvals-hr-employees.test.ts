@@ -127,10 +127,47 @@ begin
   if better_supabase.approval_eligible(v_approval) then
     raise exception 'the employee approves their own leave';
   end if;
+  if v_approval = any (select better_supabase.approval_eligible_ids('${TENANT}')) then
+    raise exception 'the set lists the employee own leave';
+  end if;
   ${as(BOB)}
+  if v_approval <> all (select better_supabase.approval_eligible_ids('${TENANT}')) then
+    raise exception 'the set misses the manager step';
+  end if;
   perform better_supabase.decide_approval(v_approval, 'approved');
   if (select approved_at from better_supabase.leave_requests where id = (v_request ->> 'id')::uuid) is null then
     raise exception 'the manager could not approve';
+  end if;
+end;
+$$;`),
+      ).resolves.toBeUndefined();
+    });
+
+    it("keeps approval_eligible_ids in step with approval_eligible for role approvers", async () => {
+      await expect(
+        run(`do $$
+declare
+  v_type uuid;
+  v_approval uuid;
+  u uuid;
+begin
+  ${as(ALICE)}
+  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_approval := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'approvalId')::uuid;
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  update better_supabase.memberships set role = 'admin' where user_id = '${BOB}';
+  update better_supabase.approval_requests
+    set policy = jsonb_build_object('steps', jsonb_build_array(jsonb_build_object('approvers', jsonb_build_object('role', 'admin'), 'required', 1)), 'selfApproval', false)
+    where id = v_approval;
+  foreach u in array array['${ALICE}', '${BOB}']::uuid[] loop
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', u, 'role', 'authenticated')::text, true);
+    if better_supabase.approval_eligible(v_approval) is distinct from (v_approval = any (select better_supabase.approval_eligible_ids())) then
+      raise exception 'the role step differs for %', u;
+    end if;
+  end loop;
+  ${as(BOB)}
+  if not better_supabase.approval_eligible(v_approval) then
+    raise exception 'an admin member decides the role step';
   end if;
 end;
 $$;`),
