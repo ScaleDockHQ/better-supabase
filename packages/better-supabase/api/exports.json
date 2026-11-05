@@ -10314,6 +10314,9 @@
       "wrapTransport"
     ],
     "types": [
+      "AppDocumentContracts",
+      "AppDocumentType",
+      "AppDocumentVariable",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
@@ -10334,10 +10337,12 @@
       "DocumentTemplatesEvents",
       "DocumentTemplatesOptions",
       "DocumentTemplateSource",
+      "DocumentTemplatesSqlOptions",
       "DocumentTextBlock",
       "DocumentTextBlockEventData",
       "DocumentTotals",
       "DocumentType",
+      "DocumentTypeName",
       "DocumentVariable",
       "DocumentVariables",
       "DocumentVariableType",

@@ -3,6 +3,8 @@ import type {
   DocumentFilter,
   DocumentTemplateIssueCode,
   DocumentType,
+  DocumentTypeName,
+  DocumentVariable,
   DocumentVariableType,
 } from "../../sql/modules/document-templates-values.ts";
 import type { DocumentVariables } from "./variables.ts";
@@ -202,13 +204,25 @@ function parse(body: string): Parsed {
 
 type Scope = ReadonlyMap<string, string>;
 
+/** The contracts of the app's own document types, by name. */
+export type AppDocumentContracts = Readonly<
+  Record<string, readonly Pick<DocumentVariable, "path" | "type">[]>
+>;
+
+function isBuiltIn(type: string): type is DocumentType {
+  return DOCUMENT_TYPES.some((name) => name === type);
+}
+
 function typesOf(
-  types: readonly DocumentType[],
+  types: readonly DocumentTypeName[],
+  app: AppDocumentContracts = {},
 ): ReadonlyMap<string, DocumentVariableType> {
   const found = new Map<string, DocumentVariableType>();
 
   for (const type of types) {
-    for (const variable of DOCUMENT_VARIABLES[type]) {
+    const variables = isBuiltIn(type) ? DOCUMENT_VARIABLES[type] : app[type];
+
+    for (const variable of variables ?? []) {
       found.set(variable.path, variable.type);
     }
   }
@@ -320,13 +334,14 @@ function check(
  * problems.
  */
 export function validateDocumentTemplate(
-  type: DocumentType,
+  type: DocumentTypeName,
   body: string,
+  app: AppDocumentContracts = {},
 ): readonly DocumentTemplateIssue[] {
   const parsed = parse(body);
   const issues = [...parsed.issues];
 
-  check(parsed.nodes, new Map(), typesOf([type]), true, issues);
+  check(parsed.nodes, new Map(), typesOf([type], app), true, issues);
 
   return issues;
 }
@@ -338,11 +353,18 @@ export function validateDocumentTemplate(
  */
 export function validateDocumentTextBlock(
   body: string,
+  app: AppDocumentContracts = {},
 ): readonly DocumentTemplateIssue[] {
   const parsed = parse(body);
   const issues = [...parsed.issues];
 
-  check(parsed.nodes, new Map(), typesOf(DOCUMENT_TYPES), false, issues);
+  check(
+    parsed.nodes,
+    new Map(),
+    typesOf([...DOCUMENT_TYPES, ...Object.keys(app)], app),
+    false,
+    issues,
+  );
 
   return issues;
 }
@@ -618,7 +640,7 @@ function block(key: string, state: RenderState): string {
 
 /** What {@link renderDocumentHtml} takes. */
 export interface RenderDocumentInput {
-  readonly documentType: DocumentType;
+  readonly documentType: DocumentTypeName;
   /** The template body, HTML you wrote with placeholders. */
   readonly template: string;
   /** The `variables` of `render_document`. */

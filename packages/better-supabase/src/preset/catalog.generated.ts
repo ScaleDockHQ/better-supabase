@@ -26805,6 +26805,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "DocumentTemplateSource"
         },
         {
+          "name": "DocumentTemplatesSqlOptions"
+        },
+        {
           "name": "DocumentTextBlock"
         },
         {

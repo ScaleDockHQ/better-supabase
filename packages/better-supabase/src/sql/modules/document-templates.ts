@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble, triggerGrant } from "../shared.ts";
+import { documentTypeNames } from "./document-templates-app-types.ts";
 import { documentTemplateFunctions } from "./document-templates-functions.ts";
 import {
   documentTemplateImportFunctions,
@@ -19,7 +20,6 @@ import {
   DOCUMENT_BODY_MAX,
   DOCUMENT_LANGUAGE_PATTERN,
   DOCUMENT_TEXT_KEY_PATTERN,
-  DOCUMENT_TYPES,
 } from "./document-templates-values.ts";
 import { documentVariableFunctions } from "./document-templates-variables.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -99,6 +99,7 @@ const NAMES: BlockSqlNames = {
     document_snapshot: { table: "snapshots", singular: "document_snapshot" },
   },
   events: EVENTS,
+  options: ["documentTypes"],
   hooks: [
     "before_document_template_save",
     "after_document_template_save",
@@ -179,7 +180,11 @@ function tables(ctx: BlockSqlContext): string {
   const permissions = moduleOperations("document-templates");
   const read = ctx.permission("read", permissions.read);
   const manage = ctx.permission("manage", permissions.manage);
-  const types = DOCUMENT_TYPES.map((type) => `'${type}'`).join(", ");
+
+  const types = documentTypeNames(ctx)
+    .map((type) => `'${type}'`)
+    .join(", ");
+
   const zero = "'00000000-0000-0000-0000-000000000000'::uuid";
 
   const name = (logical: string, suffix: string): string =>

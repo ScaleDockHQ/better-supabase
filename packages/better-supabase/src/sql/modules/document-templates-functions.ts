@@ -9,6 +9,10 @@ import {
   userGrant,
 } from "../shared.ts";
 import {
+  appDocumentTypes,
+  documentTypeNames,
+} from "./document-templates-app-types.ts";
+import {
   DOCUMENT_BODY_MAX,
   DOCUMENT_CONTRACT_VERSION,
   DOCUMENT_FILTERS,
@@ -26,20 +30,26 @@ const NAME_PATTERN = "^[a-z][a-z0-9_-]{0,63}$";
  * The contract as the JSON `document_template_contract` returns: paths and
  * types.
  */
-function contractLiteral(): string {
-  const all = Object.fromEntries(
-    DOCUMENT_TYPES.map((type) => [
-      type,
-      {
-        version: DOCUMENT_CONTRACT_VERSION,
-        documentType: type,
-        variables: DOCUMENT_VARIABLES[type].map(({ path, type: kind }) => ({
-          path,
-          type: kind,
-        })),
-      },
-    ]),
-  );
+function contractLiteral(ctx: BlockSqlContext): string {
+  const entry = (
+    type: string,
+    variables: readonly { path: string; type: string }[],
+  ): [string, unknown] => [
+    type,
+    {
+      version: DOCUMENT_CONTRACT_VERSION,
+      documentType: type,
+      variables: variables.map(({ path, type: kind }) => ({
+        path,
+        type: kind,
+      })),
+    },
+  ];
+
+  const all = Object.fromEntries([
+    ...DOCUMENT_TYPES.map((type) => entry(type, DOCUMENT_VARIABLES[type])),
+    ...appDocumentTypes(ctx).map((type) => entry(type.name, type.variables)),
+  ]);
 
   return sqlString(JSON.stringify(all));
 }
@@ -88,7 +98,7 @@ export function documentTemplateFunctions(ctx: BlockSqlContext): string {
 
   const typeInvalid = fail(
     "DOCUMENT_TYPE_INVALID",
-    `the document type is ${DOCUMENT_TYPES.join(", ")}`,
+    `the document type is ${documentTypeNames(ctx).join(", ")}`,
     "22023",
   );
 
@@ -98,7 +108,9 @@ export function documentTemplateFunctions(ctx: BlockSqlContext): string {
     "P0002",
   );
 
-  const types = DOCUMENT_TYPES.map((type) => sqlString(type)).join(", ");
+  const types = documentTypeNames(ctx)
+    .map((type) => sqlString(type))
+    .join(", ");
 
   const lock = (key: string): string =>
     `perform pg_advisory_xact_lock(hashtextextended(${key}, 0));`;
@@ -170,7 +182,7 @@ immutable
 set search_path = ''
 as $$
 declare
-  v_all constant jsonb := ${contractLiteral()}::jsonb;
+  v_all constant jsonb := ${contractLiteral(ctx)}::jsonb;
 begin
   if document_template_contract.document_type is null then
     return v_all;

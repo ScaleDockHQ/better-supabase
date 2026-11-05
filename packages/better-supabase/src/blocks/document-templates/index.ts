@@ -21,6 +21,7 @@ export {
   renderDocumentHtml,
   validateDocumentTemplate,
   validateDocumentTextBlock,
+  type AppDocumentContracts,
   type DocumentTemplateIssue,
   type RenderDocumentInput as RenderDocumentHtmlInput,
 } from "./template.ts";
@@ -38,6 +39,12 @@ export type {
   DocumentVariables,
 } from "./variables.ts";
 
+export type {
+  AppDocumentType,
+  AppDocumentVariable,
+  DocumentTemplatesSqlOptions,
+} from "./options.ts";
+
 export {
   DOCUMENT_CONTRACT_VERSION,
   DOCUMENT_FILTERS,
@@ -46,6 +53,7 @@ export {
   DOCUMENT_VARIABLES,
   documentContract,
   type DocumentType,
+  type DocumentTypeName,
   type DocumentVariable,
   type DocumentVariableType,
 } from "../../sql/modules/document-templates-values.ts";

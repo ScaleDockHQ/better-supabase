@@ -175,7 +175,7 @@ describe("createDocumentTemplates with every option set", () => {
 
   it("rejects an unknown document type from the database", async () => {
     const { templates } = make({
-      get_document_template: () => row({ documentType: "memo" }),
+      get_document_template: () => row({ documentType: "Memo!" }),
     });
 
     await expect(

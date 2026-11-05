@@ -16,6 +16,9 @@ export const DOCUMENT_TYPES = [
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
+/** A built-in type, or one the app defines in `options.documentTypes`. */
+export type DocumentTypeName = DocumentType | (string & Record<never, never>);
+
 /**
  * The version of the variable contract. Adding an optional variable keeps it;
  * removing or retyping one needs the next version (architecture rule 10).

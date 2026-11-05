@@ -4,6 +4,7 @@ import type { DocumentTemplatesEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDocumentTemplates } from "./document-templates.ts";
 import { documentTemplatesEvents } from "./events.ts";
+import { documentTemplatesSqlOptions } from "./options.ts";
 
 /** The `document-templates` block's manifest (ADR 0029, ADR 0145). */
 export const documentTemplatesBlock: BlockOf<
@@ -13,6 +14,7 @@ export const documentTemplatesBlock: BlockOf<
 > = defineBlock({
   name: "document-templates",
   sql: ["document-templates"],
+  options: { "document-templates": documentTemplatesSqlOptions },
   events: documentTemplatesEvents,
   create: createDocumentTemplates,
   category: "tenancy",
