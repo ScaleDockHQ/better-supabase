@@ -1,0 +1,70 @@
+---
+title: From 0.53 to 0.54
+description: What to check when upgrading from better-supabase 0.53 to 0.54. Doctor BS315 is an error, tests.authenticate_as looks users up through security definer helpers, withContext takes an async factory, and the tasks module gains set forms. Notes on db.$decode and single-row misses (PGRST116).
+---
+
+0.54.0 collects the CentraKit gaps. Two changes can fail an existing project:
+doctor reports BS315 as an error, and `tests.authenticate_as(email)` now
+needs a regenerated pgTAP helper file. Run `better-supabase upgrade`, then
+`better-supabase db diff` for the new tasks functions.
+
+| Section                                                  | Needs code                                           |
+| -------------------------------------------------------- | ---------------------------------------------------- |
+| [BS315 is an error](#bs315-is-an-error)                  | Audit the listed tables or exempt them with a reason |
+| [pgTAP helpers](#pgtap-helpers)                          | Run `gen` again and commit the new test helper       |
+| [Tasks set forms](#tasks-set-forms)                      | Run `upgrade`, then `db diff`                        |
+| [Reading rows with `$decode`](#reading-rows-with-decode) | None; read the notes                                 |
+| [Single-row misses](#single-row-misses)                  | None; read the notes                                 |
+
+## BS315 is an error
+
+Doctor now fails on a table in `schemas` that has no audit trigger when the
+`audit` module is installed, and on an `exempt` entry that is a bare glob
+without a reason. In 0.53 both were warnings. To clear it:
+
+1. Run `better-supabase doctor` and note each `BS315` target.
+2. For a table whose changes belong in the audit log, add
+   `select better_supabase.audit('public.customers');` to its schema file, then
+   run `better-supabase db diff`.
+3. For a table that needs no audit entry, list it in
+   `blocks.audit.options.exempt` as `{ table: "public.*_archive", reason: "read-only copies" }`.
+4. Turn each bare glob string in `exempt` into a `{ table, reason }` entry.
+5. Run `doctor` again and confirm that no `BS315` is left.
+
+## pgTAP helpers
+
+`tests.authenticate_as(email)` and the uuid form read `auth.users` through two
+`security definer` helpers (`tests._user_id_by_email` and `tests._email_of`).
+A test that is already signed in can now switch to another user without calling
+`tests.clear_authentication()` first. `authenticate_as` itself stays
+`security invoker`, because Postgres refuses `set role` inside a
+`security definer` function. Run `better-supabase gen` and commit the changed
+file under `supabase/tests`.
+
+## Tasks set forms
+
+The tasks module is at version 5. `archive_tasks(ids uuid[], archived boolean)`
+and `delete_tasks(ids uuid[])` check access once per statement and return
+`{ ids, skipped }`. See [archive or remove many items](/docs/blocks/tasks#archive-or-remove-many-items).
+The single forms are unchanged.
+
+## Reading rows with `$decode`
+
+`db.$decode(table).row(value)` and `.rows(value)` read a row that did not come
+from the repository. For each column it reads the configured name first and the
+database name second, so a jsonb payload that a SQL function built with
+camelCase keys (`organizationId`) decodes the same as a row with database names
+(`organization_id`). When both keys are present, the configured name wins.
+Codecs run on both (`int8` text becomes `bigint`, timestamps become `Temporal`),
+a column the value lacks is left out instead of filled in, and a value that is
+not an object returns a `validation` error in the `Result`.
+
+## Single-row misses
+
+PostgREST answers `.single()` with `PGRST116` (HTTP 406) when the query returns
+no row or more than one, and `.maybeSingle()` turns the no-row case into `null`.
+When better-supabase reads through `$client` it passes the error through
+`toDbError`, which maps `PGRST116` to a `not_found` `DbError`. Code that calls
+`$client` yourself and checks `error.code === "PGRST116"` keeps working as
+before. `createFakeClient` answers `.single()` and `.maybeSingle()` the same way,
+so a test that expects `PGRST116` from a miss behaves like a real server.

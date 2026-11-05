@@ -218,7 +218,7 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           "blocks.webhooks-out.options.secretStorage",
         ],
         // CentraKit's tables without the audit trigger.
-        "warning BS315": [
+        "error BS315": [
           "centrakit.contact_profiles",
           "centrakit.customer_contacts",
           "centrakit.customers",

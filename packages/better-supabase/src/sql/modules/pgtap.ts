@@ -43,6 +43,16 @@ begin
 end;
 $$;
 
+create or replace function tests._email_of(user_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select u.email from auth.users u where u.id = user_id;
+$$;
+
 -- Runs the rest of the transaction as this user, like PostgREST does. Extra claims (tenant_id, ...) go in the JWT.
 create or replace function tests.authenticate_as(user_id uuid, claims jsonb default '{}')
 returns void
@@ -52,7 +62,7 @@ as $$
 declare
   user_email text;
 begin
-  select u.email into user_email from auth.users u where u.id = user_id;
+  user_email := tests._email_of(user_id);
   perform set_config(
     'request.jwt.claims',
     (jsonb_build_object('sub', user_id, 'role', 'authenticated', 'email', user_email, 'aud', 'authenticated') || claims)::text,
@@ -60,6 +70,18 @@ begin
   );
   set local role authenticated;
 end;
+$$;
+
+-- The lookup runs as security definer, so a test that is already
+-- authenticated can switch to another user by email.
+create or replace function tests._user_id_by_email(user_email text)
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select u.id from auth.users u where u.email = user_email;
 $$;
 
 -- The same by email address: tests.authenticate_as('member@acme.test'). An
@@ -77,7 +99,7 @@ begin
     perform tests.authenticate_as(user_email::uuid);
     return;
   end if;
-  select u.id into found_id from auth.users u where u.email = user_email;
+  found_id := tests._user_id_by_email(user_email);
   if found_id is null then
     raise exception 'tests.authenticate_as: no user with email %', user_email;
   end if;

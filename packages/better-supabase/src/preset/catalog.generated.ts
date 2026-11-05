@@ -33655,6 +33655,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "WorkItemRecurrenceSinkOptions"
         },
         {
+          "name": "WorkItemSetResult"
+        },
+        {
           "name": "WorkItemState"
         },
         {

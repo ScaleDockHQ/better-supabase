@@ -1096,7 +1096,7 @@ Vault), then remove the option.
 
 ### BS315
 
-**Warning: table without an audit trigger.** The `audit` module is in
+**Error: table without an audit trigger.** The `audit` module is in
 `blocks`, and a table in `schemas` has no `bsb_audit` trigger, nor another
 trigger that calls `better_supabase.audit_row_change()`, so its inserts,
 updates and deletes are not in the audit log. Register it with
@@ -1105,7 +1105,7 @@ skips the block schemas and the app's tables that blocks run over; list other ta
 `blocks.audit.options.exempt` as `{ table, reason }` entries, where `table` is
 a `schema.table` glob (`*` matches any run of characters) and `reason` says why
 its changes need no audit entry. A bare glob string still works, but doctor
-reports it and asks for the reason. Doctor only checks tables in `schemas`, and
+reports it as an error and asks for the reason. Doctor only checks tables in `schemas`, and
 a partition counts through its parent.
 
 ```ts title="better-supabase.config.ts"

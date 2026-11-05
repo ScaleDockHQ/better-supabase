@@ -3463,7 +3463,7 @@ describe("tables without an audit trigger (BS315)", () => {
       ),
     );
     expect(findings[0]).toMatchObject({
-      severity: "warning",
+      severity: "error",
       object: { kind: "table", schema: "public" },
     });
     expect(findings[0]!.message).toContain(
@@ -3525,7 +3525,7 @@ describe("tables without an audit trigger (BS315)", () => {
 
     expect(findings).toEqual([
       expect.objectContaining({
-        severity: "warning",
+        severity: "error",
         target: "blocks.audit.options.exempt:public.*",
       }),
     ]);

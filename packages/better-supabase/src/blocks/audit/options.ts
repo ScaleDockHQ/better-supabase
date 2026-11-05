@@ -44,7 +44,7 @@ export type AuditSqlOptions = {
   /**
    * Tables left out of audit coverage: `{ table, reason }` where `table` is a
    * glob such as `public.*_archive`. A bare glob string still works, but doctor
-   * reports it (BS315) and it becomes a failure in the next minor.
+   * reports it as a BS315 error.
    */
   readonly exempt?: readonly (string | AuditExemption)[];
   readonly impersonators?: string;
