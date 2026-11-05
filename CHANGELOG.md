@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.54.0 (2026-11-05)
+
+- Breaking: doctor reports BS315 as an error, and `tests.authenticate_as` reads users through
+  `security definer` helpers. The 0.53 to 0.54 migration guide lists the steps.
+
+  | Old                                         | New                                                                |
+  | ------------------------------------------- | ------------------------------------------------------------------ |
+  | BS315 warning                               | BS315 error: audit the table or exempt it with a reason            |
+  | `exempt: ["public.*"]`                      | `exempt: [{ table: "public.*", reason: "..." }]`                   |
+  | Generated `tests.authenticate_as` (invoker) | Run `gen`; it adds `tests._user_id_by_email` and `tests._email_of` |
+- Columns with a default are optional on input. `better-supabase/auth` exports `authErrorKind`.
+  `blocks.profiles.options.avatarSource` reads avatars as a path or a URL.
+- `audit(..., statement => true)` works with the restricted details table: 48 rows take 8.5 ms
+  (20.3 ms in row mode) and 5,000 rows 504 ms (937 ms), measured on PGlite. Audit module version 11.
+- `approval_eligible_ids` is set based: 54 pending requests take 2.5 ms (11.5 ms before) and 5,000
+  take 12 ms (920 ms), measured on PGlite with 10 tenants.
+- Doctor BS243 ignores a function body's own dollar quote.
+- `withContext` takes an async factory, and bootstrap entries take `tables` so `bsb:<table>@<tenant>`
+  tags reach payload RPCs. Tags do not invalidate private caches.
+- `tasks.archive({ workItemIds })` and `tasks.remove(workItemIds)` check access once, write once and
+  return the skipped ids. Tasks module version 5.
+- `serviceBlocks(admin, { blocks })` takes typed options per block for one call.
+
 ## 0.53.0 (2026-11-04)
 
 - Doctor reports eight shims the library now covers (BS612 to BS619): proxy cookie re-sync with
