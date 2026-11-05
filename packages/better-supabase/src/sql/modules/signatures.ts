@@ -143,10 +143,14 @@ function meaningsOf(ctx: BlockSqlContext): readonly string[] {
 const PREVIOUS_REQUEST_ARGS = "text, text, uuid[], uuid, text, uuid, text";
 
 /** The hash `versions` stores for a version's content. */
-const versionHash = (content: string, storagePath: string): string =>
-  sha256HexSql(
+const versionHash = (
+  content: string,
+  storagePath: string,
+  fileHash: string,
+): string =>
+  `case when ${fileHash} is null then ${sha256HexSql(
     `coalesce(${content}::text, '') || coalesce(${storagePath}, '')`,
-  );
+  )} else ${sha256HexSql(`coalesce(${content}::text, '') || ${fileHash}`)} end`;
 
 /**
  * The hash a signature stores: the request, the signed version's content hash,
@@ -461,7 +465,7 @@ begin
     return null;
   end if;
   v_req_hash := v_req.${r("contentHash")};
-  select ${versionHash(`x.${v("content")}`, `x.${v("storagePath")}`)} into v_current
+  select ${versionHash(`x.${v("content")}`, `x.${v("storagePath")}`, `x.${v("fileHash")}`)} into v_current
     from ${vt} x where x.${v("id")} = v_req.${r("version")};
   select x.${v("id")}, x.${v("contentHash")} into v_latest, v_latest_hash
     from ${vt} x
@@ -530,7 +534,7 @@ begin
     ${fail("SIGNATURE_OUT_OF_ORDER", "an earlier signer hasn't signed yet", "55000")}
   end if;
   ${imageCheck}
-  select ${versionHash(`x.${v("content")}`, `x.${v("storagePath")}`)} into v_current
+  select ${versionHash(`x.${v("content")}`, `x.${v("storagePath")}`, `x.${v("fileHash")}`)} into v_current
     from ${vt} x where x.${v("id")} = v_req.${r("version")};
   if v_current is distinct from v_req.${r("contentHash")} then
     ${fail("SIGNATURE_CONTENT_CHANGED", "the version to sign changed after the request was made", "55000")}

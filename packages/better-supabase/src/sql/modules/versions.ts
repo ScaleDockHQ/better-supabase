@@ -79,6 +79,8 @@ const NAMES: BlockSqlNames = {
         content: "content",
         storagePath: "storage_path",
         contentHash: "content_hash",
+        fileHash: "file_hash",
+        hashVersion: "hash_version",
         source: "source",
         frozen: "frozen",
         createdBy: "created_by",
@@ -354,6 +356,8 @@ export function versionsTableDdl(ctx: BlockSqlContext): string {
   ${c("content")} jsonb,
   ${c("storagePath")} text,
   ${c("contentHash")} text not null,
+  ${c("fileHash")} text check (${c("fileHash")} ~ '^[0-9a-f]{64}$'),
+  ${c("hashVersion")} smallint not null default 1 check (${c("hashVersion")} in (1, 2)),
   ${c("source")} text not null default 'manual' check (${c("source")} in ('manual', 'auto', 'restore')),
   ${c("frozen")} boolean not null default false,
   ${c("createdBy")} uuid,
@@ -361,6 +365,10 @@ export function versionsTableDdl(ctx: BlockSqlContext): string {
   unique (${c("subjectType")}, ${c("subjectId")}, ${c("number")}),
   check (${c("content")} is not null or ${c("storagePath")} is not null)
 );
+-- A hash_version 1 version hashes its content and storage path; version 2
+-- hashes its content and the SHA-256 of the file's bytes (file_hash).
+alter table ${versions} add column if not exists ${c("fileHash")} text check (${c("fileHash")} ~ '^[0-9a-f]{64}$');
+alter table ${versions} add column if not exists ${c("hashVersion")} smallint not null default 1 check (${c("hashVersion")} in (1, 2));
 create index if not exists ${sqlIdent(`${ctx.tableName("versions").name}_tenant_idx`)} on ${versions} (${c("tenant")});`;
 }
 
@@ -421,7 +429,7 @@ function build(ctx: BlockSqlContext): string {
 
   const summary = (row: string, withFields = true): string =>
     withExtraFields(
-      `jsonb_build_object('id', ${row}.${c("id")}, 'number', ${row}.${c("number")}, 'label', ${row}.${c("label")}, 'source', ${row}.${c("source")}, 'frozen', ${row}.${c("frozen")}, 'contentHash', ${row}.${c("contentHash")}, 'storagePath', ${row}.${c("storagePath")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'createdBy', ${row}.${c("createdBy")}, 'createdAt', ${row}.${c("createdAt")})`,
+      `jsonb_build_object('id', ${row}.${c("id")}, 'number', ${row}.${c("number")}, 'label', ${row}.${c("label")}, 'source', ${row}.${c("source")}, 'frozen', ${row}.${c("frozen")}, 'contentHash', ${row}.${c("contentHash")}, 'storagePath', ${row}.${c("storagePath")}, 'fileSha256', ${row}.${c("fileHash")}, 'hashVersion', ${row}.${c("hashVersion")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'createdBy', ${row}.${c("createdBy")}, 'createdAt', ${row}.${c("createdAt")})`,
       row,
       withFields ? extras : [],
     );
@@ -457,14 +465,18 @@ ${tables}
 -- content matches the latest is not written again; an auto snapshot within
 -- the debounce window of the previous auto snapshot replaces its content.
 -- Keeps the newest ${String(keep)} versions without a label or freeze.
-create or replace function ${fn("version_insert")}(tenant ${ctx.idType}, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid)
+drop function if exists ${fn("version_insert")}(${ctx.idType}, text, text, jsonb, text, text, text, boolean, uuid);
+create or replace function ${fn("version_insert")}(tenant ${ctx.idType}, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_hash text := ${sha256HexSql("coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, '')")};
+  v_hash text := case when version_insert.file_sha256 is null
+    then ${sha256HexSql("coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, '')")}
+    else ${sha256HexSql("coalesce(version_insert.content::text, '') || version_insert.file_sha256")} end;
+  v_hash_version smallint := case when version_insert.file_sha256 is null then 1 else 2 end;
   v_last_id uuid;
   v_last_number integer;
   v_last_hash text;
@@ -487,13 +499,13 @@ begin
   if version_insert.source = 'auto' and version_insert.label is null and not version_insert.frozen
     and v_last_open and v_last_source = 'auto' and v_last_at > now() - make_interval(secs => ${String(debounce)}) then
     update ${versions}
-      set ${c("content")} = version_insert.content, ${c("storagePath")} = version_insert.storage_path, ${c("contentHash")} = v_hash
+      set ${c("content")} = version_insert.content, ${c("storagePath")} = version_insert.storage_path, ${c("contentHash")} = v_hash, ${c("fileHash")} = version_insert.file_sha256, ${c("hashVersion")} = v_hash_version
       where ${c("id")} = v_last_id;
     return jsonb_build_object('id', v_last_id, 'number', v_last_number, 'contentHash', v_hash, 'unchanged', false);
   end if;
   v_number := coalesce(v_last_number, 0) + 1;
-  insert into ${versions} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("number")}, ${c("label")}, ${c("content")}, ${c("storagePath")}, ${c("contentHash")}, ${c("source")}, ${c("frozen")}, ${c("createdBy")}, ${c("createdAt")})
-  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.source, version_insert.frozen, version_insert.actor, now())
+  insert into ${versions} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("number")}, ${c("label")}, ${c("content")}, ${c("storagePath")}, ${c("contentHash")}, ${c("fileHash")}, ${c("hashVersion")}, ${c("source")}, ${c("frozen")}, ${c("createdBy")}, ${c("createdAt")})
+  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.file_sha256, v_hash_version, version_insert.source, version_insert.frozen, version_insert.actor, now())
   returning ${c("id")} into v_id;
   delete from ${versions} v
   where v.${c("subjectType")} = version_insert.subject_type and v.${c("subjectId")} = version_insert.subject_id
@@ -515,12 +527,14 @@ begin
   return jsonb_build_object('id', v_id, 'number', v_number, 'contentHash', v_hash, 'unchanged', false);
 end;
 $$;
-${serviceGrant(`${fn("version_insert")}(${ctx.idType}, text, text, jsonb, text, text, text, boolean, uuid)`)}
+${serviceGrant(`${fn("version_insert")}(${ctx.idType}, text, text, jsonb, text, text, text, boolean, uuid, text)`)}
 
 -- fields: the extra columns (blocks.versions.options.extraColumns) to set
 -- on the version written, or on the latest one when the content is unchanged.
-${extra.drop(fn("snapshot_version"), `${ctx.idType}, text, text, jsonb, text, text`)}
-create or replace function ${fn("snapshot_version")}(tenant ${ctx.idType}, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null${extra.param})
+drop function if exists ${fn("snapshot_version")}(${ctx.idType}, text, text, jsonb, text, text);
+drop function if exists ${fn("snapshot_version")}(${ctx.idType}, text, text, jsonb, text, text, jsonb);
+${extra.drop(fn("snapshot_version"), `${ctx.idType}, text, text, jsonb, text, text, text`)}
+create or replace function ${fn("snapshot_version")}(tenant ${ctx.idType}, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -533,6 +547,9 @@ begin
   if not (${SERVICE_CALLER} or (${ctx.can("tenant", "snapshot_version.tenant", create)} and ${readable("snapshot_version.")}${own("snapshot_version.subject_type")})) then
     ${fail("VERSION_FORBIDDEN", "not allowed to snapshot this record")}
   end if;
+  if snapshot_version.file_sha256 is not null and not ${SERVICE_CALLER} then
+    ${fail("VERSION_HASH_FORBIDDEN", "only the service role records a file hash", "42501")}
+  end if;
   if v_content is null and snapshot_version.storage_path is null then
     ${capture}
     if v_content is null then
@@ -544,7 +561,7 @@ begin
     ["text", "snapshot_version.subject_type"],
     ["text", "snapshot_version.subject_id"],
   ])}
-  v_result := ${fn("version_insert")}(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid());${writeExtraColumns(versions, extras, "snapshot_version.fields", `x.${c("id")} = (v_result ->> 'id')::uuid`)}
+  v_result := ${fn("version_insert")}(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid(), snapshot_version.file_sha256);${writeExtraColumns(versions, extras, "snapshot_version.fields", `x.${c("id")} = (v_result ->> 'id')::uuid`)}
   ${ctx.hook("after_version_snapshot", [
     ["uuid", "(v_result ->> 'id')::uuid"],
     ["text", "snapshot_version.subject_type"],
@@ -553,7 +570,7 @@ begin
   return v_result;
 end;
 $$;
-${userGrant(`${fn("snapshot_version")}(${ctx.idType}, text, text, jsonb, text, text${extra.type})`)}
+${userGrant(`${fn("snapshot_version")}(${ctx.idType}, text, text, jsonb, text, text, text${extra.type})`)}
 
 create or replace function ${fn("list_versions")}(tenant ${ctx.idType}, subject_type text, subject_id text, page_size integer default 50, before integer default null)
 returns jsonb
@@ -850,12 +867,13 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "text",
         "boolean",
         "uuid",
+        "text",
       ],
       returns: "jsonb",
     },
     {
       name: "snapshot_version",
-      args: ["{id}", "text", "text", "jsonb", "text", "text", ...extra],
+      args: ["{id}", "text", "text", "jsonb", "text", "text", "text", ...extra],
       returns: "jsonb",
     },
     { name: "get_version", args: ["uuid"], returns: "jsonb" },
@@ -873,7 +891,15 @@ export const VERSIONS: BlockSqlDefinition = {
   integrates: ["outbox", "audit", "share-links", "ai-files"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Versions record the SHA-256 of a file's bytes: version_insert and snapshot_version take file_sha256, and a version that has one hashes its content and that hash under hash_version 2.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:0eab8df6befc2f3e472885627d953b3bb6b389e9c2a993931d516d87ccbe9305
+-- @bsb-hash sha256:4451a25428fe6452599265316085638a037f259004b0bfa40fb2e9c2614c8794
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -231,7 +231,7 @@ begin
     return null;
   end if;
   v_req_hash := v_req."content_hash";
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   select x."id", x."content_hash" into v_latest, v_latest_hash
     from "better_supabase"."versions" x
@@ -305,7 +305,7 @@ begin
   if sign_signature.method = 'drawn' then
     raise exception 'a drawn signature needs the attachments module for its image' using errcode = '22023', hint = 'SIGNATURE_METHOD_INVALID';
   end if;
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   if v_current is distinct from v_req."content_hash" then
     raise exception 'the version to sign changed after the request was made' using errcode = '55000', hint = 'SIGNATURE_CONTENT_CHANGED';

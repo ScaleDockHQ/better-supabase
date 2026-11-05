@@ -750,7 +750,13 @@ describe("createAttachmentScanner", () => {
     expect(storage.calls).toEqual([["download", "org-1/attachments/a1"]]);
     expect(calls.at(-1)).toEqual([
       "set_attachment_status",
-      { id: "a1", status: "infected", detail: "eicar" },
+      {
+        id: "a1",
+        status: "infected",
+        detail: "eicar",
+        sha256:
+          "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      },
     ]);
   });
 
@@ -893,7 +899,13 @@ describe("createAttachmentScanner", () => {
       ["get_attachment", { id: "a2" }],
       [
         "set_attachment_status",
-        { id: "a2", status: "clean", detail: undefined },
+        {
+          id: "a2",
+          status: "clean",
+          detail: undefined,
+          sha256:
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        },
       ],
     ]);
     await expect(

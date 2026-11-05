@@ -1,6 +1,6 @@
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:77a1b40d61fa19edee7fa7240ce889d3f992d5d1899b49d50696235afb88c25b
+-- @bsb-hash sha256:87d901ddbc7531f5442d8ebf352a34ba57c4f16be9638a3a308dee3fcbcd7d62
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -305,7 +305,7 @@ begin
     return null;
   end if;
   v_req_hash := v_req."content_hash";
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   select x."id", x."content_hash" into v_latest, v_latest_hash
     from "better_supabase"."versions" x
@@ -383,7 +383,7 @@ begin
   ) then
     raise exception 'the signature image isn''t an attachment in this organization' using errcode = '22023', hint = 'SIGNATURE_IMAGE_NOT_FOUND';
   end if;
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   if v_current is distinct from v_req."content_hash" then
     raise exception 'the version to sign changed after the request was made' using errcode = '55000', hint = 'SIGNATURE_CONTENT_CHANGED';

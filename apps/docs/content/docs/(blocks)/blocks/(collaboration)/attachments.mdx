@@ -724,3 +724,7 @@ await attachments
   )
   .orThrow();
 ```
+
+## File hashes
+
+The scanner hashes each file it downloads with WebCrypto and records the SHA-256 through `set_attachment_status`, so `sha256` and `hashVerifiedAt` on an attachment come from the bytes that were scanned. Only the service role can set them, and `replace_attachment` clears them for the new file. The history table keeps the hash of every version.

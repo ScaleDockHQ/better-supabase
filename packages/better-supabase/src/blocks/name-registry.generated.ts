@@ -350,9 +350,9 @@ export interface BlockNameRegistry {
   };
   readonly "attachments": {
     readonly tables: {
-      readonly "attachments": "id" | "tenant" | "subjectType" | "subjectId" | "bucket" | "path" | "name" | "mimeType" | "size" | "status" | "detail" | "uploadedBy" | "createdAt" | "uploadedAt" | "scannedAt" | "metadata" | "version" | "width" | "height" | "pages" | "documentType" | "source" | "externalId" | "storage" | "sourcePath";
+      readonly "attachments": "id" | "tenant" | "subjectType" | "subjectId" | "bucket" | "path" | "name" | "mimeType" | "size" | "status" | "detail" | "uploadedBy" | "createdAt" | "uploadedAt" | "scannedAt" | "sha256" | "hashVerifiedAt" | "metadata" | "version" | "width" | "height" | "pages" | "documentType" | "source" | "externalId" | "storage" | "sourcePath";
       readonly "documentTypes": "id" | "tenant" | "key" | "name" | "fields" | "createdAt" | "updatedAt";
-      readonly "versions": "id" | "tenant" | "attachment" | "version" | "bucket" | "path" | "name" | "mimeType" | "size" | "width" | "height" | "pages" | "status" | "detail" | "uploadedBy" | "uploadedAt" | "scannedAt" | "archivedAt";
+      readonly "versions": "id" | "tenant" | "attachment" | "version" | "bucket" | "path" | "name" | "mimeType" | "size" | "width" | "height" | "pages" | "status" | "detail" | "uploadedBy" | "uploadedAt" | "scannedAt" | "sha256" | "hashVerifiedAt" | "archivedAt";
       readonly "scans": "bucket" | "path" | "status" | "detail" | "createdAt" | "scannedAt";
       readonly "cleanup": "bucket" | "path" | "queuedBy" | "queuedAt" | "attempts";
     };
@@ -360,7 +360,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "upload" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "attachment": "id" | "organization_id" | "subject_type" | "subject_id" | "bucket" | "object_path" | "name" | "mime_type" | "size" | "status" | "scan_detail" | "uploaded_by" | "created_at" | "uploaded_at" | "scanned_at" | "metadata" | "version" | "width" | "height" | "pages" | "document_type_id" | "source" | "external_id" | "storage_status" | "source_path";
+      readonly "attachment": "id" | "organization_id" | "subject_type" | "subject_id" | "bucket" | "object_path" | "name" | "mime_type" | "size" | "status" | "scan_detail" | "uploaded_by" | "created_at" | "uploaded_at" | "scanned_at" | "sha256" | "hash_verified_at" | "metadata" | "version" | "width" | "height" | "pages" | "document_type_id" | "source" | "external_id" | "storage_status" | "source_path";
     };
     readonly primary: "attachment";
     readonly formerKeys: never;
@@ -2670,13 +2670,13 @@ export interface BlockNameRegistry {
   };
   readonly "versions": {
     readonly tables: {
-      readonly "versions": "id" | "tenant" | "subjectType" | "subjectId" | "number" | "label" | "content" | "storagePath" | "contentHash" | "source" | "frozen" | "createdBy" | "createdAt";
+      readonly "versions": "id" | "tenant" | "subjectType" | "subjectId" | "number" | "label" | "content" | "storagePath" | "contentHash" | "fileHash" | "hashVersion" | "source" | "frozen" | "createdBy" | "createdAt";
     };
     readonly functions: "delete_version" | "get_version" | "label_version" | "list_versions" | "restore_version" | "snapshot_version" | "version_insert" | "versions_capture";
     readonly actions: "read" | "create" | "restore" | "manage";
     readonly hooks: "before_version_snapshot" | "after_version_snapshot" | "before_version_restore" | "after_version_restore";
     readonly entities: {
-      readonly "version": "id" | "tenant_id" | "subject_type" | "subject_id" | "number" | "label" | "content" | "storage_path" | "content_hash" | "source" | "frozen" | "created_by" | "created_at";
+      readonly "version": "id" | "tenant_id" | "subject_type" | "subject_id" | "number" | "label" | "content" | "storage_path" | "content_hash" | "file_hash" | "hash_version" | "source" | "frozen" | "created_by" | "created_at";
     };
     readonly primary: "version";
     readonly formerKeys: never;

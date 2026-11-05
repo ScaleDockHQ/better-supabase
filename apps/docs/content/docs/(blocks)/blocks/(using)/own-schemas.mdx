@@ -810,7 +810,7 @@ may be your own enum or domain.
   - `better_supabase.marketplace_invoices`: `id`, `installation_id`, `external_id`, `state`, `total`, `currency`, `event_at`; typed: `state`
   - `better_supabase.marketplace_meter_reports`: `id`, `installation_id`, `resource_external_id`, `meter_id`, `period_start`, `period_end`, `quantity`, `reported_quantity`, `reported_at`
 - `versions`
-  - `better_supabase.versions`: `id`, `tenant_id`, `subject_type`, `subject_id`, `number`, `label`, `content`, `storage_path`, `content_hash`, `source`, `frozen`, `created_by`, `created_at`
+  - `better_supabase.versions`: `id`, `tenant_id`, `subject_type`, `subject_id`, `number`, `label`, `content`, `storage_path`, `content_hash`, `file_hash`, `hash_version`, `source`, `frozen`, `created_by`, `created_at`
 - `waitlist`
   - `better_supabase.waitlist_entries`: `id`, `email`, `status`, `position`, `user_id`, `created_at`; typed: `status`
   - `better_supabase.invite_codes`: `id`, `code_hash`, `max_uses`, `uses`, `organization_id`, `role`, `revoked_at`; typed: `role`

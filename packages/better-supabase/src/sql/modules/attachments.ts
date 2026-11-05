@@ -28,6 +28,9 @@ import {
   columnOrNull,
   namedRowJson,
   scanColumns,
+  HASH_UPGRADE,
+  hashColumnsSql,
+  statusAssignments,
   statusFrom,
 } from "./attachments-app.ts";
 import {
@@ -492,7 +495,7 @@ create table if not exists ${t} (
 );
 -- The current version (replace_attachment() adds one) and the image or
 -- document size the client measured: width and height in pixels, pages.
-alter table ${t} add column if not exists ${c("version")} integer not null default 1 check (${c("version")} >= 1);${sizes
+alter table ${t} add column if not exists ${c("version")} integer not null default 1 check (${c("version")} >= 1);${hashColumnsSql(t, c, has)}${sizes
     .map(
       (logical) =>
         `\nalter table ${t} add column if not exists ${c(logical)} integer check (${c(logical)} > 0);`,
@@ -777,7 +780,7 @@ ${
 }${attachmentImportsOn(ctx) ? importAttachmentSql(ctx, t, c) : ""}
 -- Records a scan result (service role). A clean or infected file keeps its
 -- status, so a replayed job changes nothing.
-create or replace function ${fn("set_attachment_status")}(id uuid, status text, detail text default null)
+create or replace function ${fn("set_attachment_status")}(id uuid, status text, detail text default null, sha256 text default null)
 returns jsonb
 language plpgsql
 security invoker
@@ -792,14 +795,11 @@ begin
   if set_attachment_status.status not in ('clean', 'infected', 'failed') then
     ${fail("ATTACHMENT_STATUS_UNKNOWN", "status must be clean, infected or failed", "22023")}
   end if;
+  if set_attachment_status.sha256 is not null and set_attachment_status.sha256 !~ '^[0-9a-f]{64}$' then
+    ${fail("ATTACHMENT_HASH_INVALID", "sha256 must be 64 lowercase hex characters", "22023")}
+  end if;
   update ${t} a set
-    ${[
-      `${c("status")} = ${ctx.cast("attachments", "status", "set_attachment_status.status")}`,
-      ...(has("detail")
-        ? [`${c("detail")} = set_attachment_status.detail`]
-        : []),
-      ...(has("scannedAt") ? [`${c("scannedAt")} = now()`] : []),
-    ].join(",\n    ")}
+    ${statusAssignments(ctx, c, has)}
   where a.${c("id")} = set_attachment_status.id
     and a.${c("uploadedAt")} is not null
     and a.${c("status")} in ('pending', 'failed')
@@ -981,13 +981,13 @@ grant execute on function ${fn("object_scan")}(text, text) to service_role;
 grant execute on function ${fn("set_object_scan")}(text, text, text, text) to service_role;
 revoke execute on function ${fn("create_attachment")}(${CREATE_ARGS(id, documents)}${extraFieldsArg(extras).type}) from public, anon;
 revoke execute on function ${fn("confirm_attachment")}(uuid) from public, anon;
-revoke execute on function ${fn("set_attachment_status")}(uuid, text, text) from public, anon, authenticated;
+revoke execute on function ${fn("set_attachment_status")}(uuid, text, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("list_attachments")}(${id}, text, text) from public, anon;
 revoke execute on function ${fn("get_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("delete_attachment")}(uuid) from public, anon;
 grant execute on function ${fn("create_attachment")}(${CREATE_ARGS(id, documents)}${extraFieldsArg(extras).type}) to authenticated, service_role;
 grant execute on function ${fn("confirm_attachment")}(uuid) to authenticated, service_role;
-grant execute on function ${fn("set_attachment_status")}(uuid, text, text) to service_role;
+grant execute on function ${fn("set_attachment_status")}(uuid, text, text, text) to service_role;
 grant execute on function ${fn("list_attachments")}(${id}, text, text) to authenticated, service_role;
 grant execute on function ${fn("get_attachment")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("delete_attachment")}(uuid) to authenticated, service_role;`;
@@ -1040,7 +1040,7 @@ export const ATTACHMENTS: BlockSqlDefinition = {
   integrates: ["profiles", "subjects", "imports"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 8,
+  version: 9,
   upgrades: [
     {
       from: 1,
@@ -1088,6 +1088,7 @@ export const ATTACHMENTS: BlockSqlDefinition = {
           ? `drop function if exists ${ctx.fn("create_attachment")}(${OLD_CREATE_ARGS(ctx.idType)});\ndrop function if exists ${ctx.fn("create_attachment")}(${OLD_CREATE_ARGS(ctx.idType)}, jsonb);`
           : "",
     },
+    HASH_UPGRADE,
   ],
   names: NAMES,
   topics: (ctx) => [`${attachmentsTopicOf(ctx)}:{tenant}`],

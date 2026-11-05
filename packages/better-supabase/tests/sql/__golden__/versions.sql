@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
--- @bsb-block versions@1 managed
--- @bsb-hash sha256:c52a7ca5959ff5a7842ec563f73fc5b3a3b4243d6f5aac43af1fbfa3723fa64c
+-- @bsb-block versions@2 managed
+-- @bsb-hash sha256:84269ee86246899a77de46af88c7e474d2e789606d30b64ccc43abd8375fda1a
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -66,6 +66,8 @@ create table if not exists "better_supabase"."versions" (
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
+  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
   "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
@@ -73,6 +75,10 @@ create table if not exists "better_supabase"."versions" (
   unique ("subject_type", "subject_id", "number"),
   check ("content" is not null or "storage_path" is not null)
 );
+-- A hash_version 1 version hashes its content and storage path; version 2
+-- hashes its content and the SHA-256 of the file's bytes (file_hash).
+alter table "better_supabase"."versions" add column if not exists "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."versions" add column if not exists "hash_version" smallint not null default 1 check ("hash_version" in (1, 2));
 create index if not exists "versions_tenant_idx" on "better_supabase"."versions" ("tenant_id");
 alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
@@ -87,14 +93,18 @@ create policy versions_read on "better_supabase"."versions"
 -- content matches the latest is not written again; an auto snapshot within
 -- the debounce window of the previous auto snapshot replaces its content.
 -- Keeps the newest 50 versions without a label or freeze.
-create or replace function "better_supabase"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid)
+drop function if exists "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid);
+create or replace function "better_supabase"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_hash text := encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex');
+  v_hash text := case when version_insert.file_sha256 is null
+    then encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex')
+    else encode(extensions.digest(coalesce(version_insert.content::text, '') || version_insert.file_sha256, 'sha256'), 'hex') end;
+  v_hash_version smallint := case when version_insert.file_sha256 is null then 1 else 2 end;
   v_last_id uuid;
   v_last_number integer;
   v_last_hash text;
@@ -117,13 +127,13 @@ begin
   if version_insert.source = 'auto' and version_insert.label is null and not version_insert.frozen
     and v_last_open and v_last_source = 'auto' and v_last_at > now() - make_interval(secs => 300) then
     update "better_supabase"."versions"
-      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash
+      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash, "file_hash" = version_insert.file_sha256, "hash_version" = v_hash_version
       where "id" = v_last_id;
     return jsonb_build_object('id', v_last_id, 'number', v_last_number, 'contentHash', v_hash, 'unchanged', false);
   end if;
   v_number := coalesce(v_last_number, 0) + 1;
-  insert into "better_supabase"."versions" ("tenant_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "source", "frozen", "created_by", "created_at")
-  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.source, version_insert.frozen, version_insert.actor, now())
+  insert into "better_supabase"."versions" ("tenant_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "file_hash", "hash_version", "source", "frozen", "created_by", "created_at")
+  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.file_sha256, v_hash_version, version_insert.source, version_insert.frozen, version_insert.actor, now())
   returning "id" into v_id;
   delete from "better_supabase"."versions" v
   where v."subject_type" = version_insert.subject_type and v."subject_id" = version_insert.subject_id
@@ -139,13 +149,15 @@ begin
   return jsonb_build_object('id', v_id, 'number', v_number, 'contentHash', v_hash, 'unchanged', false);
 end;
 $$;
-revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
+revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
 -- fields: the extra columns (blocks.versions.options.extraColumns) to set
 -- on the version written, or on the latest one when the content is unchanged.
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text);
 drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
-create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text, jsonb);
+create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -157,6 +169,9 @@ declare
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'versions.create'), false) and true)) then
     raise exception 'not allowed to snapshot this record' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
+  end if;
+  if snapshot_version.file_sha256 is not null and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'only the service role records a file hash' using errcode = '42501', hint = 'VERSION_HASH_FORBIDDEN';
   end if;
   if v_content is null and snapshot_version.storage_path is null then
     
@@ -172,7 +187,7 @@ begin
         using snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id;
     end if;
   end;
-  v_result := "better_supabase"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid());
+  v_result := "better_supabase"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid(), snapshot_version.file_sha256);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_version_snapshot"(uuid, text, text)');
   begin
@@ -184,8 +199,8 @@ begin
   return v_result;
 end;
 $$;
-revoke execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text) from public, anon;
-grant execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text) from public, anon;
+grant execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_versions"(tenant uuid, subject_type text, subject_id text, page_size integer default 50, before integer default null)
 returns jsonb
@@ -200,7 +215,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', list_versions.tenant, 'versions.read'), false) and true)) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."versions" x
     where x."tenant_id" = list_versions.tenant
@@ -233,7 +248,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'versions.read'), false) and true)) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
+  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'fileSha256', v_row."file_hash", 'hashVersion', v_row."hash_version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
 end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
@@ -476,21 +491,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block-data versions
--- @bsb-hash sha256:3867036bd3026f5dbb651b697e61ba4c769803093a644280a8a15313b9e97c36
+-- @bsb-hash sha256:ca023546946699e2c1e5d216c5b54cdae641ecbe9b50f084f0f365f61389522c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('versions', 1, 'managed')
+values ('versions', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
--- @bsb-block versions@1 managed
--- @bsb-hash sha256:eb9b0fb6ac73f5cdf0cf80010c18647705fb3854e8775f81f621b4ce20e9af5a
+-- @bsb-block versions@2 managed
+-- @bsb-hash sha256:738d3fde6e394c7b4a79ae5c92a8137061101019174e1d1843513d519b93f290
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -555,6 +570,8 @@ create table if not exists "better_supabase"."versions" (
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
+  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
   "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
@@ -562,6 +579,10 @@ create table if not exists "better_supabase"."versions" (
   unique ("subject_type", "subject_id", "number"),
   check ("content" is not null or "storage_path" is not null)
 );
+-- A hash_version 1 version hashes its content and storage path; version 2
+-- hashes its content and the SHA-256 of the file's bytes (file_hash).
+alter table "better_supabase"."versions" add column if not exists "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."versions" add column if not exists "hash_version" smallint not null default 1 check ("hash_version" in (1, 2));
 create index if not exists "versions_tenant_idx" on "better_supabase"."versions" ("tenant_id");
 alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
@@ -580,14 +601,18 @@ create policy versions_ai_documents on "better_supabase"."versions" as restricti
 -- content matches the latest is not written again; an auto snapshot within
 -- the debounce window of the previous auto snapshot replaces its content.
 -- Keeps the newest 50 versions without a label or freeze.
-create or replace function "better_supabase"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid)
+drop function if exists "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid);
+create or replace function "better_supabase"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_hash text := encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex');
+  v_hash text := case when version_insert.file_sha256 is null
+    then encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex')
+    else encode(extensions.digest(coalesce(version_insert.content::text, '') || version_insert.file_sha256, 'sha256'), 'hex') end;
+  v_hash_version smallint := case when version_insert.file_sha256 is null then 1 else 2 end;
   v_last_id uuid;
   v_last_number integer;
   v_last_hash text;
@@ -610,13 +635,13 @@ begin
   if version_insert.source = 'auto' and version_insert.label is null and not version_insert.frozen
     and v_last_open and v_last_source = 'auto' and v_last_at > now() - make_interval(secs => 300) then
     update "better_supabase"."versions"
-      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash
+      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash, "file_hash" = version_insert.file_sha256, "hash_version" = v_hash_version
       where "id" = v_last_id;
     return jsonb_build_object('id', v_last_id, 'number', v_last_number, 'contentHash', v_hash, 'unchanged', false);
   end if;
   v_number := coalesce(v_last_number, 0) + 1;
-  insert into "better_supabase"."versions" ("tenant_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "source", "frozen", "created_by", "created_at")
-  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.source, version_insert.frozen, version_insert.actor, now())
+  insert into "better_supabase"."versions" ("tenant_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "file_hash", "hash_version", "source", "frozen", "created_by", "created_at")
+  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.file_sha256, v_hash_version, version_insert.source, version_insert.frozen, version_insert.actor, now())
   returning "id" into v_id;
   delete from "better_supabase"."versions" v
   where v."subject_type" = version_insert.subject_type and v."subject_id" = version_insert.subject_id
@@ -632,13 +657,15 @@ begin
   return jsonb_build_object('id', v_id, 'number', v_number, 'contentHash', v_hash, 'unchanged', false);
 end;
 $$;
-revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
+revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
 -- fields: the extra columns (blocks.versions.options.extraColumns) to set
 -- on the version written, or on the latest one when the content is unchanged.
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text);
 drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
-create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text, jsonb);
+create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -650,6 +677,9 @@ declare
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'versions.create'), false) and true and snapshot_version.subject_type <> 'ai_document')) then
     raise exception 'not allowed to snapshot this record' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
+  end if;
+  if snapshot_version.file_sha256 is not null and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'only the service role records a file hash' using errcode = '42501', hint = 'VERSION_HASH_FORBIDDEN';
   end if;
   if v_content is null and snapshot_version.storage_path is null then
     
@@ -665,7 +695,7 @@ begin
         using snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id;
     end if;
   end;
-  v_result := "better_supabase"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid());
+  v_result := "better_supabase"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid(), snapshot_version.file_sha256);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_version_snapshot"(uuid, text, text)');
   begin
@@ -677,8 +707,8 @@ begin
   return v_result;
 end;
 $$;
-revoke execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text) from public, anon;
-grant execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text) from public, anon;
+grant execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_versions"(tenant uuid, subject_type text, subject_id text, page_size integer default 50, before integer default null)
 returns jsonb
@@ -693,7 +723,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', list_versions.tenant, 'versions.read'), false) and true and list_versions.subject_type <> 'ai_document')) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."versions" x
     where x."tenant_id" = list_versions.tenant
@@ -726,7 +756,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'versions.read'), false) and true and v_row."subject_type" <> 'ai_document')) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
+  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'fileSha256', v_row."file_hash", 'hashVersion', v_row."hash_version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
 end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
@@ -760,7 +790,7 @@ begin
   if not found then
     return null;
   end if;
-  return (jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") - 'createdBy') || jsonb_build_object('content', v_row."content");
+  return (jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'fileSha256', v_row."file_hash", 'hashVersion', v_row."hash_version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") - 'createdBy') || jsonb_build_object('content', v_row."content");
 end;
 $$;
 revoke all on function "better_supabase"."get_shared_version"(text) from public, anon, authenticated;
@@ -1028,21 +1058,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block-data versions
--- @bsb-hash sha256:3867036bd3026f5dbb651b697e61ba4c769803093a644280a8a15313b9e97c36
+-- @bsb-hash sha256:ca023546946699e2c1e5d216c5b54cdae641ecbe9b50f084f0f365f61389522c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('versions', 1, 'managed')
+values ('versions', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
--- @bsb-block versions@1 managed
--- @bsb-hash sha256:cd005fa0ec79cc97e37879b8448e791705ac1f49920e8d5e212f5c2dd553acc2
+-- @bsb-block versions@2 managed
+-- @bsb-hash sha256:c6bec13619c1fe6db4ed62ed710fd0738398fa82e637a40e2ea7cd6fefe8aed7
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1112,6 +1142,8 @@ create table if not exists "app_private"."versions" (
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
+  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
   "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
@@ -1119,6 +1151,10 @@ create table if not exists "app_private"."versions" (
   unique ("subject_type", "subject_id", "number"),
   check ("content" is not null or "storage_path" is not null)
 );
+-- A hash_version 1 version hashes its content and storage path; version 2
+-- hashes its content and the SHA-256 of the file's bytes (file_hash).
+alter table "app_private"."versions" add column if not exists "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$');
+alter table "app_private"."versions" add column if not exists "hash_version" smallint not null default 1 check ("hash_version" in (1, 2));
 create index if not exists "versions_tenant_idx" on "app_private"."versions" ("tenant_id");
 alter table "app_private"."versions" enable row level security;
 revoke all on "app_private"."versions" from public, anon, authenticated;
@@ -1133,14 +1169,18 @@ create policy versions_read on "app_private"."versions"
 -- content matches the latest is not written again; an auto snapshot within
 -- the debounce window of the previous auto snapshot replaces its content.
 -- Keeps the newest 50 versions without a label or freeze.
-create or replace function "app_private"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid)
+drop function if exists "app_private"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid);
+create or replace function "app_private"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_hash text := encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex');
+  v_hash text := case when version_insert.file_sha256 is null
+    then encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex')
+    else encode(extensions.digest(coalesce(version_insert.content::text, '') || version_insert.file_sha256, 'sha256'), 'hex') end;
+  v_hash_version smallint := case when version_insert.file_sha256 is null then 1 else 2 end;
   v_last_id uuid;
   v_last_number integer;
   v_last_hash text;
@@ -1163,13 +1203,13 @@ begin
   if version_insert.source = 'auto' and version_insert.label is null and not version_insert.frozen
     and v_last_open and v_last_source = 'auto' and v_last_at > now() - make_interval(secs => 300) then
     update "app_private"."versions"
-      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash
+      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash, "file_hash" = version_insert.file_sha256, "hash_version" = v_hash_version
       where "id" = v_last_id;
     return jsonb_build_object('id', v_last_id, 'number', v_last_number, 'contentHash', v_hash, 'unchanged', false);
   end if;
   v_number := coalesce(v_last_number, 0) + 1;
-  insert into "app_private"."versions" ("tenant_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "source", "frozen", "created_by", "created_at")
-  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.source, version_insert.frozen, version_insert.actor, now())
+  insert into "app_private"."versions" ("tenant_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "file_hash", "hash_version", "source", "frozen", "created_by", "created_at")
+  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.file_sha256, v_hash_version, version_insert.source, version_insert.frozen, version_insert.actor, now())
   returning "id" into v_id;
   delete from "app_private"."versions" v
   where v."subject_type" = version_insert.subject_type and v."subject_id" = version_insert.subject_id
@@ -1185,13 +1225,15 @@ begin
   return jsonb_build_object('id', v_id, 'number', v_number, 'contentHash', v_hash, 'unchanged', false);
 end;
 $$;
-revoke execute on function "app_private"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
-grant execute on function "app_private"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
+revoke execute on function "app_private"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
+grant execute on function "app_private"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
 -- fields: the extra columns (blocks.versions.options.extraColumns) to set
 -- on the version written, or on the latest one when the content is unchanged.
+drop function if exists "app_private"."snapshot_version"(uuid, text, text, jsonb, text, text);
 drop function if exists "app_private"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
-create or replace function "app_private"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
+drop function if exists "app_private"."snapshot_version"(uuid, text, text, jsonb, text, text, text, jsonb);
+create or replace function "app_private"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1203,6 +1245,9 @@ declare
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'versions.create'), false) and true)) then
     raise exception 'not allowed to snapshot this record' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
+  end if;
+  if snapshot_version.file_sha256 is not null and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'only the service role records a file hash' using errcode = '42501', hint = 'VERSION_HASH_FORBIDDEN';
   end if;
   if v_content is null and snapshot_version.storage_path is null then
     
@@ -1218,7 +1263,7 @@ begin
         using snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id;
     end if;
   end;
-  v_result := "app_private"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid());
+  v_result := "app_private"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid(), snapshot_version.file_sha256);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_version_snapshot"(uuid, text, text)');
   begin
@@ -1230,8 +1275,8 @@ begin
   return v_result;
 end;
 $$;
-revoke execute on function "app_private"."snapshot_version"(uuid, text, text, jsonb, text, text) from public, anon;
-grant execute on function "app_private"."snapshot_version"(uuid, text, text, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."snapshot_version"(uuid, text, text, jsonb, text, text, text) from public, anon;
+grant execute on function "app_private"."snapshot_version"(uuid, text, text, jsonb, text, text, text) to authenticated, service_role;
 
 create or replace function "app_private"."list_versions"(tenant uuid, subject_type text, subject_id text, page_size integer default 50, before integer default null)
 returns jsonb
@@ -1246,7 +1291,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', list_versions.tenant, 'versions.read'), false) and true)) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
   from (
     select * from "app_private"."versions" x
     where x."tenant_id" = list_versions.tenant
@@ -1279,7 +1324,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'versions.read'), false) and true)) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
+  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'fileSha256', v_row."file_hash", 'hashVersion', v_row."hash_version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
 end;
 $$;
 revoke execute on function "app_private"."get_version"(uuid) from public, anon;
@@ -1522,21 +1567,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block-data versions
--- @bsb-hash sha256:3867036bd3026f5dbb651b697e61ba4c769803093a644280a8a15313b9e97c36
+-- @bsb-hash sha256:ca023546946699e2c1e5d216c5b54cdae641ecbe9b50f084f0f365f61389522c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('versions', 1, 'managed')
+values ('versions', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
--- @bsb-block versions@1 managed
--- @bsb-hash sha256:ed6965bc447ad356c76b36964c6759bad187c1b7b34c443c9adec557e218e0b6
+-- @bsb-block versions@2 managed
+-- @bsb-hash sha256:9f13658d4f5d2ab942625720812d80900b7be0ca8b30008eae525ac329ab4fe1
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1601,6 +1646,8 @@ create table if not exists "better_supabase"."versions" (
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
+  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
   "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
@@ -1608,6 +1655,10 @@ create table if not exists "better_supabase"."versions" (
   unique ("subject_type", "subject_id", "number"),
   check ("content" is not null or "storage_path" is not null)
 );
+-- A hash_version 1 version hashes its content and storage path; version 2
+-- hashes its content and the SHA-256 of the file's bytes (file_hash).
+alter table "better_supabase"."versions" add column if not exists "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."versions" add column if not exists "hash_version" smallint not null default 1 check ("hash_version" in (1, 2));
 create index if not exists "versions_tenant_idx" on "better_supabase"."versions" ("tenant_id");
 alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
@@ -1622,14 +1673,18 @@ create policy versions_read on "better_supabase"."versions"
 -- content matches the latest is not written again; an auto snapshot within
 -- the debounce window of the previous auto snapshot replaces its content.
 -- Keeps the newest 50 versions without a label or freeze.
-create or replace function "better_supabase"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid)
+drop function if exists "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid);
+create or replace function "better_supabase"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_hash text := encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex');
+  v_hash text := case when version_insert.file_sha256 is null
+    then encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex')
+    else encode(extensions.digest(coalesce(version_insert.content::text, '') || version_insert.file_sha256, 'sha256'), 'hex') end;
+  v_hash_version smallint := case when version_insert.file_sha256 is null then 1 else 2 end;
   v_last_id uuid;
   v_last_number integer;
   v_last_hash text;
@@ -1652,13 +1707,13 @@ begin
   if version_insert.source = 'auto' and version_insert.label is null and not version_insert.frozen
     and v_last_open and v_last_source = 'auto' and v_last_at > now() - make_interval(secs => 300) then
     update "better_supabase"."versions"
-      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash
+      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash, "file_hash" = version_insert.file_sha256, "hash_version" = v_hash_version
       where "id" = v_last_id;
     return jsonb_build_object('id', v_last_id, 'number', v_last_number, 'contentHash', v_hash, 'unchanged', false);
   end if;
   v_number := coalesce(v_last_number, 0) + 1;
-  insert into "better_supabase"."versions" ("tenant_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "source", "frozen", "created_by", "created_at")
-  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.source, version_insert.frozen, version_insert.actor, now())
+  insert into "better_supabase"."versions" ("tenant_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "file_hash", "hash_version", "source", "frozen", "created_by", "created_at")
+  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.file_sha256, v_hash_version, version_insert.source, version_insert.frozen, version_insert.actor, now())
   returning "id" into v_id;
   delete from "better_supabase"."versions" v
   where v."subject_type" = version_insert.subject_type and v."subject_id" = version_insert.subject_id
@@ -1674,13 +1729,15 @@ begin
   return jsonb_build_object('id', v_id, 'number', v_number, 'contentHash', v_hash, 'unchanged', false);
 end;
 $$;
-revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
+revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
 -- fields: the extra columns (blocks.versions.options.extraColumns) to set
 -- on the version written, or on the latest one when the content is unchanged.
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text);
 drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
-create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text, jsonb);
+create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1692,6 +1749,9 @@ declare
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'versions.create'), false) and true)) then
     raise exception 'not allowed to snapshot this record' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
+  end if;
+  if snapshot_version.file_sha256 is not null and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'only the service role records a file hash' using errcode = '42501', hint = 'VERSION_HASH_FORBIDDEN';
   end if;
   if v_content is null and snapshot_version.storage_path is null then
     
@@ -1707,7 +1767,7 @@ begin
         using snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id;
     end if;
   end;
-  v_result := "better_supabase"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid());
+  v_result := "better_supabase"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid(), snapshot_version.file_sha256);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_version_snapshot"(uuid, text, text)');
   begin
@@ -1719,8 +1779,8 @@ begin
   return v_result;
 end;
 $$;
-revoke execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text) from public, anon;
-grant execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text) from public, anon;
+grant execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_versions"(tenant uuid, subject_type text, subject_id text, page_size integer default 50, before integer default null)
 returns jsonb
@@ -1735,7 +1795,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', list_versions.tenant, 'versions.read'), false) and true)) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."versions" x
     where x."tenant_id" = list_versions.tenant
@@ -1768,7 +1828,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'versions.read'), false) and true)) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
+  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'fileSha256', v_row."file_hash", 'hashVersion', v_row."hash_version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
 end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
@@ -1999,7 +2059,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."versions" as restric
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid);
+drop function if exists "api"."snapshot_version"(uuid, text, text, jsonb, text, text);
 drop function if exists "api"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
+drop function if exists "api"."snapshot_version"(uuid, text, text, jsonb, text, text, text, jsonb);
 drop function if exists "api"."restore_version"(uuid);
 
 create or replace function "api"."actor_may_write"()
@@ -2021,23 +2084,23 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid)
+create or replace function "api"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid, file_sha256 text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."version_insert"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
-grant execute on function "api"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
+as $$ select "better_supabase"."version_insert"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
+grant execute on function "api"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
-create or replace function "api"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
+create or replace function "api"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."snapshot_version"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."snapshot_version"(uuid, text, text, jsonb, text, text) from public, anon;
-grant execute on function "api"."snapshot_version"(uuid, text, text, jsonb, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."snapshot_version"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."snapshot_version"(uuid, text, text, jsonb, text, text, text) from public, anon;
+grant execute on function "api"."snapshot_version"(uuid, text, text, jsonb, text, text, text) to authenticated, service_role;
 
 create or replace function "api"."list_versions"(tenant uuid, subject_type text, subject_id text, page_size integer default 50, before integer default null)
 returns jsonb
@@ -2102,21 +2165,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block-data versions
--- @bsb-hash sha256:3867036bd3026f5dbb651b697e61ba4c769803093a644280a8a15313b9e97c36
+-- @bsb-hash sha256:ca023546946699e2c1e5d216c5b54cdae641ecbe9b50f084f0f365f61389522c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('versions', 1, 'managed')
+values ('versions', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
--- @bsb-block versions@1 managed
--- @bsb-hash sha256:0fd094fba2b4f507ab61b32b51d67d98c97c20a5f8db152677f854db7fbc27d4
+-- @bsb-block versions@2 managed
+-- @bsb-hash sha256:b21998f91ab2e732c1f9e4651941a05c15d32828b1800e17bd5757d376b36f8c
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2181,10 +2244,16 @@ alter table "better_supabase"."versions" add column if not exists "label" text c
 alter table "better_supabase"."versions" add column if not exists "content" jsonb;
 alter table "better_supabase"."versions" add column if not exists "storage_path" text;
 alter table "better_supabase"."versions" add column if not exists "content_hash" text;
+alter table "better_supabase"."versions" add column if not exists "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."versions" add column if not exists "hash_version" smallint not null default 1 check ("hash_version" in (1, 2));
 alter table "better_supabase"."versions" add column if not exists "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore'));
 alter table "better_supabase"."versions" add column if not exists "frozen" boolean not null default false;
 alter table "better_supabase"."versions" add column if not exists "created_by" uuid;
 alter table "better_supabase"."versions" add column if not exists "created_at" timestamptz not null default now();
+-- A hash_version 1 version hashes its content and storage path; version 2
+-- hashes its content and the SHA-256 of the file's bytes (file_hash).
+alter table "better_supabase"."versions" add column if not exists "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."versions" add column if not exists "hash_version" smallint not null default 1 check ("hash_version" in (1, 2));
 create index if not exists "versions_tenant_idx" on "better_supabase"."versions" ("tenant_id");
 alter table "better_supabase"."versions" enable row level security;
 grant select on "better_supabase"."versions" to authenticated;
@@ -2198,14 +2267,18 @@ create policy bsb_versions_select on "better_supabase"."versions"
 -- content matches the latest is not written again; an auto snapshot within
 -- the debounce window of the previous auto snapshot replaces its content.
 -- Keeps the newest 50 versions without a label or freeze.
-create or replace function "better_supabase"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid)
+drop function if exists "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid);
+create or replace function "better_supabase"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_hash text := encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex');
+  v_hash text := case when version_insert.file_sha256 is null
+    then encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex')
+    else encode(extensions.digest(coalesce(version_insert.content::text, '') || version_insert.file_sha256, 'sha256'), 'hex') end;
+  v_hash_version smallint := case when version_insert.file_sha256 is null then 1 else 2 end;
   v_last_id uuid;
   v_last_number integer;
   v_last_hash text;
@@ -2228,13 +2301,13 @@ begin
   if version_insert.source = 'auto' and version_insert.label is null and not version_insert.frozen
     and v_last_open and v_last_source = 'auto' and v_last_at > now() - make_interval(secs => 300) then
     update "better_supabase"."versions"
-      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash
+      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash, "file_hash" = version_insert.file_sha256, "hash_version" = v_hash_version
       where "id" = v_last_id;
     return jsonb_build_object('id', v_last_id, 'number', v_last_number, 'contentHash', v_hash, 'unchanged', false);
   end if;
   v_number := coalesce(v_last_number, 0) + 1;
-  insert into "better_supabase"."versions" ("tenant_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "source", "frozen", "created_by", "created_at")
-  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.source, version_insert.frozen, version_insert.actor, now())
+  insert into "better_supabase"."versions" ("tenant_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "file_hash", "hash_version", "source", "frozen", "created_by", "created_at")
+  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.file_sha256, v_hash_version, version_insert.source, version_insert.frozen, version_insert.actor, now())
   returning "id" into v_id;
   delete from "better_supabase"."versions" v
   where v."subject_type" = version_insert.subject_type and v."subject_id" = version_insert.subject_id
@@ -2250,13 +2323,15 @@ begin
   return jsonb_build_object('id', v_id, 'number', v_number, 'contentHash', v_hash, 'unchanged', false);
 end;
 $$;
-revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
+revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
 -- fields: the extra columns (blocks.versions.options.extraColumns) to set
 -- on the version written, or on the latest one when the content is unchanged.
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text);
 drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
-create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text, jsonb);
+create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2268,6 +2343,9 @@ declare
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'versions.create'), false) and true)) then
     raise exception 'not allowed to snapshot this record' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
+  end if;
+  if snapshot_version.file_sha256 is not null and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'only the service role records a file hash' using errcode = '42501', hint = 'VERSION_HASH_FORBIDDEN';
   end if;
   if v_content is null and snapshot_version.storage_path is null then
     
@@ -2283,7 +2361,7 @@ begin
         using snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id;
     end if;
   end;
-  v_result := "better_supabase"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid());
+  v_result := "better_supabase"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid(), snapshot_version.file_sha256);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_version_snapshot"(uuid, text, text)');
   begin
@@ -2295,8 +2373,8 @@ begin
   return v_result;
 end;
 $$;
-revoke execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text) from public, anon;
-grant execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text) from public, anon;
+grant execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_versions"(tenant uuid, subject_type text, subject_id text, page_size integer default 50, before integer default null)
 returns jsonb
@@ -2311,7 +2389,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', list_versions.tenant, 'versions.read'), false) and true)) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."versions" x
     where x."tenant_id" = list_versions.tenant
@@ -2344,7 +2422,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'versions.read'), false) and true)) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
+  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'fileSha256', v_row."file_hash", 'hashVersion', v_row."hash_version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
 end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
@@ -2587,21 +2665,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block-data versions
--- @bsb-hash sha256:3867036bd3026f5dbb651b697e61ba4c769803093a644280a8a15313b9e97c36
+-- @bsb-hash sha256:ca023546946699e2c1e5d216c5b54cdae641ecbe9b50f084f0f365f61389522c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('versions', 1, 'managed')
+values ('versions', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
--- @bsb-block versions@1 managed
--- @bsb-hash sha256:f040fc61c724a72f4a07d52349082d0858ae82f09f736d63af77ce9f8aa1baf8
+-- @bsb-block versions@2 managed
+-- @bsb-hash sha256:c275242e7b96b76ae556ebc6eb20e0fd2fef61730ec666ac500e56a13393fc7a
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2666,6 +2744,8 @@ create table if not exists "better_supabase"."versions" (
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
+  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
   "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
@@ -2673,6 +2753,10 @@ create table if not exists "better_supabase"."versions" (
   unique ("subject_type", "subject_id", "number"),
   check ("content" is not null or "storage_path" is not null)
 );
+-- A hash_version 1 version hashes its content and storage path; version 2
+-- hashes its content and the SHA-256 of the file's bytes (file_hash).
+alter table "better_supabase"."versions" add column if not exists "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."versions" add column if not exists "hash_version" smallint not null default 1 check ("hash_version" in (1, 2));
 create index if not exists "versions_tenant_idx" on "better_supabase"."versions" ("org_id");
 alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
@@ -2687,14 +2771,18 @@ create policy versions_read on "better_supabase"."versions"
 -- content matches the latest is not written again; an auto snapshot within
 -- the debounce window of the previous auto snapshot replaces its content.
 -- Keeps the newest 50 versions without a label or freeze.
-create or replace function "better_supabase"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid)
+drop function if exists "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid);
+create or replace function "better_supabase"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_hash text := encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex');
+  v_hash text := case when version_insert.file_sha256 is null
+    then encode(extensions.digest(coalesce(version_insert.content::text, '') || coalesce(version_insert.storage_path, ''), 'sha256'), 'hex')
+    else encode(extensions.digest(coalesce(version_insert.content::text, '') || version_insert.file_sha256, 'sha256'), 'hex') end;
+  v_hash_version smallint := case when version_insert.file_sha256 is null then 1 else 2 end;
   v_last_id uuid;
   v_last_number integer;
   v_last_hash text;
@@ -2717,13 +2805,13 @@ begin
   if version_insert.source = 'auto' and version_insert.label is null and not version_insert.frozen
     and v_last_open and v_last_source = 'auto' and v_last_at > now() - make_interval(secs => 300) then
     update "better_supabase"."versions"
-      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash
+      set "content" = version_insert.content, "storage_path" = version_insert.storage_path, "content_hash" = v_hash, "file_hash" = version_insert.file_sha256, "hash_version" = v_hash_version
       where "id" = v_last_id;
     return jsonb_build_object('id', v_last_id, 'number', v_last_number, 'contentHash', v_hash, 'unchanged', false);
   end if;
   v_number := coalesce(v_last_number, 0) + 1;
-  insert into "better_supabase"."versions" ("org_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "source", "frozen", "created_by", "created_at")
-  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.source, version_insert.frozen, version_insert.actor, now())
+  insert into "better_supabase"."versions" ("org_id", "subject_type", "subject_id", "number", "label", "content", "storage_path", "content_hash", "file_hash", "hash_version", "source", "frozen", "created_by", "created_at")
+  values (version_insert.tenant, version_insert.subject_type, version_insert.subject_id, v_number, version_insert.label, version_insert.content, version_insert.storage_path, v_hash, version_insert.file_sha256, v_hash_version, version_insert.source, version_insert.frozen, version_insert.actor, now())
   returning "id" into v_id;
   delete from "better_supabase"."versions" v
   where v."subject_type" = version_insert.subject_type and v."subject_id" = version_insert.subject_id
@@ -2739,13 +2827,15 @@ begin
   return jsonb_build_object('id', v_id, 'number', v_number, 'contentHash', v_hash, 'unchanged', false);
 end;
 $$;
-revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid) to service_role;
+revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
 -- fields: the extra columns (blocks.versions.options.extraColumns) to set
 -- on the version written, or on the latest one when the content is unchanged.
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text);
 drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
-create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null)
+drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text, jsonb);
+create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2757,6 +2847,9 @@ declare
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'versions.create'), false) and true)) then
     raise exception 'not allowed to snapshot this record' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
+  end if;
+  if snapshot_version.file_sha256 is not null and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'only the service role records a file hash' using errcode = '42501', hint = 'VERSION_HASH_FORBIDDEN';
   end if;
   if v_content is null and snapshot_version.storage_path is null then
     
@@ -2772,7 +2865,7 @@ begin
         using snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id;
     end if;
   end;
-  v_result := "better_supabase"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid());
+  v_result := "better_supabase"."version_insert"(snapshot_version.tenant, snapshot_version.subject_type, snapshot_version.subject_id, v_content, snapshot_version.storage_path, nullif(trim(snapshot_version.label), ''), 'manual', false, auth.uid(), snapshot_version.file_sha256);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_version_snapshot"(uuid, text, text)');
   begin
@@ -2784,8 +2877,8 @@ begin
   return v_result;
 end;
 $$;
-revoke execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text) from public, anon;
-grant execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text) from public, anon;
+grant execute on function "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_versions"(tenant uuid, subject_type text, subject_id text, page_size integer default 50, before integer default null)
 returns jsonb
@@ -2800,7 +2893,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', list_versions.tenant, 'versions.read'), false) and true)) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."versions" x
     where x."org_id" = list_versions.tenant
@@ -2833,7 +2926,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."org_id", 'versions.read'), false) and true)) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
+  return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'fileSha256', v_row."file_hash", 'hashVersion', v_row."hash_version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
 end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
@@ -3076,13 +3169,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block-data versions
--- @bsb-hash sha256:3867036bd3026f5dbb651b697e61ba4c769803093a644280a8a15313b9e97c36
+-- @bsb-hash sha256:ca023546946699e2c1e5d216c5b54cdae641ecbe9b50f084f0f365f61389522c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('versions', 1, 'managed')
+values ('versions', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

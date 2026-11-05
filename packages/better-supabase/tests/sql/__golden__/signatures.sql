@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:3dd0747f1c5e1e426789db2378ce4291d6b4e8875a474f9b877856e7774eabf7
+-- @bsb-hash sha256:020255f03d3724c366de442b68519edc9cc2ff13cba585ea3f4150ca01371c4d
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -231,7 +231,7 @@ begin
     return null;
   end if;
   v_req_hash := v_req."content_hash";
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   select x."id", x."content_hash" into v_latest, v_latest_hash
     from "better_supabase"."versions" x
@@ -305,7 +305,7 @@ begin
   if sign_signature.method = 'drawn' then
     raise exception 'a drawn signature needs the attachments module for its image' using errcode = '22023', hint = 'SIGNATURE_METHOD_INVALID';
   end if;
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   if v_current is distinct from v_req."content_hash" then
     raise exception 'the version to sign changed after the request was made' using errcode = '55000', hint = 'SIGNATURE_CONTENT_CHANGED';
@@ -560,7 +560,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:d4a3382026ddb0413737edf29486c21f70721d656c56e21ebf07101215517666
+-- @bsb-hash sha256:bcc782eee2cbbce3c7a7f8d6a07d21765e7d80221a56847f782789b5bee17d5e
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -805,7 +805,7 @@ begin
     return null;
   end if;
   v_req_hash := v_req."content_hash";
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   select x."id", x."content_hash" into v_latest, v_latest_hash
     from "better_supabase"."versions" x
@@ -883,7 +883,7 @@ begin
   ) then
     raise exception 'the signature image isn''t an attachment in this organization' using errcode = '22023', hint = 'SIGNATURE_IMAGE_NOT_FOUND';
   end if;
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   if v_current is distinct from v_req."content_hash" then
     raise exception 'the version to sign changed after the request was made' using errcode = '55000', hint = 'SIGNATURE_CONTENT_CHANGED';
@@ -1176,7 +1176,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:9f26d7c645a28a4c1f2c8a355b2b22803e3c87917d54e63ac5c1e7d823d8a7b3
+-- @bsb-hash sha256:6b03d720ac9c868e3c011733a86fa2ee1f72c526455209a1a708962caea45d05
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1411,7 +1411,7 @@ begin
     return null;
   end if;
   v_req_hash := v_req."content_hash";
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   select x."id", x."content_hash" into v_latest, v_latest_hash
     from "better_supabase"."versions" x
@@ -1485,7 +1485,7 @@ begin
   if sign_signature.method = 'drawn' then
     raise exception 'a drawn signature needs the attachments module for its image' using errcode = '22023', hint = 'SIGNATURE_METHOD_INVALID';
   end if;
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   if v_current is distinct from v_req."content_hash" then
     raise exception 'the version to sign changed after the request was made' using errcode = '55000', hint = 'SIGNATURE_CONTENT_CHANGED';
@@ -1740,7 +1740,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:00427518f85bec7ae395855980c5c8017ea872ce22d206b150d46b6ebb3c855d
+-- @bsb-hash sha256:ff1494fd583d03865fd1e11d1aa81619037a34e20bc127eae431e682840cbe50
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1970,7 +1970,7 @@ begin
     return null;
   end if;
   v_req_hash := v_req."content_hash";
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   select x."id", x."content_hash" into v_latest, v_latest_hash
     from "better_supabase"."versions" x
@@ -2044,7 +2044,7 @@ begin
   if sign_signature.method = 'drawn' then
     raise exception 'a drawn signature needs the attachments module for its image' using errcode = '22023', hint = 'SIGNATURE_METHOD_INVALID';
   end if;
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   if v_current is distinct from v_req."content_hash" then
     raise exception 'the version to sign changed after the request was made' using errcode = '55000', hint = 'SIGNATURE_CONTENT_CHANGED';
@@ -2382,7 +2382,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:3286deae456931f8f0db30cde2fa3eb0f7659e731f4cf9785fc87239cb55741e
+-- @bsb-hash sha256:dee4e2cab6ede3ce0d232369092e4f26f34444fe44afdbd3c9ad6f23491823e8
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2605,7 +2605,7 @@ begin
     return null;
   end if;
   v_req_hash := v_req."content_hash";
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   select x."id", x."content_hash" into v_latest, v_latest_hash
     from "better_supabase"."versions" x
@@ -2679,7 +2679,7 @@ begin
   if sign_signature.method = 'drawn' then
     raise exception 'a drawn signature needs the attachments module for its image' using errcode = '22023', hint = 'SIGNATURE_METHOD_INVALID';
   end if;
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   if v_current is distinct from v_req."content_hash" then
     raise exception 'the version to sign changed after the request was made' using errcode = '55000', hint = 'SIGNATURE_CONTENT_CHANGED';
@@ -2934,7 +2934,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:19777965fd1462bf199c60b8563aaf0bd734776644fb1377ae9c05ff8c584c7f
+-- @bsb-hash sha256:74fa573a6988a243bf40acc797cb6c0cfc1446b1eefec65a09d397bc1fb24ffb
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3164,7 +3164,7 @@ begin
     return null;
   end if;
   v_req_hash := v_req."content_hash";
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   select x."id", x."content_hash" into v_latest, v_latest_hash
     from "better_supabase"."versions" x
@@ -3238,7 +3238,7 @@ begin
   if sign_signature.method = 'drawn' then
     raise exception 'a drawn signature needs the attachments module for its image' using errcode = '22023', hint = 'SIGNATURE_METHOD_INVALID';
   end if;
-  select encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') into v_current
+  select case when x."file_hash" is null then encode(extensions.digest(coalesce(x."content"::text, '') || coalesce(x."storage_path", ''), 'sha256'), 'hex') else encode(extensions.digest(coalesce(x."content"::text, '') || x."file_hash", 'sha256'), 'hex') end into v_current
     from "better_supabase"."versions" x where x."id" = v_req."version_id";
   if v_current is distinct from v_req."content_hash" then
     raise exception 'the version to sign changed after the request was made' using errcode = '55000', hint = 'SIGNATURE_CONTENT_CHANGED';

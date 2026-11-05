@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@8 managed
--- @bsb-hash sha256:36f3b5d673f13ce64c24ac3881f6e27b911ed2ccfff3deccb7acbb717d386d51
+-- @bsb-block attachments@9 managed
+-- @bsb-hash sha256:45511f377880b1471ca2536e8bec83dfd44c8ceafea011a65b7750bfe8f26c5e
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -303,6 +303,10 @@ create table if not exists "better_supabase"."attachments" (
 -- The current version (replace_attachment() adds one) and the image or
 -- document size the client measured: width and height in pixels, pages.
 alter table "better_supabase"."attachments" add column if not exists "version" integer not null default 1 check ("version" >= 1);
+-- The SHA-256 of the file's bytes, hex, recorded by the scan step from the
+-- stored object. A client never supplies it.
+alter table "better_supabase"."attachments" add column if not exists "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."attachments" add column if not exists "hash_verified_at" timestamptz;
 alter table "better_supabase"."attachments" add column if not exists "width" integer check ("width" > 0);
 alter table "better_supabase"."attachments" add column if not exists "height" integer check ("height" > 0);
 alter table "better_supabase"."attachments" add column if not exists "pages" integer check ("pages" > 0);
@@ -563,10 +567,14 @@ create table if not exists "better_supabase"."attachment_versions" (
   "uploaded_by" uuid references auth.users (id) on delete set null,
   "uploaded_at" timestamptz,
   "scanned_at" timestamptz,
+  "sha256" text,
+  "hash_verified_at" timestamptz,
   "archived_at" timestamptz not null default now(),
   unique ("attachment_id", "version"),
   unique ("bucket", "object_path")
 );
+alter table "better_supabase"."attachment_versions" add column if not exists "sha256" text;
+alter table "better_supabase"."attachment_versions" add column if not exists "hash_verified_at" timestamptz;
 create index if not exists attachment_versions_uploaded_by_idx on "better_supabase"."attachment_versions" ("uploaded_by");
 alter table "better_supabase"."attachment_versions" enable row level security;
 revoke all on "better_supabase"."attachment_versions" from public, anon, authenticated;
@@ -835,7 +843,7 @@ grant execute on function "better_supabase"."mark_attachment_missing"(uuid) to a
 
 -- Records a scan result (service role). A clean or infected file keeps its
 -- status, so a replayed job changes nothing.
-create or replace function "better_supabase"."set_attachment_status"(id uuid, status text, detail text default null)
+create or replace function "better_supabase"."set_attachment_status"(id uuid, status text, detail text default null, sha256 text default null)
 returns jsonb
 language plpgsql
 security invoker
@@ -850,10 +858,15 @@ begin
   if set_attachment_status.status not in ('clean', 'infected', 'failed') then
     raise exception 'status must be clean, infected or failed' using errcode = '22023', hint = 'ATTACHMENT_STATUS_UNKNOWN';
   end if;
+  if set_attachment_status.sha256 is not null and set_attachment_status.sha256 !~ '^[0-9a-f]{64}$' then
+    raise exception 'sha256 must be 64 lowercase hex characters' using errcode = '22023', hint = 'ATTACHMENT_HASH_INVALID';
+  end if;
   update "better_supabase"."attachments" a set
     "status" = set_attachment_status.status,
     "scan_detail" = set_attachment_status.detail,
-    "scanned_at" = now()
+    "scanned_at" = now(),
+    "sha256" = coalesce(set_attachment_status.sha256, a."sha256"),
+    "hash_verified_at" = case when set_attachment_status.sha256 is null then a."hash_verified_at" else now() end
   where a."id" = set_attachment_status.id
     and a."uploaded_at" is not null
     and a."status" in ('pending', 'failed')
@@ -935,8 +948,8 @@ begin
     raise exception 'No attachment you may replace has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
   if v_row."uploaded_at" is not null then
-    insert into "better_supabase"."attachment_versions" ("organization_id", "attachment_id", "version", "bucket", "object_path", "name", "mime_type", "size", "width", "height", "pages", "status", "scan_detail", "uploaded_by", "uploaded_at", "scanned_at")
-    values (v_row."organization_id", v_row."id", v_row."version", v_row."bucket", (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end), v_row."name", v_row."mime_type", v_row."size", v_row."width", v_row."height", v_row."pages", v_row."status", v_row."scan_detail", v_row."uploaded_by", v_row."uploaded_at", v_row."scanned_at");
+    insert into "better_supabase"."attachment_versions" ("organization_id", "attachment_id", "version", "bucket", "object_path", "name", "mime_type", "size", "width", "height", "pages", "status", "scan_detail", "uploaded_by", "uploaded_at", "scanned_at", "sha256", "hash_verified_at")
+    values (v_row."organization_id", v_row."id", v_row."version", v_row."bucket", (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end), v_row."name", v_row."mime_type", v_row."size", v_row."width", v_row."height", v_row."pages", v_row."status", v_row."scan_detail", v_row."uploaded_by", v_row."uploaded_at", v_row."scanned_at", v_row."sha256", v_row."hash_verified_at");
   end if;
   select greatest(v_row."version" - case when v_row."uploaded_at" is null then 1 else 0 end, coalesce(max(v."version"), 0)) + 1
   into v_next
@@ -953,7 +966,9 @@ begin
     "scan_detail" = null,
     "uploaded_by" = coalesce(auth.uid(), a."uploaded_by"),
     "uploaded_at" = null,
-    "scanned_at" = null
+    "scanned_at" = null,
+    "sha256" = null,
+    "hash_verified_at" = null
   where a."id" = v_row."id"
   returning * into v_row;
   null;
@@ -989,8 +1004,8 @@ begin
   end if;
   delete from "better_supabase"."attachment_versions" v where v."id" = v_old."id";
   if v_row."uploaded_at" is not null then
-    insert into "better_supabase"."attachment_versions" ("organization_id", "attachment_id", "version", "bucket", "object_path", "name", "mime_type", "size", "width", "height", "pages", "status", "scan_detail", "uploaded_by", "uploaded_at", "scanned_at")
-    values (v_row."organization_id", v_row."id", v_row."version", v_row."bucket", (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end), v_row."name", v_row."mime_type", v_row."size", v_row."width", v_row."height", v_row."pages", v_row."status", v_row."scan_detail", v_row."uploaded_by", v_row."uploaded_at", v_row."scanned_at");
+    insert into "better_supabase"."attachment_versions" ("organization_id", "attachment_id", "version", "bucket", "object_path", "name", "mime_type", "size", "width", "height", "pages", "status", "scan_detail", "uploaded_by", "uploaded_at", "scanned_at", "sha256", "hash_verified_at")
+    values (v_row."organization_id", v_row."id", v_row."version", v_row."bucket", (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end), v_row."name", v_row."mime_type", v_row."size", v_row."width", v_row."height", v_row."pages", v_row."status", v_row."scan_detail", v_row."uploaded_by", v_row."uploaded_at", v_row."scanned_at", v_row."sha256", v_row."hash_verified_at");
   end if;
   update "better_supabase"."attachments" a set
     "version" = v_old."version",
@@ -1004,7 +1019,9 @@ begin
     "scan_detail" = v_old."scan_detail",
     "uploaded_by" = v_old."uploaded_by",
     "uploaded_at" = v_old."uploaded_at",
-    "scanned_at" = v_old."scanned_at"
+    "scanned_at" = v_old."scanned_at",
+    "sha256" = v_old."sha256",
+    "hash_verified_at" = v_old."hash_verified_at"
   where a."id" = v_row."id"
   returning * into v_row;
   null;
@@ -1127,13 +1144,13 @@ grant execute on function "better_supabase"."object_scan"(text, text) to service
 grant execute on function "better_supabase"."set_object_scan"(text, text, text, text) to service_role;
 revoke execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text, jsonb) from public, anon;
 revoke execute on function "better_supabase"."confirm_attachment"(uuid) from public, anon;
-revoke execute on function "better_supabase"."set_attachment_status"(uuid, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_attachments"(uuid, text, text) from public, anon;
 revoke execute on function "better_supabase"."get_attachment"(uuid) from public, anon;
 revoke execute on function "better_supabase"."delete_attachment"(uuid) from public, anon;
 grant execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."confirm_attachment"(uuid) to authenticated, service_role;
-grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text) to service_role;
+grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
@@ -1272,7 +1289,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:dcd894555c7feed8442fdb2537836d5a60799ce09a4a91b898f5c7583445388c
+-- @bsb-hash sha256:02de0562851ddc0bdd7c2c366780e923a59690ba658d99c2f953b5f5d62b7368
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1283,6 +1300,6 @@ values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do update set public = excluded.public;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 8, 'managed')
+values ('attachments', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -100,6 +100,8 @@ export function attachmentVersionsSql(
     "uploadedBy",
     "uploadedAt",
     "scannedAt",
+    "sha256",
+    "hashVerifiedAt",
   ].filter((logical) => ctx.has("versions", logical));
 
   const fromRow: Readonly<Record<string, string>> = {
@@ -131,6 +133,8 @@ export function attachmentVersionsSql(
     "uploadedBy",
     "uploadedAt",
     "scannedAt",
+    "sha256",
+    "hashVerifiedAt",
   ].filter((logical) => ctx.has("attachments", logical));
 
   const fromVersion = (logical: string): string => {
@@ -169,11 +173,19 @@ ${["width", "height", "pages"]
     "",
   )}  ${vc("status")} text not null check (${vc("status")} in ('pending', 'clean', 'infected', 'failed')),${ctx.has("versions", "detail") ? `\n  ${vc("detail")} text,` : ""}
   ${vc("uploadedBy")} uuid references auth.users (id) on delete set null,
-  ${vc("uploadedAt")} timestamptz,${ctx.has("versions", "scannedAt") ? `\n  ${vc("scannedAt")} timestamptz,` : ""}${ctx.has("versions", "archivedAt") ? `\n  ${vc("archivedAt")} timestamptz not null default now(),` : ""}
+  ${vc("uploadedAt")} timestamptz,${ctx.has("versions", "scannedAt") ? `\n  ${vc("scannedAt")} timestamptz,` : ""}${ctx.has("versions", "sha256") ? `\n  ${vc("sha256")} text,` : ""}${ctx.has("versions", "hashVerifiedAt") ? `\n  ${vc("hashVerifiedAt")} timestamptz,` : ""}${ctx.has("versions", "archivedAt") ? `\n  ${vc("archivedAt")} timestamptz not null default now(),` : ""}
   unique (${vc("attachment")}, ${vc("version")}),
   unique (${vc("bucket")}, ${vc("path")})
 );
-create index if not exists ${ctx.naming.rename("attachment_versions_uploaded_by_idx")} on ${versions} (${vc("uploadedBy")});
+${["sha256", "hashVerifiedAt"]
+  .filter((logical) => ctx.has("versions", logical))
+  .map(
+    (logical) =>
+      `alter table ${versions} add column if not exists ${vc(logical)} ${logical === "sha256" ? "text" : "timestamptz"};\n`,
+  )
+  .join(
+    "",
+  )}create index if not exists ${ctx.naming.rename("attachment_versions_uploaded_by_idx")} on ${versions} (${vc("uploadedBy")});
 alter table ${versions} enable row level security;
 ${revokeTable(versions)}
 grant select on ${versions} to authenticated;
@@ -227,6 +239,8 @@ begin
       `${c("uploadedBy")} = coalesce(auth.uid(), a.${c("uploadedBy")})`,
       `${c("uploadedAt")} = null`,
       ...optional("scannedAt", "null"),
+      ...optional("sha256", "null"),
+      ...optional("hashVerifiedAt", "null"),
     ].join(",\n    ")}
   where a.${c("id")} = v_row.${c("id")}
   returning * into v_row;
