@@ -30,7 +30,7 @@ describe("withContextFactory", () => {
     expect(factory).toHaveBeenCalledOnce();
   });
 
-  it("gives an action the contextual context", () => {
+  it("gives an action the contextual context", async () => {
     const factory = vi.fn(() => ({ extra: "y" }));
     const contextual = withContextFactory(next, factory, () => stub(session));
 
@@ -40,7 +40,8 @@ describe("withContextFactory", () => {
       bound,
     ]);
 
-    const result = contextual.action(stub({}), stub(fn));
+    const result: unknown = contextual.action(stub({}), stub(fn));
+    await result;
 
     expect(fn).toHaveBeenCalledWith(
       "input",
@@ -48,5 +49,45 @@ describe("withContextFactory", () => {
       "bound",
     );
     expect(result).toBeDefined();
+  });
+
+  it("awaits an async factory and builds it once for concurrent calls", async () => {
+    const factory = vi.fn(async () => {
+      await Promise.resolve();
+
+      return { extra: "async" };
+    });
+
+    const contextual = withContextFactory(next, factory, () => stub(session));
+
+    const [first, second] = await Promise.all([
+      contextual.cached(),
+      contextual.cached(),
+    ]);
+
+    const access = await contextual.getAccess(stub({}));
+
+    expect(first).toMatchObject({ extra: "async" });
+    expect(second).toMatchObject({ extra: "async" });
+    expect(access.context).toMatchObject({ extra: "async" });
+    expect(factory).toHaveBeenCalledOnce();
+  });
+
+  it("gives an action the awaited extra", async () => {
+    const contextual = withContextFactory(
+      next,
+      async () => ({ extra: "z" }),
+      () => stub(session),
+    );
+
+    const fn = vi.fn(async (_i: unknown, c: unknown) => c);
+    const pending: unknown = contextual.action(stub({}), stub(fn));
+    await pending;
+
+    expect(fn).toHaveBeenCalledWith(
+      "input",
+      expect.objectContaining({ extra: "z" }),
+      "bound",
+    );
   });
 });

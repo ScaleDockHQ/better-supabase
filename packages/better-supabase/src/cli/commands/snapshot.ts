@@ -12,6 +12,7 @@ import { accessToken } from "../core/credentials.ts";
 import { CliError, errorText } from "../core/errors.ts";
 import { connect } from "../db.ts";
 import { apiTypeSchemas } from "../gen/api-schemas.ts";
+import { bootstrapFunctionNames } from "../gen/bootstrap-tables.ts";
 import { cachedIntrospect } from "../introspect/cache.ts";
 import { introspect } from "../introspect/index.ts";
 import { liteDriverOf, liteSource } from "../introspect/lite.ts";
@@ -174,6 +175,7 @@ export async function loadSnapshot(
   const toml = tomlRead.value;
   const db = opened.value;
   const hooks = toml ? pgFunctionHooks(toml.document) : [];
+  const functions = bootstrapFunctionNames(config);
 
   const schemas = [
     ...config.schemas,
@@ -183,10 +185,10 @@ export async function loadSnapshot(
 
   try {
     const read = (): Promise<Snapshot> =>
-      introspect(db.queryable, schemas, { hooks });
+      introspect(db.queryable, schemas, { hooks, functions });
 
     return await (source.cache
-      ? cachedIntrospect(config.root, db, [schemas, hooks], read)
+      ? cachedIntrospect(config.root, db, [schemas, hooks, functions], read)
       : read());
   } finally {
     if (!shared) {
@@ -262,6 +264,9 @@ export async function parseSnapshot(
         ? { roleSettings: doc.extras.roleSettings }
         : {}),
       ...(doc.extras.functions ? { functions: doc.extras.functions } : {}),
+      ...(doc.extras.functionSources
+        ? { functionSources: doc.extras.functionSources }
+        : {}),
       ...(doc.extras.hooks ? { hooks: doc.extras.hooks } : {}),
       ...(doc.extras.functionComments
         ? { functionComments: doc.extras.functionComments }

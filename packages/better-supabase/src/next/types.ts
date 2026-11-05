@@ -480,7 +480,9 @@ export interface BetterNext<
   /**
    * The same `cached()`, `getAccess()` and `action()`, handing back the app's
    * own context: `factory(session, base)` runs once per scope, from the session
-   * the library already read, and its result merges into the context.
+   * the library already read, and its result merges into the context. The
+   * factory may be async: each call awaits it, and concurrent calls share one
+   * run.
    *
    * ```ts
    * export const app = bsb.withContext((session, base) => ({
@@ -499,7 +501,7 @@ export interface BetterNext<
     factory: (
       session: AuthSession<C, P>,
       base: ServerContext<M, F, E, C, P, B, D>,
-    ) => X,
+    ) => Promise<X> | X,
   ): ContextualNext<M, F, E, C, P, Ref, B, D, X>;
   /** `rootParams.locale()`, or `undefined` without one or outside a render. */
   locale(): Promise<string | undefined>;

@@ -16,12 +16,17 @@ type Generator = Snapshot["generator"];
 
 type Edit = (generator: Generator) => Partial<Generator>;
 
-async function model(edit: Edit, config: ResolveInput = {}) {
+async function model(
+  edit: Edit,
+  config: ResolveInput = {},
+  extras: Partial<Snapshot["extras"]> = {},
+) {
   const fixture = await loadFixtureSnapshot();
 
   const snapshot: Snapshot = {
     ...fixture,
     generator: { ...fixture.generator, ...edit(fixture.generator) },
+    extras: { ...fixture.extras, ...extras },
   };
 
   return buildModel(
@@ -541,6 +546,48 @@ describe("buildModel bootstrap", () => {
     expect(plain.meta.bootstrap).toBeUndefined();
     expect(none.meta.bootstrap).toBeUndefined();
     expect(filtered.meta.bootstrap).toBeUndefined();
+  });
+});
+
+describe("buildModel bootstrap tables", () => {
+  const sources = {
+    "public.home_data": `select jsonb_build_object('n', (select count(*) from public.customers c join notes n on n.customer_id = c.id), 'x', (select 1 from public.nope))`,
+  };
+
+  const build = (
+    bootstrap: Record<string, string | { function: string; tables?: string[] }>,
+    withSources = true,
+  ) =>
+    model(
+      () => ({}),
+      { blocks: { sessions: { options: { bootstrap } } } },
+      withSources ? { functionSources: sources } : {},
+    );
+
+  it("derives the tables a function body reads, as model keys", async () => {
+    const built = await build({ home: "public.home_data" });
+
+    expect(built.meta.bootstrap).toEqual({
+      schema: "better_supabase",
+      tables: { home: ["customers", "notes"] },
+    });
+  });
+
+  it("takes declared tables over the body", async () => {
+    const built = await build({
+      home: { function: "public.home_data", tables: ["tags"] },
+    });
+
+    expect(built.meta.bootstrap).toEqual({
+      schema: "better_supabase",
+      tables: { home: ["tags"] },
+    });
+  });
+
+  it("leaves the meta alone when nothing is read or declared", async () => {
+    const built = await build({ home: "public.home_data" }, false);
+
+    expect(built.meta.bootstrap).toBeUndefined();
   });
 });
 

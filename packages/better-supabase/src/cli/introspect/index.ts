@@ -8,6 +8,8 @@ import { readGeneratorMetadata, stabilizeMetadata } from "./typegen.ts";
 export interface IntrospectOptions {
   /** Auth hook functions to read too, in any schema (`[auth.hook.*]`). */
   readonly hooks?: readonly HookTarget[];
+  /** Functions (`schema.name`) whose bodies to read, for bootstrap tables. */
+  readonly functions?: readonly string[];
 }
 
 /** Reads a v2 snapshot: typegen metadata plus the extras. */
@@ -20,7 +22,7 @@ export async function introspect(
 
   const [metadata, extras] = await Promise.all([
     readGeneratorMetadata(db, unique),
-    readExtras(db, unique, options.hooks),
+    readExtras(db, unique, options.hooks, options.functions),
   ]);
 
   const { metadata: generator, ids } = stabilizeMetadata(metadata);

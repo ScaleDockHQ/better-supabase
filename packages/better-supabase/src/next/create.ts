@@ -668,13 +668,13 @@ export function createNext<
         return result;
       }
 
-      applyEntry(
-        ctx,
-        view,
-        scope,
-        result.tenant ?? undefined,
-        bootstrapOptions,
-      );
+      const recorded =
+        betterSupabase.meta.bootstrap?.tables?.[bootstrapOptions.rpc] ?? [];
+
+      applyEntry(ctx, view, scope, result.tenant ?? undefined, {
+        ...bootstrapOptions,
+        tables: [...new Set([...(bootstrapOptions.tables ?? []), ...recorded])],
+      });
 
       return result;
     },

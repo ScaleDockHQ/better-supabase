@@ -94,6 +94,37 @@ describe("sessions bootstrap wrappers", () => {
     ).toThrow(/shell must name a function/);
   });
 
+  it("takes a function entry with the tables its payload reads", () => {
+    const sql = sessions({
+      options: {
+        bootstrap: {
+          home: { function: "app.home_data", tables: ["customers", "notes"] },
+        },
+      },
+    });
+
+    expect(sql).toContain("'data', to_jsonb(app.home_data(args))");
+    expect(() =>
+      sessions({
+        options: {
+          bootstrap: { home: { function: "app.home_data", tables: "notes" } },
+        },
+      }),
+    ).toThrow(/tables must list table names/);
+    expect(() =>
+      sessions({
+        options: {
+          bootstrap: { home: { readSet: "home", tables: ["a; drop"] } },
+        },
+      }),
+    ).toThrow(/tables must list table names/);
+    expect(() =>
+      sessions({
+        options: { bootstrap: { home: { function: "home; drop" } } },
+      }),
+    ).toThrow(/function must name a function/);
+  });
+
   it("rejects a name or a function it can't render safely", () => {
     expect(() => sessions({ options: { bootstrap: ["app.home"] } })).toThrow(
       /must map names to functions/,
