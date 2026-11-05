@@ -36,20 +36,20 @@ create temp table calls_after on commit drop as
 
 select is(
   (select coalesce(a.calls, 0) - coalesce(b.calls, 0) from calls_after a left join calls_before b using (funcname) where a.funcname = 'can'),
-  20::bigint,
-  'permissions stay live: one can() call per permission request, so every provider decides'
+  1::bigint,
+  'permissions stay live: one can() call for the tenant and permission pair, not one per request'
 );
 
 select is(
   (select coalesce(a.calls, 0) - coalesce(b.calls, 0) from calls_after a left join calls_before b using (funcname) where a.funcname = 'memo_set'),
-  1::bigint,
-  'one role lookup for the 20 role requests in one statement'
+  null::bigint,
+  'the set form joins memberships and needs no per-request role lookup'
 );
 
 select is(
   (select coalesce(a.calls, 0) - coalesce(b.calls, 0) from calls_after a left join calls_before b using (funcname) where a.funcname = 'approval_eligible'),
-  (select count(*) from better_supabase.approval_requests where status = 'pending' and tenant_id = '00000000-0000-4000-8000-000000000001')::bigint,
-  'approval_eligible runs once per pending request, without the id lookup'
+  null::bigint,
+  'approval_eligible_ids does not call approval_eligible per request'
 );
 
 do $$
