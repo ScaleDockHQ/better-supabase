@@ -47,6 +47,14 @@ import {
   restoreLines,
   shipLines,
 } from "./shipments-lines.ts";
+import {
+  eventsAppendOnlySql,
+  PROOF_COLUMNS,
+  PROOF_OPTIONAL,
+  proofColumnsSql,
+  proofContract,
+  proofFunctionSql,
+} from "./shipments-proof.ts";
 
 /** The most packages one shipment holds. */
 const MAX_PACKAGES = 50;
@@ -70,6 +78,10 @@ const EVENTS: BlockSqlEvents<ShipmentsEvents> = {
   "shipment.cancelled": {
     subject: "shipments",
     payload: ["organizationId", "id", "trackingNumber"],
+  },
+  "shipment.proof_recorded": {
+    subject: "shipments",
+    payload: ["organizationId", "id", "deliveredTo"],
   },
   "shipment.return_received": {
     subject: "shipments",
@@ -127,8 +139,10 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        ...PROOF_COLUMNS,
       },
       optional: [
+        ...PROOF_OPTIONAL,
         "fromLocation",
         "subjectType",
         "subjectId",
@@ -288,6 +302,7 @@ create table if not exists ${packages} (
 ${lockModuleTable(ctx, "packages", { read: true })}
 drop policy if exists ${index("packages", "read")} on ${packages};
 ${renderPolicy(makePolicy({ table: packages, name: index("packages", "read"), command: "select", roles: ["authenticated"], using: readable(p("tenant")) }), { target: packages })}
+${proofColumnsSql(ctx, shipments)}
 -- The tracking timeline. A carrier event id is recorded once per shipment, so
 -- a redelivered webhook or a repeated poll changes nothing.
 create table if not exists ${events} (
@@ -304,7 +319,7 @@ create table if not exists ${events} (
 create index if not exists ${index("trackingEvents", "timeline_idx")} on ${events} (${e("shipment")}, ${e("occurredAt")});
 ${lockModuleTable(ctx, "trackingEvents", { read: true })}
 drop policy if exists ${index("trackingEvents", "read")} on ${events};
-${renderPolicy(makePolicy({ table: events, name: index("trackingEvents", "read"), command: "select", roles: ["authenticated"], using: readable(e("tenant")) }), { target: events })}${locationKey}
+${renderPolicy(makePolicy({ table: events, name: index("trackingEvents", "read"), command: "select", roles: ["authenticated"], using: readable(e("tenant")) }), { target: events })}${eventsAppendOnlySql(ctx, events)}${locationKey}
 ${linesTable(ctx)}${intrastatTable(ctx)}`;
 }
 
@@ -379,7 +394,7 @@ function functions(
 
   const shipmentJson = (row: string): string =>
     withExtraFields(
-      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${ctx.label("shipments", "status", `${row}.${h("status")}`)}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'fromLocationId', ${or("shipments", row, "fromLocation")}, 'subjectType', ${or("shipments", row, "subjectType")}, 'subjectId', ${or("shipments", row, "subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${or("shipments", row, "trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${or("shipments", row, "labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'createdBy', ${or("shipments", row, "createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)}, 'lines', ${linesJson(ctx, row)})`,
+      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${ctx.label("shipments", "status", `${row}.${h("status")}`)}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'fromLocationId', ${or("shipments", row, "fromLocation")}, 'subjectType', ${or("shipments", row, "subjectType")}, 'subjectId', ${or("shipments", row, "subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${or("shipments", row, "trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${or("shipments", row, "labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'deliveredTo', ${or("shipments", row, "deliveredTo")}, 'proofReference', ${or("shipments", row, "proofReference")}, 'proofAttachmentId', ${or("shipments", row, "proofAttachment")}, 'proofRecordedAt', ${or("shipments", row, "proofRecordedAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'createdBy', ${or("shipments", row, "createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)}, 'lines', ${linesJson(ctx, row)})`,
       row,
       extras,
     );
@@ -780,7 +795,20 @@ ${findForWrite("cancel_shipment.shipment_id")}
 end;
 $$;
 ${userGrant(`${fn("cancel_shipment")}(uuid)`)}
-${lineFunctions(ctx, findForWrite, shipmentJson)}${intrastatFunctions(ctx)}
+${proofFunctionSql(ctx, {
+  shipments,
+  h,
+  findForWrite,
+  notDelivered: st("v_ship", ["delivered"], true),
+  shipmentJson,
+  record: ctx.record({
+    type: "shipment.proof_recorded",
+    payload: `jsonb_build_object(${base("v_ship")}, 'deliveredTo', ${or("shipments", "v_ship", "deliveredTo")})`,
+    subject: subject("v_ship"),
+    tenant: `v_ship.${h("tenant")}`,
+    audit: audited("v_ship", "recorded proof of delivery"),
+  }),
+})}${lineFunctions(ctx, findForWrite, shipmentJson)}${intrastatFunctions(ctx)}
 -- A shipment's tracking timeline, oldest first.
 create or replace function ${fn("list_tracking_events")}(shipment_id uuid)
 returns jsonb
@@ -909,6 +937,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "cancel_shipment", args: ["uuid"], returns: "jsonb" },
+    ...proofContract,
     { name: "list_tracking_events", args: ["uuid"], returns: "jsonb" },
     { name: "set_shipment_lines", args: ["uuid", "jsonb"], returns: "jsonb" },
     {
@@ -927,10 +956,10 @@ export const SHIPMENTS: BlockSqlDefinition = {
   description:
     "Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "audit", "assets", "inventory"],
+  integrates: ["outbox", "audit", "assets", "inventory", "data-lifecycle"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -942,6 +971,12 @@ export const SHIPMENTS: BlockSqlDefinition = {
       from: 2,
       description:
         "Adds intrastat_lines and prepare_intrastat: the shipment lines that cross a member state border, derived into arrival and dispatch lines with trade code, country, net mass and value, and the exceptions that lack one.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "Adds the proof of delivery (delivered_to, proof_reference, proof_attachment_id, proof_recorded_at) and record_delivery_proof, and makes tracking events append-only: no one edits or deletes one, except a tenant purge.",
       sql: () => "",
     },
   ],

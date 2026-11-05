@@ -3469,7 +3469,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "outbox",
         "audit",
         "assets",
-        "inventory"
+        "inventory",
+        "data-lifecycle"
       ],
       "modes": [
         "managed",
@@ -3479,6 +3480,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "shipment.cancelled",
         "shipment.created",
         "shipment.labeled",
+        "shipment.proof_recorded",
         "shipment.status_changed"
       ],
       "subpath": "better-supabase/blocks/shipments",

@@ -30,6 +30,13 @@ export interface ShipmentStatusChangedEventData {
   readonly trackingNumber: string | null;
 }
 
+/** `shipment.proof_recorded`: who received the delivered parcel was recorded. */
+export interface ShipmentProofRecordedEventData {
+  readonly organizationId: string;
+  readonly id: string;
+  readonly deliveredTo: string | null;
+}
+
 /** `shipment.cancelled`. */
 export interface ShipmentCancelledEventData {
   readonly organizationId: string;
@@ -54,6 +61,7 @@ export type ShipmentsEvents = {
   readonly "shipment.labeled": ShipmentLabeledEventData;
   readonly "shipment.status_changed": ShipmentStatusChangedEventData;
   readonly "shipment.cancelled": ShipmentCancelledEventData;
+  readonly "shipment.proof_recorded": ShipmentProofRecordedEventData;
   readonly "shipment.return_received": ShipmentReturnReceivedEventData;
 };
 
@@ -63,5 +71,6 @@ export const shipmentsEvents: Events<ShipmentsEvents> = defineEvents({
   "shipment.labeled": event<ShipmentLabeledEventData>(),
   "shipment.status_changed": event<ShipmentStatusChangedEventData>(),
   "shipment.cancelled": event<ShipmentCancelledEventData>(),
+  "shipment.proof_recorded": event<ShipmentProofRecordedEventData>(),
   "shipment.return_received": event<ShipmentReturnReceivedEventData>(),
 });

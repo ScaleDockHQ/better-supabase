@@ -523,6 +523,63 @@ describe("createShipments", () => {
     expect(fake.calls[0]?.[1]).toMatchObject({ source: "manual" });
   });
 
+  it("records the proof of delivery and maps it back", async () => {
+    const fake = fakeTransport({
+      record_delivery_proof: {
+        ...LABELED,
+        deliveredTo: "R. Jansen",
+        proofReference: "rcpt-9",
+        proofRecordedAt: LATER,
+      },
+    });
+
+    const shipments = createShipments({ transport: fake.transport });
+
+    const result = await shipments
+      .recordProof({ id: "s1", deliveredTo: "R. Jansen", reference: "rcpt-9" })
+      .orThrow();
+
+    expect(result.deliveredTo).toBe("R. Jansen");
+    expect(result.proofReference).toBe("rcpt-9");
+    expect(result.proofRecordedAt).toBeDefined();
+    expect(fake.calls[0]).toEqual([
+      "record_delivery_proof",
+      {
+        shipment_id: "s1",
+        delivered_to: "R. Jansen",
+        proof_reference: "rcpt-9",
+        attachment_id: null,
+      },
+    ]);
+  });
+
+  it("asks the carrier for the proof when deliveredTo is missing", async () => {
+    const base = carrier();
+
+    const withProof = {
+      ...base,
+      proofOfDelivery: () =>
+        AsyncResult.ok({ deliveredTo: "Front desk", reference: "c-1" }),
+    };
+
+    const fake = fakeTransport({
+      get_shipment: LABELED,
+      record_delivery_proof: LABELED,
+    });
+
+    const shipments = createShipments({
+      transport: fake.transport,
+      carriers: [withProof],
+    });
+
+    await shipments.recordProof({ id: "s1" }).orThrow();
+
+    expect(fake.calls.at(-1)?.[1]).toMatchObject({
+      delivered_to: "Front desk",
+      proof_reference: "c-1",
+    });
+  });
+
   it("ingests a signed webhook through the service transport", async () => {
     const user = fakeTransport({});
 

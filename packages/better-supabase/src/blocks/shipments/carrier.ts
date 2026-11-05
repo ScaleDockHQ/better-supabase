@@ -86,6 +86,14 @@ export interface CarrierTrackingEvent {
   readonly location?: string;
 }
 
+/** What a carrier knows about the delivery of one tracking number. */
+export interface CarrierDeliveryProof {
+  /** Who signed for or received the parcel. */
+  readonly deliveredTo: string;
+  /** The carrier's reference for the proof, such as a receipt number. */
+  readonly reference?: string;
+}
+
 /** The events of one tracking number, as a webhook delivers them. */
 export interface CarrierTrackingUpdate {
   readonly trackingNumber: string;
@@ -128,6 +136,14 @@ export interface ShippingProvider {
     trackingNumber: string,
     options?: CarrierCallOptions,
   ): AsyncResult<readonly CarrierTrackingEvent[]>;
+  /**
+   * The carrier's proof of delivery for a delivered tracking number. Optional
+   * and additive: a carrier without it leaves `recordProof` to its caller.
+   */
+  proofOfDelivery?(
+    trackingNumber: string,
+    options?: CarrierCallOptions,
+  ): AsyncResult<CarrierDeliveryProof>;
   /** Voids a label that hasn't shipped. */
   cancel(
     input: CarrierCancelInput,

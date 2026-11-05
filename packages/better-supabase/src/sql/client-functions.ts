@@ -268,7 +268,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   shifts:
     "archive_shift_template assign_shift cancel_shift decide_shift_request decide_shift_swap generate_shifts list_shift_availability list_shift_templates my_shifts publish_shifts request_open_shift request_shift_swap roster save_shift save_shift_template set_shift_availability shift_hours unassign_shift",
   shipments:
-    "cancel_shipment create_shipment delete_intrastat_line get_shipment ingest_tracking_events list_shipments list_tracking_events prepare_intrastat receive_shipment_return record_tracking_events save_intrastat_line set_shipment_label set_shipment_lines",
+    "cancel_shipment create_shipment delete_intrastat_line get_shipment ingest_tracking_events list_shipments list_tracking_events prepare_intrastat receive_shipment_return record_delivery_proof record_tracking_events save_intrastat_line set_shipment_label set_shipment_lines",
   signatures:
     "cancel_signature_request create_signature_request decline_signature_request get_signature_request list_signature_requests sign_signature",
   "signing-keys":

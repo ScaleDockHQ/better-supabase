@@ -6473,7 +6473,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "assets",
-        "inventory"
+        "inventory",
+        "data-lifecycle"
       ],
       "manifest": "shipments",
       "scopes": [
@@ -6534,7 +6535,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "cancelledAt": "cancelled_at",
               "createdBy": "created_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "deliveredTo": "delivered_to",
+              "proofReference": "proof_reference",
+              "proofAttachment": "proof_attachment_id",
+              "proofRecordedAt": "proof_recorded_at"
             }
           },
           "packages": {
@@ -18754,6 +18759,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "shipment.labeled",
           "shipment.status_changed",
           "shipment.cancelled",
+          "shipment.proof_recorded",
           "shipment.return_received"
         ]
       },
