@@ -307,3 +307,20 @@ describe("createNext(betterSupabase).context", () => {
     expectTypeOf(supabase).not.toEqualTypeOf<SupabaseClient>();
   });
 });
+
+describe("bsb.withContext", () => {
+  it("infers the extra from an async factory", () => {
+    const app = bsb.withContext(async (session) => ({
+      isUser: session.kind === "user",
+    }));
+
+    expectTypeOf(app.cached).returns.resolves.toHaveProperty("isUser");
+    expectTypeOf(app.cached).returns.resolves.toHaveProperty("session");
+  });
+
+  it("infers the extra from a sync factory", () => {
+    const app = bsb.withContext(() => ({ label: "x" }));
+
+    expectTypeOf(app.cached).returns.resolves.toHaveProperty("label");
+  });
+});

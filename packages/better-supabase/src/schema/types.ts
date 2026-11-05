@@ -192,6 +192,13 @@ export interface SchemaMeta {
 /** `SchemaMeta.bootstrap`: the schema `bsb.bootstrap()` calls by default. */
 export interface BootstrapMeta {
   readonly schema: string;
+  /**
+   * The tables each `bootstrap_<rpc>` payload reads, declared on the entry's
+   * `tables` or derived from its function body. `bsb.bootstrap({ rpc })` tags
+   * its cache entry with them, so `bsb:<table>@<tenant>` invalidation reaches
+   * it.
+   */
+  readonly tables?: Readonly<Record<string, readonly string[]>>;
 }
 
 /** The claim names the SQL modules, codegen and runtime defaults agree on. */

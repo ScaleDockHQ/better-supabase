@@ -64,6 +64,37 @@ const BOOTSTRAP_NAME = /^[a-z][a-z0-9_]*$/;
 
 const FUNCTION_NAME = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
 
+function isFunctionRef(
+  value: unknown,
+): value is { readonly function: string; readonly subject?: string | false } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "function" in value &&
+    typeof value.function === "string"
+  );
+}
+
+const TABLE_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** The `tables` an entry declares: model keys, only checked here. */
+function checkTables(name: string, entry: object): void {
+  if (!("tables" in entry) || entry.tables === undefined) {
+    return;
+  }
+
+  const { tables } = entry;
+
+  if (
+    !Array.isArray(tables) ||
+    !tables.every((table) => typeof table === "string" && TABLE_KEY.test(table))
+  ) {
+    throw new TypeError(
+      `${WHERE}.${name}.tables must list table names (letters, digits, _)`,
+    );
+  }
+}
+
 function isReadSetRef(
   value: unknown,
 ): value is { readonly readSet: string; readonly subject?: string | false } {
@@ -150,6 +181,27 @@ function bootstrapFunctions(
       throw new TypeError(
         `${WHERE}.${name} must be a lowercase name (letters, digits, _)`,
       );
+    }
+
+    const entry: unknown = fn;
+
+    if (typeof entry === "object" && entry !== null) {
+      checkTables(name, entry);
+    }
+
+    if (isFunctionRef(fn)) {
+      if (!FUNCTION_NAME.test(fn.function)) {
+        throw new TypeError(
+          `${WHERE}.${name}.function must name a function as schema.function`,
+        );
+      }
+
+      return {
+        name,
+        fn: fn.function,
+        readSets: [],
+        subject: subjectOf(name, fn.subject, fallback),
+      };
     }
 
     if (isReadSetsRef(fn)) {

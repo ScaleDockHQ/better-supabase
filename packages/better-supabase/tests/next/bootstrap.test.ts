@@ -536,3 +536,72 @@ describe("root params", () => {
     expect(await bsb.locale()).toBeUndefined();
   });
 });
+
+describe("bsb.bootstrap() tables", () => {
+  const withTables = (tables?: Record<string, readonly string[]>) =>
+    createNext(
+      defineSupabase(
+        defineSchema({
+          ...schema.meta,
+          bootstrap: {
+            schema: "better_supabase",
+            ...(tables ? { tables } : {}),
+          },
+        }),
+      ),
+      { env, auth: { jwks: signer.jwks } },
+    );
+
+  beforeEach(() => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      Response.json({
+        session_active: true,
+        authz_version: 7,
+        tenant: null,
+        data: {},
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("tags the entry with the tables gen recorded for the rpc", async () => {
+    await signIn({ tenant_id: "org-1" });
+    await withTables({ home: ["customers", "notes"] }).bootstrap({
+      rpc: "home",
+    });
+
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      `bsb:session:${USER}`,
+      `bsb:session-id:${SESSION}`,
+      "bsb:customers@org-1",
+      "bsb:customers@*",
+      "bsb:notes@org-1",
+      "bsb:notes@*",
+    );
+  });
+
+  it("adds the call's own tables and leaves other rpcs alone", async () => {
+    await signIn({ tenant_id: "org-1" });
+    const bsb = withTables({ home: ["customers"] });
+    await bsb.bootstrap({ rpc: "home", tables: ["notes"] });
+
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      `bsb:session:${USER}`,
+      `bsb:session-id:${SESSION}`,
+      "bsb:notes@org-1",
+      "bsb:notes@*",
+      "bsb:customers@org-1",
+      "bsb:customers@*",
+    );
+
+    await bsb.bootstrap({ rpc: "other" });
+
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      `bsb:session:${USER}`,
+      `bsb:session-id:${SESSION}`,
+    );
+  });
+});

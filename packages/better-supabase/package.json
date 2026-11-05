@@ -120,6 +120,11 @@
       "types": "./dist/claims/index.d.ts",
       "default": "./dist/claims/index.js"
     },
+    "./auth": {
+      "@better-supabase/source": "./src/auth/index.ts",
+      "types": "./dist/auth/index.d.ts",
+      "default": "./dist/auth/index.js"
+    },
     "./contract": {
       "@better-supabase/source": "./src/contract/index.ts",
       "types": "./dist/contract/index.d.ts",
@@ -1470,6 +1475,10 @@
         "types": "./dist/claims/index.d.ts",
         "default": "./dist/claims/index.js"
       },
+      "./auth": {
+        "types": "./dist/auth/index.d.ts",
+        "default": "./dist/auth/index.js"
+      },
       "./contract": {
         "types": "./dist/contract/index.d.ts",
         "default": "./dist/contract/index.js"
@@ -2507,6 +2516,7 @@
   "scripts": {
     "bench": "node tests/next/next.bench.ts && node tests/core/plugins.bench.ts && node tests/core/compile.bench.ts && node tests/server/context.bench.ts && node tests/cli/spec/spec.bench.ts",
     "bench:live": "node tests/bench/postgrest-floor.ts && node tests/bench/executors.ts",
+    "bench:sql": "node tests/bench/approval-eligible-ids.ts && node tests/bench/audit-statement.ts",
     "build": "tsdown",
     "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
     "gen:check": "node scripts/gen-fixtures.ts --check",

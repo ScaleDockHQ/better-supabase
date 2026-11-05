@@ -518,6 +518,81 @@ ${indent}end if;`;
     )
     .join("");
 
+  // approval_eligible_ids answers the rules of approval_eligible for every
+  // pending request in one statement: the approver kinds are joins, a
+  // permission is checked once per tenant and permission pair, and only a
+  // provider's isApprover still runs per request.
+  const escalates = has("policy");
+
+  const approversIn = (set: "approvers" | "escalateTo"): string =>
+    `(q.bsb_step -> '${set}')`;
+
+  const setMatch = (ap: string): string => {
+    const tenantOf = `q.${c("tenant")}`;
+    const employee = managerEmployee?.replaceAll("v_req.", "q.");
+
+    const managerClause =
+      manager === undefined
+        ? ""
+        : `
+    or (coalesce((${ap} ->> 'manager')::boolean, false) and ${managerMatch(ctx, { requester: `q.${c("requestedBy")}`, tenant: tenantOf, user: "q.bsb_me", ...(employee === undefined ? {} : { employee }) })})`;
+
+    return `((coalesce(${ap} -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or (${ap} ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from ${tenantOf} and g.p = ${ap} ->> 'permission'))
+    or (${ap} ->> 'role' is not null and exists (
+      select 1 from ${members.table("memberships")} mm
+      where mm.${mt} = ${tenantOf} and mm.${mu} = q.bsb_me and mm.${mr} = ${roleValue(ctx, `${ap} ->> 'role'`, tenantOf)}
+    ))
+    or (${ap} ->> 'team' is not null and ${teamMatch("q.bsb_me", `${ap} ->> 'team'`)})${managerClause})`;
+  };
+
+  const escalatedSet = `coalesce((q.bsb_step ->> 'escalated')::boolean, false)`;
+
+  const decidedHere = (row: string): string =>
+    `exists (select 1 from ${decisions} x where x.${d("request")} = ${row}.${c("id")} and x.${d("step")} = ${stepOf(row)} and x.${d("approver")} = ${row}.bsb_me)`;
+
+  const delegatedHere = delegation
+    ? `\n    or exists (select 1 from ${decisions} x where x.${d("request")} = q.${c("id")} and x.${d("step")} = ${stepOf("q")} and x.${d("decision")} = 'delegated' and x.${d("delegateTo")} = q.bsb_me)`
+    : "";
+
+  const providerFallback =
+    provider === undefined
+      ? ""
+      : `\n    or ${fn("approval_eligible")}(q.${c("id")})`;
+
+  const linkedSet = linked.flatMap((each) =>
+    each.approvable === undefined
+      ? []
+      : [
+          `when q.${c("subjectType")} = ${sqlString(each.subject)} then (${each.approvable({ id: `q.${c("id")}`, subjectId: `q.${c("subjectId")}`, comment: lastComment.replaceAll("v_req.", "q."), approver: "q.bsb_me" })})`,
+        ],
+  );
+
+  const setCore = `(${setMatch(approversIn("approvers"))}${escalates ? `\n    or (${escalatedSet} and ${setMatch(approversIn("escalateTo"))})` : ""}${delegatedHere}${providerFallback})`;
+
+  const eligibleIdsBody = `with base as (
+    select r.*, (select auth.uid()) as bsb_me from ${requests} r
+    where r.${c("status")} = 'pending' and (select auth.uid()) is not null
+      and (approval_eligible_ids.tenant is null or r.${c("tenant")} = approval_eligible_ids.tenant)
+  ),
+  q as (
+    select b.*, ${policyOf("b")} -> 'steps' -> ${stepOf("b")} as bsb_step from base b
+  ),
+  needs as materialized (
+    select distinct q.${c("tenant")} as t, s.ap ->> 'permission' as p
+    from q, lateral (values (${approversIn("approvers")}${escalates ? `, (case when ${escalatedSet} then ${approversIn("escalateTo")} end)` : ""})) as s(ap)
+    where s.ap ->> 'permission' is not null
+  ),
+  granted as materialized (
+    select n.t, n.p from needs n
+    where ${tenantless ? `case when n.t is null then ${ctx.staff("n.p")} else ${ctx.can("tenant", "n.t", "n.p")} end` : ctx.can("tenant", "n.t", "n.p")}
+  )
+  select q.${c("id")} from q
+  where not ${decidedHere("q")}
+    and ((q.bsb_me = q.${c("requestedBy")} and ${policyOf("q")} ->> 'mode' = 'confirm')
+      or ((q.bsb_me is distinct from q.${c("requestedBy")} or coalesce((${policyOf("q")} ->> 'selfApproval')::boolean, false))
+        and ${linkedSet.length === 0 ? setCore : `(case ${linkedSet.join("\n          ")}\n          else ${setCore} end)`}))`;
+
   const kit: ApprovalSqlKit = {
     requests,
     decisions,
@@ -824,19 +899,21 @@ ${userGrant(`${fn("approval_eligible")}(uuid)`)}
 
 -- The pending requests the caller may decide, as a set, for a policy or a list
 -- (\`id in (select ${fn("approval_eligible_ids")}())\`): Postgres evaluates the set once per
--- statement, not once per row. It calls approval_eligible for each pending
--- request, so the two never disagree. Pass a tenant to read one tenant's.
+-- statement, not once per row. It applies the rules of approval_eligible as
+-- joins over the pending requests (a permission is checked once per tenant and
+-- permission pair${provider ? ", an access provider's isApprover per request" : ""}), and a parity test keeps the two
+-- in step. Pass a tenant to read one tenant's.
 create or replace function ${fn("approval_eligible_ids")}(tenant ${ctx.idType} default null)
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select r.${c("id")} from ${requests} r
-  where r.${c("status")} = 'pending'
-    and (approval_eligible_ids.tenant is null or r.${c("tenant")} = approval_eligible_ids.tenant)
-    and ${fn("approval_eligible")}(r)
+begin
+  return query
+  ${eligibleIdsBody};
+end;
 $$;
 ${userGrant(`${fn("approval_eligible_ids")}(${ctx.idType})`)}
 
@@ -1224,7 +1301,7 @@ export const APPROVALS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   names: APPROVALS_NAMES,
   upgrades: [
     {
@@ -1243,6 +1320,12 @@ export const APPROVALS: BlockSqlDefinition = {
       from: 3,
       description:
         "Adds approval_eligible(approval_requests) and approval_fact, which reads the caller's permission, role, team and manager approvals once per statement.",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "approval_eligible_ids(tenant) joins the pending requests against the caller's approvals in one statement and no longer calls approval_eligible per request.",
       sql: () => "",
     },
   ],

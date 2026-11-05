@@ -165,6 +165,7 @@ blocks: {
 | `reservedUsernames` | `admin`, `api`, `support`, `www` and more             | names nobody gets; allocation adds a suffix                                                                      |
 | `extraColumns`      | none                                                  | column name to SQL type on a managed table, such as `{ timezone: "text not null default 'UTC'" }`                |
 | `updatable`         | name, avatar, username, onboarding and `extraColumns` | the columns users can update                                                                                     |
+| `avatarSource`      | `"url"`                                               | `"path"` makes the author of a comment or upload carry `avatarPath` (the Storage path) instead of `avatarUrl`    |
 | `columnGrants`      | `true` when managed                                   | revokes `update` and grants it on `updatable` only                                                               |
 | `serviceColumns`    | see above                                             | the columns only the service changes; `[]` drops the guard. `updated_at` is never guarded                        |
 | `readPolicy`        | `self`                                                | `members` also shows profiles of people in the same organizations (needs `tenant`); see below                    |

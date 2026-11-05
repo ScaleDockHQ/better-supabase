@@ -9,6 +9,8 @@ export interface Author {
   readonly id: string;
   readonly name: string | undefined;
   readonly avatarUrl: string | undefined;
+  /** The avatar's Storage path, with `avatarSource: "path"` on profiles. */
+  readonly avatarPath?: string | undefined;
 }
 
 /** A row's `author` object as an `Author`, or `undefined`. */
@@ -21,5 +23,8 @@ export function authorOf(value: unknown): Author | undefined {
     id: value["id"],
     name: optionalText(value["name"]),
     avatarUrl: optionalText(value["avatarUrl"] ?? value["avatar_url"]),
+    ...(typeof value["avatarPath"] === "string"
+      ? { avatarPath: value["avatarPath"] }
+      : {}),
   };
 }

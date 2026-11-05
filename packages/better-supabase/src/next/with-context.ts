@@ -27,22 +27,23 @@ export function withContextFactory<
   factory: (
     session: AuthSession<C, P>,
     base: ServerContext<M, F, E, C, P, B, D>,
-  ) => X,
+  ) => Promise<X> | X,
   sessionOf: (ctx: ServerContext<M, F, E, C, P, B, D>) => AuthSession<C, P>,
 ): ContextualNext<M, F, E, C, P, Ref, B, D, X> {
-  const built = new WeakMap<object, X>();
+  // The promise is stored, so concurrent calls on one context share a run.
+  const built = new WeakMap<object, Promise<X>>();
 
   const extraOf = (
     ctx: ServerContext<M, F, E, C, P, B, D>,
     session: AuthSession<C, P> = sessionOf(ctx),
-  ): X => {
+  ): Promise<X> => {
     const known = built.get(ctx);
 
     if (known) {
       return known;
     }
 
-    const made = factory(session, ctx);
+    const made = Promise.resolve().then(() => factory(session, ctx));
     built.set(ctx, made);
 
     return made;
@@ -52,7 +53,7 @@ export function withContextFactory<
     cached: async (options) => {
       const ctx = await next.cached(options);
 
-      return withExtra(ctx, extraOf(ctx, ctx.session));
+      return withExtra(ctx, await extraOf(ctx, ctx.session));
     },
     getAccess: async (source, options) => {
       const access = await next.getAccess(source, options);
@@ -61,13 +62,13 @@ export function withContextFactory<
         ...access,
         context: withExtra(
           access.context,
-          extraOf(access.context, access.session),
+          await extraOf(access.context, access.session),
         ),
       };
     },
     action: (options, fn) =>
-      next.action(options, (input, ctx, bound) =>
-        fn(input, withExtra(ctx, extraOf(ctx)), bound),
+      next.action(options, async (input, ctx, bound) =>
+        fn(input, withExtra(ctx, await extraOf(ctx)), bound),
       ),
   };
 }

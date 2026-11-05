@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@4 managed
--- @bsb-hash sha256:ab473ba5181766a473eab61c1b011261d117a195542174e44589c1b353a1c781
+-- @bsb-block tasks@5 managed
+-- @bsb-hash sha256:ab61b3ba13020df00aa0f2a85347f4b916dfe34df8d82a199a43c5c16d7c63b7
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -590,6 +590,43 @@ $$;
 revoke execute on function "better_supabase"."archive_task"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."archive_task"(uuid, boolean) to authenticated, service_role;
 
+-- The set form of archive_task: one update for every id, so the access check
+-- runs once per statement. Returns { ids, skipped }: skipped lists the ids
+-- that don't exist or that you can't edit.
+create or replace function "better_supabase"."archive_tasks"(ids uuid[], archived boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."tasks";
+  v_ids uuid[] := '{}';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  for v_row in
+    with changed as (
+      update "better_supabase"."tasks" x set "archived_at" = case when archive_tasks.archived then coalesce(x."archived_at", now()) end
+      where x."id" = any (coalesce(archive_tasks.ids, '{}')) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
+      returning x.*
+    )
+    select * from changed
+  loop
+    v_ids := array_append(v_ids, v_row."id");
+    if archive_tasks.archived then
+      null;
+    end if;
+  end loop;
+  return jsonb_build_object(
+    'ids', to_jsonb(v_ids),
+    'skipped', to_jsonb(array(select distinct i from unnest(coalesce(archive_tasks.ids, '{}')) i where i is not null and not (i = any (v_ids)))));
+end;
+$$;
+revoke execute on function "better_supabase"."archive_tasks"(uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."archive_tasks"(uuid[], boolean) to authenticated, service_role;
+
 -- Deletes an item and its children. Needs work_items.manage, or its author.
 create or replace function "better_supabase"."delete_task"(work_item uuid)
 returns boolean
@@ -616,6 +653,41 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_task"(uuid) to authenticated, service_role;
+
+-- The set form of delete_task: one delete, one access check per statement.
+-- Returns { ids, skipped } like archive_tasks.
+create or replace function "better_supabase"."delete_tasks"(ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."tasks";
+  v_ids uuid[] := '{}';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  for v_row in
+    with removed as (
+      delete from "better_supabase"."tasks" x
+      where x."id" = any (coalesce(delete_tasks.ids, '{}'))
+        and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
+      returning x.*
+    )
+    select * from removed
+  loop
+    v_ids := array_append(v_ids, v_row."id");
+    null;
+  end loop;
+  return jsonb_build_object(
+    'ids', to_jsonb(v_ids),
+    'skipped', to_jsonb(array(select distinct i from unnest(coalesce(delete_tasks.ids, '{}')) i where i is not null and not (i = any (v_ids)))));
+end;
+$$;
+revoke execute on function "better_supabase"."delete_tasks"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."delete_tasks"(uuid[]) to authenticated, service_role;
 
 -- An item and everything under it with its depth. An item without its own
 -- progress takes the share of its open and completed children that are
@@ -1031,7 +1103,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:ea8a7f6275992a7e6c1d4e1fb480479290ca96436b7d2cd1815c10fb28bbf310
+-- @bsb-hash sha256:7b8d34bbec12828dbfe87101d74fbe1c5f9ba06722e95a2b20b1b6b2bc0ac431
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1043,6 +1115,6 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."pipeline_stage_history"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."pipeline_stage_history" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 4, 'managed')
+values ('tasks', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

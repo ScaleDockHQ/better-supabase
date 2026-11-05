@@ -487,4 +487,33 @@ describe("readExtras", () => {
       { hook: "send_email", schema: "public", name: "missing", functions: [] },
     ]);
   });
+
+  it("reads the bodies of the functions bootstrap entries call", async () => {
+    const db = fakeSql([
+      [
+        "as function_source",
+        [
+          { schema: "app", name: "home_data", source: "select 1 from notes" },
+          { schema: "app", name: "home_data", source: "select 2 from tags" },
+        ],
+      ],
+    ]);
+
+    const extras = await readExtras(
+      db.pg,
+      ["public"],
+      [],
+      ["app.home_data", "app.gone"],
+    );
+
+    expect(
+      db.texts().find((text) => text.includes("as function_source")),
+    ).toContain("array['app.home_data', 'app.gone']::text[]");
+    expect(extras.functionSources).toEqual({
+      "app.home_data": "select 1 from notes\nselect 2 from tags",
+    });
+    expect(await readExtras(fakeSql().pg, ["public"])).not.toHaveProperty(
+      "functionSources",
+    );
+  });
 });

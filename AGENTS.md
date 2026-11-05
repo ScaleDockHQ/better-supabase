@@ -343,6 +343,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0230: Seed the authorizer from the session and memoize the audit and updated-at helpers.
 - 0231: Run account helpers over a transport and ship the CentraKit report fixes.
 - 0232: Keep the browser client free of block code and let apps opt blocks in.
+- 0233: Close the CentraKit gaps in 0.54.
 
 ## Pre-release pins
 

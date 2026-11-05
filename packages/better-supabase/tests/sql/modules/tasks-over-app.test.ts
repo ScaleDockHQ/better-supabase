@@ -185,6 +185,40 @@ $$;`),
     ).resolves.toBeUndefined();
   });
 
+  it("archives and removes a set of work items in one statement each", async () => {
+    await expect(
+      run(`do $$
+declare
+  v_ids uuid[];
+  v_ghost uuid := '99999999-9999-4999-8999-999999999999';
+  v_result jsonb;
+begin
+  ${SERVICE}
+  select array_agg((better_supabase.create_task('${TENANT}', jsonb_build_object('title', 'T' || n), null) ->> 'id')::uuid)
+  into v_ids from generate_series(1, 3) n;
+  v_result := better_supabase.archive_tasks(v_ids || v_ghost, true);
+  if jsonb_array_length(v_result -> 'ids') <> 3 or v_result -> 'skipped' <> to_jsonb(array[v_ghost]) then
+    raise exception 'archive %', v_result;
+  end if;
+  if (select count(*) from public.tickets where archived_at is not null) <> 3 then
+    raise exception 'archived rows';
+  end if;
+  v_result := better_supabase.archive_tasks(v_ids, false);
+  if (select count(*) from public.tickets where archived_at is not null) <> 0 then
+    raise exception 'unarchive %', v_result;
+  end if;
+  v_result := better_supabase.delete_tasks(v_ids || v_ghost);
+  if jsonb_array_length(v_result -> 'ids') <> 3 or v_result -> 'skipped' <> to_jsonb(array[v_ghost]) then
+    raise exception 'delete %', v_result;
+  end if;
+  if (select count(*) from public.tickets) <> 0 then
+    raise exception 'left over rows';
+  end if;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses a field the app's table has no column for", async () => {
     await expect(
       run(`do $$

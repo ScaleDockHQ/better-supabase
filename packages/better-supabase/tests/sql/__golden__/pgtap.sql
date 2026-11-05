@@ -1,7 +1,7 @@
 -- ==== alone: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:b2898630fcfe64612b7837b85b1083ffa2e37b5fd229555f0211e03aaa240632
+-- @bsb-hash sha256:81e8ac9e54cdd7fb549433bfab9d0d825e75beed3731b7b8882546d13c83ff4e
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -37,6 +37,16 @@ begin
 end;
 $$;
 
+create or replace function tests._email_of(user_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select u.email from auth.users u where u.id = user_id;
+$$;
+
 -- Runs the rest of the transaction as this user, like PostgREST does. Extra claims (tenant_id, ...) go in the JWT.
 create or replace function tests.authenticate_as(user_id uuid, claims jsonb default '{}')
 returns void
@@ -46,7 +56,7 @@ as $$
 declare
   user_email text;
 begin
-  select u.email into user_email from auth.users u where u.id = user_id;
+  user_email := tests._email_of(user_id);
   perform set_config(
     'request.jwt.claims',
     (jsonb_build_object('sub', user_id, 'role', 'authenticated', 'email', user_email, 'aud', 'authenticated') || claims)::text,
@@ -54,6 +64,18 @@ begin
   );
   set local role authenticated;
 end;
+$$;
+
+-- The lookup runs as security definer, so a test that is already
+-- authenticated can switch to another user by email.
+create or replace function tests._user_id_by_email(user_email text)
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select u.id from auth.users u where u.email = user_email;
 $$;
 
 -- The same by email address: tests.authenticate_as('member@acme.test'). An
@@ -71,7 +93,7 @@ begin
     perform tests.authenticate_as(user_email::uuid);
     return;
   end if;
-  select u.id into found_id from auth.users u where u.email = user_email;
+  found_id := tests._user_id_by_email(user_email);
   if found_id is null then
     raise exception 'tests.authenticate_as: no user with email %', user_email;
   end if;
@@ -256,7 +278,7 @@ select * from extensions.finish();
 -- ==== schema app_private: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:b2898630fcfe64612b7837b85b1083ffa2e37b5fd229555f0211e03aaa240632
+-- @bsb-hash sha256:81e8ac9e54cdd7fb549433bfab9d0d825e75beed3731b7b8882546d13c83ff4e
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -292,6 +314,16 @@ begin
 end;
 $$;
 
+create or replace function tests._email_of(user_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select u.email from auth.users u where u.id = user_id;
+$$;
+
 -- Runs the rest of the transaction as this user, like PostgREST does. Extra claims (tenant_id, ...) go in the JWT.
 create or replace function tests.authenticate_as(user_id uuid, claims jsonb default '{}')
 returns void
@@ -301,7 +333,7 @@ as $$
 declare
   user_email text;
 begin
-  select u.email into user_email from auth.users u where u.id = user_id;
+  user_email := tests._email_of(user_id);
   perform set_config(
     'request.jwt.claims',
     (jsonb_build_object('sub', user_id, 'role', 'authenticated', 'email', user_email, 'aud', 'authenticated') || claims)::text,
@@ -309,6 +341,18 @@ begin
   );
   set local role authenticated;
 end;
+$$;
+
+-- The lookup runs as security definer, so a test that is already
+-- authenticated can switch to another user by email.
+create or replace function tests._user_id_by_email(user_email text)
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select u.id from auth.users u where u.email = user_email;
 $$;
 
 -- The same by email address: tests.authenticate_as('member@acme.test'). An
@@ -326,7 +370,7 @@ begin
     perform tests.authenticate_as(user_email::uuid);
     return;
   end if;
-  select u.id into found_id from auth.users u where u.email = user_email;
+  found_id := tests._user_id_by_email(user_email);
   if found_id is null then
     raise exception 'tests.authenticate_as: no user with email %', user_email;
   end if;
@@ -511,7 +555,7 @@ select * from extensions.finish();
 -- ==== api schema: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:b2898630fcfe64612b7837b85b1083ffa2e37b5fd229555f0211e03aaa240632
+-- @bsb-hash sha256:81e8ac9e54cdd7fb549433bfab9d0d825e75beed3731b7b8882546d13c83ff4e
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -547,6 +591,16 @@ begin
 end;
 $$;
 
+create or replace function tests._email_of(user_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select u.email from auth.users u where u.id = user_id;
+$$;
+
 -- Runs the rest of the transaction as this user, like PostgREST does. Extra claims (tenant_id, ...) go in the JWT.
 create or replace function tests.authenticate_as(user_id uuid, claims jsonb default '{}')
 returns void
@@ -556,7 +610,7 @@ as $$
 declare
   user_email text;
 begin
-  select u.email into user_email from auth.users u where u.id = user_id;
+  user_email := tests._email_of(user_id);
   perform set_config(
     'request.jwt.claims',
     (jsonb_build_object('sub', user_id, 'role', 'authenticated', 'email', user_email, 'aud', 'authenticated') || claims)::text,
@@ -564,6 +618,18 @@ begin
   );
   set local role authenticated;
 end;
+$$;
+
+-- The lookup runs as security definer, so a test that is already
+-- authenticated can switch to another user by email.
+create or replace function tests._user_id_by_email(user_email text)
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select u.id from auth.users u where u.email = user_email;
 $$;
 
 -- The same by email address: tests.authenticate_as('member@acme.test'). An
@@ -581,7 +647,7 @@ begin
     perform tests.authenticate_as(user_email::uuid);
     return;
   end if;
-  select u.id into found_id from auth.users u where u.email = user_email;
+  found_id := tests._user_id_by_email(user_email);
   if found_id is null then
     raise exception 'tests.authenticate_as: no user with email %', user_email;
   end if;

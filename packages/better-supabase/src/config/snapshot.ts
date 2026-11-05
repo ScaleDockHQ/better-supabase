@@ -53,6 +53,12 @@ export interface SnapshotExtras {
    */
   readonly hooks?: readonly ExtrasHook[];
   /**
+   * The bodies (`pg_proc.prosrc`) of the functions behind the sessions block's
+   * `bootstrap` entries, keyed by `schema.name`, so `gen` can derive the tables
+   * each payload reads. Absent when no entry names a function.
+   */
+  readonly functionSources?: Readonly<Record<string, string>>;
+  /**
    * Comments of the functions in the read schemas that carry a gen tag
    * (`@notNull`), keyed by `schema.name(signature)`. Absent when none do.
    */

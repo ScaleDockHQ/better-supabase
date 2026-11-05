@@ -23,3 +23,21 @@ describe("authorOf", () => {
     expect(authorOf({ name: "Ada" })).toBeUndefined();
   });
 });
+
+describe("authorOf avatar path", () => {
+  it("carries the Storage path when the lookup returns one", () => {
+    expect(
+      authorOf({
+        id: "u1",
+        name: "Ada",
+        avatarUrl: null,
+        avatarPath: "a/1.png",
+      }),
+    ).toEqual({
+      id: "u1",
+      name: "Ada",
+      avatarUrl: undefined,
+      avatarPath: "a/1.png",
+    });
+  });
+});

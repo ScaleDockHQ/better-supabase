@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
+
+import type { StandardSchemaV1 } from "../../src/core/standard.ts";
 
 import { generatedOptions } from "../../src/blocks/block-config.ts";
 import { columnsSchema } from "../../src/core/columns-schema.ts";
 
 const schema = columnsSchema({
-  region: "text not null default 'eu'",
+  region: "text not null",
   seats: "int4",
   budget: "numeric(12, 2)",
   flags: "text[]",
@@ -94,6 +96,49 @@ describe("columnsSchema required columns", () => {
   it("lets an optional column be missing or null", () => {
     expect(issues({ name: "a", seats: null })).toEqual([]);
     expect(issues({ name: "a" })).toEqual([]);
+  });
+});
+
+describe("columnsSchema defaults", () => {
+  const defaults = columnsSchema({
+    name: "text not null",
+    risk: "text not null default 'low'",
+    metadata: "jsonb not null default '{}'::jsonb",
+  });
+
+  const issues = (value: unknown): readonly string[] => {
+    const outcome = defaults["~standard"].validate(value);
+
+    if (outcome instanceof Promise) {
+      throw new TypeError("expected a synchronous schema");
+    }
+
+    return (outcome.issues ?? []).map((issue) => issue.message);
+  };
+
+  it("lets a not null column with a default be missing on input", () => {
+    expect(issues({ name: "a" })).toEqual([]);
+  });
+
+  it("still checks a default column's value and rejects null", () => {
+    expect(issues({ name: "a", risk: "high" })).toEqual([]);
+    expect(issues({ name: "a", risk: 3 })).toHaveLength(1);
+    expect(issues({ name: "a", risk: null })).toEqual(["risk can't be null"]);
+  });
+
+  it("still requires a not null column without a default", () => {
+    expect(issues({})).toEqual(["name is required"]);
+  });
+
+  it("types the default column optional on input and required on output", () => {
+    type Input = StandardSchemaV1.InferInput<typeof defaults>;
+
+    type Output = StandardSchemaV1.InferOutput<typeof defaults>;
+
+    expectTypeOf<Input>().toHaveProperty("name");
+    expectTypeOf<{ name: string }>().toExtend<Input>();
+    expectTypeOf<Output["risk"]>().toEqualTypeOf<string>();
+    expectTypeOf<Output["metadata"]>().toEqualTypeOf<unknown>();
   });
 });
 

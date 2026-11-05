@@ -589,7 +589,10 @@ labels include those literals.
 `organizations` and `profiles` also take `options.extraColumns`: your own
 columns, keyed by name with their SQL type, which the module adds to its
 managed table, copies on writes and returns from its reads. A name the module
-already uses is refused. [Extending blocks](/docs/extending/blocks#your-own-fields)
+already uses is refused. A `not null` column without a `default` is required on
+input; one with a `default` (such as `risk text not null default 'low'`) may
+be left out and the database fills it, and it is still required on output.
+[Extending blocks](/docs/extending/blocks#your-own-fields)
 shows how to type them in TypeScript.
 
 ### Calling a module over the Data API

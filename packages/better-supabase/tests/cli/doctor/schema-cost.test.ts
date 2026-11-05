@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
@@ -60,6 +61,29 @@ describe("BS243 large literal in a security definer helper", () => {
     const text = `create function better_supabase.table_map() returns text language sql security definer as $$ select '${"z".repeat(3000)}' $$;`;
 
     expect(await run("BS243", [{ path: "d.sql", text }])).toEqual([]);
+  });
+
+  it("measures the literals inside a $function$ body, not the body", async () => {
+    const text = readFileSync(
+      new URL("fixtures/bs243/migration.sql", import.meta.url),
+      "utf-8",
+    );
+
+    expect(text.length).toBeGreaterThan(LITERAL_LIMIT * 4);
+    expect(
+      await run("BS243", [{ path: "supabase/migrations/1.sql", text }]),
+    ).toEqual([]);
+
+    const big = text.replace("'step 0'", `'${"x".repeat(LITERAL_LIMIT + 1)}'`);
+
+    const findings = await run("BS243", [
+      { path: "supabase/migrations/2.sql", text: big },
+    ]);
+
+    expect(findings).toMatchObject([
+      { code: "BS243", target: "private.record_steps" },
+    ]);
+    expect(findings[0]!.message).toContain("1025-character literal");
   });
 
   it("reads a tagged dollar-quoted literal", async () => {

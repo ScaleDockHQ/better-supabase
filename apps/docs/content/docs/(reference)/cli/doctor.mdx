@@ -931,7 +931,7 @@ as a permission map or a JSON catalog. Postgres parses the literal again on
 every call, and a policy helper runs once per table per statement. Store the
 data in a table, or parse it once per transaction and keep it with
 [`better_supabase.memo_get` and `memo_set`](/docs/blocks/sql#memoize-a-value-for-one-transaction).
-BS243 reads the SQL files, so a saved snapshot works too.
+BS243 reads the SQL files, so a saved snapshot works too. It measures the quoted literals inside a function body and ignores the quote that wraps the body itself (`$function$ ... $function$`), so a long body with short literals is not reported.
 
 ### BS244
 
@@ -1096,7 +1096,7 @@ Vault), then remove the option.
 
 ### BS315
 
-**Warning: table without an audit trigger.** The `audit` module is in
+**Error: table without an audit trigger.** The `audit` module is in
 `blocks`, and a table in `schemas` has no `bsb_audit` trigger, nor another
 trigger that calls `better_supabase.audit_row_change()`, so its inserts,
 updates and deletes are not in the audit log. Register it with
@@ -1105,7 +1105,7 @@ skips the block schemas and the app's tables that blocks run over; list other ta
 `blocks.audit.options.exempt` as `{ table, reason }` entries, where `table` is
 a `schema.table` glob (`*` matches any run of characters) and `reason` says why
 its changes need no audit entry. A bare glob string still works, but doctor
-reports it and asks for the reason. Doctor only checks tables in `schemas`, and
+reports it as an error and asks for the reason. Doctor only checks tables in `schemas`, and
 a partition counts through its parent.
 
 ```ts title="better-supabase.config.ts"

@@ -281,7 +281,12 @@ export default defineConfig({
       options: {
         policies: true,
         authzVersions: true,
-        bootstrap: { islands: "public.island_counts" },
+        bootstrap: {
+          islands: {
+            function: "public.island_counts",
+            tables: ["customers", "notes", "contacts", "tags", "tasks"],
+          },
+        },
       },
     },
     sso: {},

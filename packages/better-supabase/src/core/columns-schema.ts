@@ -41,9 +41,36 @@ type BaseOf<T extends string> = T extends `${infer Head} not null${string}`
 type Required_<T extends string> =
   Lowercase<T> extends `${string}not null${string}` ? true : false;
 
+type Defaulted<T extends string> =
+  Lowercase<T> extends `${string} default${string}` ? true : false;
+
+/** A key the caller must send: `not null` and no database default. */
+type NeededOnInput<T extends string> =
+  Required_<T> extends true
+    ? Defaulted<T> extends true
+      ? false
+      : true
+    : false;
+
 /**
- * What `columnsSchema` reads: a column with `not null` is a required key, any
- * other column is optional and may be `null`.
+ * What `columnsSchema` accepts: a column with `not null` and no `default` is a
+ * required key. Any other column is optional, because the database fills a
+ * default and a nullable column may be `null`.
+ */
+export type ColumnsInput<C extends Readonly<Record<string, string>>> = {
+  readonly [
+    K in keyof C as NeededOnInput<C[K]> extends true ? K : never
+  ]: BaseOf<C[K]>;
+} & {
+  readonly [
+    K in keyof C as NeededOnInput<C[K]> extends true ? never : K
+  ]?: BaseOf<C[K]> | null;
+};
+
+/**
+ * What `columnsSchema` returns: a column with `not null` is a required key
+ * (also when it has a default), any other column is optional and may be
+ * `null`.
  */
 export type ColumnsOutput<C extends Readonly<Record<string, string>>> = {
   readonly [K in keyof C as Required_<C[K]> extends true ? K : never]: BaseOf<
@@ -128,6 +155,9 @@ function checkOf(sql: string): Check {
 
 interface Column {
   readonly check: Check;
+  /** `not null`: `null` is refused. */
+  readonly notNull: boolean;
+  /** `not null` without a default: the key must be sent. */
   readonly required: boolean;
   readonly type: string;
 }
@@ -143,12 +173,21 @@ interface Column {
  */
 export function columnsSchema<const C extends Readonly<Record<string, string>>>(
   columns: C,
-): StandardSchemaV1<unknown, ColumnsOutput<C>> {
+): StandardSchemaV1<ColumnsInput<C>, ColumnsOutput<C>> {
   const specs = Object.entries(columns).map(
-    ([key, type]): readonly [string, Column] => [
-      key,
-      { check: checkOf(type), required: /\bnot\s+null\b/iu.test(type), type },
-    ],
+    ([key, type]): readonly [string, Column] => {
+      const notNull = /\bnot\s+null\b/iu.test(type);
+
+      return [
+        key,
+        {
+          check: checkOf(type),
+          notNull,
+          required: notNull && !/\bdefault\b/iu.test(type),
+          type,
+        },
+      ];
+    },
   );
 
   return {
@@ -168,7 +207,7 @@ export function columnsSchema<const C extends Readonly<Record<string, string>>>(
           if (present === undefined || present === null) {
             if (present === undefined && column.required) {
               issues.push({ message: `${key} is required`, path: [key] });
-            } else if (present === null && column.required) {
+            } else if (present === null && column.notNull) {
               issues.push({ message: `${key} can't be null`, path: [key] });
             }
 

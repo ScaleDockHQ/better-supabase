@@ -18,17 +18,30 @@ export type SessionsSqlOptions = {
    * function whose jsonb result the authorizer reads (`accessFor` seeds it, so
    * the check skips its own subject query). Without it, an entry takes the
    * authorization provider's `functions.subject`; `subject: false` opts out.
-   * String entries take the provider's too. Renders
-   * `better_supabase.bootstrap_<name>`.
+   * String entries take the provider's too. `{ function, tables?, subject? }`
+   * is the string form with options. Every object form takes `tables`, the
+   * tables the payload reads (model keys): `bsb.bootstrap({ rpc })` tags its
+   * cache entry with them, and without `tables` `gen` derives them from the
+   * function body. Renders `better_supabase.bootstrap_<name>`.
    */
   readonly bootstrap?: Readonly<
     Record<
       string,
       | string
-      | { readonly readSet: string; readonly subject?: string | false }
+      | {
+          readonly function: string;
+          readonly tables?: readonly string[];
+          readonly subject?: string | false;
+        }
+      | {
+          readonly readSet: string;
+          readonly tables?: readonly string[];
+          readonly subject?: string | false;
+        }
       | {
           readonly readSets: readonly string[];
           readonly shell?: string;
+          readonly tables?: readonly string[];
           readonly subject?: string | false;
         }
     >

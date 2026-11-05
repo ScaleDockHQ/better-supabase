@@ -7,6 +7,7 @@ export {
 
 export type {
   BlockClientOptions,
+  ServiceBlocksOptions,
   BlockClientSource,
   BlockContext,
   BlockMap,
@@ -196,7 +197,7 @@ export { blockFields } from "../core/block-fields.ts";
 
 export { columnsSchema } from "../core/columns-schema.ts";
 
-export type { ColumnsOutput } from "../core/columns-schema.ts";
+export type { ColumnsInput, ColumnsOutput } from "../core/columns-schema.ts";
 
 export type {
   BlockFields,

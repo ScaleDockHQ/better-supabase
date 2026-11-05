@@ -91,4 +91,10 @@ export const AUDIT_UPGRADES: readonly BlockSqlUpgrade[] = [
     sql: () =>
       "drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);",
   },
+  {
+    from: 10,
+    description:
+      "audit(statement => true) works with the restricted table: audit_statement_change() writes the restricted rows of a statement in one insert, next to the entries.",
+    sql: () => "",
+  },
 ];

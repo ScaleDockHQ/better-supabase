@@ -755,6 +755,39 @@ end;
 $$;
 ${userGrant(`${fn("archive_task")}(uuid, boolean)`)}
 
+-- The set form of archive_task: one update for every id, so the access check
+-- runs once per statement. Returns { ids, skipped }: skipped lists the ids
+-- that don't exist or that you can't edit.
+create or replace function ${fn("archive_tasks")}(ids uuid[], archived boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("items")};
+  v_ids uuid[] := '{}';
+begin
+  for v_row in
+    with changed as (
+      update ${t("items")} x set ${w("archivedAt")} = case when archive_tasks.archived then coalesce(x.${w("archivedAt")}, now()) end
+      where x.${w("id")} = any (coalesce(archive_tasks.ids, '{}')) and ${editable("x")}
+      returning x.*
+    )
+    select * from changed
+  loop
+    v_ids := array_append(v_ids, v_row.${w("id")});
+    if archive_tasks.archived then
+      ${record("task.archived", "v_row")}
+    end if;
+  end loop;
+  return jsonb_build_object(
+    'ids', to_jsonb(v_ids),
+    'skipped', to_jsonb(array(select distinct i from unnest(coalesce(archive_tasks.ids, '{}')) i where i is not null and not (i = any (v_ids)))));
+end;
+$$;
+${userGrant(`${fn("archive_tasks")}(uuid[], boolean)`)}
+
 -- Deletes an item and its children. Needs work_items.manage, or its author.
 create or replace function ${fn("delete_task")}(work_item uuid)
 returns boolean
@@ -777,6 +810,37 @@ begin
 end;
 $$;
 ${userGrant(`${fn("delete_task")}(uuid)`)}
+
+-- The set form of delete_task: one delete, one access check per statement.
+-- Returns { ids, skipped } like archive_tasks.
+create or replace function ${fn("delete_tasks")}(ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("items")};
+  v_ids uuid[] := '{}';
+begin
+  for v_row in
+    with removed as (
+      delete from ${t("items")} x
+      where x.${w("id")} = any (coalesce(delete_tasks.ids, '{}'))
+        and (${n.service} or ${has("createdBy") && n.authorCanDelete ? `x.${w("createdBy")} = auth.uid() or` : ""} ${ctx.scope.can(`x.${w("tenant")}`, n.remove)})
+      returning x.*
+    )
+    select * from removed
+  loop
+    v_ids := array_append(v_ids, v_row.${w("id")});
+    ${record("task.deleted", "v_row")}
+  end loop;
+  return jsonb_build_object(
+    'ids', to_jsonb(v_ids),
+    'skipped', to_jsonb(array(select distinct i from unnest(coalesce(delete_tasks.ids, '{}')) i where i is not null and not (i = any (v_ids)))));
+end;
+$$;
+${userGrant(`${fn("delete_tasks")}(uuid[])`)}
 
 -- An item and everything under it with its depth. An item without its own
 -- progress takes the share of its open and completed children that are

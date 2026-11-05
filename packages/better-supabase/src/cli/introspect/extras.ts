@@ -146,6 +146,14 @@ join pg_language l on l.oid = p.prolang
 where n.nspname || '.' || p.proname = any(${names})
 order by 1, 2, 3`;
 
+// The bodies of the functions behind `sessions` bootstrap entries, every overload.
+const FUNCTION_SOURCES = (names: string) => `
+select n.nspname as schema, p.proname as name, p.prosrc as source, 1 as function_source
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname || '.' || p.proname = any(${names})
+order by 1, 2, p.oid`;
+
 const TRIGGERS = (schemas: string) => `
 select t.tgrelid::int8 as table_id, t.tgname as name,
   pn.nspname || '.' || p.proname as function,
@@ -464,6 +472,7 @@ export async function readExtras(
   db: Queryable,
   schemas: readonly string[],
   hooks: readonly HookTarget[] = [],
+  functionNames: readonly string[] = [],
 ): Promise<SnapshotExtras> {
   const list = literalArray(schemas);
 
@@ -482,6 +491,7 @@ export async function readExtras(
     hookRows,
     commentRows,
     domainRows,
+    sourceRows,
   ] = await Promise.all([
     rows<{
       id: number | string;
@@ -509,7 +519,23 @@ export async function readExtras(
       base_schema: string;
       not_null: boolean;
     }>(db, FUNCTION_DOMAINS(list)),
+    functionNames.length > 0
+      ? rows<{ schema: string; name: string; source: string }>(
+          db,
+          FUNCTION_SOURCES(literalArray(functionNames)),
+        )
+      : [],
   ]);
+
+  const functionSources: Record<string, string> = {};
+
+  for (const row of sourceRows) {
+    const key = `${row.schema}.${row.name}`;
+    functionSources[key] =
+      key in functionSources
+        ? `${functionSources[key]}\n${row.source}`
+        : row.source;
+  }
 
   const constraints = groupById(constraintRows);
   const indexes = groupById(indexRows);
@@ -622,6 +648,7 @@ export async function readExtras(
       execute: row.execute,
     })),
     ...(hookRows ? { hooks: hookRows } : {}),
+    ...(Object.keys(functionSources).length > 0 ? { functionSources } : {}),
     ...(commentRows.length > 0
       ? {
           functionComments: Object.fromEntries(

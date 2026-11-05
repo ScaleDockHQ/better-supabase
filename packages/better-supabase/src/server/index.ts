@@ -239,7 +239,7 @@ export {
   sessionCookieName,
   sessionStatus,
   toSession,
-} from "../auth/index.ts";
+} from "../auth/internal.ts";
 
 export type {
   AccessTokenResolverOptions,
@@ -270,7 +270,7 @@ export type {
   SessionStatus,
   SessionStatusOptions,
   StoredSession,
-} from "../auth/index.ts";
+} from "../auth/internal.ts";
 
 export {
   fromProblem,

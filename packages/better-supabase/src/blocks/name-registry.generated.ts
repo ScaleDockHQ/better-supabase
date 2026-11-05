@@ -2495,7 +2495,7 @@ export interface BlockNameRegistry {
       readonly "projects": "id" | "tenant" | "key" | "name" | "owner" | "status" | "startOn" | "targetOn" | "budgetAmount" | "budgetCurrency" | "budgetHours" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "iterations": "id" | "tenant" | "team" | "name" | "startsOn" | "endsOn" | "createdAt";
     };
-    readonly functions: "archive_task" | "create_task" | "delete_task" | "delete_task_checklist_item" | "get_task" | "list_task_checklist" | "list_tasks" | "save_iteration" | "save_project" | "save_task_checklist_item" | "set_task_assignees" | "task_tree" | "update_tasks";
+    readonly functions: "archive_task" | "archive_tasks" | "create_task" | "delete_task" | "delete_task_checklist_item" | "delete_tasks" | "get_task" | "list_task_checklist" | "list_tasks" | "save_iteration" | "save_project" | "save_task_checklist_item" | "set_task_assignees" | "task_tree" | "update_tasks";
     readonly actions: "read" | "write" | "manage" | "create" | "delete";
     readonly hooks: "before_task_create" | "after_task_create" | "before_task_update" | "after_task_update";
     readonly entities: {

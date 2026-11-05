@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
--- @bsb-block facilities@4 managed tasks
--- @bsb-hash sha256:98e0e5ec00598e9bb24fa249551798641544c39c3472ed4d60659b872c7f01a1
+-- @bsb-block facilities@5 managed tasks
+-- @bsb-hash sha256:aa86d2a63babc0a8aaa42e091d7c49b26af1742e2114a080aa21520e3db4ba7e
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -583,6 +583,43 @@ $$;
 revoke execute on function "better_supabase"."archive_maintenance_request"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."archive_maintenance_request"(uuid, boolean) to authenticated, service_role;
 
+-- The set form of archive_task: one update for every id, so the access check
+-- runs once per statement. Returns { ids, skipped }: skipped lists the ids
+-- that don't exist or that you can't edit.
+create or replace function "better_supabase"."archive_maintenance_requests"(ids uuid[], archived boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."maintenance_requests";
+  v_ids uuid[] := '{}';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  for v_row in
+    with changed as (
+      update "better_supabase"."maintenance_requests" x set "archived_at" = case when archive_maintenance_requests.archived then coalesce(x."archived_at", now()) end
+      where x."id" = any (coalesce(archive_maintenance_requests.ids, '{}')) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false))
+      returning x.*
+    )
+    select * from changed
+  loop
+    v_ids := array_append(v_ids, v_row."id");
+    if archive_maintenance_requests.archived then
+      perform "better_supabase".emit_event('maintenance_request.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
+    end if;
+  end loop;
+  return jsonb_build_object(
+    'ids', to_jsonb(v_ids),
+    'skipped', to_jsonb(array(select distinct i from unnest(coalesce(archive_maintenance_requests.ids, '{}')) i where i is not null and not (i = any (v_ids)))));
+end;
+$$;
+revoke execute on function "better_supabase"."archive_maintenance_requests"(uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."archive_maintenance_requests"(uuid[], boolean) to authenticated, service_role;
+
 -- Deletes an item and its children. Needs work_items.manage, or its author.
 create or replace function "better_supabase"."delete_maintenance_request"(work_item uuid)
 returns boolean
@@ -609,6 +646,41 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_maintenance_request"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_maintenance_request"(uuid) to authenticated, service_role;
+
+-- The set form of delete_task: one delete, one access check per statement.
+-- Returns { ids, skipped } like archive_tasks.
+create or replace function "better_supabase"."delete_maintenance_requests"(ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."maintenance_requests";
+  v_ids uuid[] := '{}';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  for v_row in
+    with removed as (
+      delete from "better_supabase"."maintenance_requests" x
+      where x."id" = any (coalesce(delete_maintenance_requests.ids, '{}'))
+        and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.manage'), false))
+      returning x.*
+    )
+    select * from removed
+  loop
+    v_ids := array_append(v_ids, v_row."id");
+    perform "better_supabase".emit_event('maintenance_request.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
+  end loop;
+  return jsonb_build_object(
+    'ids', to_jsonb(v_ids),
+    'skipped', to_jsonb(array(select distinct i from unnest(coalesce(delete_maintenance_requests.ids, '{}')) i where i is not null and not (i = any (v_ids)))));
+end;
+$$;
+revoke execute on function "better_supabase"."delete_maintenance_requests"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."delete_maintenance_requests"(uuid[]) to authenticated, service_role;
 
 -- An item and everything under it with its depth. An item without its own
 -- progress takes the share of its open and completed children that are
@@ -1059,6 +1131,15 @@ as $$ select "better_supabase"."archive_maintenance_request"($1, $2) $$;
 revoke execute on function "api"."archive_maintenance_request"(uuid, boolean) from public, anon;
 grant execute on function "api"."archive_maintenance_request"(uuid, boolean) to authenticated, service_role;
 
+create or replace function "api"."archive_maintenance_requests"(ids uuid[], archived boolean default true)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_maintenance_requests"($1, $2) $$;
+revoke execute on function "api"."archive_maintenance_requests"(uuid[], boolean) from public, anon;
+grant execute on function "api"."archive_maintenance_requests"(uuid[], boolean) to authenticated, service_role;
+
 create or replace function "api"."delete_maintenance_request"(work_item uuid)
 returns boolean
 language sql
@@ -1067,6 +1148,15 @@ set search_path = ''
 as $$ select "better_supabase"."delete_maintenance_request"($1) $$;
 revoke execute on function "api"."delete_maintenance_request"(uuid) from public, anon;
 grant execute on function "api"."delete_maintenance_request"(uuid) to authenticated, service_role;
+
+create or replace function "api"."delete_maintenance_requests"(ids uuid[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_maintenance_requests"($1) $$;
+revoke execute on function "api"."delete_maintenance_requests"(uuid[]) from public, anon;
+grant execute on function "api"."delete_maintenance_requests"(uuid[]) to authenticated, service_role;
 
 create or replace function "api"."maintenance_request_tree"(root uuid)
 returns jsonb

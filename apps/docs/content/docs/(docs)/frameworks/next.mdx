@@ -661,7 +661,16 @@ export const archive = bsb.action(
 
 ### The app's own context
 
-`bsb.withContext((session, base) => ({ ... }))` returns `cached`, `getAccess` and `action` that hand back the app's context merged into the library's. The factory runs once per request and tenant, from the session the library already read. `createNext` keeps the schema's `Database` type, so `ctx.supabase` is `SupabaseClient<Database>` in all of them.
+`bsb.withContext((session, base) => ({ ... }))` returns `cached`, `getAccess` and `action` that hand back the app's context merged into the library's. The factory runs once per request and tenant, from the session the library already read. It may be async: each call awaits it, and concurrent calls on one context share a single run.
+
+```ts
+export const app = bsb.withContext(async (session, base) => ({
+  organizationId: base.tenant,
+  plan: await loadPlan(base),
+}));
+```
+
+`createNext` keeps the schema's `Database` type, so `ctx.supabase` is `SupabaseClient<Database>` in all of them.
 
 ## Cache tags
 
@@ -716,6 +725,28 @@ read across tenants (`{ tenant: "*" }`), which carries `bsb:<table>` as well
 as `bsb:<table>@*`. `bsb.tag`
 takes the same option as its third argument, and `tagFor(table, undefined,
 { tenant })` builds the tag.
+
+### Tags and private caches
+
+Tags reach the cache scope that stores the entry. A `"use cache"` or `"use cache: remote"` entry lives on the server, so `updateTag` and `revalidateTag` invalidate it for every caller. A `"use cache: private"` entry never persists on the server across requests: the browser's client router keeps it for the `stale` time of its `cacheLife`. A mutation in a server action clears the whole client cache, because Next.js clears it when an action calls `updateTag`, `revalidateTag`, `revalidatePath` or `refresh`. A mutation in a route handler or a webhook does not reach a browser that already holds the entry, so give private entries a finite `stale` time that you can accept as the delay.
+
+### Payload RPC tables
+
+`bsb.bootstrap({ rpc })` tags its entry with the tables the `bootstrap_<rpc>` payload reads, so `bsb:<table>@<tenant>` invalidation reaches it. Declare them on the entry, as model keys:
+
+```ts
+blocks: {
+  sessions: {
+    options: {
+      bootstrap: {
+        home: { function: "app.home_data", tables: ["customers", "notes"] },
+      },
+    },
+  },
+},
+```
+
+Without `tables`, `gen` reads the function body (`pg_proc.prosrc`) and records the known tables it names after `from`, `join`, `update` or `into`. A table a function reaches through another function or a dynamic statement needs to be declared. `bsb.bootstrap({ rpc, tables })` adds more tables for one call.
 
 Turn invalidation off with `createNext(betterSupabase, { cacheTags: false })`. The
 invalidation is the `nextCache()` [cache adapter](/docs/extending/interfaces#cacheadapter);

@@ -1,5 +1,5 @@
 import type { BlockNaming } from "../core/block-names.ts";
-import type { ColumnsOutput } from "../core/columns-schema.ts";
+import type { ColumnsInput, ColumnsOutput } from "../core/columns-schema.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 
 import { columnsSchema } from "../core/columns-schema.ts";
@@ -80,7 +80,7 @@ export function generatedOptions<const E extends GeneratedBlock>(
 export type GeneratedFields<E extends GeneratedBlock> = E extends {
   readonly columns: infer C extends Readonly<Record<string, string>>;
 }
-  ? { readonly fields: StandardSchemaV1<unknown, ColumnsOutput<C>> }
+  ? { readonly fields: StandardSchemaV1<ColumnsInput<C>, ColumnsOutput<C>> }
   : unknown;
 
 /**

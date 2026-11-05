@@ -20,6 +20,7 @@ const entries = [
   "query/index",
   "records/index",
   "claims/index",
+  "auth/index",
   "contract/index",
   "server/index",
   "postgres/index",

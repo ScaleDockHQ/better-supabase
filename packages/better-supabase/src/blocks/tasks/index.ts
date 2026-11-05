@@ -13,6 +13,7 @@ export {
   type WorkItemListOptions,
   type WorkItemNode,
   type WorkItemRecurrence,
+  type WorkItemSetResult,
   type Tasks,
   type TasksOptions,
   type WorkItemState,

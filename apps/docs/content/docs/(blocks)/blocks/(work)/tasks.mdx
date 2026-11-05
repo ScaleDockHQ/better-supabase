@@ -121,6 +121,14 @@ await tasks
   .orThrow();
 ```
 
+### Archive or remove many items
+
+`archive({ workItemIds, archived })` and `remove(workItemIds)` take a list and run as one statement each, so the access check runs once for the whole set and each records its events as before. They return `{ ids, skipped }`: `ids` are the items that changed, and `skipped` are the ids that don't exist or that you can't edit. Calling with an id list in a loop is no longer needed. In SQL they are `archive_tasks(ids uuid[], archived boolean)` and `delete_tasks(ids uuid[])`, which return the same shape as jsonb.
+
+```ts
+const { ids, skipped } = await tasks.archive({ workItemIds }).orThrow();
+```
+
 ## Lists, trees, projects and iterations
 
 `list(organizationId, { teamId, projectId, iterationId, parentId, assigneeId, states, open, search })` returns active items, newest first, 50 per page; pass the last item's id as `after` for the next page. `tree(rootId)` returns an item and everything under it with its depth; an item without its own `progress` rolls up the share of its open and completed children that are completed, for a Gantt group.

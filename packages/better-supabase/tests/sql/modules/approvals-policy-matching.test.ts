@@ -497,3 +497,71 @@ $$;`),
     });
   },
 );
+
+describe("approval_eligible_ids against approval_eligible", BOOT, () => {
+  it("returns what approval_eligible accepts, for every user and request state", async () => {
+    await expect(
+      run(`do $$
+declare
+  v_id uuid;
+  v_chat uuid;
+  u uuid;
+  bad integer := 0;
+begin
+  ${SERVICE}
+  perform better_supabase.request_approval('${TENANT}', 'invoice', 'i-' || n, 'send') from generate_series(1, 6) n;
+  perform better_supabase.request_approval('${TENANT}', 'contract', 'c-' || n, 'sign') from generate_series(1, 4) n;
+  v_id := (select id from better_supabase.approval_requests where subject_id = 'c-1');
+  ${as(ANN)}
+  perform better_supabase.decide_approval(v_id, 'approved');
+  v_id := (select id from better_supabase.approval_requests where subject_id = 'c-2');
+  perform better_supabase.delegate_approval(v_id, '${ADMIN}');
+  ${as(REQUESTER)}
+  v_chat := (better_supabase.request_approval(null, 'ai_chat', 'chat-1', 'run') ->> 'id')::uuid;
+  perform better_supabase.request_approval(null, 'ai_chat', 'chat-2', 'run');
+  ${SERVICE}
+  update better_supabase.approval_requests set created_at = now() - interval '2 hours' where id = v_chat;
+  perform better_supabase.escalate_approvals();
+
+  foreach u in array array['${ADMIN}', '${REQUESTER}', '${ANN}', '${BEN}', '${STAFF}', '${OWNER}']::uuid[] loop
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', u, 'role', 'authenticated')::text, true);
+    if (
+      select coalesce(array_agg(r.id order by r.id), '{}') from better_supabase.approval_requests r
+      where r.status = 'pending' and better_supabase.approval_eligible(r.id)
+    ) is distinct from (
+      select coalesce(array_agg(x order by x), '{}') from better_supabase.approval_eligible_ids() x
+    ) then
+      bad := bad + 1;
+    end if;
+  end loop;
+  if bad <> 0 then
+    raise exception 'approval_eligible_ids differs from approval_eligible for % users', bad;
+  end if;
+
+  ${as(ANN)}
+  if (select count(*) from better_supabase.approval_eligible_ids()) <> 8 then
+    raise exception 'Ann decides % requests', (select count(*) from better_supabase.approval_eligible_ids());
+  end if;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("calls no function per request without an access provider's approver check", () => {
+    const sql = renderBlocks(["permissions", "approvals"], {
+      modules: BLOCKS,
+      accessProvider: PROVIDER,
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    const body =
+      /function "better_supabase"."approval_eligible_ids"[\s\S]*?\$\$;/u.exec(
+        sql,
+      )?.[0];
+
+    expect(body).toBeDefined();
+    expect(body).not.toMatch(/"approval_eligible"\(/u);
+    expect(body).not.toMatch(/"approval_fact"\(/u);
+  });
+});

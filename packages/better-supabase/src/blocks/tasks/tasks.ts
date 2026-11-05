@@ -96,6 +96,14 @@ export interface WorkItem<F extends object = Record<never, never>> {
   readonly updatedAt: Temporal.Instant;
 }
 
+/** What the set forms of `archive` and `remove` did. */
+export interface WorkItemSetResult {
+  /** The items that were changed. */
+  readonly ids: readonly string[];
+  /** The ids that don't exist or that the caller can't change. */
+  readonly skipped: readonly string[];
+}
+
 export interface WorkItemInput<F extends object = Record<never, never>> {
   readonly title: string;
   readonly body?: string;
@@ -304,7 +312,17 @@ export interface Tasks<F extends object = Record<never, never>> {
     workItemId: string;
     archived?: boolean | undefined;
   }): AsyncResult<boolean>;
+  /**
+   * Archives many items in one statement. Access is checked once, and the ids
+   * that don't exist or that you can't edit come back in `skipped`.
+   */
+  archive(input: {
+    workItemIds: readonly string[];
+    archived?: boolean | undefined;
+  }): AsyncResult<WorkItemSetResult>;
   remove(workItemId: string): AsyncResult<boolean>;
+  /** Removes many items in one statement; `skipped` lists the refused ids. */
+  remove(workItemIds: readonly string[]): AsyncResult<WorkItemSetResult>;
   tree(rootId: string): AsyncResult<WorkItemNode[]>;
   /** One item you can read, or `undefined`. */
   get(workItemId: string): AsyncResult<WorkItem<F> | undefined>;
@@ -474,6 +492,15 @@ function compact<T extends object>(value: Loose<T>): T {
     Object.entries(value).filter(([, item]) => item !== undefined),
   ) as T;
 }
+
+const idsOf = (value: unknown): string[] =>
+  Array.isArray(value) ? value.map((each) => textOf(each)) : [];
+
+const setResultOf = (value: unknown): WorkItemSetResult => {
+  const row = isRecord(value) ? value : {};
+
+  return { ids: idsOf(row["ids"]), skipped: idsOf(row["skipped"]) };
+};
 
 const num = (value: unknown): number | undefined => {
   if (typeof value === "number") {
@@ -814,14 +841,35 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         { work_item: workItemId, users: [...userIds] },
         (value) => num(value) ?? 0,
       ),
-    archive: ({ workItemId, archived = true }) =>
-      call(
-        "archive_task",
-        { work_item: workItemId, archived },
-        (value) => value === true,
-      ),
-    remove: (workItemId) =>
-      call("delete_task", { work_item: workItemId }, (value) => value === true),
+    // SAFETY: the implementation handles both overloads of `archive`.
+    archive: ((
+      input:
+        | { workItemId: string; archived?: boolean | undefined }
+        | { workItemIds: readonly string[]; archived?: boolean | undefined },
+    ) => {
+      const archived = input.archived ?? true;
+
+      return "workItemIds" in input
+        ? call(
+            "archive_tasks",
+            { ids: [...input.workItemIds], archived },
+            setResultOf,
+          )
+        : call(
+            "archive_task",
+            { work_item: input.workItemId, archived },
+            (value) => value === true,
+          );
+    }) as Tasks<F>["archive"],
+    // SAFETY: the implementation handles both overloads of `remove`.
+    remove: ((target: string | readonly string[]) =>
+      typeof target === "string"
+        ? call("delete_task", { work_item: target }, (value) => value === true)
+        : call(
+            "delete_tasks",
+            { ids: [...target] },
+            setResultOf,
+          )) as Tasks<F>["remove"],
     tree: (rootId) =>
       call("task_tree", { root: rootId }, (value) =>
         recordsOf(value, "task_tree").map(nodeOf),

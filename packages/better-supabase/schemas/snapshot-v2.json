@@ -958,6 +958,12 @@
             }
           }
         },
+        "functionSources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "functionComments": {
           "type": "object",
           "additionalProperties": {

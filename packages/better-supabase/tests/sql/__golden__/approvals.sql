@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@4 managed
--- @bsb-hash sha256:9c3acc7b1a57199a1ecf11ba2fc5af1dbbe940badb6b4876497bf5b79f335913
+-- @bsb-block approvals@5 managed
+-- @bsb-hash sha256:2073787ebf6bd0a3b59b469a4146b4d14ef569d63a36dc4d8aabb4578481b2a0
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -315,19 +315,56 @@ grant execute on function "better_supabase"."approval_eligible"(uuid) to authent
 
 -- The pending requests the caller may decide, as a set, for a policy or a list
 -- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
--- statement, not once per row. It calls approval_eligible for each pending
--- request, so the two never disagree. Pass a tenant to read one tenant's.
+-- statement, not once per row. It applies the rules of approval_eligible as
+-- joins over the pending requests (a permission is checked once per tenant and
+-- permission pair), and a parity test keeps the two
+-- in step. Pass a tenant to read one tenant's.
 create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select r."id" from "better_supabase"."approval_requests" r
-  where r."status" = 'pending'
-    and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
-    and "better_supabase"."approval_eligible"(r)
+begin
+  return query
+  with base as (
+    select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
+    where r."status" = 'pending' and (select auth.uid()) is not null
+      and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+  ),
+  q as (
+    select b.*, b."policy" -> 'steps' -> b."step" as bsb_step from base b
+  ),
+  needs as materialized (
+    select distinct q."tenant_id" as t, s.ap ->> 'permission' as p
+    from q, lateral (values ((q.bsb_step -> 'approvers'), (case when coalesce((q.bsb_step ->> 'escalated')::boolean, false) then (q.bsb_step -> 'escalateTo') end))) as s(ap)
+    where s.ap ->> 'permission' is not null
+  ),
+  granted as materialized (
+    select n.t, n.p from needs n
+    where coalesce(better_supabase.can('tenant', n.t, n.p), false)
+  )
+  select q."id" from q
+  where not exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."approver" = q.bsb_me)
+    and ((q.bsb_me = q."requested_by" and q."policy" ->> 'mode' = 'confirm')
+      or ((q.bsb_me is distinct from q."requested_by" or coalesce((q."policy" ->> 'selfApproval')::boolean, false))
+        and (((coalesce((q.bsb_step -> 'approvers') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'approvers') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'approvers') ->> 'permission'))
+    or ((q.bsb_step -> 'approvers') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'approvers') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'approvers') ->> 'team' is not null and false))
+    or (coalesce((q.bsb_step ->> 'escalated')::boolean, false) and ((coalesce((q.bsb_step -> 'escalateTo') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'escalateTo') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'escalateTo') ->> 'permission'))
+    or ((q.bsb_step -> 'escalateTo') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'escalateTo') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and false)))
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me))));
+end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
@@ -1457,14 +1494,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:48a7bff7d4738df2c103e1d10c48270ec8d32ddfc98730b6453f8a436e7bbf2f
+-- @bsb-hash sha256:808fa3d8e5e1a963abc95ce2789ce9a6074e03d82b1fdae1566c8a6d03e1230e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 4, 'managed')
+values ('approvals', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1511,8 +1548,8 @@ rollback;
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@4 managed
--- @bsb-hash sha256:b6e36393257f15b6fb366db8d7b006cd56ab809e43d3947e08eec25082832181
+-- @bsb-block approvals@5 managed
+-- @bsb-hash sha256:a671808ff2959cc096801d7aea0874088120c98bf99630c453f7ac5df80f969a
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1861,19 +1898,74 @@ grant execute on function "better_supabase"."approval_eligible"(uuid) to authent
 
 -- The pending requests the caller may decide, as a set, for a policy or a list
 -- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
--- statement, not once per row. It calls approval_eligible for each pending
--- request, so the two never disagree. Pass a tenant to read one tenant's.
+-- statement, not once per row. It applies the rules of approval_eligible as
+-- joins over the pending requests (a permission is checked once per tenant and
+-- permission pair), and a parity test keeps the two
+-- in step. Pass a tenant to read one tenant's.
 create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select r."id" from "better_supabase"."approval_requests" r
-  where r."status" = 'pending'
-    and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
-    and "better_supabase"."approval_eligible"(r)
+begin
+  return query
+  with base as (
+    select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
+    where r."status" = 'pending' and (select auth.uid()) is not null
+      and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+  ),
+  q as (
+    select b.*, b."policy" -> 'steps' -> b."step" as bsb_step from base b
+  ),
+  needs as materialized (
+    select distinct q."tenant_id" as t, s.ap ->> 'permission' as p
+    from q, lateral (values ((q.bsb_step -> 'approvers'), (case when coalesce((q.bsb_step ->> 'escalated')::boolean, false) then (q.bsb_step -> 'escalateTo') end))) as s(ap)
+    where s.ap ->> 'permission' is not null
+  ),
+  granted as materialized (
+    select n.t, n.p from needs n
+    where coalesce(better_supabase.can('tenant', n.t, n.p), false)
+  )
+  select q."id" from q
+  where not exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."approver" = q.bsb_me)
+    and ((q.bsb_me = q."requested_by" and q."policy" ->> 'mode' = 'confirm')
+      or ((q.bsb_me is distinct from q."requested_by" or coalesce((q."policy" ->> 'selfApproval')::boolean, false))
+        and (case when q."subject_type" = 'support_request' then ("better_supabase"."support_request_approvable"(q."subject_id"::uuid))
+          when q."subject_type" = 'ai_tool_approval' then ("better_supabase"."ai_tool_approval_approvable"(q."subject_id"))
+          else (((coalesce((q.bsb_step -> 'approvers') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'approvers') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'approvers') ->> 'permission'))
+    or ((q.bsb_step -> 'approvers') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'approvers') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'approvers') ->> 'team' is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = (q.bsb_step -> 'approvers') ->> 'team' and tm."user_id" = q.bsb_me))
+    or (coalesce(((q.bsb_step -> 'approvers') ->> 'manager')::boolean, false) and (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = q."tenant_id" and (case when (q."policy" ->> 'managerOf') is not null then me."id"::text = (q."policy" ->> 'managerOf') else me."user_id" = q."requested_by" end)
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = q.bsb_me, false) and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."disabled_at" is null
+    ))))
+    or (coalesce((q.bsb_step ->> 'escalated')::boolean, false) and ((coalesce((q.bsb_step -> 'escalateTo') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'escalateTo') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'escalateTo') ->> 'permission'))
+    or ((q.bsb_step -> 'escalateTo') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'escalateTo') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = (q.bsb_step -> 'escalateTo') ->> 'team' and tm."user_id" = q.bsb_me))
+    or (coalesce(((q.bsb_step -> 'escalateTo') ->> 'manager')::boolean, false) and (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = q."tenant_id" and (case when (q."policy" ->> 'managerOf') is not null then me."id"::text = (q."policy" ->> 'managerOf') else me."user_id" = q."requested_by" end)
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = q.bsb_me, false) and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."disabled_at" is null
+    )))))
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)) end)));
+end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
@@ -3287,14 +3379,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:48a7bff7d4738df2c103e1d10c48270ec8d32ddfc98730b6453f8a436e7bbf2f
+-- @bsb-hash sha256:808fa3d8e5e1a963abc95ce2789ce9a6074e03d82b1fdae1566c8a6d03e1230e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 4, 'managed')
+values ('approvals', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -3341,8 +3433,8 @@ rollback;
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@4 managed
--- @bsb-hash sha256:92adfd54157aa48dcdc9a4f352ef75c7c546ecadf7e7808663224d0324610f92
+-- @bsb-block approvals@5 managed
+-- @bsb-hash sha256:19eb3a919bf8bf6f01effa5403eac6799e6bca3c99b193742fdd2b219b3a3d72
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3661,19 +3753,56 @@ grant execute on function "app_private"."approval_eligible"(uuid) to authenticat
 
 -- The pending requests the caller may decide, as a set, for a policy or a list
 -- (`id in (select "app_private"."approval_eligible_ids"())`): Postgres evaluates the set once per
--- statement, not once per row. It calls approval_eligible for each pending
--- request, so the two never disagree. Pass a tenant to read one tenant's.
+-- statement, not once per row. It applies the rules of approval_eligible as
+-- joins over the pending requests (a permission is checked once per tenant and
+-- permission pair), and a parity test keeps the two
+-- in step. Pass a tenant to read one tenant's.
 create or replace function "app_private"."approval_eligible_ids"(tenant uuid default null)
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select r."id" from "app_private"."approval_requests" r
-  where r."status" = 'pending'
-    and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
-    and "app_private"."approval_eligible"(r)
+begin
+  return query
+  with base as (
+    select r.*, (select auth.uid()) as bsb_me from "app_private"."approval_requests" r
+    where r."status" = 'pending' and (select auth.uid()) is not null
+      and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+  ),
+  q as (
+    select b.*, b."policy" -> 'steps' -> b."step" as bsb_step from base b
+  ),
+  needs as materialized (
+    select distinct q."tenant_id" as t, s.ap ->> 'permission' as p
+    from q, lateral (values ((q.bsb_step -> 'approvers'), (case when coalesce((q.bsb_step ->> 'escalated')::boolean, false) then (q.bsb_step -> 'escalateTo') end))) as s(ap)
+    where s.ap ->> 'permission' is not null
+  ),
+  granted as materialized (
+    select n.t, n.p from needs n
+    where coalesce(better_supabase.can('tenant', n.t, n.p), false)
+  )
+  select q."id" from q
+  where not exists (select 1 from "app_private"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."approver" = q.bsb_me)
+    and ((q.bsb_me = q."requested_by" and q."policy" ->> 'mode' = 'confirm')
+      or ((q.bsb_me is distinct from q."requested_by" or coalesce((q."policy" ->> 'selfApproval')::boolean, false))
+        and (((coalesce((q.bsb_step -> 'approvers') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'approvers') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'approvers') ->> 'permission'))
+    or ((q.bsb_step -> 'approvers') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'approvers') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'approvers') ->> 'team' is not null and false))
+    or (coalesce((q.bsb_step ->> 'escalated')::boolean, false) and ((coalesce((q.bsb_step -> 'escalateTo') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'escalateTo') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'escalateTo') ->> 'permission'))
+    or ((q.bsb_step -> 'escalateTo') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'escalateTo') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and false)))
+    or exists (select 1 from "app_private"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me))));
+end;
 $$;
 revoke execute on function "app_private"."approval_eligible_ids"(uuid) from public, anon;
 grant execute on function "app_private"."approval_eligible_ids"(uuid) to authenticated, service_role;
@@ -4803,14 +4932,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:48a7bff7d4738df2c103e1d10c48270ec8d32ddfc98730b6453f8a436e7bbf2f
+-- @bsb-hash sha256:808fa3d8e5e1a963abc95ce2789ce9a6074e03d82b1fdae1566c8a6d03e1230e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 4, 'managed')
+values ('approvals', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -4857,8 +4986,8 @@ rollback;
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@4 managed
--- @bsb-hash sha256:1a4a2b2643e5ce702843a254d637bc1bea56103dcfba83a3c014b3187c6a7986
+-- @bsb-block approvals@5 managed
+-- @bsb-hash sha256:abb646e69f360b703718614742b8522f4e6ae547b86d370bb2281415c0488a42
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5172,19 +5301,56 @@ grant execute on function "better_supabase"."approval_eligible"(uuid) to authent
 
 -- The pending requests the caller may decide, as a set, for a policy or a list
 -- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
--- statement, not once per row. It calls approval_eligible for each pending
--- request, so the two never disagree. Pass a tenant to read one tenant's.
+-- statement, not once per row. It applies the rules of approval_eligible as
+-- joins over the pending requests (a permission is checked once per tenant and
+-- permission pair), and a parity test keeps the two
+-- in step. Pass a tenant to read one tenant's.
 create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select r."id" from "better_supabase"."approval_requests" r
-  where r."status" = 'pending'
-    and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
-    and "better_supabase"."approval_eligible"(r)
+begin
+  return query
+  with base as (
+    select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
+    where r."status" = 'pending' and (select auth.uid()) is not null
+      and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+  ),
+  q as (
+    select b.*, b."policy" -> 'steps' -> b."step" as bsb_step from base b
+  ),
+  needs as materialized (
+    select distinct q."tenant_id" as t, s.ap ->> 'permission' as p
+    from q, lateral (values ((q.bsb_step -> 'approvers'), (case when coalesce((q.bsb_step ->> 'escalated')::boolean, false) then (q.bsb_step -> 'escalateTo') end))) as s(ap)
+    where s.ap ->> 'permission' is not null
+  ),
+  granted as materialized (
+    select n.t, n.p from needs n
+    where coalesce(better_supabase.can('tenant', n.t, n.p), false)
+  )
+  select q."id" from q
+  where not exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."approver" = q.bsb_me)
+    and ((q.bsb_me = q."requested_by" and q."policy" ->> 'mode' = 'confirm')
+      or ((q.bsb_me is distinct from q."requested_by" or coalesce((q."policy" ->> 'selfApproval')::boolean, false))
+        and (((coalesce((q.bsb_step -> 'approvers') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'approvers') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'approvers') ->> 'permission'))
+    or ((q.bsb_step -> 'approvers') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'approvers') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'approvers') ->> 'team' is not null and false))
+    or (coalesce((q.bsb_step ->> 'escalated')::boolean, false) and ((coalesce((q.bsb_step -> 'escalateTo') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'escalateTo') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'escalateTo') ->> 'permission'))
+    or ((q.bsb_step -> 'escalateTo') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'escalateTo') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and false)))
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me))));
+end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
@@ -6532,14 +6698,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:48a7bff7d4738df2c103e1d10c48270ec8d32ddfc98730b6453f8a436e7bbf2f
+-- @bsb-hash sha256:808fa3d8e5e1a963abc95ce2789ce9a6074e03d82b1fdae1566c8a6d03e1230e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 4, 'managed')
+values ('approvals', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -6586,8 +6752,8 @@ rollback;
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@4 managed
--- @bsb-hash sha256:e5216bca8358a8d3b0b9f7cde0a24f87084d5aa8842670dc582caecb2c3a79c2
+-- @bsb-block approvals@5 managed
+-- @bsb-hash sha256:65d3ac3b95413c8726355f8a178bca232367f3e07285d466d6110798fd991556
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6908,19 +7074,56 @@ grant execute on function "better_supabase"."approval_eligible"(uuid) to authent
 
 -- The pending requests the caller may decide, as a set, for a policy or a list
 -- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
--- statement, not once per row. It calls approval_eligible for each pending
--- request, so the two never disagree. Pass a tenant to read one tenant's.
+-- statement, not once per row. It applies the rules of approval_eligible as
+-- joins over the pending requests (a permission is checked once per tenant and
+-- permission pair), and a parity test keeps the two
+-- in step. Pass a tenant to read one tenant's.
 create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select r."id" from "better_supabase"."approval_requests" r
-  where r."status" = 'pending'
-    and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
-    and "better_supabase"."approval_eligible"(r)
+begin
+  return query
+  with base as (
+    select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
+    where r."status" = 'pending' and (select auth.uid()) is not null
+      and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+  ),
+  q as (
+    select b.*, b."policy" -> 'steps' -> b."step" as bsb_step from base b
+  ),
+  needs as materialized (
+    select distinct q."tenant_id" as t, s.ap ->> 'permission' as p
+    from q, lateral (values ((q.bsb_step -> 'approvers'), (case when coalesce((q.bsb_step ->> 'escalated')::boolean, false) then (q.bsb_step -> 'escalateTo') end))) as s(ap)
+    where s.ap ->> 'permission' is not null
+  ),
+  granted as materialized (
+    select n.t, n.p from needs n
+    where coalesce(better_supabase.can('tenant', n.t, n.p), false)
+  )
+  select q."id" from q
+  where not exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."approver" = q.bsb_me)
+    and ((q.bsb_me = q."requested_by" and q."policy" ->> 'mode' = 'confirm')
+      or ((q.bsb_me is distinct from q."requested_by" or coalesce((q."policy" ->> 'selfApproval')::boolean, false))
+        and (((coalesce((q.bsb_step -> 'approvers') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'approvers') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'approvers') ->> 'permission'))
+    or ((q.bsb_step -> 'approvers') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'approvers') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'approvers') ->> 'team' is not null and false))
+    or (coalesce((q.bsb_step ->> 'escalated')::boolean, false) and ((coalesce((q.bsb_step -> 'escalateTo') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'escalateTo') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'escalateTo') ->> 'permission'))
+    or ((q.bsb_step -> 'escalateTo') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'escalateTo') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and false)))
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me))));
+end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
@@ -8050,14 +8253,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:48a7bff7d4738df2c103e1d10c48270ec8d32ddfc98730b6453f8a436e7bbf2f
+-- @bsb-hash sha256:808fa3d8e5e1a963abc95ce2789ce9a6074e03d82b1fdae1566c8a6d03e1230e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 4, 'managed')
+values ('approvals', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -8104,8 +8307,8 @@ rollback;
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@4 managed
--- @bsb-hash sha256:3d7ee740582ce39aea526e107512042276cc8a787e74756201b609a266699dde
+-- @bsb-block approvals@5 managed
+-- @bsb-hash sha256:4b495d68c2f71ab37d47ebe534b914638592e1ba1324b8011f892a4f70434709
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8419,19 +8622,56 @@ grant execute on function "better_supabase"."approval_eligible"(uuid) to authent
 
 -- The pending requests the caller may decide, as a set, for a policy or a list
 -- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
--- statement, not once per row. It calls approval_eligible for each pending
--- request, so the two never disagree. Pass a tenant to read one tenant's.
+-- statement, not once per row. It applies the rules of approval_eligible as
+-- joins over the pending requests (a permission is checked once per tenant and
+-- permission pair), and a parity test keeps the two
+-- in step. Pass a tenant to read one tenant's.
 create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select r."id" from "better_supabase"."approval_requests" r
-  where r."status" = 'pending'
-    and (approval_eligible_ids.tenant is null or r."org_id" = approval_eligible_ids.tenant)
-    and "better_supabase"."approval_eligible"(r)
+begin
+  return query
+  with base as (
+    select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
+    where r."status" = 'pending' and (select auth.uid()) is not null
+      and (approval_eligible_ids.tenant is null or r."org_id" = approval_eligible_ids.tenant)
+  ),
+  q as (
+    select b.*, b."policy" -> 'steps' -> b."step" as bsb_step from base b
+  ),
+  needs as materialized (
+    select distinct q."org_id" as t, s.ap ->> 'permission' as p
+    from q, lateral (values ((q.bsb_step -> 'approvers'), (case when coalesce((q.bsb_step ->> 'escalated')::boolean, false) then (q.bsb_step -> 'escalateTo') end))) as s(ap)
+    where s.ap ->> 'permission' is not null
+  ),
+  granted as materialized (
+    select n.t, n.p from needs n
+    where coalesce(better_supabase.can('tenant', n.t, n.p), false)
+  )
+  select q."id" from q
+  where not exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."approver" = q.bsb_me)
+    and ((q.bsb_me = q."requested_by" and q."policy" ->> 'mode' = 'confirm')
+      or ((q.bsb_me is distinct from q."requested_by" or coalesce((q."policy" ->> 'selfApproval')::boolean, false))
+        and (((coalesce((q.bsb_step -> 'approvers') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'approvers') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."org_id" and g.p = (q.bsb_step -> 'approvers') ->> 'permission'))
+    or ((q.bsb_step -> 'approvers') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."org_id" = q."org_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'approvers') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'approvers') ->> 'team' is not null and false))
+    or (coalesce((q.bsb_step ->> 'escalated')::boolean, false) and ((coalesce((q.bsb_step -> 'escalateTo') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'escalateTo') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."org_id" and g.p = (q.bsb_step -> 'escalateTo') ->> 'permission'))
+    or ((q.bsb_step -> 'escalateTo') ->> 'role' is not null and exists (
+      select 1 from "better_supabase"."memberships" mm
+      where mm."org_id" = q."org_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'escalateTo') ->> 'role'
+    ))
+    or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and false)))
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me))));
+end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible_ids"(uuid) to authenticated, service_role;
@@ -9561,14 +9801,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:48a7bff7d4738df2c103e1d10c48270ec8d32ddfc98730b6453f8a436e7bbf2f
+-- @bsb-hash sha256:808fa3d8e5e1a963abc95ce2789ce9a6074e03d82b1fdae1566c8a6d03e1230e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 4, 'managed')
+values ('approvals', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 

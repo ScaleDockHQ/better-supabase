@@ -364,10 +364,10 @@ on these two.
 
 ## Classify an Auth error
 
-`authErrorKind(error)` from `better-supabase` returns what an auth-js error means for the caller: `"retryable"`, `"session-missing"`, `"invalid-credentials"`, `"rate-limited"`, `"banned"` or `"unknown"`. It reads the error's `code` and `status` first, so a 429 is `"rate-limited"`, and keeps the message checks for older Auth servers in one table. The library's own sign-in and refresh failures use it, so an app that branches on the kind agrees with them:
+`authErrorKind(error)` from `better-supabase/auth` returns what an auth-js error means for the caller: `"retryable"`, `"session-missing"`, `"invalid-credentials"`, `"rate-limited"`, `"banned"` or `"unknown"`. It reads the error's `code` and `status` first, so a 429 is `"rate-limited"`, and keeps the message checks for older Auth servers in one table. The library's own sign-in and refresh failures use it, so an app that branches on the kind agrees with them. The entry also exports the `AuthErrorKind` type and imports nothing else, so a client component can use it:
 
 ```ts
-import { authErrorKind } from "better-supabase";
+import { authErrorKind } from "better-supabase/auth";
 
 const { error } = await supabase.auth.signInWithPassword(credentials);
 

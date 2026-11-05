@@ -439,6 +439,36 @@ $$;
 ${REQUEST_ID_OR_NULL}`;
 }
 
+/** `[column, value]` pairs for the restricted columns the table has. */
+function restrictedPairs(
+  ctx: BlockSqlContext,
+  values: {
+    entry: string;
+    old: string;
+    new: string;
+    metadata: string;
+    changed?: string;
+    ip?: string;
+    userAgent?: string;
+    sessionId?: string;
+  },
+): (readonly [string, string])[] {
+  const pairs: (readonly [string, string])[] = [
+    ["entry", values.entry],
+    ["old", values.old],
+    ["new", values.new],
+    ["ip", values.ip ?? "better_supabase.request_ip()"],
+    ["userAgent", values.userAgent ?? requestHeader("user-agent")],
+    ["metadata", values.metadata],
+    ["sessionId", values.sessionId ?? "auth.jwt() ->> 'session_id'"],
+    ["changedValues", values.changed ?? "null"],
+  ];
+
+  return pairs.filter(
+    ([logical]) => logical === "entry" || hasColumn(ctx, "restricted", logical),
+  );
+}
+
 /**
  * SQL that writes the restricted details of `entry_id`, when the table is in
  * use.
@@ -460,25 +490,10 @@ function restrictedInsert(
     return "";
   }
 
-  const r = (logical: string) => ctx.col("restricted", logical);
-
-  const pairs: (readonly [string, string])[] = [
-    ["entry", "entry_id"],
-    ["old", values.old],
-    ["new", values.new],
-    ["ip", values.ip ?? "better_supabase.request_ip()"],
-    ["userAgent", values.userAgent ?? requestHeader("user-agent")],
-    ["metadata", values.metadata],
-    ["sessionId", values.sessionId ?? "auth.jwt() ->> 'session_id'"],
-    ["changedValues", values.changed ?? "null"],
-  ];
-
-  const kept = pairs.filter(
-    ([logical]) => logical === "entry" || hasColumn(ctx, "restricted", logical),
-  );
+  const kept = restrictedPairs(ctx, { ...values, entry: "entry_id" });
 
   return `
-  insert into ${ctx.table("restricted")} (${kept.map(([logical]) => r(logical)).join(", ")})
+  insert into ${ctx.table("restricted")} (${kept.map(([logical]) => ctx.col("restricted", logical)).join(", ")})
   values (${kept.map(([, value]) => value).join(", ")});`;
 }
 
@@ -611,17 +626,22 @@ ${triggerGrant("better_supabase.audit_row_change()")}`;
 }
 
 /**
- * The trigger function of `audit(..., statement => true)`; none in restricted
- * mode.
+ * The trigger function of `audit(..., statement => true)`. With the restricted
+ * table, the same statement also writes one restricted row per entry.
  */
 function statementTrigger(
   ctx: BlockSqlContext,
   tenantColumn: string,
   restricted: boolean,
 ): string {
-  if (restricted) {
-    return "";
-  }
+  const kept = restrictedPairs(ctx, {
+    entry: "lg.entry_id",
+    old: "f.old_row",
+    new: "f.new_row",
+    ip: "v_ip",
+    metadata: "'{}'::jsonb",
+    changed: "f.changed_values",
+  });
 
   return statementFunction(ctx, {
     tenantValue: castId(
@@ -631,11 +651,19 @@ function statementTrigger(
     insert: present(
       ctx,
       "log",
-      rowChange(ctx, true, {
+      rowChange(ctx, !restricted, {
         op: "op",
         kind: "case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end",
       }),
     ),
+    restricted: restricted
+      ? {
+          table: ctx.table("restricted"),
+          columns: kept.map(([l]) => ctx.col("restricted", l)).join(", "),
+          values: kept.map(([, value]) => value).join(", "),
+          logId: ctx.col("log", "id"),
+        }
+      : undefined,
     grant: triggerGrant("better_supabase.audit_statement_change()"),
   });
 }
@@ -943,7 +971,7 @@ function auditSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     triggerFunction(ctx, tenantColumn, restricted),
     statementTrigger(ctx, tenantColumn, restricted),
     EQUIVALENT_TRIGGERS.trim(),
-    register(ctx, restricted),
+    register(ctx),
     auditEvent(ctx, restricted),
     appendOnly(ctx),
     chainSql(ctx),
@@ -970,7 +998,7 @@ export const AUDIT: BlockSqlDefinition = {
       : [],
   target: "schema",
   modes: ["managed"],
-  version: 10,
+  version: 11,
   names: NAMES,
   contract: (ctx) => [
     {

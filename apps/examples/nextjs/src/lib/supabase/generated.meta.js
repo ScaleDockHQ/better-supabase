@@ -55,6 +55,7 @@ export default {
     "avatars": {"id":"avatars","public":true,"path":"{userId}/avatar-{version}.{ext}","policy":"owner","fileSizeLimit":"2MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp","image/gif","image/avif"]}
   },
   "bootstrap": {
-    "schema": "api"
+    "schema": "api",
+    "tables": {"islands":["customers","notes","contacts","tags","tasks"]}
   }
 };
