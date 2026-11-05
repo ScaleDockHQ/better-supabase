@@ -116,3 +116,37 @@ end;
 $$;`);
   });
 });
+
+describe("chain proofs", () => {
+  it(
+    "builds a proof from a row to the chain head and lists heads",
+    BOOT,
+    async () => {
+      await run(`
+select better_supabase.chain('public.facts');
+insert into public.facts (organization_id, body) values ('${ORG}', 'a'), ('${ORG}', 'b'), ('${ORG}', 'c');
+do $$
+declare
+  v jsonb;
+begin
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  v := better_supabase.chain_heads('public.facts', 'organization_id');
+  if jsonb_array_length(v) <> 1 or (v -> 0 ->> 'seq')::int <> 3 then
+    raise exception 'unexpected heads %', v;
+  end if;
+  perform better_supabase.record_chain_checkpoint('public.facts', 'organization_id', '${ORG}', 3, v -> 0 ->> 'hash', 'k1', 'jws');
+  if jsonb_array_length(better_supabase.chain_heads('public.facts', 'organization_id')) <> 0 then
+    raise exception 'a checkpointed head was listed again';
+  end if;
+  v := better_supabase.chain_proof('public.facts', 'organization_id', '${ORG}', 2);
+  if jsonb_array_length(v -> 'entries') <> 2 or (v -> 'checkpoint' ->> 'seq')::int <> 3 then
+    raise exception 'unexpected proof %', v;
+  end if;
+  if better_supabase.verify_chain('public.facts', 'organization_id', '${ORG}') ->> 'valid' <> 'true' then
+    raise exception 'chain with checkpoint should verify';
+  end if;
+end;
+$$;`);
+    },
+  );
+});

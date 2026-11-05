@@ -76,3 +76,25 @@ export {
   type AuditCheckpoint,
   type AuditCheckpointSigner,
 } from "./chain.ts";
+
+export {
+  createChain,
+  verifyChainProof,
+  type Chain,
+  type ChainCheckpoint,
+  type ChainHead,
+  type ChainOptions,
+  type ChainProof,
+  type ChainProofEntry,
+  type ChainProofFailure,
+  type ChainProofVerdict,
+} from "./table-chain.ts";
+
+export {
+  evidenceBundle,
+  verifyEvidenceBundle,
+  type EvidenceBundle,
+  type EvidenceParts,
+  type EvidenceSubject,
+  type EvidenceVerdict,
+} from "./evidence.ts";
