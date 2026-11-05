@@ -87,6 +87,18 @@ user's access when the job runs, not when it was enqueued. `sub`, `role`,
 
 Block clients for the service role come from `blockSet.serviceBlocks(admin)`, which builds them over one `rpcTransport` and takes each block's API schema from its generated entry.
 
+Options for single blocks go under `blocks`, keyed like the set. They are what `block.with(options)` takes, are typed per block, and apply over the shared options for that call only, so a worker can build one set per tenant or per job:
+
+```ts
+const { comments, billing, flags } = blockSet.serviceBlocks(admin, {
+  tenant: () => job.organizationId,
+  blocks: {
+    flags: { ttl: 30 },
+    billing: { stripe, accountOf: (organizationId) => lookup(organizationId) },
+  },
+});
+```
+
 ## Webhooks
 
 A webhook belongs to whoever the event is about. Verify and store it with

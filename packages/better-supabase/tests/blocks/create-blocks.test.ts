@@ -771,6 +771,52 @@ describe("createBlocks describe and clients", () => {
 
     expect(tenants).toEqual([undefined, "t1"]);
   });
+
+  it("takes options per block, and a different set on each call", () => {
+    const probe = defineBlock({
+      name: "probe",
+      create: (options: BlockContext & { readonly ttl?: number }) => ({
+        ttl: () => options.ttl,
+        tenant: () =>
+          typeof options.tenant === "function" ? options.tenant() : undefined,
+      }),
+      category: "work",
+    });
+
+    const other = defineBlock({
+      name: "other",
+      create: (options: BlockContext & { readonly ttl?: number }) => ({
+        ttl: () => options.ttl,
+      }),
+      category: "work",
+    });
+
+    const blocks = defineBlocks(
+      {
+        probe: { schema: "better_supabase", options: {} },
+        other: { schema: "better_supabase", options: {} },
+      },
+      { probe, other },
+    );
+
+    const admin = createFakeClient(() => ({ data: [] }));
+
+    const first = blocks.serviceBlocks(admin, {
+      blocks: { probe: { ttl: 30, tenant: () => "t2" } },
+    });
+
+    const second = blocks.serviceBlocks(admin, {
+      blocks: { probe: { ttl: 5 } },
+    });
+
+    expect([
+      first.probe.ttl(),
+      first.probe.tenant(),
+      first.other.ttl(),
+    ]).toEqual([30, "t2", undefined]);
+    expect(second.probe.ttl()).toBe(5);
+    expect(blocks.serviceBlocks(admin).probe.ttl()).toBeUndefined();
+  });
 });
 
 describe("createBlocks composites", () => {

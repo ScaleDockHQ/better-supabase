@@ -103,6 +103,21 @@ export interface BlockClientOptions extends Omit<
   readonly instance?: string;
 }
 
+/** Options for `BlockSet.serviceBlocks`. */
+export interface ServiceBlocksOptions<
+  B extends BlockMap = BlockMap,
+> extends Omit<BlockClientOptions, "transport" | "config" | "instance"> {
+  /**
+   * Options for single blocks, keyed like the set: a tenant for the comments
+   * copy, the Stripe and account resolvers for billing, a TTL for flags, or the
+   * recorder of the audit log. Each one is what `block.with(options)` takes and
+   * applies over the shared options, for this call only.
+   */
+  readonly blocks?: {
+    readonly [K in CreatedKeys<B> & string]?: Parameters<B[K]["with"]>[0];
+  };
+}
+
 /** Blocks keyed by the name the app gives each one. */
 export type BlockMap = Readonly<Record<string, AnyBlock>>;
 
@@ -225,7 +240,7 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
    */
   serviceBlocks(
     admin: RpcClient,
-    options?: Omit<BlockClientOptions, "transport" | "config" | "instance">,
+    options?: ServiceBlocksOptions<B>,
   ): BlockSetClientMap<B>;
   /**
    * Calls `fn` in the API schema the blocks are wrapped in (`sql.api`), as
@@ -303,14 +318,16 @@ export function defineBlocks<
           )
         : blockCall(dbTransport(db), api)(fn, args, (value) => value),
     serviceBlocks: (admin, options = {}) => {
+      const { blocks: overrides = {}, ...shared } = options;
+
       const builder = blockBuilder(
         {
           tenant: () => undefined,
-          ...options,
+          ...shared,
           config,
           transport: rpcTransport(admin),
         },
-        blocks,
+        withOverrides(blocks, overrides),
       );
 
       const clients: Record<string, unknown> = {};
@@ -502,6 +519,22 @@ const UNIQUE_PORTS: readonly UniquePort[] = [
   "mailer",
   "recordAccess",
 ];
+
+/** `blocks` with each block that `overrides` names built with those options. */
+function withOverrides(
+  blocks: BlockMap,
+  overrides: Readonly<Record<string, object | undefined>>,
+): BlockMap {
+  return Object.fromEntries(
+    Object.entries(blocks).map(([key, block]) => {
+      const own = overrides[key];
+
+      // SAFETY: `ServiceBlocksOptions.blocks` types each entry as the
+      // options of the block under that key, which `with` takes.
+      return [key, own === undefined ? block : block.with(own as never)];
+    }),
+  );
+}
 
 /** `key`'s entry in `hooks`, which `BlocksHooks` keys like the blocks. */
 function hooksOf(
