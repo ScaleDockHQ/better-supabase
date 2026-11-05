@@ -537,6 +537,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "archive_task", args: ["uuid", "boolean"], returns: "boolean" },
     { name: "delete_task", args: ["uuid"], returns: "boolean" },
+    { name: "archive_tasks", args: ["uuid[]", "boolean"], returns: "jsonb" },
+    { name: "delete_tasks", args: ["uuid[]"], returns: "jsonb" },
     { name: "task_tree", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_tasks",
@@ -662,12 +664,18 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
       description:
         "Work items gain checklists, recurrence (recurs_from), watchers and attachments on create and update.",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "Adds archive_tasks and delete_tasks, the set forms that check access once and return the skipped ids.",
       sql: () => "",
     },
   ],

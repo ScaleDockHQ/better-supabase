@@ -611,6 +611,29 @@ describe("tasks.create with custom values", () => {
     ]);
   });
 
+  it("archives and removes sets in one call each and reports skipped ids", async () => {
+    const t = transport({
+      archive_tasks: () => ({ ids: ["w1"], skipped: ["w2"] }),
+      delete_tasks: () => ({ ids: ["w1", "w2"], skipped: [] }),
+    });
+
+    const tasks = createTasks({ transport: t });
+
+    await expect(
+      tasks.archive({ workItemIds: ["w1", "w2"], archived: false }).orThrow(),
+    ).resolves.toEqual({ ids: ["w1"], skipped: ["w2"] });
+
+    await expect(tasks.remove(["w1", "w2"]).orThrow()).resolves.toEqual({
+      ids: ["w1", "w2"],
+      skipped: [],
+    });
+
+    expect(t.calls).toEqual([
+      ["archive_tasks", { ids: ["w1", "w2"], archived: false }],
+      ["delete_tasks", { ids: ["w1", "w2"] }],
+    ]);
+  });
+
   it("removes the task when a value is refused", async () => {
     const t = transport({ create_task: () => ROW, delete_task: () => true });
 
