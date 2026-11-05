@@ -86,6 +86,23 @@ describe("audit module", () => {
     expect(file!.contents).not.toContain("audit_log;");
   });
 
+  it("writes the mapped restricted table from the statement trigger in one insert", () => {
+    const sql = appAudit(CENTRAKIT);
+    const body = sql.slice(sql.indexOf("audit_statement_change()"));
+    expect(body).toContain("logged as (");
+    expect(body).toContain(
+      'insert into "public"."audit_log_restricted_details"',
+    );
+    expect(body).toContain("v_ip inet := better_supabase.request_ip();");
+    expect(body).not.toContain(
+      "needs an audit log without the restricted table",
+    );
+    expect(sql).not.toContain(
+      "needs an audit log without the restricted table",
+    );
+    expect(audit()).not.toContain("v_ip inet");
+  });
+
   it("maps onto the app's tables without creating them", () => {
     const sql = appAudit(CENTRAKIT);
     expect(sql).not.toContain("create table if not exists public");

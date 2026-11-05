@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@10 managed
--- @bsb-hash sha256:a9353e6bbe23cec03f3816574d1f35a76ef627b4d63a2041a837b92d6f457658
+-- @bsb-hash sha256:249c64ae8f80f867682fd6cfd4fe9c0d230ddad291848637c19dc5a5fce55991
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -615,8 +615,8 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 -- change, so writes such as last_run_at cost nothing.
 -- statement => true audits with statement-level triggers over transition
 -- tables, so a statement that changes many rows writes its entries in one
--- insert. It needs a primary key, and not deferred, tenant_path,
--- tenant_function or the restricted table.
+-- insert, and the restricted table's rows in one more. It needs a primary
+-- key, and not deferred, tenant_path or tenant_function.
 -- replace_trigger => true drops another audit trigger on the table.
 -- deferred => true audits at commit, once a block function has recorded its
 -- own entry (bsb.recorded), so the row isn't audited twice.

@@ -49,10 +49,10 @@ ${indent}where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.$
 }
 
 /** The argument checks of `audit(..., statement => true)`. */
-function statementChecks(restricted: boolean): string {
+function statementChecks(): string {
   return `  if audit.statement then
-    if ${restricted ? "true" : "audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null"} then
-      raise exception 'audit(statement => true) ${restricted ? "needs an audit log without the restricted table" : "does not combine with deferred, tenant_path or tenant_function"}';
+    if audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null then
+      raise exception 'audit(statement => true) does not combine with deferred, tenant_path or tenant_function';
     end if;
     if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then
       raise exception 'audit(statement => true) needs a primary key on %', audit.target;
@@ -60,7 +60,7 @@ function statementChecks(restricted: boolean): string {
   end if;`;
 }
 
-export function register(ctx: BlockSqlContext, restricted: boolean): string {
+export function register(ctx: BlockSqlContext): string {
   const registry = ctx.table("registry");
   const target = ctx.col("registry", "target");
 
@@ -89,8 +89,8 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 -- change, so writes such as last_run_at cost nothing.
 -- statement => true audits with statement-level triggers over transition
 -- tables, so a statement that changes many rows writes its entries in one
--- insert. It needs a primary key, and not deferred, tenant_path,
--- tenant_function or the restricted table.
+-- insert, and the restricted table's rows in one more. It needs a primary
+-- key, and not deferred, tenant_path or tenant_function.
 -- replace_trigger => true drops another audit trigger on the table.
 -- deferred => true audits at commit, once a block function has recorded its
 -- own entry (bsb.recorded), so the row isn't audited twice.
@@ -129,7 +129,7 @@ declare
   trigger_kind text := case when audit.deferred then 'constraint ' else '' end;
   trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;
 begin
-${statementChecks(restricted)}
+${statementChecks()}
   if audit.tenant_path is not null then
     parts := regexp_split_to_array(btrim(audit.tenant_path), '\\s*->\\s*');
     if coalesce(array_length(parts, 1), 0) < 2 then
