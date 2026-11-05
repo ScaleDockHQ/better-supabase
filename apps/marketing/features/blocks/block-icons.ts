@@ -25,6 +25,7 @@ import {
   Building2Icon,
   BuildingIcon,
   CalculatorIcon,
+  CalendarCheck2Icon,
   CalendarCheckIcon,
   CalendarClockIcon,
   CalendarDaysIcon,
@@ -319,6 +320,7 @@ export const BLOCK_ICONS = {
   // Automation
   queue: ListTodoIcon,
   periods: TimerResetIcon,
+  deadlines: CalendarCheck2Icon,
   recurrence: RepeatIcon,
   seeds: SproutIcon,
   commissions: BadgeDollarSignIcon,

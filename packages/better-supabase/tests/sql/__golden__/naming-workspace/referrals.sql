@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_172_referrals.sql
+-- ==== schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:ac489f559b0e5cb226ee2aff753091a46188fb3f45417b257d0494b506e4ee92
@@ -470,7 +470,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_172_referrals.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8

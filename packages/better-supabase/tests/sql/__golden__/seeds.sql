@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_175_seeds.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_176_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block seeds@1 managed
 -- @bsb-hash sha256:e3ee57f3e6959e24446ba9e0a5f861500727ced9dc9b4bbf23ff77b1e4ec2b8b
@@ -37,7 +37,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_175_seeds.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_176_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block-data seeds
 -- @bsb-hash sha256:49123fe2bbaa6795eeef6340e266e39b99ae4c5a7e4063877a73cec726f8a194
@@ -51,7 +51,7 @@ values ('seeds', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_175_seeds.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_176_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block seeds@1 managed
 -- @bsb-hash sha256:221179289099a4d760f2469418b7c3b05202dae2334f9873ae23a57382f4f8b8
@@ -98,7 +98,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_175_seeds.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_176_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block-data seeds
 -- @bsb-hash sha256:49123fe2bbaa6795eeef6340e266e39b99ae4c5a7e4063877a73cec726f8a194
@@ -112,7 +112,7 @@ values ('seeds', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_175_seeds.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_176_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block seeds@1 managed
 -- @bsb-hash sha256:0a1703e05ed5bb3ba04f37f93aa84f7840a962201c62d8099de83ff05dacba60
@@ -156,7 +156,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_175_seeds.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_176_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block-data seeds
 -- @bsb-hash sha256:49123fe2bbaa6795eeef6340e266e39b99ae4c5a7e4063877a73cec726f8a194
@@ -170,7 +170,7 @@ values ('seeds', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_175_seeds.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_176_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block seeds@1 managed
 -- @bsb-hash sha256:fd494a762b8cc8a5f67e34d98a73b3347cd2ad176f09c49b88e4ba0681166349
@@ -222,7 +222,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_175_seeds.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_176_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block-data seeds
 -- @bsb-hash sha256:49123fe2bbaa6795eeef6340e266e39b99ae4c5a7e4063877a73cec726f8a194

@@ -1,6 +1,6 @@
 -- better-supabase module: audit
--- @bsb-block audit@12 managed
--- @bsb-hash sha256:5721239740c3392d0ac33745d91d6304ed5dd99325d4cc2d9cff2cc1187eaf0b
+-- @bsb-block audit@13 managed
+-- @bsb-hash sha256:e31938efc066f5e906ca04288200bd127f7ae468a8cd3c2871f25c8b5fd8baf8
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1310,8 +1310,6 @@ drop trigger if exists "bsb_audit_no_truncate" on "better_supabase"."audit_event
 create trigger "bsb_audit_no_truncate" before truncate on "better_supabase"."audit_events"
   for each statement execute function better_supabase.audit_append_only();
 
-drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";
-
 -- Tables the app must not edit: append_only refuses update, delete and
 -- truncate for every role; function_writes also takes the Data API write
 -- privileges away, so rows arrive only through security definer functions.
@@ -1629,7 +1627,7 @@ begin
   insert into better_supabase.chain_checkpoints (table_name, tenant, chain_seq, row_hash, key_id, signature)
   values (target::text, record_chain_checkpoint.tenant, seq, decode(hash, 'hex'), key_id, signature)
   returning id into v_id;
-  return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
+  return jsonb_build_object('id', v_id::text, 'tenant', record_chain_checkpoint.tenant, 'seq', seq, 'hash', hash, 'keyId', key_id, 'signature', record_chain_checkpoint.signature);
 end;
 $$;
 revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
@@ -1646,6 +1644,9 @@ revoke execute on function better_supabase.verify_chain(regclass, text, text) fr
 revoke execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) from public, anon, authenticated;
 grant execute on function better_supabase.verify_chain(regclass, text, text) to service_role;
 grant execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) to service_role;
+
+drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";
+drop trigger if exists bsb_chain on "better_supabase"."audit_events";
 
 -- Members read their tenant's entries with the audit.read permission;
 -- platform staff read every entry. PL/pgSQL resolves tenant_ids_with and

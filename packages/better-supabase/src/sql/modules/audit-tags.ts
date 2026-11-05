@@ -328,7 +328,7 @@ begin
   insert into ${CHECKPOINTS} (table_name, tenant, chain_seq, row_hash, key_id, signature)
   values (target::text, record_chain_checkpoint.tenant, seq, decode(hash, 'hex'), key_id, signature)
   returning id into v_id;
-  return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
+  return jsonb_build_object('id', v_id::text, 'tenant', record_chain_checkpoint.tenant, 'seq', seq, 'hash', hash, 'keyId', key_id, 'signature', record_chain_checkpoint.signature);
 end;
 $$;
 revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;

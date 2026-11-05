@@ -323,6 +323,10 @@ may be your own enum or domain.
   - `better_supabase.retention_policies`: `id`, `organization_id`, `kind`, `keep`; typed: `kind`
   - `better_supabase.legal_holds`: `id`, `organization_id`, `kind`, `reason`, `placed_at`, `released_at`; typed: `kind`
   - `better_supabase.data_subject_requests`: `id`, `organization_id`, `kind`, `requester`, `subject_type`, `subject_id`, `details`, `status`, `received_at`, `received_by`, `due_at`, `extended_at`, `extension_reason`, `verified_at`, `verified_by`, `verification_method`, `export_id`, `resolution`, `closed_at`, `closed_by`
+- `deadlines`
+  - `better_supabase.deadline_rule_sets`: `id`, `jurisdiction`, `kind`, `title`, `created_at`
+  - `better_supabase.deadline_rule_versions`: `id`, `rule_set_id`, `version`, `status`, `rules`, `content_hash`, `effective_from`, `approved_by`, `approved_at`, `approval_id`, `created_at`
+  - `better_supabase.deadlines`: `id`, `tenant_id`, `subject_type`, `subject_id`, `jurisdiction`, `kind`, `rule_key`, `rule_version_id`, `facts`, `result`, `due_on`, `missing`, `citation`, `state`, `satisfied_at`, `satisfied_by`, `satisfied_action`, `computed_at`, `created_at`
 - `deals`
   - `better_supabase.deals`: `id`, `tenant_id`, `number`, `identifier`, `name`, `company_type`, `company_id`, `owner_user_id`, `amount`, `currency`, `value_period`, `amount_source`, `pipeline_id`, `stage_id`, `stage_entered_at`, `outcome`, `probability`, `forecast_category`, `opened_on`, `expected_close_on`, `closed_at`, `note`, `locked`, `rank`, `archived_at`, `created_at`, `updated_at`, `list_total`, `discount_total`, `subtotal`, `tax_total`, `total`; typed: `value_period`, `amount_source`, `outcome`, `forecast_category`
   - `better_supabase.deal_contacts`: `tenant_id`, `deal_id`, `contact_type`, `contact_id`, `is_primary`
@@ -810,7 +814,7 @@ may be your own enum or domain.
   - `better_supabase.marketplace_invoices`: `id`, `installation_id`, `external_id`, `state`, `total`, `currency`, `event_at`; typed: `state`
   - `better_supabase.marketplace_meter_reports`: `id`, `installation_id`, `resource_external_id`, `meter_id`, `period_start`, `period_end`, `quantity`, `reported_quantity`, `reported_at`
 - `versions`
-  - `better_supabase.versions`: `id`, `tenant_id`, `subject_type`, `subject_id`, `number`, `label`, `content`, `storage_path`, `content_hash`, `source`, `frozen`, `created_by`, `created_at`
+  - `better_supabase.versions`: `id`, `tenant_id`, `subject_type`, `subject_id`, `number`, `label`, `content`, `storage_path`, `content_hash`, `file_hash`, `hash_version`, `source`, `frozen`, `created_by`, `created_at`
 - `waitlist`
   - `better_supabase.waitlist_entries`: `id`, `email`, `status`, `position`, `user_id`, `created_at`; typed: `status`
   - `better_supabase.invite_codes`: `id`, `code_hash`, `max_uses`, `uses`, `organization_id`, `role`, `revoked_at`; typed: `role`

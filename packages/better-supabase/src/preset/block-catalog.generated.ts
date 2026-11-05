@@ -3469,7 +3469,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "outbox",
         "audit",
         "assets",
-        "inventory"
+        "inventory",
+        "data-lifecycle"
       ],
       "modes": [
         "managed",
@@ -3479,6 +3480,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "shipment.cancelled",
         "shipment.created",
         "shipment.labeled",
+        "shipment.proof_recorded",
         "shipment.status_changed"
       ],
       "subpath": "better-supabase/blocks/shipments",
@@ -5008,6 +5010,32 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "docs": "/docs/blocks/periods"
     },
     {
+      "name": "deadlines",
+      "title": "Deadlines",
+      "category": "Work management",
+      "description": "Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing.",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "approvals"
+      ],
+      "modes": [
+        "managed",
+        "custom"
+      ],
+      "events": [
+        "deadline.computed",
+        "deadline.satisfied"
+      ],
+      "subpath": "better-supabase/blocks/deadlines",
+      "react": null,
+      "docs": "/docs/blocks/deadlines"
+    },
+    {
       "name": "commissions",
       "title": "Commissions",
       "category": "Billing & commerce",
@@ -5891,7 +5919,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
     {
       "name": "filings",
       "title": "Regulated filings",
-      "description": "SaaS plus parties with relations, imports, numbered documents from templates, versions and signatures, staff approvals, shipments with tracking, payments on the ledger, cases, reminders and the governance trail with a hash chain.",
+      "description": "SaaS plus parties with relations, imports, numbered documents from templates, versions and signatures, staff approvals, shipments with tracking, payments on the ledger, cases, reminders, deadlines computed from versioned rules and the governance trail with a hash chain.",
       "group": "verticals",
       "groupTitle": "Verticals",
       "blocks": [
@@ -5930,6 +5958,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "cases",
         "legal-entities",
         "document-templates",
+        "deadlines",
         "housekeeping",
         "seeds"
       ]
@@ -7501,6 +7530,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "tills",
         "clinical-decision-support",
         "periods",
+        "deadlines",
         "commissions",
         "referrals",
         "recurrence",

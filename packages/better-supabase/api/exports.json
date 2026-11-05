@@ -2802,7 +2802,6 @@
       "auditListQuery",
       "auditSink",
       "createAudit",
-      "createAuditChain",
       "createAuditLogController",
       "createChain",
       "dbTransport",
@@ -2817,13 +2816,6 @@
       "verifyEvidenceBundle"
     ],
     "types": [
-      "AuditChain",
-      "AuditChainBreak",
-      "AuditChainHead",
-      "AuditChainOptions",
-      "AuditChainVerdict",
-      "AuditCheckpoint",
-      "AuditCheckpointSigner",
       "AuditColumns",
       "AuditCsvColumn",
       "AuditCsvOptions",
@@ -2855,6 +2847,7 @@
       "AuditSort",
       "BlockTransport",
       "Chain",
+      "ChainBreak",
       "ChainCheckpoint",
       "ChainHead",
       "ChainOptions",
@@ -2862,6 +2855,8 @@
       "ChainProofEntry",
       "ChainProofFailure",
       "ChainProofVerdict",
+      "ChainSigner",
+      "ChainVerdict",
       "EvidenceBundle",
       "EvidenceParts",
       "EvidenceSubject",
@@ -10319,6 +10314,9 @@
       "wrapTransport"
     ],
     "types": [
+      "AppDocumentContracts",
+      "AppDocumentType",
+      "AppDocumentVariable",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
@@ -10339,10 +10337,12 @@
       "DocumentTemplatesEvents",
       "DocumentTemplatesOptions",
       "DocumentTemplateSource",
+      "DocumentTemplatesSqlOptions",
       "DocumentTextBlock",
       "DocumentTextBlockEventData",
       "DocumentTotals",
       "DocumentType",
+      "DocumentTypeName",
       "DocumentVariable",
       "DocumentVariables",
       "DocumentVariableType",
@@ -10911,6 +10911,38 @@
       "PeriodsOptions",
       "PeriodStatus",
       "RpcClient"
+    ]
+  },
+  "./blocks/deadlines": {
+    "values": [
+      "createDeadlines",
+      "dbTransport",
+      "deadlinesBlock",
+      "deadlinesEvents",
+      "evaluateRule",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "validateRules",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Deadline",
+      "DeadlineCitation",
+      "DeadlineEvaluation",
+      "DeadlineEventData",
+      "DeadlineListOptions",
+      "DeadlineRule",
+      "Deadlines",
+      "DeadlinesEvents",
+      "DeadlinesOptions",
+      "DeadlineSubject",
+      "RpcClient",
+      "RuleVersion"
     ]
   },
   "./blocks/commissions": {

@@ -1280,6 +1280,11 @@
       "types": "./dist/blocks/periods/index.d.ts",
       "default": "./dist/blocks/periods/index.js"
     },
+    "./blocks/deadlines": {
+      "@better-supabase/source": "./src/blocks/deadlines/index.ts",
+      "types": "./dist/blocks/deadlines/index.d.ts",
+      "default": "./dist/blocks/deadlines/index.js"
+    },
     "./blocks/commissions": {
       "@better-supabase/source": "./src/blocks/commissions/index.ts",
       "types": "./dist/blocks/commissions/index.d.ts",
@@ -2403,6 +2408,10 @@
       "./blocks/periods": {
         "types": "./dist/blocks/periods/index.d.ts",
         "default": "./dist/blocks/periods/index.js"
+      },
+      "./blocks/deadlines": {
+        "types": "./dist/blocks/deadlines/index.d.ts",
+        "default": "./dist/blocks/deadlines/index.js"
       },
       "./blocks/commissions": {
         "types": "./dist/blocks/commissions/index.d.ts",

@@ -258,6 +258,8 @@ const SUBJECT_EVENTS = [
   "prescription.delivery_failed",
   "prescription.dispensed",
   "prescription.cancelled",
+  "deadline.computed",
+  "deadline.satisfied",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**

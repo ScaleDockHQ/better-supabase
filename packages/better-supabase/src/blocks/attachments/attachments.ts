@@ -180,6 +180,13 @@ export interface Attachment {
   /** Set by `confirm()` once the object exists. */
   readonly uploadedAt: Temporal.Instant | undefined;
   readonly scannedAt: Temporal.Instant | undefined;
+  /**
+   * The SHA-256 of the file's bytes (lowercase hex), recorded by the scan step
+   * from the stored object. A client never supplies it.
+   */
+  readonly sha256: string | undefined;
+  /** When the scan step computed `sha256`. */
+  readonly hashVerifiedAt: Temporal.Instant | undefined;
   /** The id of the file's document type, from `documentTypes`. */
   readonly documentTypeId: string | undefined;
   /** Where the record came from: an import source or one of `options.sources`. */
@@ -260,6 +267,8 @@ export interface AttachmentVersion {
   readonly uploadedBy: string | undefined;
   readonly uploadedAt: Temporal.Instant | undefined;
   readonly scannedAt: Temporal.Instant | undefined;
+  readonly sha256: string | undefined;
+  readonly hashVerifiedAt: Temporal.Instant | undefined;
   /** When the version stopped being the current one. */
   readonly archivedAt: Temporal.Instant;
 }
@@ -496,6 +505,8 @@ export function attachmentOf(value: unknown): Attachment {
     createdAt: toInstant(textOf(row["created_at"])),
     uploadedAt: optionalInstant(row["uploaded_at"]),
     scannedAt: optionalInstant(row["scanned_at"]),
+    sha256: optionalText(row["sha256"]),
+    hashVerifiedAt: optionalInstant(row["hash_verified_at"]),
     documentTypeId: optionalText(row["document_type_id"]),
     source: optionalText(row["source"]),
     externalId: optionalText(row["external_id"]),
@@ -534,6 +545,8 @@ export function attachmentVersionOf(value: unknown): AttachmentVersion {
     uploadedBy: optionalText(row["uploaded_by"]),
     uploadedAt: optionalInstant(row["uploaded_at"]),
     scannedAt: optionalInstant(row["scanned_at"]),
+    sha256: optionalText(row["sha256"]),
+    hashVerifiedAt: optionalInstant(row["hash_verified_at"]),
     archivedAt: toInstant(textOf(row["archived_at"])),
   };
 }

@@ -140,6 +140,7 @@ const entries = [
   "blocks/crm/index",
   "blocks/tills/index",
   "blocks/periods/index",
+  "blocks/deadlines/index",
   "blocks/commissions/index",
   "blocks/referrals/index",
   "blocks/agent-checkout/index",

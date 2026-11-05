@@ -39,6 +39,7 @@ import type { CustomFieldsSqlOptions } from "./custom-fields/options.ts";
 import type { DataLifecycleSqlOptions } from "./data-lifecycle/options.ts";
 import type { DealsSqlOptions } from "./deals/options.ts";
 import type { DispatchSqlOptions } from "./dispatch/options.ts";
+import type { DocumentTemplatesSqlOptions } from "./document-templates/options.ts";
 import type { DocumentsSqlOptions } from "./documents/options.ts";
 import type { DomainsSqlOptions } from "./domains/options.ts";
 import type { DonationsSqlOptions } from "./donations/options.ts";
@@ -192,6 +193,7 @@ import { customFieldsSqlOptions } from "./custom-fields/options.ts";
 import { dataLifecycleSqlOptions } from "./data-lifecycle/options.ts";
 import { dealsSqlOptions } from "./deals/options.ts";
 import { dispatchSqlOptions } from "./dispatch/options.ts";
+import { documentTemplatesSqlOptions } from "./document-templates/options.ts";
 import { documentsSqlOptions } from "./documents/options.ts";
 import { domainsSqlOptions } from "./domains/options.ts";
 import { donationsSqlOptions } from "./donations/options.ts";
@@ -335,7 +337,7 @@ export interface BlockOptionsRegistry {
   readonly automations: AutomationsSqlOptions;
   readonly banking: BankingSqlOptions;
   readonly tax: Record<never, never>;
-  readonly "document-templates": None;
+  readonly "document-templates": DocumentTemplatesSqlOptions;
   readonly "payroll-export": PayrollExportSqlOptions;
   readonly "billable-time": None;
   readonly billing: BillingSqlOptions;
@@ -398,6 +400,7 @@ export interface BlockOptionsRegistry {
   readonly rfqs: Record<never, never>;
   readonly tills: Record<never, never>;
   readonly periods: Record<never, never>;
+  readonly deadlines: Record<never, never>;
   readonly "agent-checkout": Record<never, never>;
   readonly "clinical-decision-support": Record<never, never>;
   readonly "e-prescribing": Record<never, never>;
@@ -528,7 +531,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   automations: automationsSqlOptions,
   banking: bankingSqlOptions,
   tax: NO_OPTIONS,
-  "document-templates": NO_OPTIONS,
+  "document-templates": documentTemplatesSqlOptions,
   "payroll-export": payrollExportSqlOptions,
   "billable-time": NO_OPTIONS,
   billing: billingSqlOptions,
@@ -602,6 +605,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   rfqs: NO_OPTIONS,
   tills: NO_OPTIONS,
   periods: NO_OPTIONS,
+  deadlines: NO_OPTIONS,
   "agent-checkout": NO_OPTIONS,
   "clinical-decision-support": NO_OPTIONS,
   "e-prescribing": NO_OPTIONS,

@@ -48,7 +48,7 @@ export function attachmentsContract(
     { name: "confirm_attachment", args: ["uuid"], returns: "jsonb" },
     {
       name: "set_attachment_status",
-      args: ["uuid", "text", "text"],
+      args: ["uuid", "text", "text", "text"],
       returns: "jsonb",
     },
     {

@@ -53,6 +53,7 @@ import type { crmBlock } from "../../src/blocks/crm/manifest.ts";
 import type { customFieldsBlock } from "../../src/blocks/custom-fields/manifest.ts";
 import type { damBlock } from "../../src/blocks/dam/manifest.ts";
 import type { dataLifecycleBlock } from "../../src/blocks/data-lifecycle/manifest.ts";
+import type { deadlinesBlock } from "../../src/blocks/deadlines/manifest.ts";
 import type { dealsBlock } from "../../src/blocks/deals/manifest.ts";
 import type { dispatchBlock } from "../../src/blocks/dispatch/manifest.ts";
 import type { documentTemplatesBlock } from "../../src/blocks/document-templates/manifest.ts";
@@ -305,6 +306,7 @@ export type AllBlocks = {
   readonly crm: typeof crmBlock;
   readonly tills: typeof tillsBlock;
   readonly periods: typeof periodsBlock;
+  readonly deadlines: typeof deadlinesBlock;
   readonly commissions: typeof commissionsBlock;
   readonly referrals: typeof referralsBlock;
   readonly "agent-checkout": typeof agentCheckoutBlock;

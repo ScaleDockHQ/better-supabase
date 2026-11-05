@@ -447,6 +447,8 @@ export default defineConfig({
     tills: {},
     // Fiscal periods and leave years close through one protocol.
     periods: {},
+    // Due dates computed from approved rule sets, with a citation.
+    deadlines: {},
     // Commission plans and entries per sales rep, and referral codes with rewards.
     commissions: {},
     referrals: {},

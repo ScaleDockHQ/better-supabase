@@ -59,7 +59,7 @@ export function attachmentInsertDefaults(ctx: BlockSqlContext): string {
   const c = (logical: string): string => ctx.col("attachments", logical);
   const fn = ctx.fn("attachment_insert_defaults");
 
-  const cleared = ["detail", "scannedAt"]
+  const cleared = ["detail", "scannedAt", "sha256", "hashVerifiedAt"]
     .filter((logical) => ctx.has("attachments", logical))
     .map((logical) => `\n    new.${c(logical)} := null;`)
     .join("");
@@ -122,3 +122,51 @@ export function scanColumns(ctx: BlockSqlContext): {
         : namedRowJson(ctx, "scans", row, {}),
   };
 }
+
+/** The SET list of `set_attachment_status`, with the columns the table has. */
+export function statusAssignments(
+  ctx: BlockSqlContext,
+  c: (logical: string) => string,
+  has: (logical: string) => boolean,
+): string {
+  return [
+    `${c("status")} = ${ctx.cast("attachments", "status", "set_attachment_status.status")}`,
+    ...(has("detail") ? [`${c("detail")} = set_attachment_status.detail`] : []),
+    ...(has("scannedAt") ? [`${c("scannedAt")} = now()`] : []),
+    ...(has("sha256")
+      ? [
+          `${c("sha256")} = coalesce(set_attachment_status.sha256, a.${c("sha256")})`,
+        ]
+      : []),
+    ...(has("hashVerifiedAt")
+      ? [
+          `${c("hashVerifiedAt")} = case when set_attachment_status.sha256 is null then a.${c("hashVerifiedAt")} else now() end`,
+        ]
+      : []),
+  ].join(",\n    ");
+}
+
+/** The hash columns of an attachments table, when it has them. */
+export function hashColumnsSql(
+  table: string,
+  c: (logical: string) => string,
+  has: (logical: string) => boolean,
+): string {
+  const add = (logical: string, type: string): string =>
+    `\nalter table ${table} add column if not exists ${c(logical)} ${type};`;
+
+  return `${
+    has("sha256")
+      ? `\n-- The SHA-256 of the file's bytes, hex, recorded by the scan step from the\n-- stored object. A client never supplies it.${add("sha256", `text check (${c("sha256")} ~ '^[0-9a-f]{64}$')`)}`
+      : ""
+  }${has("hashVerifiedAt") ? add("hashVerifiedAt", "timestamptz") : ""}`;
+}
+
+/** The version 8 to 9 step: scan results carry the file's SHA-256. */
+export const HASH_UPGRADE = {
+  from: 8,
+  description:
+    "Attachments record the SHA-256 of the file's bytes: set_attachment_status takes a sha256 from the scan step, and the row keeps it with hash_verified_at, also on earlier versions.",
+  sql: (ctx: BlockSqlContext): string =>
+    `drop function if exists ${ctx.fn("set_attachment_status")}(uuid, text, text);`,
+};

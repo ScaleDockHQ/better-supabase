@@ -16,6 +16,7 @@ import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { shipmentsBlock } from "better-supabase/blocks/shipments";
 import { casesBlock } from "better-supabase/blocks/cases";
+import { deadlinesBlock } from "better-supabase/blocks/deadlines";
 import { legalEntitiesBlock } from "better-supabase/blocks/legal-entities";
 import { documentTemplatesBlock } from "better-supabase/blocks/document-templates";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
@@ -55,6 +56,7 @@ export const blockSet = defineBlocks(blockConfig, {
   enrollments: enrollmentsBlock,
   shipments: shipmentsBlock,
   cases: casesBlock,
+  deadlines: deadlinesBlock,
   legalEntities: legalEntitiesBlock,
   documentTemplates: documentTemplatesBlock,
   entitlements: entitlementsBlock,

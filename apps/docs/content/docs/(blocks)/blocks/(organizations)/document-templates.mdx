@@ -200,6 +200,43 @@ are minor units as text, so a `bigint` never loses precision.
 TypeScript, with a description of each variable. New variables arrive as new
 optional keys. Removing or retyping one needs a new contract version.
 
+## Your own document types
+
+A notice, a certificate or a letter the built-in types do not cover is a
+document type you define in `blocks.document-templates.options.documentTypes`.
+Each type names an app function that builds its variables and lists the
+variable contract its templates may read.
+
+```ts
+export default defineConfig({
+  blocks: {
+    "document-templates": {
+      options: {
+        documentTypes: {
+          notice: {
+            function: "app.notice_variables",
+            variables: [
+              { path: "document", type: "object" },
+              { path: "document.number", type: "string" },
+              { path: "claimant.name", type: "string" },
+            ],
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+`app.notice_variables(tenant, document_id)` returns the variables as jsonb. It
+runs as the caller, so row level security applies, and it should be `stable`.
+The type then works in `saveTemplate`, `render`, `freeze` and the import, and
+`contract('notice')` returns the contract you declared. Pass
+`{ notice: variables }` as the third argument of `validateDocumentTemplate` to
+check a template in TypeScript. The built-in names are reserved, and the
+contract of an app type has no `DOCUMENT_CONTRACT_VERSION` of its own: add
+variables, and treat a removal like a new type.
+
 ## Importing templates
 
 The block registers two import targets, `document_template` and

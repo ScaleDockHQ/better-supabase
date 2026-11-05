@@ -226,6 +226,7 @@ const POSITIONAL = new Set<string>([
   "share-links/record-binding.ts:run",
   "shipments/carrier.ts:cancel",
   "shipments/carrier.ts:createLabel",
+  "shipments/carrier.ts:proofOfDelivery",
   "shipments/carrier.ts:rates",
   "shipments/carrier.ts:track",
   "shipments/record-binding.ts:load",

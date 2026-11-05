@@ -156,6 +156,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "attribute_referral create_referral_code list_referral_codes list_referrals qualify_referral void_referral",
   periods:
     "close_period create_period list_periods lock_period period_close_blockers period_for period_is_open reopen_period",
+  deadlines:
+    "approve_rule_version compute_deadline list_deadlines recompute_deadlines rule_version_at satisfy_deadline save_rule_version",
   "agent-checkout":
     "complete_checkout_session consume_agent_mandate create_checkout_session get_agent_mandate get_checkout_session list_agent_mandates list_checkout_sessions revoke_agent_mandate store_agent_mandate update_checkout_session",
   tills:
@@ -268,7 +270,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   shifts:
     "archive_shift_template assign_shift cancel_shift decide_shift_request decide_shift_swap generate_shifts list_shift_availability list_shift_templates my_shifts publish_shifts request_open_shift request_shift_swap roster save_shift save_shift_template set_shift_availability shift_hours unassign_shift",
   shipments:
-    "cancel_shipment create_shipment delete_intrastat_line get_shipment ingest_tracking_events list_shipments list_tracking_events prepare_intrastat receive_shipment_return record_tracking_events save_intrastat_line set_shipment_label set_shipment_lines",
+    "cancel_shipment create_shipment delete_intrastat_line get_shipment ingest_tracking_events list_shipments list_tracking_events prepare_intrastat receive_shipment_return record_delivery_proof record_tracking_events save_intrastat_line set_shipment_label set_shipment_lines",
   signatures:
     "cancel_signature_request create_signature_request decline_signature_request get_signature_request list_signature_requests sign_signature",
   "signing-keys":

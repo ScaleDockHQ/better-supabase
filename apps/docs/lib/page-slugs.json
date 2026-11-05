@@ -96,6 +96,7 @@
   "blocks/custom-fields",
   "blocks/dam",
   "blocks/data-lifecycle",
+  "blocks/deadlines",
   "blocks/deals",
   "blocks/dispatch",
   "blocks/document-templates",

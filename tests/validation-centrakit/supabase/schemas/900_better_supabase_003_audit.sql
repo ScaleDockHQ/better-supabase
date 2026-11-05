@@ -1,6 +1,6 @@
 -- better-supabase module: audit
--- @bsb-block audit@12 managed
--- @bsb-hash sha256:71fbba87633fe89fa557b84b077b0e4d267915ec8b07f8f0906920b2ecaa3b91
+-- @bsb-block audit@13 managed
+-- @bsb-hash sha256:fc142caae39e085dae79f886327b5028ba3bf35cdb313b0e8cc33092f517f078
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1421,7 +1421,7 @@ begin
   insert into better_supabase.chain_checkpoints (table_name, tenant, chain_seq, row_hash, key_id, signature)
   values (target::text, record_chain_checkpoint.tenant, seq, decode(hash, 'hex'), key_id, signature)
   returning id into v_id;
-  return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
+  return jsonb_build_object('id', v_id::text, 'tenant', record_chain_checkpoint.tenant, 'seq', seq, 'hash', hash, 'keyId', key_id, 'signature', record_chain_checkpoint.signature);
 end;
 $$;
 revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;

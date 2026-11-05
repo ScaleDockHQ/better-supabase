@@ -49,6 +49,21 @@ const attachmentGone = (error: DbError): boolean =>
 const objectGone = (error: DbError): boolean =>
   error.kind === "not_found" && error.code === "NoSuchKey";
 
+/**
+ * The SHA-256 of a file's bytes as lowercase hex (WebCrypto, no Node
+ * built-ins).
+ */
+async function sha256OfBlob(file: Blob): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    await file.arrayBuffer(),
+  );
+
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 /** A scanner's verdict on one file. */
 export interface ScanVerdict {
   readonly status: "clean" | "infected";
@@ -118,10 +133,11 @@ export function createAttachmentScanner(
     id: string,
     status: "clean" | "infected" | "failed",
     detail: string | undefined,
+    sha256?: string,
   ): AsyncResult<Attachment> =>
     call(
       "set_attachment_status",
-      { id, status, detail },
+      { id, status, detail, sha256 },
       (value) => value,
     ).andThen((value) =>
       Promise.resolve(
@@ -155,6 +171,7 @@ export function createAttachmentScanner(
         options.storage.from(attachment.bucket).download(attachment.path),
       ).andThen(async (file) => {
         let verdict: ScanVerdict;
+        const sha256 = await sha256OfBlob(file);
 
         try {
           verdict = await options.scan(file, attachment, signal);
@@ -170,7 +187,7 @@ export function createAttachmentScanner(
             : failed;
         }
 
-        return record(id, verdict.status, verdict.detail);
+        return record(id, verdict.status, verdict.detail, sha256);
       });
     });
 

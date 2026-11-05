@@ -114,6 +114,13 @@ export interface Shipment<F extends object = Record<never, never>> {
   readonly labelCost?: Money;
   readonly labeledAt?: Temporal.Instant;
   readonly deliveredAt?: Temporal.Instant;
+  /** Who received the parcel, once `recordProof` stored the proof. */
+  readonly deliveredTo?: string;
+  /** The carrier's reference for the proof of delivery. */
+  readonly proofReference?: string;
+  /** The attachment that holds the receipt or signature image. */
+  readonly proofAttachmentId?: string;
+  readonly proofRecordedAt?: Temporal.Instant;
   readonly cancelledAt?: Temporal.Instant;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
@@ -241,6 +248,16 @@ export interface Shipments<
    * first.
    */
   cancel(id: string): AsyncResult<Shipment<F>>;
+  /**
+   * Stores the proof of delivery of a delivered shipment, once. Without
+   * `deliveredTo` it asks the carrier's `proofOfDelivery`, when it has one.
+   */
+  recordProof(input: {
+    id: string;
+    deliveredTo?: string;
+    reference?: string;
+    attachmentId?: string;
+  }): AsyncResult<Shipment<F>>;
   /** The tracking timeline, oldest first. */
   trackingEvents(id: string): AsyncResult<readonly TrackingEvent[]>;
   /**
@@ -345,6 +362,10 @@ function shipmentOf(value: unknown, fn: string): Shipment {
       ),
       labeledAt: optionalInstant(row["labeledAt"]),
       deliveredAt: optionalInstant(row["deliveredAt"]),
+      deliveredTo: optionalText(row["deliveredTo"]),
+      proofReference: optionalText(row["proofReference"]),
+      proofAttachmentId: optionalText(row["proofAttachmentId"]),
+      proofRecordedAt: optionalInstant(row["proofRecordedAt"]),
       cancelledAt: optionalInstant(row["cancelledAt"]),
       createdBy: optionalText(row["createdBy"]),
     }),
@@ -481,6 +502,42 @@ export function createShipments<
         recorded("record_tracking_events"),
       ),
     );
+
+  const resolveProof = (input: {
+    id: string;
+    deliveredTo?: string;
+    reference?: string;
+  }): AsyncResult<{ deliveredTo: string; reference?: string }> => {
+    const { deliveredTo, reference } = input;
+
+    if (deliveredTo !== undefined) {
+      return AsyncResult.ok(
+        reference === undefined ? { deliveredTo } : { deliveredTo, reference },
+      );
+    }
+
+    return client.get(input.id).andThen((shipment) => {
+      if (shipment === null) {
+        return AsyncResult.err(
+          dbError("not_found", "The shipment does not exist", {
+            hint: "SHIPMENT_NOT_FOUND",
+          }),
+        );
+      }
+
+      const { trackingNumber } = shipment;
+
+      return carrierNamed(shipment.carrier).andThen((carrier) =>
+        trackingNumber === undefined || !carrier.proofOfDelivery
+          ? AsyncResult.err(
+              dbError("invalid_input", "Pass deliveredTo for this carrier", {
+                hint: "SHIPMENT_PROOF_INVALID",
+              }),
+            )
+          : carrier.proofOfDelivery(trackingNumber),
+      );
+    });
+  };
 
   const client: Shipments<F> = {
     shipCheapest: ({ id, currency, maxDays }) =>
@@ -678,6 +735,19 @@ export function createShipments<
         );
       }),
     recordTracking: ({ id, events }) => record(id, events, "manual"),
+    recordProof: (input) =>
+      resolveProof(input).andThen((proof) =>
+        call(
+          "record_delivery_proof",
+          {
+            shipment_id: input.id,
+            delivered_to: proof.deliveredTo,
+            proof_reference: proof.reference ?? null,
+            attachment_id: input.attachmentId ?? null,
+          },
+          one("record_delivery_proof"),
+        ).andThen(fields.row),
+      ),
     ingest: ({ carrier: name, request }) =>
       carrierNamed(name).andThen((carrier) => {
         if (!carrier.parseWebhook) {

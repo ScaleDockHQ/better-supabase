@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_171_commissions.sql
+-- ==== schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
 -- @bsb-hash sha256:03b70f13fcba82e33c1e0eabc91ebd16d0c4e9ce9f74a126809abc8762269a9b
@@ -1032,7 +1032,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_171_commissions.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block-data commissions
 -- @bsb-hash sha256:817e70daac986addaf1de50e6c6a05c808ddf586ef2f8008e6c6dc9ddf58053e

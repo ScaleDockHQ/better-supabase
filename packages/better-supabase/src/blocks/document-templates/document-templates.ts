@@ -2,7 +2,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type {
-  DocumentType,
+  DocumentTypeName,
   DocumentTemplateIssueCode,
 } from "../../sql/modules/document-templates-values.ts";
 import type { BlockOptions } from "../shared.ts";
@@ -32,7 +32,7 @@ export interface DocumentTemplate {
   readonly organizationId: string;
   /** The legal entity it belongs to; null for the organization. */
   readonly legalEntityId: string | null;
-  readonly documentType: DocumentType;
+  readonly documentType: DocumentTypeName;
   /** A code such as `nl`; null for any language. */
   readonly language: string | null;
   readonly name: string;
@@ -71,7 +71,7 @@ export type DocumentTemplateSource =
 export interface ResolvedDocumentTemplate {
   readonly id: string;
   readonly name: string;
-  readonly documentType: DocumentType;
+  readonly documentType: DocumentTypeName;
   readonly legalEntityId: string | null;
   readonly language: string | null;
   readonly version: number;
@@ -82,7 +82,7 @@ export interface ResolvedDocumentTemplate {
 /** One document as a renderer needs it. */
 export interface RenderedDocument {
   readonly contractVersion: number;
-  readonly documentType: DocumentType;
+  readonly documentType: DocumentTypeName;
   readonly documentId: string;
   /** The legal entity that issues the document; null when there is none. */
   readonly legalEntityId: string | null;
@@ -100,7 +100,7 @@ export interface RenderedDocument {
 }
 
 export interface SaveDocumentTemplateInput {
-  readonly documentType: DocumentType;
+  readonly documentType: DocumentTypeName;
   readonly body: string;
   /** Default `default`; a document type can hold several named templates. */
   readonly name?: string;
@@ -118,7 +118,7 @@ export interface SaveDocumentTextBlockInput {
 }
 
 export interface RenderDocumentInput {
-  readonly documentType: DocumentType;
+  readonly documentType: DocumentTypeName;
   readonly documentId: string;
   /** Overrides the buyer's language. */
   readonly language?: string;
@@ -129,7 +129,7 @@ export interface RenderDocumentInput {
 }
 
 export interface FreezeDocumentInput {
-  readonly documentType: DocumentType;
+  readonly documentType: DocumentTypeName;
   readonly documentId: string;
   readonly language?: string;
   readonly templateName?: string;
@@ -138,7 +138,7 @@ export interface FreezeDocumentInput {
 /** What the SQL contract function returns for one document type. */
 export interface DocumentContractSummary {
   readonly version: number;
-  readonly documentType: DocumentType;
+  readonly documentType: DocumentTypeName;
   readonly variables: readonly {
     readonly path: string;
     readonly type: string;
@@ -172,7 +172,7 @@ export interface DocumentTemplates {
   }): AsyncResult<DocumentTemplate>;
   getTemplate(id: string): AsyncResult<DocumentTemplate>;
   listTemplates(filter?: {
-    readonly documentType?: DocumentType;
+    readonly documentType?: DocumentTypeName;
     readonly legalEntityId?: string;
     readonly activeOnly?: boolean;
   }): AsyncResult<readonly DocumentTemplate[]>;
@@ -190,7 +190,7 @@ export interface DocumentTemplates {
    * fits.
    */
   resolveTemplate(input: {
-    readonly documentType: DocumentType;
+    readonly documentType: DocumentTypeName;
     readonly legalEntityId?: string;
     readonly language?: string;
     readonly name?: string;
@@ -208,34 +208,28 @@ export interface DocumentTemplates {
    */
   freeze(input: FreezeDocumentInput): AsyncResult<RenderedDocument>;
   /** The version and the variable paths of one document type. */
-  contract(documentType: DocumentType): AsyncResult<DocumentContractSummary>;
+  contract(
+    documentType: DocumentTypeName,
+  ): AsyncResult<DocumentContractSummary>;
   /** The problems of a body, from the database's validator; empty when valid. */
   validate(input: {
-    readonly documentType: DocumentType;
+    readonly documentType: DocumentTypeName;
     readonly body: string;
     /** Validate as a text block, which may read any document type. */
     readonly textBlock?: boolean;
   }): AsyncResult<readonly DocumentTemplateIssue[]>;
 }
 
-function documentTypeOf(value: unknown): DocumentType {
+const TYPE_NAME = /^[a-z][a-z0-9_]{0,63}$/;
+
+function documentTypeOf(value: unknown): DocumentTypeName {
   const text = textOf(value);
 
-  switch (text) {
-    case "invoice":
-    case "credit_note":
-    case "quote":
-    case "order":
-    case "dunning_letter":
-    case "delivery_note":
-    case "statement": {
-      return text;
-    }
-
-    default: {
-      throw new TypeError(`unknown document type ${text}`);
-    }
+  if (!TYPE_NAME.test(text)) {
+    throw new TypeError(`unknown document type ${text}`);
   }
+
+  return text;
 }
 
 function templateOf(value: unknown, fn: string): DocumentTemplate {

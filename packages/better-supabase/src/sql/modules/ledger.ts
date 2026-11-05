@@ -326,7 +326,7 @@ from (
 on conflict (${b("account")}) do update set ${b("balance")} = excluded.${b("balance")}, ${b("held")} = excluded.${b("held")}${ledgerTouch(ctx)};`;
 }
 
-function purgeBypass(ctx: BlockSqlContext): string {
+export function purgeBypass(ctx: BlockSqlContext): string {
   if (!ctx.installed("data-lifecycle")) {
     return "";
   }

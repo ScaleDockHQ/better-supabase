@@ -61,6 +61,13 @@ export interface Version<F extends object = Record<never, never>> {
   readonly contentHash: string;
   /** A Storage path, for content kept outside the table. */
   readonly storagePath?: string;
+  /**
+   * The SHA-256 of the file's bytes (lowercase hex) when the snapshot was
+   * written with one; the content hash then covers it (`hashVersion` 2).
+   */
+  readonly fileSha256?: string;
+  /** 1 hashes the content and `storagePath`; 2 the content and `fileSha256`. */
+  readonly hashVersion: 1 | 2;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly content?: JsonValue;
@@ -76,6 +83,12 @@ export interface SnapshotInput<F extends object = Record<never, never>> {
   readonly content?: JsonValue;
   readonly label?: string;
   readonly storagePath?: string;
+  /**
+   * The SHA-256 of the file at `storagePath`, from the attachment's scan step.
+   * Only the service role may set it; the version then hashes the file's bytes
+   * instead of its path.
+   */
+  readonly fileSha256?: string;
   /** The extra columns to set. */
   readonly fields?: Partial<F>;
 }
@@ -153,6 +166,7 @@ function versionOf(value: unknown, fn: string): Version {
   const row = recordOf(value, fn);
   const label = optionalText(row["label"]);
   const storagePath = optionalText(row["storagePath"]);
+  const fileSha256 = optionalText(row["fileSha256"]);
   const createdBy = optionalText(row["createdBy"]);
 
   return {
@@ -162,9 +176,11 @@ function versionOf(value: unknown, fn: string): Version {
     source: enumOrThrow(row["source"], SOURCES, "version source"),
     frozen: row["frozen"] === true,
     contentHash: textOf(row["contentHash"]),
+    hashVersion: Number(row["hashVersion"]) === 2 ? 2 : 1,
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     ...(label === undefined ? {} : { label }),
     ...(storagePath === undefined ? {} : { storagePath }),
+    ...(fileSha256 === undefined ? {} : { fileSha256 }),
     ...(createdBy === undefined ? {} : { createdBy }),
     ...("content" in row ? { content: jsonOf(row["content"]) } : {}),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
@@ -233,6 +249,7 @@ export function createVersions<
                 content: input.content ?? null,
                 label: input.label ?? null,
                 storage_path: input.storagePath ?? null,
+                file_sha256: input.fileSha256 ?? null,
                 fields: checked,
               },
               (value) => snapshotOf(value, "snapshot_version"),

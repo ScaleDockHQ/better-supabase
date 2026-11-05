@@ -85,20 +85,21 @@ stores it on the shipment, which moves to `label_created`. When storing
 fails, the block voids the label it just bought. A shipment without a
 `reference` gets a generated one (`SHP-` and ten characters).
 
-| Method                               | Returns                                                    |
-| ------------------------------------ | ---------------------------------------------------------- |
-| `create(input)`                      | the draft shipment with its packages                       |
-| `get(id)`                            | the shipment, or `null`                                    |
-| `list({ status, subject, carrier })` | the organization's shipments, newest first                 |
-| `rates(id, { currency })`            | every carrier's quotes                                     |
-| `buyLabel(id, choice)`               | the shipment with its label                                |
-| `refresh(id)`                        | the events the carrier added since, and the shipment       |
-| `recordTracking(id, events)`         | the events recorded by hand, and the shipment              |
-| `ingest(carrier, request)`           | one entry per tracking number in a verified webhook        |
-| `cancel(id)`                         | the cancelled shipment, after the carrier voided its label |
-| `setLines(id, lines)`                | the draft shipment with its outbound lines                 |
-| `receiveReturn(id, lines)`           | the shipment with the return lines                         |
-| `trackingEvents(id)`                 | the timeline, oldest first                                 |
+| Method                                                         | Returns                                                    |
+| -------------------------------------------------------------- | ---------------------------------------------------------- |
+| `create(input)`                                                | the draft shipment with its packages                       |
+| `get(id)`                                                      | the shipment, or `null`                                    |
+| `list({ status, subject, carrier })`                           | the organization's shipments, newest first                 |
+| `rates(id, { currency })`                                      | every carrier's quotes                                     |
+| `buyLabel(id, choice)`                                         | the shipment with its label                                |
+| `refresh(id)`                                                  | the events the carrier added since, and the shipment       |
+| `recordTracking(id, events)`                                   | the events recorded by hand, and the shipment              |
+| `recordProof({ id, deliveredTo?, reference?, attachmentId? })` | the shipment with its proof of delivery                    |
+| `ingest(carrier, request)`                                     | one entry per tracking number in a verified webhook        |
+| `cancel(id)`                                                   | the cancelled shipment, after the carrier voided its label |
+| `setLines(id, lines)`                                          | the draft shipment with its outbound lines                 |
+| `receiveReturn(id, lines)`                                     | the shipment with the return lines                         |
+| `trackingEvents(id)`                                           | the timeline, oldest first                                 |
 
 The [shipments binding](/docs/repository/record-bindings) lists a record's shipments on
 its page, with `create` and `cancel` writes.
@@ -318,7 +319,7 @@ and refresh. It is in the Next.js example.
 ## Events
 
 `shipment.created`, `shipment.labeled`, `shipment.status_changed`,
-`shipment.cancelled` and `shipment.return_received`. The [events page](/docs/extending/events) lists their
+`shipment.cancelled`, `shipment.proof_recorded` and `shipment.return_received`. The [events page](/docs/extending/events) lists their
 payloads.
 
 ## Without the client
@@ -357,3 +358,9 @@ const labeled = await shipments
 ## Ship cheapest
 
 `shipCheapest({ id, currency, maxDays })` reads the rates, buys the label for the cheapest one that fits, and returns the shipment. It fails with the hint `SHIPMENT_NO_RATE` when no rate qualifies.
+
+## Proof of delivery
+
+A delivered shipment can store who received it. `recordProof` calls `record_delivery_proof`, which keeps `delivered_to`, the carrier's `proof_reference` and the `proof_attachment_id` of a receipt, once: a second call fails with `SHIPMENT_PROOF_RECORDED`, and a shipment that has not been delivered fails with `SHIPMENT_NOT_DELIVERED`. Without `deliveredTo`, the call asks the carrier's optional `proofOfDelivery(trackingNumber)` method. Certified mail is a `service` value on the label, such as `certified`.
+
+Tracking events are append-only. A trigger refuses edits and deletes with `SHIPMENT_EVENTS_APPEND_ONLY`, so a correction is a later event. Only a tenant purge by the data-lifecycle block removes them.

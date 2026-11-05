@@ -2350,7 +2350,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:01dd49e67440b3a41348c726c860284b65bdd3dc2f77bf2f331ee806cb0efa29
+-- @bsb-hash sha256:4865d445d07c4a48fc6f4a98e32be230647f6d8904e7cfae1c4a90e2fc35631b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2445,6 +2445,7 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."funding_awards"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."funding_awards" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."funding_deliveries"') and attname = 'source_type' and not attisdropped) then update "better_supabase"."funding_deliveries" set "source_type" = 'task' where "source_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_alerts"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_alerts" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."deadlines"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."deadlines" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."commission_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."commission_assignments" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."commissions"') and attname = 'source_type' and not attisdropped) then update "better_supabase"."commissions" set "source_type" = 'task' where "source_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."prescriptions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."prescriptions" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;

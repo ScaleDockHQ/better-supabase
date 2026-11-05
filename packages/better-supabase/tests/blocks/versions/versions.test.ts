@@ -94,6 +94,7 @@ describe("versions client", () => {
         content: { a: 1 },
         label: "Final",
         storage_path: null,
+        file_sha256: null,
       },
     ]);
     expect(fake.calls[1]![1]).toMatchObject({ page_size: 10, before: 5 });
@@ -126,6 +127,7 @@ describe("versions client", () => {
         content: null,
         label: null,
         storage_path: null,
+        file_sha256: null,
       },
       {
         tenant: "o",

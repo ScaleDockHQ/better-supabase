@@ -1,0 +1,114 @@
+---
+title: Deadlines
+description: Due dates computed from approved, versioned rule sets with a citation per rule, and an unknown result that names the facts still missing.
+---
+
+`deadlines` keeps rule sets per jurisdiction and kind, and computes a due date
+for a subject from the facts you know about it. A rule that lacks a fact gives
+`unknown` and lists what is missing, so the app never shows a guessed date.
+
+```bash
+better-supabase add deadlines
+```
+
+```ts
+import { createDeadlines } from "better-supabase/blocks/deadlines";
+```
+
+The module requires `memberships` and `permissions`. `outbox` records the
+events and `audit` audits every change. With `approvals` installed, a version
+is approved through an approval request.
+
+## Tables and permissions
+
+| Table                    | Holds                                                                       |
+| ------------------------ | --------------------------------------------------------------------------- |
+| `deadline_rule_sets`     | One set per jurisdiction and kind, owned by the platform, with no tenant    |
+| `deadline_rule_versions` | A version with its rules, a status, a content hash and an effective date    |
+| `deadlines`              | One row per tenant, subject and rule key: a result, a date or missing facts |
+
+| Permission         | Allows                            | Default roles |
+| ------------------ | --------------------------------- | ------------- |
+| `deadlines.read`   | listing deadlines                 | owner, admin  |
+| `deadlines.write`  | computing and satisfying          | owner, admin  |
+| `deadlines.manage` | recomputing a subject's deadlines | owner, admin  |
+
+Members read the approved versions of every rule set. Saving and approving a
+version needs the service role.
+
+## Rules
+
+A rule names an anchor fact, an offset in `days`, `business_days` or `months`
+(at most 3650), an adjustment (`none`, `next_business_day` or
+`previous_business_day`), the facts it requires and a citation.
+
+```ts
+const deadlines = createDeadlines({ transport, tenant: organizationId });
+
+const draft = await deadlines
+  .saveRules({
+    jurisdiction: "ca",
+    kind: "notice",
+    rules: [
+      {
+        key: "file_notice",
+        anchor: "first_day",
+        offset: { amount: 90, unit: "days" },
+        adjust: "next_business_day",
+        requires: ["state"],
+        citation: { reference: "Section 1" },
+      },
+    ],
+  })
+  .orThrow();
+
+await deadlines
+  .approveRules({ versionId: draft.id, approvalId: request.id })
+  .orThrow();
+```
+
+Approval stores a SHA-256 of the rules and freezes the version. A later change
+fails with the `DEADLINE_RULE_VERSION_FROZEN` hint, so you publish a new
+version instead. A deadline keeps the version it was computed with.
+`validateRules` and `evaluateRule` run the same checks and the same arithmetic
+in TypeScript, for a preview before you save.
+
+## Computing a deadline
+
+```ts
+const deadline = await deadlines
+  .compute({
+    subjectType: "case",
+    subjectId: caseId,
+    jurisdiction: "ca",
+    kind: "notice",
+    ruleKey: "file_notice",
+    facts: { first_day: "2026-01-02", state: "ca" },
+  })
+  .orThrow();
+// deadline.result is "due", deadline.dueOn is 2026-04-02
+```
+
+With a missing fact, `result` is `unknown` and `missing` lists the fact names.
+`recompute` re-evaluates a subject's pending deadlines with extra facts, and
+`satisfy` records the action that closed one. `list` filters by subject, state,
+result and `dueBefore`.
+
+To recompute when your own facts table changes, attach the trigger function
+the module installs. It takes the subject type, then the names of the columns
+that hold the organization, the subject id, the fact name and the fact value. A
+new row recomputes the pending deadlines of its subject.
+
+```sql
+create trigger filing_facts_deadlines
+  after insert on public.filing_facts
+  for each row execute function better_supabase.deadline_fact_trigger(
+    'case', 'organization_id', 'filing_id', 'kind', 'value'
+  );
+```
+
+## Events
+
+`deadline.computed` and `deadline.satisfied` carry the subject, the rule key,
+the result and the due date. Subscribe with `onBlockEvent`, for example to set
+a [reminder](/docs/blocks/reminders) from `dueOn`.

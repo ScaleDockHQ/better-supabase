@@ -70,6 +70,7 @@ import { warehouseBlock } from "better-supabase/blocks/warehouse";
 import { rfqsBlock } from "better-supabase/blocks/rfqs";
 import { tillsBlock } from "better-supabase/blocks/tills";
 import { periodsBlock } from "better-supabase/blocks/periods";
+import { deadlinesBlock } from "better-supabase/blocks/deadlines";
 import { commissionsBlock } from "better-supabase/blocks/commissions";
 import { referralsBlock } from "better-supabase/blocks/referrals";
 import { agentCheckoutBlock } from "better-supabase/blocks/agent-checkout";
@@ -234,6 +235,7 @@ export const blockSet = defineBlocks(blockConfig, {
   rfqs: rfqsBlock,
   tills: tillsBlock,
   periods: periodsBlock,
+  deadlines: deadlinesBlock,
   commissions: commissionsBlock,
   referrals: referralsBlock,
   agentCheckout: agentCheckoutBlock,

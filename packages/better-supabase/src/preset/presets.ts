@@ -540,7 +540,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "filings",
     title: "Regulated filings",
     description:
-      "SaaS plus parties with relations, imports, numbered documents from templates, versions and signatures, staff approvals, shipments with tracking, payments on the ledger, cases, reminders and the governance trail with a hash chain.",
+      "SaaS plus parties with relations, imports, numbered documents from templates, versions and signatures, staff approvals, shipments with tracking, payments on the ledger, cases, reminders, deadlines computed from versioned rules and the governance trail with a hash chain.",
     group: "verticals",
     blocks: [
       ...SAAS,
@@ -557,6 +557,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "ledger",
       "cases",
       "reminders",
+      "deadlines",
       "governance",
     ],
   },

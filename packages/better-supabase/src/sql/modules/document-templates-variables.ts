@@ -9,6 +9,7 @@ import {
   lineDiscount,
 } from "../line-items-sql.ts";
 import { fail, userGrant } from "../shared.ts";
+import { appDocumentTypes } from "./document-templates-app-types.ts";
 import {
   EMPTY_ADDRESS,
   column,
@@ -1035,7 +1036,12 @@ begin
     ${branch("delivery_note", `${fn("document_variables_delivery_note")}(tenant, document_id)`)}
     ${branch("dunning_letter", `${fn("document_variables_dunning_letter")}(tenant, document_id)`)}
     ${branch("statement", `${fn("document_variables_statement")}(tenant, document_id)`)}
-    else
+    ${appDocumentTypes(ctx)
+      .map(
+        (type) =>
+          `when '${type.name}' then return ${type.builder}(tenant, document_id);\n    `,
+      )
+      .join("")}else
       ${fail("DOCUMENT_TYPE_INVALID", "unknown document type", "22023")}
   end case;
 end;

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockConfig } from "../../../src/config/blocks.ts";
 
-import { moduleContext } from "../../../src/sql/module-context.ts";
 import { resolveBlocks } from "../../../src/sql/registry.ts";
 import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
@@ -265,38 +264,27 @@ describe("audit module", () => {
     expect(sql[4]).toContain("regprocedure, boolean);");
   });
 
-  it("chains entries and lists the chain functions only with options.chain", () => {
+  it("chains entries through the shared chain tag only with options.chain", () => {
     const sql = audit({ options: { chain: true } });
     expect(sql).toContain(
       'alter table "better_supabase"."audit_events" add column if not exists row_hash bytea;',
     );
     expect(sql).toContain(
-      'create trigger "bsb_audit_chain" before insert on "better_supabase"."audit_events"',
+      `select better_supabase.chain('"better_supabase"."audit_events"', 'organization_id');`,
     );
     expect(sql).toContain(
-      "create or replace function better_supabase.verify_audit_chain(",
+      "drop function if exists better_supabase.audit_chain_link();",
     );
-    expect(sql).toContain(
-      "create table if not exists better_supabase.audit_checkpoints (",
+    expect(sql).not.toContain(
+      "create or replace function better_supabase.verify_audit_chain",
     );
     expect(audit()).toContain(
       'drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";',
     );
-    expect(audit()).not.toContain("verify_audit_chain");
+    expect(audit()).not.toContain("select better_supabase.chain(");
     expect(appAudit({ ...CENTRAKIT, options: { chain: true } })).not.toContain(
-      "audit_chain",
+      "add column if not exists row_hash",
     );
-
-    const contract = (config: BlockConfig) =>
-      resolveBlocks(["audit"]).find((module) => module.name === "audit")!
-        .contract!(moduleContext("audit", { modules: { audit: config } })).map(
-        (fn) => fn.name,
-      );
-
-    expect(contract({ options: { chain: true } })).toContain(
-      "verify_audit_chain",
-    );
-    expect(contract({})).not.toContain("verify_audit_chain");
   });
 
   it("partitions a new managed log by month and drops expired months in the purge", () => {

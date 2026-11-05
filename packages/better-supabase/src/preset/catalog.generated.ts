@@ -886,6 +886,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdAt": "created_at",
               "uploadedAt": "uploaded_at",
               "scannedAt": "scanned_at",
+              "sha256": "sha256",
+              "hashVerifiedAt": "hash_verified_at",
               "metadata": "metadata",
               "version": "version",
               "width": "width",
@@ -2572,6 +2574,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "content": "content",
               "storagePath": "storage_path",
               "contentHash": "content_hash",
+              "fileHash": "file_hash",
+              "hashVersion": "hash_version",
               "source": "source",
               "frozen": "frozen",
               "createdBy": "created_by",
@@ -6469,7 +6473,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "assets",
-        "inventory"
+        "inventory",
+        "data-lifecycle"
       ],
       "manifest": "shipments",
       "scopes": [
@@ -6530,7 +6535,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "cancelledAt": "cancelled_at",
               "createdBy": "created_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "deliveredTo": "delivered_to",
+              "proofReference": "proof_reference",
+              "proofAttachment": "proof_attachment_id",
+              "proofRecordedAt": "proof_recorded_at"
             }
           },
           "packages": {
@@ -11486,6 +11495,64 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "periods.read",
           "write": "periods.write",
           "manage": "periods.manage"
+        }
+      }
+    },
+    {
+      "name": "deadlines",
+      "title": "Deadlines",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "approvals"
+      ],
+      "manifest": "deadlines",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "deadline": {
+            "table": "deadlines",
+            "singular": "deadline",
+            "primary": true
+          }
+        },
+        "tables": {
+          "deadlines": {
+            "name": "deadlines",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "jurisdiction": "jurisdiction",
+              "kind": "kind",
+              "ruleKey": "rule_key",
+              "ruleVersion": "rule_version_id",
+              "facts": "facts",
+              "result": "result",
+              "dueOn": "due_on",
+              "missing": "missing",
+              "citation": "citation",
+              "state": "state",
+              "satisfiedAt": "satisfied_at",
+              "satisfiedBy": "satisfied_by",
+              "satisfiedAction": "satisfied_action",
+              "computedAt": "computed_at",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "deadlines.read",
+          "write": "deadlines.write",
+          "manage": "deadlines.manage"
         }
       }
     },
@@ -18750,6 +18817,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "shipment.labeled",
           "shipment.status_changed",
           "shipment.cancelled",
+          "shipment.proof_recorded",
           "shipment.return_received"
         ]
       },
@@ -24777,6 +24845,58 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "deadlines",
+      "sql": [
+        "deadlines"
+      ],
+      "category": "work",
+      "client": {
+        "export": "deadlinesBlock",
+        "subpath": "better-supabase/blocks/deadlines"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Deadline"
+        },
+        {
+          "name": "DeadlineCitation"
+        },
+        {
+          "name": "DeadlineEvaluation"
+        },
+        {
+          "name": "DeadlineEventData"
+        },
+        {
+          "name": "DeadlineListOptions"
+        },
+        {
+          "name": "DeadlineRule"
+        },
+        {
+          "name": "Deadlines"
+        },
+        {
+          "name": "DeadlinesEvents"
+        },
+        {
+          "name": "DeadlinesOptions"
+        },
+        {
+          "name": "DeadlineSubject"
+        }
+      ],
+      "events": {
+        "type": "DeadlinesEvents",
+        "types": [
+          "deadline.computed",
+          "deadline.satisfied"
+        ]
+      }
+    },
+    {
       "name": "commissions",
       "sql": [
         "commissions"
@@ -26793,6 +26913,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "DocumentTemplateSource"
+        },
+        {
+          "name": "DocumentTemplatesSqlOptions"
         },
         {
           "name": "DocumentTextBlock"

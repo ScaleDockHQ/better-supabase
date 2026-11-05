@@ -65,6 +65,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  deadlines: {
+    schema: "better_supabase",
+    options: {},
+  },
   "legal-entities": {
     schema: "better_supabase",
     options: {},
@@ -217,6 +221,11 @@ export const permissions = {
     delete: "organization.delete",
     cancelDelete: "organization.delete",
   },
+  deadlines: {
+    read: "deadlines.read",
+    write: "deadlines.write",
+    manage: "deadlines.manage",
+  },
   "document-templates": {
     read: "document_templates.read",
     manage: "document_templates.manage",
@@ -324,4 +333,4 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "data_lifecycle.export" | "document_templates.manage" | "document_templates.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "field_history.read" | "imports.manage" | "ledger.manage" | "ledger.post" | "ledger.read" | "legal_entities.manage" | "legal_entities.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "data_lifecycle.export" | "deadlines.manage" | "deadlines.read" | "deadlines.write" | "document_templates.manage" | "document_templates.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "field_history.read" | "imports.manage" | "ledger.manage" | "ledger.post" | "ledger.read" | "legal_entities.manage" | "legal_entities.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";

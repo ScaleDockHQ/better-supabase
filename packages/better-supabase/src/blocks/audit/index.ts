@@ -67,20 +67,10 @@ export { auditEvents } from "./events.ts";
 export type { AuditEvents } from "./events.ts";
 
 export {
-  createAuditChain,
-  type AuditChain,
-  type AuditChainBreak,
-  type AuditChainHead,
-  type AuditChainOptions,
-  type AuditChainVerdict,
-  type AuditCheckpoint,
-  type AuditCheckpointSigner,
-} from "./chain.ts";
-
-export {
   createChain,
   verifyChainProof,
   type Chain,
+  type ChainBreak,
   type ChainCheckpoint,
   type ChainHead,
   type ChainOptions,
@@ -88,6 +78,8 @@ export {
   type ChainProofEntry,
   type ChainProofFailure,
   type ChainProofVerdict,
+  type ChainSigner,
+  type ChainVerdict,
 } from "./table-chain.ts";
 
 export {

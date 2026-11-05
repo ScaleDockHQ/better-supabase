@@ -350,9 +350,9 @@ export interface BlockNameRegistry {
   };
   readonly "attachments": {
     readonly tables: {
-      readonly "attachments": "id" | "tenant" | "subjectType" | "subjectId" | "bucket" | "path" | "name" | "mimeType" | "size" | "status" | "detail" | "uploadedBy" | "createdAt" | "uploadedAt" | "scannedAt" | "metadata" | "version" | "width" | "height" | "pages" | "documentType" | "source" | "externalId" | "storage" | "sourcePath";
+      readonly "attachments": "id" | "tenant" | "subjectType" | "subjectId" | "bucket" | "path" | "name" | "mimeType" | "size" | "status" | "detail" | "uploadedBy" | "createdAt" | "uploadedAt" | "scannedAt" | "sha256" | "hashVerifiedAt" | "metadata" | "version" | "width" | "height" | "pages" | "documentType" | "source" | "externalId" | "storage" | "sourcePath";
       readonly "documentTypes": "id" | "tenant" | "key" | "name" | "fields" | "createdAt" | "updatedAt";
-      readonly "versions": "id" | "tenant" | "attachment" | "version" | "bucket" | "path" | "name" | "mimeType" | "size" | "width" | "height" | "pages" | "status" | "detail" | "uploadedBy" | "uploadedAt" | "scannedAt" | "archivedAt";
+      readonly "versions": "id" | "tenant" | "attachment" | "version" | "bucket" | "path" | "name" | "mimeType" | "size" | "width" | "height" | "pages" | "status" | "detail" | "uploadedBy" | "uploadedAt" | "scannedAt" | "sha256" | "hashVerifiedAt" | "archivedAt";
       readonly "scans": "bucket" | "path" | "status" | "detail" | "createdAt" | "scannedAt";
       readonly "cleanup": "bucket" | "path" | "queuedBy" | "queuedAt" | "attempts";
     };
@@ -360,7 +360,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "upload" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "attachment": "id" | "organization_id" | "subject_type" | "subject_id" | "bucket" | "object_path" | "name" | "mime_type" | "size" | "status" | "scan_detail" | "uploaded_by" | "created_at" | "uploaded_at" | "scanned_at" | "metadata" | "version" | "width" | "height" | "pages" | "document_type_id" | "source" | "external_id" | "storage_status" | "source_path";
+      readonly "attachment": "id" | "organization_id" | "subject_type" | "subject_id" | "bucket" | "object_path" | "name" | "mime_type" | "size" | "status" | "scan_detail" | "uploaded_by" | "created_at" | "uploaded_at" | "scanned_at" | "sha256" | "hash_verified_at" | "metadata" | "version" | "width" | "height" | "pages" | "document_type_id" | "source" | "external_id" | "storage_status" | "source_path";
     };
     readonly primary: "attachment";
     readonly formerKeys: never;
@@ -845,6 +845,21 @@ export interface BlockNameRegistry {
     readonly hooks: "on_organization_purge";
     readonly entities: {};
     readonly primary: never;
+    readonly formerKeys: never;
+  };
+  readonly "deadlines": {
+    readonly tables: {
+      readonly "ruleSets": "id" | "jurisdiction" | "kind" | "title" | "createdAt";
+      readonly "ruleVersions": "id" | "ruleSet" | "version" | "status" | "rules" | "contentHash" | "effectiveFrom" | "approvedBy" | "approvedAt" | "approvalId" | "createdAt";
+      readonly "deadlines": "id" | "tenant" | "subjectType" | "subjectId" | "jurisdiction" | "kind" | "ruleKey" | "ruleVersion" | "facts" | "result" | "dueOn" | "missing" | "citation" | "state" | "satisfiedAt" | "satisfiedBy" | "satisfiedAction" | "computedAt" | "createdAt";
+    };
+    readonly functions: "approve_rule_version" | "compute_deadline" | "deadline_fact_trigger" | "deadline_recompute" | "deadline_version_frozen" | "evaluate_deadline_rule" | "list_deadlines" | "recompute_deadlines" | "rule_version_at" | "satisfy_deadline" | "save_rule_version" | "validate_deadline_rules";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "deadline": "id" | "tenant_id" | "subject_type" | "subject_id" | "jurisdiction" | "kind" | "rule_key" | "rule_version_id" | "facts" | "result" | "due_on" | "missing" | "citation" | "state" | "satisfied_at" | "satisfied_by" | "satisfied_action" | "computed_at" | "created_at";
+    };
+    readonly primary: "deadline";
     readonly formerKeys: never;
   };
   readonly "deals": {
@@ -2362,17 +2377,17 @@ export interface BlockNameRegistry {
   };
   readonly "shipments": {
     readonly tables: {
-      readonly "shipments": "id" | "tenant" | "reference" | "status" | "fromAddress" | "toAddress" | "fromLocation" | "subjectType" | "subjectId" | "carrier" | "service" | "trackingNumber" | "trackingUrl" | "labelId" | "labelUrl" | "labelFormat" | "labelCost" | "currency" | "labeledAt" | "deliveredAt" | "cancelledAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "shipments": "id" | "tenant" | "reference" | "status" | "fromAddress" | "toAddress" | "fromLocation" | "subjectType" | "subjectId" | "carrier" | "service" | "trackingNumber" | "trackingUrl" | "labelId" | "labelUrl" | "labelFormat" | "labelCost" | "currency" | "labeledAt" | "deliveredAt" | "cancelledAt" | "createdBy" | "createdAt" | "updatedAt" | "deliveredTo" | "proofReference" | "proofAttachment" | "proofRecordedAt";
       readonly "packages": "id" | "tenant" | "shipment" | "position" | "weight" | "length" | "width" | "height" | "reference";
       readonly "trackingEvents": "id" | "tenant" | "shipment" | "externalId" | "status" | "occurredAt" | "description" | "location" | "source" | "createdAt";
       readonly "lines": "id" | "tenant" | "shipment" | "position" | "direction" | "variant" | "location" | "quantity" | "allocation" | "detail" | "disposition" | "movement" | "movedAt" | "createdAt";
       readonly "intrastatLines": "id" | "tenant" | "period" | "flow" | "source" | "shipmentLine" | "receiptLine" | "variant" | "tradeCode" | "country" | "netMass" | "quantity" | "value" | "currency" | "createdAt" | "updatedAt";
     };
-    readonly functions: "cancel_shipment" | "create_shipment" | "get_shipment" | "ingest_tracking_events" | "list_shipments" | "list_tracking_events" | "receive_shipment_return" | "record_tracking_events" | "set_shipment_label" | "set_shipment_lines";
+    readonly functions: "cancel_shipment" | "create_shipment" | "get_shipment" | "ingest_tracking_events" | "list_shipments" | "list_tracking_events" | "receive_shipment_return" | "record_delivery_proof" | "record_tracking_events" | "set_shipment_label" | "set_shipment_lines" | "shipment_events_append_only";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "shipment": "id" | "tenant_id" | "reference" | "status" | "from_address" | "to_address" | "from_location_id" | "subject_type" | "subject_id" | "carrier" | "service" | "tracking_number" | "tracking_url" | "label_id" | "label_url" | "label_format" | "label_cost" | "currency" | "labeled_at" | "delivered_at" | "cancelled_at" | "created_by" | "created_at" | "updated_at";
+      readonly "shipment": "id" | "tenant_id" | "reference" | "status" | "from_address" | "to_address" | "from_location_id" | "subject_type" | "subject_id" | "carrier" | "service" | "tracking_number" | "tracking_url" | "label_id" | "label_url" | "label_format" | "label_cost" | "currency" | "labeled_at" | "delivered_at" | "cancelled_at" | "created_by" | "created_at" | "updated_at" | "delivered_to" | "proof_reference" | "proof_attachment_id" | "proof_recorded_at";
       readonly "shipment_package": "id" | "tenant_id" | "shipment_id" | "position" | "weight_grams" | "length_mm" | "width_mm" | "height_mm" | "reference";
       readonly "shipment_tracking_event": "id" | "tenant_id" | "shipment_id" | "external_id" | "status" | "occurred_at" | "description" | "location" | "source" | "created_at";
       readonly "shipment_line": "id" | "tenant_id" | "shipment_id" | "position" | "direction" | "variant_id" | "location_id" | "quantity" | "allocation_id" | "detail" | "disposition" | "movement_id" | "moved_at" | "created_at";
@@ -2670,13 +2685,13 @@ export interface BlockNameRegistry {
   };
   readonly "versions": {
     readonly tables: {
-      readonly "versions": "id" | "tenant" | "subjectType" | "subjectId" | "number" | "label" | "content" | "storagePath" | "contentHash" | "source" | "frozen" | "createdBy" | "createdAt";
+      readonly "versions": "id" | "tenant" | "subjectType" | "subjectId" | "number" | "label" | "content" | "storagePath" | "contentHash" | "fileHash" | "hashVersion" | "source" | "frozen" | "createdBy" | "createdAt";
     };
     readonly functions: "delete_version" | "get_version" | "label_version" | "list_versions" | "restore_version" | "snapshot_version" | "version_insert" | "versions_capture";
     readonly actions: "read" | "create" | "restore" | "manage";
     readonly hooks: "before_version_snapshot" | "after_version_snapshot" | "before_version_restore" | "after_version_restore";
     readonly entities: {
-      readonly "version": "id" | "tenant_id" | "subject_type" | "subject_id" | "number" | "label" | "content" | "storage_path" | "content_hash" | "source" | "frozen" | "created_by" | "created_at";
+      readonly "version": "id" | "tenant_id" | "subject_type" | "subject_id" | "number" | "label" | "content" | "storage_path" | "content_hash" | "file_hash" | "hash_version" | "source" | "frozen" | "created_by" | "created_at";
     };
     readonly primary: "version";
     readonly formerKeys: never;
