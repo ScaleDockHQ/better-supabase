@@ -4,6 +4,8 @@ import { blockOptions, option } from "../options.ts";
 
 /** `blocks.profiles.options`. */
 export type ProfilesSqlOptions = {
+  /** Which avatar column authors read: `url` (default) or `path`. */
+  readonly avatarSource?: "path" | "url";
   readonly columnGrants?: boolean;
   readonly extraColumns?: ExtraColumns;
   readonly metadata?: unknown;
@@ -22,6 +24,7 @@ export type ProfilesSqlOptions = {
 
 export const profilesSqlOptions: BlockOptionsSchema<ProfilesSqlOptions> =
   blockOptions<ProfilesSqlOptions>({
+    avatarSource: option.string({ default: "url" }),
     columnGrants: option.boolean(),
     extraColumns: option.extraColumns(),
     metadata: option.unknown(),

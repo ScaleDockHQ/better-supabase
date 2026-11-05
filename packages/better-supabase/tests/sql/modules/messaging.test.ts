@@ -229,3 +229,33 @@ describe("messaging module", () => {
     );
   });
 });
+
+describe("messaging authors with profiles", () => {
+  const authors = (options?: Record<string, unknown>) =>
+    renderBlocks(["profiles", "messaging"], {
+      modules: options === undefined ? {} : { profiles: { options } },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+  it("reads the avatar URL column by default", () => {
+    const sql = authors();
+
+    expect(sql).toContain("'avatarUrl', pr.\"avatar_url\"");
+    expect(sql).not.toContain("'avatarPath'");
+  });
+
+  it("reads the Storage path in path mode", () => {
+    const sql = authors({ avatarSource: "path" });
+
+    expect(sql).toContain(
+      "'avatarUrl', null::text, 'avatarPath', pr.\"avatar_path\"",
+    );
+  });
+
+  it("rejects an unknown avatar source", () => {
+    expect(() => authors({ avatarSource: "gravatar" })).toThrow(
+      /options.avatarSource/,
+    );
+  });
+});

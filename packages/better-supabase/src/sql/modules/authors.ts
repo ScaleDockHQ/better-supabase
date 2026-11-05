@@ -1,5 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { avatarSource, hasAvatarPath } from "./profiles.ts";
+
 /** A rows-to-authors lookup that a list function joins into its rows. */
 export interface AuthorLookup {
   /** The lookup function, with its grants. */
@@ -66,7 +68,17 @@ export function authorLookup(
   const name =
     names.length === 0 ? "null::text" : `coalesce(${names.join(", ")})`;
 
-  const avatar = has("avatar") ? `pr.${p("avatar")}` : "null::text";
+  const byPath = avatarSource(profiles) === "path";
+
+  if (byPath && !hasAvatarPath(profiles)) {
+    throw new TypeError(
+      'blocks.profiles.options.avatarSource "path" needs the avatarPath column',
+    );
+  }
+
+  const avatar = !byPath && has("avatar") ? `pr.${p("avatar")}` : "null::text";
+
+  const avatarPath = byPath ? `, 'avatarPath', pr.${p("avatarPath")}` : "";
   const fn = ctx.fn(source.name);
 
   return {
@@ -80,7 +92,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_object_agg(y.${source.id}::text, jsonb_build_object('id', pr.${p("key")}, 'name', ${name}, 'avatarUrl', ${avatar})), '{}'::jsonb)
+  select coalesce(jsonb_object_agg(y.${source.id}::text, jsonb_build_object('id', pr.${p("key")}, 'name', ${name}, 'avatarUrl', ${avatar}${avatarPath})), '{}'::jsonb)
   from ${source.table} y
   join ${profiles.table("profiles")} pr on pr.${p("key")} = y.${source.user}
   where y.${source.id} = any ($1)

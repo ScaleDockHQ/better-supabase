@@ -17,6 +17,7 @@ import {
 
 const NAMES: BlockSqlNames = {
   options: [
+    "avatarSource",
     "columnGrants",
     "extraColumns",
     "metadata",
@@ -89,6 +90,22 @@ const DEFAULT_METADATA: readonly (readonly [string, readonly string[]])[] = [
   ["lastName", ["last_name", "family_name"]],
   ["avatar", ["avatar_url", "picture"]],
 ];
+
+/**
+ * Which avatar column author lookups read: `url` (the `avatar` column, the
+ * default) or `path` (the Storage path in `avatarPath`).
+ */
+export function avatarSource(ctx: BlockSqlContext): "path" | "url" {
+  const value = ctx.text("avatarSource", "url");
+
+  if (value !== "url" && value !== "path") {
+    throw new TypeError(
+      `blocks.profiles.options.avatarSource must be "url" or "path", not "${value}"`,
+    );
+  }
+
+  return value;
+}
 
 export function hasAvatarPath(ctx: BlockSqlContext): boolean {
   return added(ctx, "avatarPath");
