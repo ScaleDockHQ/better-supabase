@@ -14,6 +14,26 @@ export const MODULE_SQL_LIMIT = 2_000_000;
 const FUNCTION_START = /^create\s+(?:or\s+replace\s+)?function\s+([\w."]+)/im;
 const SINGLE_QUOTED = /'(?:[^']|'')*'/g;
 const DOLLAR_TAGGED = /\$(\w+)\$[\s\S]*?\$\1\$/g;
+const BODY_START = /\bas\s+(\$\w*\$)/i;
+
+/**
+ * What sits between the quotes that wrap a function's body, so the body's own
+ * quote (`$function$ ... $function$`) never counts as one literal. A body
+ * written as a single-quoted string is the literal itself and stays whole.
+ */
+function innerBody(statement: string): string {
+  const start = BODY_START.exec(statement);
+
+  if (start === null) {
+    return statement;
+  }
+
+  const tag = start[1]!;
+  const from = start.index + start[0].length;
+  const end = statement.indexOf(tag, from);
+
+  return statement.slice(from, end === -1 ? undefined : end);
+}
 
 /** The longest quoted literal inside `body`, in characters. */
 function longestLiteral(body: string): number {
@@ -50,7 +70,7 @@ export const SCHEMA_COST_RULES: readonly Rule[] = [
             return [];
           }
 
-          const size = longestLiteral(statement);
+          const size = longestLiteral(innerBody(statement));
 
           if (size <= LITERAL_LIMIT) {
             return [];

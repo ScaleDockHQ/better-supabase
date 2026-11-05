@@ -931,7 +931,7 @@ as a permission map or a JSON catalog. Postgres parses the literal again on
 every call, and a policy helper runs once per table per statement. Store the
 data in a table, or parse it once per transaction and keep it with
 [`better_supabase.memo_get` and `memo_set`](/docs/blocks/sql#memoize-a-value-for-one-transaction).
-BS243 reads the SQL files, so a saved snapshot works too.
+BS243 reads the SQL files, so a saved snapshot works too. It measures the quoted literals inside a function body and ignores the quote that wraps the body itself (`$function$ ... $function$`), so a long body with short literals is not reported.
 
 ### BS244
 
