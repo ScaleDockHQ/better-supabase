@@ -15,6 +15,7 @@ import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { ShipmentsEvents } from "better-supabase/blocks/shipments";
 import type { CasesEvents } from "better-supabase/blocks/cases";
+import type { DeadlinesEvents } from "better-supabase/blocks/deadlines";
 import type { LegalEntitiesEvents } from "better-supabase/blocks/legal-entities";
 import type { DocumentTemplatesEvents } from "better-supabase/blocks/document-templates";
 import type { SignaturesEvents } from "better-supabase/blocks/signatures";
@@ -43,6 +44,7 @@ import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledge
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { shipmentsBlock as shipmentsBlockInstance } from "better-supabase/blocks/shipments";
 import { casesBlock as casesBlockInstance } from "better-supabase/blocks/cases";
+import { deadlinesBlock as deadlinesBlockInstance } from "better-supabase/blocks/deadlines";
 import { legalEntitiesBlock as legalEntitiesBlockInstance } from "better-supabase/blocks/legal-entities";
 import { documentTemplatesBlock as documentTemplatesBlockInstance } from "better-supabase/blocks/document-templates";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
@@ -90,6 +92,7 @@ export const blocks = {
   enrollments: enrollmentsBlockInstance,
   shipments: shipmentsBlockInstance,
   cases: casesBlockInstance,
+  deadlines: deadlinesBlockInstance,
   "legal-entities": legalEntitiesBlockInstance,
   "document-templates": documentTemplatesBlockInstance,
   entitlements: entitlementsBlockInstance,
@@ -117,7 +120,7 @@ export const blocks = {
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & DataLifecycleEvents & LedgerEvents & EnrollmentsEvents & ShipmentsEvents & CasesEvents & LegalEntitiesEvents & DocumentTemplatesEvents & SignaturesEvents & ImportsEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RelationsEvents & RemindersEvents & SettingsEvents & SubjectsEvents & TeamsEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & DataLifecycleEvents & LedgerEvents & EnrollmentsEvents & ShipmentsEvents & CasesEvents & DeadlinesEvents & LegalEntitiesEvents & DocumentTemplatesEvents & SignaturesEvents & ImportsEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RelationsEvents & RemindersEvents & SettingsEvents & SubjectsEvents & TeamsEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -180,6 +183,8 @@ export const blockEvents: Events<BlockEvents> = {
     "data_subject_request.received",
     "data_subject_request.refused",
     "data_subject_request.verified",
+    "deadline.computed",
+    "deadline.satisfied",
     "document_snapshot.created",
     "document_template.created",
     "document_template.updated",
@@ -345,6 +350,8 @@ export const blockEventSchemas = {
   "data_subject_request.received": true,
   "data_subject_request.refused": true,
   "data_subject_request.verified": true,
+  "deadline.computed": true,
+  "deadline.satisfied": true,
   "document_snapshot.created": true,
   "document_template.created": true,
   "document_template.updated": true,

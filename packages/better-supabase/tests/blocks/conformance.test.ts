@@ -91,6 +91,8 @@ const NO_FIELDS: readonly string[] = [
   "dam",
   // Export and deletion requests are the module's bookkeeping, not app records.
   "data-lifecycle",
+  // Deadlines are computed from facts by rule sets; app data goes on the subject.
+  "deadlines",
   // Templates, text blocks and snapshots are fixed records; per-template data
   // has no place, the variables come from the documents.
   "document-templates",

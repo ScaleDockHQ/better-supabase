@@ -85,6 +85,7 @@ const PURE_BARRELS = [
   "blocks/rfqs",
   "blocks/tills",
   "blocks/periods",
+  "blocks/deadlines",
   "blocks/commissions",
   "blocks/referrals",
   "blocks/agent-checkout",

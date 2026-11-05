@@ -90,6 +90,7 @@ import type { WarehouseEvents } from "better-supabase/blocks/warehouse";
 import type { RfqsEvents } from "better-supabase/blocks/rfqs";
 import type { TillsEvents } from "better-supabase/blocks/tills";
 import type { PeriodsEvents } from "better-supabase/blocks/periods";
+import type { DeadlinesEvents } from "better-supabase/blocks/deadlines";
 import type { CommissionsEvents } from "better-supabase/blocks/commissions";
 import type { ReferralsEvents } from "better-supabase/blocks/referrals";
 import type { ClinicalDecisionSupportEvents } from "better-supabase/blocks/clinical-decision-support";
@@ -231,6 +232,7 @@ import { warehouseBlock as warehouseBlockInstance } from "better-supabase/blocks
 import { rfqsBlock as rfqsBlockInstance } from "better-supabase/blocks/rfqs";
 import { tillsBlock as tillsBlockInstance } from "better-supabase/blocks/tills";
 import { periodsBlock as periodsBlockInstance } from "better-supabase/blocks/periods";
+import { deadlinesBlock as deadlinesBlockInstance } from "better-supabase/blocks/deadlines";
 import { commissionsBlock as commissionsBlockInstance } from "better-supabase/blocks/commissions";
 import { referralsBlock as referralsBlockInstance } from "better-supabase/blocks/referrals";
 import { clinicalDecisionSupportBlock as clinicalDecisionSupportBlockInstance } from "better-supabase/blocks/clinical-decision-support";
@@ -475,6 +477,7 @@ export const blocks = {
   rfqs: rfqsBlockInstance,
   tills: tillsBlockInstance,
   periods: periodsBlockInstance,
+  deadlines: deadlinesBlockInstance,
   commissions: commissionsBlockInstance,
   referrals: referralsBlockInstance,
   "clinical-decision-support": clinicalDecisionSupportBlockInstance,
@@ -581,7 +584,7 @@ export const appTableEventSchemas = {
 } as const;
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & TasksEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & TasksEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -804,6 +807,8 @@ export const blockEvents: Events<BlockEvents> = {
     "data_subject_request.received",
     "data_subject_request.refused",
     "data_subject_request.verified",
+    "deadline.computed",
+    "deadline.satisfied",
     "deal.archived",
     "deal.closed",
     "deal.created",
@@ -1558,6 +1563,8 @@ export const blockEventSchemas = {
   "data_subject_request.received": true,
   "data_subject_request.refused": true,
   "data_subject_request.verified": true,
+  "deadline.computed": true,
+  "deadline.satisfied": true,
   "deal.archived": true,
   "deal.closed": true,
   "deal.created": true,

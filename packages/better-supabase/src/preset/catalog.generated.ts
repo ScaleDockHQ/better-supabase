@@ -11499,6 +11499,64 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "deadlines",
+      "title": "Deadlines",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "approvals"
+      ],
+      "manifest": "deadlines",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "deadline": {
+            "table": "deadlines",
+            "singular": "deadline",
+            "primary": true
+          }
+        },
+        "tables": {
+          "deadlines": {
+            "name": "deadlines",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "jurisdiction": "jurisdiction",
+              "kind": "kind",
+              "ruleKey": "rule_key",
+              "ruleVersion": "rule_version_id",
+              "facts": "facts",
+              "result": "result",
+              "dueOn": "due_on",
+              "missing": "missing",
+              "citation": "citation",
+              "state": "state",
+              "satisfiedAt": "satisfied_at",
+              "satisfiedBy": "satisfied_by",
+              "satisfiedAction": "satisfied_action",
+              "computedAt": "computed_at",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "deadlines.read",
+          "write": "deadlines.write",
+          "manage": "deadlines.manage"
+        }
+      }
+    },
+    {
       "name": "commissions",
       "title": "Commissions",
       "category": "commerce",
@@ -24783,6 +24841,58 @@ export const PRESET_CATALOG: PresetCatalog = {
           "period.locked",
           "period.closed",
           "period.reopened"
+        ]
+      }
+    },
+    {
+      "name": "deadlines",
+      "sql": [
+        "deadlines"
+      ],
+      "category": "work",
+      "client": {
+        "export": "deadlinesBlock",
+        "subpath": "better-supabase/blocks/deadlines"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Deadline"
+        },
+        {
+          "name": "DeadlineCitation"
+        },
+        {
+          "name": "DeadlineEvaluation"
+        },
+        {
+          "name": "DeadlineEventData"
+        },
+        {
+          "name": "DeadlineListOptions"
+        },
+        {
+          "name": "DeadlineRule"
+        },
+        {
+          "name": "Deadlines"
+        },
+        {
+          "name": "DeadlinesEvents"
+        },
+        {
+          "name": "DeadlinesOptions"
+        },
+        {
+          "name": "DeadlineSubject"
+        }
+      ],
+      "events": {
+        "type": "DeadlinesEvents",
+        "types": [
+          "deadline.computed",
+          "deadline.satisfied"
         ]
       }
     },

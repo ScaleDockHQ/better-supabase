@@ -847,6 +847,21 @@ export interface BlockNameRegistry {
     readonly primary: never;
     readonly formerKeys: never;
   };
+  readonly "deadlines": {
+    readonly tables: {
+      readonly "ruleSets": "id" | "jurisdiction" | "kind" | "title" | "createdAt";
+      readonly "ruleVersions": "id" | "ruleSet" | "version" | "status" | "rules" | "contentHash" | "effectiveFrom" | "approvedBy" | "approvedAt" | "approvalId" | "createdAt";
+      readonly "deadlines": "id" | "tenant" | "subjectType" | "subjectId" | "jurisdiction" | "kind" | "ruleKey" | "ruleVersion" | "facts" | "result" | "dueOn" | "missing" | "citation" | "state" | "satisfiedAt" | "satisfiedBy" | "satisfiedAction" | "computedAt" | "createdAt";
+    };
+    readonly functions: "approve_rule_version" | "compute_deadline" | "deadline_fact_trigger" | "deadline_recompute" | "deadline_version_frozen" | "evaluate_deadline_rule" | "list_deadlines" | "recompute_deadlines" | "rule_version_at" | "satisfy_deadline" | "save_rule_version" | "validate_deadline_rules";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "deadline": "id" | "tenant_id" | "subject_type" | "subject_id" | "jurisdiction" | "kind" | "rule_key" | "rule_version_id" | "facts" | "result" | "due_on" | "missing" | "citation" | "state" | "satisfied_at" | "satisfied_by" | "satisfied_action" | "computed_at" | "created_at";
+    };
+    readonly primary: "deadline";
+    readonly formerKeys: never;
+  };
   readonly "deals": {
     readonly tables: {
       readonly "deals": "id" | "tenant" | "number" | "identifier" | "name" | "companyType" | "companyId" | "motion" | "priority" | "owner" | "product" | "seats" | "amount" | "existingAmount" | "currency" | "valuePeriod" | "amountSource" | "pipeline" | "stage" | "stageEnteredAt" | "outcome" | "probability" | "forecast" | "openedOn" | "closeOn" | "slippedFrom" | "pushCount" | "closedAt" | "nextStep" | "nextAt" | "nextKind" | "flags" | "source" | "note" | "lostReason" | "locked" | "rank" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";

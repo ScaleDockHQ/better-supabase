@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_173_recurrence.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block recurrence@1 managed
 -- @bsb-hash sha256:0202d01c211ad317728d341acb51fa83726f1b94ddeab31c91d1cda14c4b98f9
@@ -238,7 +238,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_173_recurrence.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block-data recurrence
 -- @bsb-hash sha256:17a00515ab36dc8e8ed14219001282f39566955b8b570a34f4cede67b19ca745
@@ -252,7 +252,7 @@ values ('recurrence', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_173_recurrence.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block recurrence@1 managed
 -- @bsb-hash sha256:0202d01c211ad317728d341acb51fa83726f1b94ddeab31c91d1cda14c4b98f9
@@ -492,7 +492,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_173_recurrence.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block-data recurrence
 -- @bsb-hash sha256:17a00515ab36dc8e8ed14219001282f39566955b8b570a34f4cede67b19ca745
@@ -506,7 +506,7 @@ values ('recurrence', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_recurrence.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block recurrence@1 managed
 -- @bsb-hash sha256:0202d01c211ad317728d341acb51fa83726f1b94ddeab31c91d1cda14c4b98f9
@@ -746,7 +746,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_173_recurrence.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block-data recurrence
 -- @bsb-hash sha256:17a00515ab36dc8e8ed14219001282f39566955b8b570a34f4cede67b19ca745
@@ -760,7 +760,7 @@ values ('recurrence', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_173_recurrence.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block recurrence@1 managed
 -- @bsb-hash sha256:f6c859c2d6ac7912323cbb94d11d6413dbfbf32336791589c8a8732074b7880d
@@ -1024,7 +1024,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_173_recurrence.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block-data recurrence
 -- @bsb-hash sha256:17a00515ab36dc8e8ed14219001282f39566955b8b570a34f4cede67b19ca745

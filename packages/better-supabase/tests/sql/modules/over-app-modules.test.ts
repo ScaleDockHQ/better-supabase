@@ -119,6 +119,7 @@ const MODULES = [
   "rfqs",
   "tills",
   "periods",
+  "deadlines",
   "commissions",
   "referrals",
   "clinical-decision-support",

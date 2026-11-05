@@ -10913,6 +10913,38 @@
       "RpcClient"
     ]
   },
+  "./blocks/deadlines": {
+    "values": [
+      "createDeadlines",
+      "dbTransport",
+      "deadlinesBlock",
+      "deadlinesEvents",
+      "evaluateRule",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "validateRules",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Deadline",
+      "DeadlineCitation",
+      "DeadlineEvaluation",
+      "DeadlineEventData",
+      "DeadlineListOptions",
+      "DeadlineRule",
+      "Deadlines",
+      "DeadlinesEvents",
+      "DeadlinesOptions",
+      "DeadlineSubject",
+      "RpcClient",
+      "RuleVersion"
+    ]
+  },
   "./blocks/commissions": {
     "values": [
       "commissionsBlock",

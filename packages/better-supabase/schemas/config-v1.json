@@ -1802,6 +1802,7 @@
               "custom-fields",
               "dam",
               "data-lifecycle",
+              "deadlines",
               "deals",
               "dispatch",
               "document-templates",
@@ -1996,6 +1997,7 @@
                   "custom-fields",
                   "dam",
                   "data-lifecycle",
+                  "deadlines",
                   "deals",
                   "dispatch",
                   "document-templates",
@@ -2282,6 +2284,9 @@
             },
             "data-lifecycle": {
               "$ref": "#/$defs/blocks/data-lifecycle"
+            },
+            "deadlines": {
+              "$ref": "#/$defs/blocks/deadlines"
             },
             "deals": {
               "$ref": "#/$defs/blocks/deals"
@@ -5323,6 +5328,17 @@
               "anonymize": {},
               "omitPattern": {}
             }
+          }
+        }
+      },
+      "deadlines": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

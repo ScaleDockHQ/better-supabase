@@ -54,6 +54,7 @@ import { crmBlock } from "./crm/manifest.ts";
 import { customFieldsBlock } from "./custom-fields/manifest.ts";
 import { damBlock } from "./dam/manifest.ts";
 import { dataLifecycleBlock } from "./data-lifecycle/manifest.ts";
+import { deadlinesBlock } from "./deadlines/manifest.ts";
 import { dealsBlock } from "./deals/manifest.ts";
 import { dispatchBlock } from "./dispatch/manifest.ts";
 import { documentTemplatesBlock } from "./document-templates/manifest.ts";
@@ -291,6 +292,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   rfqsBlock,
   tillsBlock,
   periodsBlock,
+  deadlinesBlock,
   commissionsBlock,
   referralsBlock,
   agentCheckoutBlock,

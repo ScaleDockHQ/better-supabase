@@ -61,6 +61,7 @@ import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DAM } from "./modules/dam.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
+import { DEADLINES } from "./modules/deadlines.ts";
 import { DEALS } from "./modules/deals.ts";
 import { DISPATCH } from "./modules/dispatch.ts";
 import { DOCUMENT_TEMPLATES } from "./modules/document-templates.ts";
@@ -460,6 +461,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(TILLS),
       built(CLINICAL_DECISION_SUPPORT),
       built(PERIODS),
+      built(DEADLINES),
       built(COMMISSIONS),
       built(REFERRALS),
       built(RECURRENCE),

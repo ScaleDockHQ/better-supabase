@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_180_ai_evals.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:5341aa47f4de579e8f3e72318d9c0e28853508224c519f030f579eb31ed14805
@@ -472,7 +472,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_180_ai_evals.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08
@@ -486,7 +486,7 @@ values ('ai-evals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_180_ai_evals.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:ce7c8667c7ee5fe2404be7aa31a43e7cad22b8bb2142cfd14cb0ac4eae2e9b3a
@@ -1001,7 +1001,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_180_ai_evals.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08
@@ -1015,7 +1015,7 @@ values ('ai-evals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_180_ai_evals.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:f801a684972d3689888051988c9b4cfda847e36cfe1307b901306a125d3af817
@@ -1494,7 +1494,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_180_ai_evals.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08
@@ -1508,7 +1508,7 @@ values ('ai-evals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_180_ai_evals.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:b7e20a3948b93d58016c61b6cc2da0b3b8f12456d7dcd745bbc42d2b4c56ed92
@@ -2100,7 +2100,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_180_ai_evals.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08
@@ -2114,7 +2114,7 @@ values ('ai-evals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_180_ai_evals.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:780313c7b0718e57950d2f72e067ff46db7f3045afa0ae1989430e9f0c637a1d
@@ -2579,7 +2579,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_180_ai_evals.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08
@@ -2593,7 +2593,7 @@ values ('ai-evals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_180_ai_evals.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:a1632055abc5106d67b3b96fd67f96e011f15eb46b8c504e4dcf9724b44fe67d
@@ -3067,7 +3067,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_180_ai_evals.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08

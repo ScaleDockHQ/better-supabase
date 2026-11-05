@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_172_referrals.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:9c3db130d8c6b657a6e3e4eef1beb9ffe77fbfbfb5b147d13edeced21215b734
@@ -470,7 +470,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_172_referrals.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8
@@ -484,7 +484,7 @@ values ('referrals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_172_referrals.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:9fbef5c2051d23a7507998810c16e90294135dc7e622ff5aae70331943f7cd4d
@@ -1010,7 +1010,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_172_referrals.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8
@@ -1024,7 +1024,7 @@ values ('referrals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_referrals.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:afac800207eac1ee830859b51973c87281579d43a9b4a6b3610d1491157f96f4
@@ -1501,7 +1501,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_172_referrals.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8
@@ -1515,7 +1515,7 @@ values ('referrals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_172_referrals.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:afb92f997e6372ba0312fe555085017a81ac97e011582a7511bc35ef774f28a0
@@ -2075,7 +2075,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_172_referrals.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8
@@ -2089,7 +2089,7 @@ values ('referrals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_172_referrals.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:5906a99086984d52936a2202240cf4f62946a664e29e3f190d1e4617080522f0
@@ -2550,7 +2550,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_172_referrals.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8
@@ -2564,7 +2564,7 @@ values ('referrals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_172_referrals.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:22807f7c76603deff3aa032c011c5bca68f91dbf32a6472a42635cd23374f778
@@ -3036,7 +3036,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_172_referrals.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8

@@ -33,6 +33,7 @@ const ADDED: Readonly<Record<string, readonly string[]>> = {
   qms: ["lims"],
   isms: ["advisories"],
   "ai-agents": ["ai-evals", "ai-guardrails", "prompts"],
+  filings: ["deadlines"],
 };
 
 const closureOf = (name: keyof typeof PRESETS): string[] =>
