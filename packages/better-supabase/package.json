@@ -120,6 +120,11 @@
       "types": "./dist/claims/index.d.ts",
       "default": "./dist/claims/index.js"
     },
+    "./auth": {
+      "@better-supabase/source": "./src/auth/index.ts",
+      "types": "./dist/auth/index.d.ts",
+      "default": "./dist/auth/index.js"
+    },
     "./contract": {
       "@better-supabase/source": "./src/contract/index.ts",
       "types": "./dist/contract/index.d.ts",
@@ -1469,6 +1474,10 @@
       "./claims": {
         "types": "./dist/claims/index.d.ts",
         "default": "./dist/claims/index.js"
+      },
+      "./auth": {
+        "types": "./dist/auth/index.d.ts",
+        "default": "./dist/auth/index.js"
       },
       "./contract": {
         "types": "./dist/contract/index.d.ts",

@@ -1260,6 +1260,14 @@
       "UserSession"
     ]
   },
+  "./auth": {
+    "values": [
+      "authErrorKind"
+    ],
+    "types": [
+      "AuthErrorKind"
+    ]
+  },
   "./contract": {
     "values": [],
     "types": [

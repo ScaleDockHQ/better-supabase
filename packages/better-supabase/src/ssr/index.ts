@@ -9,7 +9,7 @@ export {
   sessionCookieName,
   sessionStatus,
   toSession,
-} from "../auth/index.ts";
+} from "../auth/internal.ts";
 
 export type {
   AuthResolution,
@@ -27,4 +27,4 @@ export type {
   SessionStatus,
   SessionStatusOptions,
   StoredSession,
-} from "../auth/index.ts";
+} from "../auth/internal.ts";
