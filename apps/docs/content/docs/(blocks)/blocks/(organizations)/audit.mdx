@@ -754,7 +754,7 @@ const chain = createChain({
 
 await chain.checkpoint().orThrow();
 
-const proof = await chain.proof(seq, organizationId).orThrow();
+const proof = await chain.proof({ seq, tenant: organizationId }).orThrow();
 
 const bundle = await evidenceBundle({
   subject: { type: "filing", id },

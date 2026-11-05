@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@12 managed
--- @bsb-hash sha256:7c84aca0eb27adea8cb13ef19eb6723c6de80e4cc90659aae7547d55e270b014
+-- @bsb-hash sha256:cd3972eb1f660ef6bd77d38ca8ae0b6503c9285951014f7ce4841c257ed1b10f
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1453,6 +1453,107 @@ begin
 end;
 $$;
 
+
+-- Each tenant's latest row that no checkpoint covers yet, for the signing job.
+create or replace function better_supabase.chain_heads(target regclass, tenant_column text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant text := case when tenant_column is null then 'null::text' else format('t.%I::text', tenant_column) end;
+  v_heads jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role reads chain heads' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object('tenant', h.tenant, 'seq', h.chain_seq, 'hash', encode(h.row_hash, 'hex')) order by h.tenant nulls first), '[]'::jsonb)
+    from (
+      select distinct on (%1$s) %1$s as tenant, t.chain_seq, t.row_hash
+      from %2$s t where t.chain_seq is not null
+      order by %1$s, t.chain_seq desc
+    ) h
+    where not exists (
+      select 1 from better_supabase.chain_checkpoints k
+      where k.table_name = %3$L and k.tenant is not distinct from h.tenant and k.chain_seq >= h.chain_seq
+    )
+  $q$, v_tenant, target, target::text) into v_heads;
+  return v_heads;
+end;
+$$;
+
+create or replace function better_supabase.list_chain_checkpoints(target regclass, tenant text default null, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role lists checkpoints' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', k.id::text, 'tenant', k.tenant, 'seq', k.chain_seq, 'hash', encode(k.row_hash, 'hex'),
+    'keyId', k.key_id, 'signature', k.signature, 'createdAt', k.created_at
+  ) order by k.chain_seq desc), '[]'::jsonb) into v_rows
+  from (
+    select * from better_supabase.chain_checkpoints x
+    where x.table_name = target::text and x.tenant is not distinct from list_chain_checkpoints.tenant
+    order by x.chain_seq desc limit max_rows
+  ) k;
+  return v_rows;
+end;
+$$;
+
+-- The proof for one row: the rows from it up to the first signed checkpoint
+-- that covers it (or the chain head when none does), and that checkpoint.
+create or replace function better_supabase.chain_proof(target regclass, tenant_column text, tenant text, seq bigint)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+set "TimeZone" = 'UTC'
+as $$
+declare
+  v_where text := case
+    when tenant_column is null then 'true'
+    when tenant is null then format('t.%I is null', tenant_column)
+    else format('t.%I::text = %L', tenant_column, tenant)
+  end;
+  v_checkpoint record;
+  v_entries jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role builds chain proofs' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select k.chain_seq, k.row_hash, k.key_id, k.signature into v_checkpoint from better_supabase.chain_checkpoints k
+  where k.table_name = target::text and k.tenant is not distinct from chain_proof.tenant and k.chain_seq >= chain_proof.seq
+  order by k.chain_seq limit 1;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'seq', t.chain_seq, 'prevHash', encode(t.prev_hash, 'hex'), 'rowHash', encode(t.row_hash, 'hex'), 'entry', pg_catalog.to_jsonb(t),
+      'hashed', pg_catalog.jsonb_strip_nulls(pg_catalog.to_jsonb(t) - 'prev_hash' - 'row_hash')::text
+    ) order by t.chain_seq), '[]'::jsonb)
+    from %1$s t where %2$s and t.chain_seq between $1 and coalesce($2, t.chain_seq)
+  $q$, target, v_where) into v_entries using seq, v_checkpoint.chain_seq;
+  return jsonb_build_object(
+    'table', target::text,
+    'tenant', tenant,
+    'entries', v_entries,
+    'checkpoint', case when v_checkpoint.chain_seq is null then null else jsonb_build_object(
+      'seq', v_checkpoint.chain_seq, 'hash', encode(v_checkpoint.row_hash, 'hex'),
+      'keyId', v_checkpoint.key_id, 'signature', v_checkpoint.signature) end
+  );
+end;
+$$;
+
 create or replace function better_supabase.record_chain_checkpoint(
   target regclass, tenant_column text, tenant text, seq bigint, hash text, key_id text, signature text
 )
@@ -1484,6 +1585,12 @@ begin
   return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
 end;
 $$;
+revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
+revoke execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) from public, anon, authenticated;
+revoke execute on function better_supabase.chain_proof(regclass, text, text, bigint) from public, anon, authenticated;
+grant execute on function better_supabase.chain_heads(regclass, text) to service_role;
+grant execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) to service_role;
+grant execute on function better_supabase.chain_proof(regclass, text, text, bigint) to service_role;
 revoke execute on function better_supabase.append_only(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.function_writes(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.chain(regclass, text) from public, anon, authenticated;
@@ -1824,7 +1931,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@12 managed
--- @bsb-hash sha256:f4d6468f1b44cb4a9f84cd4661b0727c8edf4a0c1b26af50e141eb08ea726b88
+-- @bsb-hash sha256:31ea6158769cdeb7b0d275b5c153f1b76b76f48d0866bc0d409a6d7630a81cbd
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3295,6 +3402,107 @@ begin
 end;
 $$;
 
+
+-- Each tenant's latest row that no checkpoint covers yet, for the signing job.
+create or replace function better_supabase.chain_heads(target regclass, tenant_column text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant text := case when tenant_column is null then 'null::text' else format('t.%I::text', tenant_column) end;
+  v_heads jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role reads chain heads' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object('tenant', h.tenant, 'seq', h.chain_seq, 'hash', encode(h.row_hash, 'hex')) order by h.tenant nulls first), '[]'::jsonb)
+    from (
+      select distinct on (%1$s) %1$s as tenant, t.chain_seq, t.row_hash
+      from %2$s t where t.chain_seq is not null
+      order by %1$s, t.chain_seq desc
+    ) h
+    where not exists (
+      select 1 from better_supabase.chain_checkpoints k
+      where k.table_name = %3$L and k.tenant is not distinct from h.tenant and k.chain_seq >= h.chain_seq
+    )
+  $q$, v_tenant, target, target::text) into v_heads;
+  return v_heads;
+end;
+$$;
+
+create or replace function better_supabase.list_chain_checkpoints(target regclass, tenant text default null, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role lists checkpoints' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', k.id::text, 'tenant', k.tenant, 'seq', k.chain_seq, 'hash', encode(k.row_hash, 'hex'),
+    'keyId', k.key_id, 'signature', k.signature, 'createdAt', k.created_at
+  ) order by k.chain_seq desc), '[]'::jsonb) into v_rows
+  from (
+    select * from better_supabase.chain_checkpoints x
+    where x.table_name = target::text and x.tenant is not distinct from list_chain_checkpoints.tenant
+    order by x.chain_seq desc limit max_rows
+  ) k;
+  return v_rows;
+end;
+$$;
+
+-- The proof for one row: the rows from it up to the first signed checkpoint
+-- that covers it (or the chain head when none does), and that checkpoint.
+create or replace function better_supabase.chain_proof(target regclass, tenant_column text, tenant text, seq bigint)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+set "TimeZone" = 'UTC'
+as $$
+declare
+  v_where text := case
+    when tenant_column is null then 'true'
+    when tenant is null then format('t.%I is null', tenant_column)
+    else format('t.%I::text = %L', tenant_column, tenant)
+  end;
+  v_checkpoint record;
+  v_entries jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role builds chain proofs' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select k.chain_seq, k.row_hash, k.key_id, k.signature into v_checkpoint from better_supabase.chain_checkpoints k
+  where k.table_name = target::text and k.tenant is not distinct from chain_proof.tenant and k.chain_seq >= chain_proof.seq
+  order by k.chain_seq limit 1;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'seq', t.chain_seq, 'prevHash', encode(t.prev_hash, 'hex'), 'rowHash', encode(t.row_hash, 'hex'), 'entry', pg_catalog.to_jsonb(t),
+      'hashed', pg_catalog.jsonb_strip_nulls(pg_catalog.to_jsonb(t) - 'prev_hash' - 'row_hash')::text
+    ) order by t.chain_seq), '[]'::jsonb)
+    from %1$s t where %2$s and t.chain_seq between $1 and coalesce($2, t.chain_seq)
+  $q$, target, v_where) into v_entries using seq, v_checkpoint.chain_seq;
+  return jsonb_build_object(
+    'table', target::text,
+    'tenant', tenant,
+    'entries', v_entries,
+    'checkpoint', case when v_checkpoint.chain_seq is null then null else jsonb_build_object(
+      'seq', v_checkpoint.chain_seq, 'hash', encode(v_checkpoint.row_hash, 'hex'),
+      'keyId', v_checkpoint.key_id, 'signature', v_checkpoint.signature) end
+  );
+end;
+$$;
+
 create or replace function better_supabase.record_chain_checkpoint(
   target regclass, tenant_column text, tenant text, seq bigint, hash text, key_id text, signature text
 )
@@ -3326,6 +3534,12 @@ begin
   return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
 end;
 $$;
+revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
+revoke execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) from public, anon, authenticated;
+revoke execute on function better_supabase.chain_proof(regclass, text, text, bigint) from public, anon, authenticated;
+grant execute on function better_supabase.chain_heads(regclass, text) to service_role;
+grant execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) to service_role;
+grant execute on function better_supabase.chain_proof(regclass, text, text, bigint) to service_role;
 revoke execute on function better_supabase.append_only(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.function_writes(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.chain(regclass, text) from public, anon, authenticated;
@@ -3831,7 +4045,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@12 managed
--- @bsb-hash sha256:146fec837b7e8864fe8c01739387ab82f6d240201dbebb730de69cbbbe5d1710
+-- @bsb-hash sha256:53d620e78ebb4fb01939174c7936a3ccad2e7256a26f00dc1be7d6210e55eb44
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5283,6 +5497,107 @@ begin
 end;
 $$;
 
+
+-- Each tenant's latest row that no checkpoint covers yet, for the signing job.
+create or replace function better_supabase.chain_heads(target regclass, tenant_column text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant text := case when tenant_column is null then 'null::text' else format('t.%I::text', tenant_column) end;
+  v_heads jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role reads chain heads' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object('tenant', h.tenant, 'seq', h.chain_seq, 'hash', encode(h.row_hash, 'hex')) order by h.tenant nulls first), '[]'::jsonb)
+    from (
+      select distinct on (%1$s) %1$s as tenant, t.chain_seq, t.row_hash
+      from %2$s t where t.chain_seq is not null
+      order by %1$s, t.chain_seq desc
+    ) h
+    where not exists (
+      select 1 from better_supabase.chain_checkpoints k
+      where k.table_name = %3$L and k.tenant is not distinct from h.tenant and k.chain_seq >= h.chain_seq
+    )
+  $q$, v_tenant, target, target::text) into v_heads;
+  return v_heads;
+end;
+$$;
+
+create or replace function better_supabase.list_chain_checkpoints(target regclass, tenant text default null, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role lists checkpoints' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', k.id::text, 'tenant', k.tenant, 'seq', k.chain_seq, 'hash', encode(k.row_hash, 'hex'),
+    'keyId', k.key_id, 'signature', k.signature, 'createdAt', k.created_at
+  ) order by k.chain_seq desc), '[]'::jsonb) into v_rows
+  from (
+    select * from better_supabase.chain_checkpoints x
+    where x.table_name = target::text and x.tenant is not distinct from list_chain_checkpoints.tenant
+    order by x.chain_seq desc limit max_rows
+  ) k;
+  return v_rows;
+end;
+$$;
+
+-- The proof for one row: the rows from it up to the first signed checkpoint
+-- that covers it (or the chain head when none does), and that checkpoint.
+create or replace function better_supabase.chain_proof(target regclass, tenant_column text, tenant text, seq bigint)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+set "TimeZone" = 'UTC'
+as $$
+declare
+  v_where text := case
+    when tenant_column is null then 'true'
+    when tenant is null then format('t.%I is null', tenant_column)
+    else format('t.%I::text = %L', tenant_column, tenant)
+  end;
+  v_checkpoint record;
+  v_entries jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role builds chain proofs' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select k.chain_seq, k.row_hash, k.key_id, k.signature into v_checkpoint from better_supabase.chain_checkpoints k
+  where k.table_name = target::text and k.tenant is not distinct from chain_proof.tenant and k.chain_seq >= chain_proof.seq
+  order by k.chain_seq limit 1;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'seq', t.chain_seq, 'prevHash', encode(t.prev_hash, 'hex'), 'rowHash', encode(t.row_hash, 'hex'), 'entry', pg_catalog.to_jsonb(t),
+      'hashed', pg_catalog.jsonb_strip_nulls(pg_catalog.to_jsonb(t) - 'prev_hash' - 'row_hash')::text
+    ) order by t.chain_seq), '[]'::jsonb)
+    from %1$s t where %2$s and t.chain_seq between $1 and coalesce($2, t.chain_seq)
+  $q$, target, v_where) into v_entries using seq, v_checkpoint.chain_seq;
+  return jsonb_build_object(
+    'table', target::text,
+    'tenant', tenant,
+    'entries', v_entries,
+    'checkpoint', case when v_checkpoint.chain_seq is null then null else jsonb_build_object(
+      'seq', v_checkpoint.chain_seq, 'hash', encode(v_checkpoint.row_hash, 'hex'),
+      'keyId', v_checkpoint.key_id, 'signature', v_checkpoint.signature) end
+  );
+end;
+$$;
+
 create or replace function better_supabase.record_chain_checkpoint(
   target regclass, tenant_column text, tenant text, seq bigint, hash text, key_id text, signature text
 )
@@ -5314,6 +5629,12 @@ begin
   return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
 end;
 $$;
+revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
+revoke execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) from public, anon, authenticated;
+revoke execute on function better_supabase.chain_proof(regclass, text, text, bigint) from public, anon, authenticated;
+grant execute on function better_supabase.chain_heads(regclass, text) to service_role;
+grant execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) to service_role;
+grant execute on function better_supabase.chain_proof(regclass, text, text, bigint) to service_role;
 revoke execute on function better_supabase.append_only(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.function_writes(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.chain(regclass, text) from public, anon, authenticated;
@@ -5654,7 +5975,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@12 managed
--- @bsb-hash sha256:421d56e4feb3de744314c0402e4818c9f35a13c01732dd726b7982e11ccc2780
+-- @bsb-hash sha256:e59a257e3d702cdd069c6bb65094b88d5521f77c99601b1d198d383c75a45fab
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7106,6 +7427,107 @@ begin
 end;
 $$;
 
+
+-- Each tenant's latest row that no checkpoint covers yet, for the signing job.
+create or replace function better_supabase.chain_heads(target regclass, tenant_column text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant text := case when tenant_column is null then 'null::text' else format('t.%I::text', tenant_column) end;
+  v_heads jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role reads chain heads' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object('tenant', h.tenant, 'seq', h.chain_seq, 'hash', encode(h.row_hash, 'hex')) order by h.tenant nulls first), '[]'::jsonb)
+    from (
+      select distinct on (%1$s) %1$s as tenant, t.chain_seq, t.row_hash
+      from %2$s t where t.chain_seq is not null
+      order by %1$s, t.chain_seq desc
+    ) h
+    where not exists (
+      select 1 from better_supabase.chain_checkpoints k
+      where k.table_name = %3$L and k.tenant is not distinct from h.tenant and k.chain_seq >= h.chain_seq
+    )
+  $q$, v_tenant, target, target::text) into v_heads;
+  return v_heads;
+end;
+$$;
+
+create or replace function better_supabase.list_chain_checkpoints(target regclass, tenant text default null, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role lists checkpoints' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', k.id::text, 'tenant', k.tenant, 'seq', k.chain_seq, 'hash', encode(k.row_hash, 'hex'),
+    'keyId', k.key_id, 'signature', k.signature, 'createdAt', k.created_at
+  ) order by k.chain_seq desc), '[]'::jsonb) into v_rows
+  from (
+    select * from better_supabase.chain_checkpoints x
+    where x.table_name = target::text and x.tenant is not distinct from list_chain_checkpoints.tenant
+    order by x.chain_seq desc limit max_rows
+  ) k;
+  return v_rows;
+end;
+$$;
+
+-- The proof for one row: the rows from it up to the first signed checkpoint
+-- that covers it (or the chain head when none does), and that checkpoint.
+create or replace function better_supabase.chain_proof(target regclass, tenant_column text, tenant text, seq bigint)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+set "TimeZone" = 'UTC'
+as $$
+declare
+  v_where text := case
+    when tenant_column is null then 'true'
+    when tenant is null then format('t.%I is null', tenant_column)
+    else format('t.%I::text = %L', tenant_column, tenant)
+  end;
+  v_checkpoint record;
+  v_entries jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role builds chain proofs' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select k.chain_seq, k.row_hash, k.key_id, k.signature into v_checkpoint from better_supabase.chain_checkpoints k
+  where k.table_name = target::text and k.tenant is not distinct from chain_proof.tenant and k.chain_seq >= chain_proof.seq
+  order by k.chain_seq limit 1;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'seq', t.chain_seq, 'prevHash', encode(t.prev_hash, 'hex'), 'rowHash', encode(t.row_hash, 'hex'), 'entry', pg_catalog.to_jsonb(t),
+      'hashed', pg_catalog.jsonb_strip_nulls(pg_catalog.to_jsonb(t) - 'prev_hash' - 'row_hash')::text
+    ) order by t.chain_seq), '[]'::jsonb)
+    from %1$s t where %2$s and t.chain_seq between $1 and coalesce($2, t.chain_seq)
+  $q$, target, v_where) into v_entries using seq, v_checkpoint.chain_seq;
+  return jsonb_build_object(
+    'table', target::text,
+    'tenant', tenant,
+    'entries', v_entries,
+    'checkpoint', case when v_checkpoint.chain_seq is null then null else jsonb_build_object(
+      'seq', v_checkpoint.chain_seq, 'hash', encode(v_checkpoint.row_hash, 'hex'),
+      'keyId', v_checkpoint.key_id, 'signature', v_checkpoint.signature) end
+  );
+end;
+$$;
+
 create or replace function better_supabase.record_chain_checkpoint(
   target regclass, tenant_column text, tenant text, seq bigint, hash text, key_id text, signature text
 )
@@ -7137,6 +7559,12 @@ begin
   return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
 end;
 $$;
+revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
+revoke execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) from public, anon, authenticated;
+revoke execute on function better_supabase.chain_proof(regclass, text, text, bigint) from public, anon, authenticated;
+grant execute on function better_supabase.chain_heads(regclass, text) to service_role;
+grant execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) to service_role;
+grant execute on function better_supabase.chain_proof(regclass, text, text, bigint) to service_role;
 revoke execute on function better_supabase.append_only(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.function_writes(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.chain(regclass, text) from public, anon, authenticated;
@@ -7500,6 +7928,36 @@ as $$ select "better_supabase"."audit_event_trusted"($1, $2, $3, $4, $5, $6, $7,
 revoke execute on function "api"."audit_event_trusted"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
 grant execute on function "api"."audit_event_trusted"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to service_role;
 
+create or replace function "api"."chain_heads"(target regclass, tenant_column text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."chain_heads"($1, $2) $$;
+revoke execute on function "api"."chain_heads"(regclass, text) from public, anon, authenticated;
+grant execute on function "api"."chain_heads"(regclass, text) to service_role;
+
+create or replace function "api"."list_chain_checkpoints"(target regclass, tenant text default null, max_rows integer default 100)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_chain_checkpoints"($1, $2, $3) $$;
+revoke execute on function "api"."list_chain_checkpoints"(regclass, text, integer) from public, anon, authenticated;
+grant execute on function "api"."list_chain_checkpoints"(regclass, text, integer) to service_role;
+
+create or replace function "api"."chain_proof"(target regclass, tenant_column text, tenant text, seq bigint)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."chain_proof"($1, $2, $3, $4) $$;
+revoke execute on function "api"."chain_proof"(regclass, text, text, bigint) from public, anon, authenticated;
+grant execute on function "api"."chain_proof"(regclass, text, text, bigint) to service_role;
+
 create or replace function "api"."verify_chain"(target regclass, tenant_column text default null, tenant text default null)
 returns jsonb
 language sql
@@ -7597,7 +8055,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@12 managed
--- @bsb-hash sha256:afd1b061efabb376dad00aa2cbde035d656bfe252807dd26d213a17e5c062b14
+-- @bsb-hash sha256:2cddbd70592a8b1ac57207d46f4cb7f3a83ae94d7da6d27889dd6a63b572ffd4
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8905,6 +9363,107 @@ begin
 end;
 $$;
 
+
+-- Each tenant's latest row that no checkpoint covers yet, for the signing job.
+create or replace function better_supabase.chain_heads(target regclass, tenant_column text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant text := case when tenant_column is null then 'null::text' else format('t.%I::text', tenant_column) end;
+  v_heads jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role reads chain heads' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object('tenant', h.tenant, 'seq', h.chain_seq, 'hash', encode(h.row_hash, 'hex')) order by h.tenant nulls first), '[]'::jsonb)
+    from (
+      select distinct on (%1$s) %1$s as tenant, t.chain_seq, t.row_hash
+      from %2$s t where t.chain_seq is not null
+      order by %1$s, t.chain_seq desc
+    ) h
+    where not exists (
+      select 1 from better_supabase.chain_checkpoints k
+      where k.table_name = %3$L and k.tenant is not distinct from h.tenant and k.chain_seq >= h.chain_seq
+    )
+  $q$, v_tenant, target, target::text) into v_heads;
+  return v_heads;
+end;
+$$;
+
+create or replace function better_supabase.list_chain_checkpoints(target regclass, tenant text default null, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role lists checkpoints' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', k.id::text, 'tenant', k.tenant, 'seq', k.chain_seq, 'hash', encode(k.row_hash, 'hex'),
+    'keyId', k.key_id, 'signature', k.signature, 'createdAt', k.created_at
+  ) order by k.chain_seq desc), '[]'::jsonb) into v_rows
+  from (
+    select * from better_supabase.chain_checkpoints x
+    where x.table_name = target::text and x.tenant is not distinct from list_chain_checkpoints.tenant
+    order by x.chain_seq desc limit max_rows
+  ) k;
+  return v_rows;
+end;
+$$;
+
+-- The proof for one row: the rows from it up to the first signed checkpoint
+-- that covers it (or the chain head when none does), and that checkpoint.
+create or replace function better_supabase.chain_proof(target regclass, tenant_column text, tenant text, seq bigint)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+set "TimeZone" = 'UTC'
+as $$
+declare
+  v_where text := case
+    when tenant_column is null then 'true'
+    when tenant is null then format('t.%I is null', tenant_column)
+    else format('t.%I::text = %L', tenant_column, tenant)
+  end;
+  v_checkpoint record;
+  v_entries jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role builds chain proofs' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select k.chain_seq, k.row_hash, k.key_id, k.signature into v_checkpoint from better_supabase.chain_checkpoints k
+  where k.table_name = target::text and k.tenant is not distinct from chain_proof.tenant and k.chain_seq >= chain_proof.seq
+  order by k.chain_seq limit 1;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'seq', t.chain_seq, 'prevHash', encode(t.prev_hash, 'hex'), 'rowHash', encode(t.row_hash, 'hex'), 'entry', pg_catalog.to_jsonb(t),
+      'hashed', pg_catalog.jsonb_strip_nulls(pg_catalog.to_jsonb(t) - 'prev_hash' - 'row_hash')::text
+    ) order by t.chain_seq), '[]'::jsonb)
+    from %1$s t where %2$s and t.chain_seq between $1 and coalesce($2, t.chain_seq)
+  $q$, target, v_where) into v_entries using seq, v_checkpoint.chain_seq;
+  return jsonb_build_object(
+    'table', target::text,
+    'tenant', tenant,
+    'entries', v_entries,
+    'checkpoint', case when v_checkpoint.chain_seq is null then null else jsonb_build_object(
+      'seq', v_checkpoint.chain_seq, 'hash', encode(v_checkpoint.row_hash, 'hex'),
+      'keyId', v_checkpoint.key_id, 'signature', v_checkpoint.signature) end
+  );
+end;
+$$;
+
 create or replace function better_supabase.record_chain_checkpoint(
   target regclass, tenant_column text, tenant text, seq bigint, hash text, key_id text, signature text
 )
@@ -8936,6 +9495,12 @@ begin
   return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
 end;
 $$;
+revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
+revoke execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) from public, anon, authenticated;
+revoke execute on function better_supabase.chain_proof(regclass, text, text, bigint) from public, anon, authenticated;
+grant execute on function better_supabase.chain_heads(regclass, text) to service_role;
+grant execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) to service_role;
+grant execute on function better_supabase.chain_proof(regclass, text, text, bigint) to service_role;
 revoke execute on function better_supabase.append_only(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.function_writes(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.chain(regclass, text) from public, anon, authenticated;
@@ -9258,7 +9823,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@12 managed
--- @bsb-hash sha256:08c4a99e982ea31e25662eeea83e488850c2922d4e81bfb833d10360adde23c7
+-- @bsb-hash sha256:15687958050d18e4f0a4e50a3d995d711917fb5b6018306a474af6f9aa07a863
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10710,6 +11275,107 @@ begin
 end;
 $$;
 
+
+-- Each tenant's latest row that no checkpoint covers yet, for the signing job.
+create or replace function better_supabase.chain_heads(target regclass, tenant_column text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant text := case when tenant_column is null then 'null::text' else format('t.%I::text', tenant_column) end;
+  v_heads jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role reads chain heads' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object('tenant', h.tenant, 'seq', h.chain_seq, 'hash', encode(h.row_hash, 'hex')) order by h.tenant nulls first), '[]'::jsonb)
+    from (
+      select distinct on (%1$s) %1$s as tenant, t.chain_seq, t.row_hash
+      from %2$s t where t.chain_seq is not null
+      order by %1$s, t.chain_seq desc
+    ) h
+    where not exists (
+      select 1 from better_supabase.chain_checkpoints k
+      where k.table_name = %3$L and k.tenant is not distinct from h.tenant and k.chain_seq >= h.chain_seq
+    )
+  $q$, v_tenant, target, target::text) into v_heads;
+  return v_heads;
+end;
+$$;
+
+create or replace function better_supabase.list_chain_checkpoints(target regclass, tenant text default null, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role lists checkpoints' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', k.id::text, 'tenant', k.tenant, 'seq', k.chain_seq, 'hash', encode(k.row_hash, 'hex'),
+    'keyId', k.key_id, 'signature', k.signature, 'createdAt', k.created_at
+  ) order by k.chain_seq desc), '[]'::jsonb) into v_rows
+  from (
+    select * from better_supabase.chain_checkpoints x
+    where x.table_name = target::text and x.tenant is not distinct from list_chain_checkpoints.tenant
+    order by x.chain_seq desc limit max_rows
+  ) k;
+  return v_rows;
+end;
+$$;
+
+-- The proof for one row: the rows from it up to the first signed checkpoint
+-- that covers it (or the chain head when none does), and that checkpoint.
+create or replace function better_supabase.chain_proof(target regclass, tenant_column text, tenant text, seq bigint)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+set "TimeZone" = 'UTC'
+as $$
+declare
+  v_where text := case
+    when tenant_column is null then 'true'
+    when tenant is null then format('t.%I is null', tenant_column)
+    else format('t.%I::text = %L', tenant_column, tenant)
+  end;
+  v_checkpoint record;
+  v_entries jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role builds chain proofs' using errcode = '42501', hint = 'CHAIN_FORBIDDEN';
+  end if;
+  select k.chain_seq, k.row_hash, k.key_id, k.signature into v_checkpoint from better_supabase.chain_checkpoints k
+  where k.table_name = target::text and k.tenant is not distinct from chain_proof.tenant and k.chain_seq >= chain_proof.seq
+  order by k.chain_seq limit 1;
+  execute format($q$
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'seq', t.chain_seq, 'prevHash', encode(t.prev_hash, 'hex'), 'rowHash', encode(t.row_hash, 'hex'), 'entry', pg_catalog.to_jsonb(t),
+      'hashed', pg_catalog.jsonb_strip_nulls(pg_catalog.to_jsonb(t) - 'prev_hash' - 'row_hash')::text
+    ) order by t.chain_seq), '[]'::jsonb)
+    from %1$s t where %2$s and t.chain_seq between $1 and coalesce($2, t.chain_seq)
+  $q$, target, v_where) into v_entries using seq, v_checkpoint.chain_seq;
+  return jsonb_build_object(
+    'table', target::text,
+    'tenant', tenant,
+    'entries', v_entries,
+    'checkpoint', case when v_checkpoint.chain_seq is null then null else jsonb_build_object(
+      'seq', v_checkpoint.chain_seq, 'hash', encode(v_checkpoint.row_hash, 'hex'),
+      'keyId', v_checkpoint.key_id, 'signature', v_checkpoint.signature) end
+  );
+end;
+$$;
+
 create or replace function better_supabase.record_chain_checkpoint(
   target regclass, tenant_column text, tenant text, seq bigint, hash text, key_id text, signature text
 )
@@ -10741,6 +11407,12 @@ begin
   return jsonb_build_object('id', v_id::text, 'seq', seq, 'hash', hash, 'keyId', key_id);
 end;
 $$;
+revoke execute on function better_supabase.chain_heads(regclass, text) from public, anon, authenticated;
+revoke execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) from public, anon, authenticated;
+revoke execute on function better_supabase.chain_proof(regclass, text, text, bigint) from public, anon, authenticated;
+grant execute on function better_supabase.chain_heads(regclass, text) to service_role;
+grant execute on function better_supabase.list_chain_checkpoints(regclass, text, integer) to service_role;
+grant execute on function better_supabase.chain_proof(regclass, text, text, bigint) to service_role;
 revoke execute on function better_supabase.append_only(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.function_writes(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.chain(regclass, text) from public, anon, authenticated;

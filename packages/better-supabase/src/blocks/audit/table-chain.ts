@@ -84,7 +84,7 @@ export interface Chain {
     readonly limit?: number;
   }): AsyncResult<readonly ChainCheckpoint[]>;
   /** The proof for the row at `seq`, to give to `verifyChainProof`. */
-  proof(seq: number, tenant?: string): AsyncResult<ChainProof>;
+  proof(input: { seq: number; tenant?: string }): AsyncResult<ChainProof>;
 }
 
 function headOf(value: unknown): ChainHead {
@@ -258,7 +258,7 @@ export function createChain(options: ChainOptions): Chain {
         },
         (value) => (Array.isArray(value) ? value : []).map(checkpointOf),
       ),
-    proof: (seq, tenant) =>
+    proof: ({ seq, tenant }) =>
       call("chain_proof", { ...base, tenant, seq }, proofOf),
   };
 }

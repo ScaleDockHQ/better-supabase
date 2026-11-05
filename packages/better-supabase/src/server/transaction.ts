@@ -19,7 +19,7 @@ function isFailedResult(value: unknown): boolean {
  * transaction. A throw rolls back; so does a returned failed `Result`, which is
  * still returned.
  */
-export async function runServerTransaction<D, T>(
+async function runServerTransaction<D, T>(
   postgres: BetterPostgres | undefined,
   connect: (executor: Executor, context: RequestContext) => D,
   userId: string,

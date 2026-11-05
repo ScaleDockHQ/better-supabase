@@ -1,0 +1,100 @@
+---
+title: Regulated filings
+description: The filings preset installs parties, numbered documents with versions and signatures, approvals, shipments with tracking, payments and a hash-chained trail for work that has to stand up to a dispute.
+---
+
+The `filings` preset is for an app that prepares documents, gets them signed and approved, sends them, and has to prove afterwards what happened and when: notices, filings, certified mailings and the claims that follow.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "filings" });
+```
+
+`npx better-supabase init --preset filings` starts a new project from it,
+and `npx better-supabase add --preset filings` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                                 | Role in the app                                              |
+| ----------------------------------------------------- | ------------------------------------------------------------ |
+| [contacts](/docs/blocks/contacts)                     | The parties to a filing                                      |
+| [relations](/docs/blocks/relations)                   | Who is related to whom, and in what role                     |
+| [imports](/docs/blocks/imports)                       | Jobs and parties loaded from other systems                   |
+| [document-templates](/docs/blocks/document-templates) | Notices rendered from typed variables                        |
+| [numbering](/docs/blocks/numbering)                   | Document numbers                                             |
+| [versions](/docs/blocks/versions)                     | A frozen version of each document                            |
+| [signatures](/docs/blocks/signatures)                 | Signatures over a version's content hash                     |
+| [approvals](/docs/blocks/approvals)                   | Staff review before a document goes out                      |
+| [attachments](/docs/blocks/attachments)               | Supporting files and receipts                                |
+| [shipments](/docs/blocks/shipments)                   | Mailing and tracking                                         |
+| [ledger](/docs/blocks/ledger)                         | Payments                                                     |
+| [cases](/docs/blocks/cases)                           | Disputes and claims                                          |
+| [reminders](/docs/blocks/reminders)                   | Dates to act on                                              |
+| [governance](/docs/blocks/governance)                 | The audit log with a hash chain, field history and retention |
+
+## An evidence trail
+
+Facts that matter live in a table of your own tagged for evidence:
+
+```sql title="supabase/schemas/facts.sql"
+create table public.filing_facts (
+  id bigint generated always as identity primary key,
+  organization_id uuid not null,
+  filing_id uuid not null,
+  kind text not null,
+  payload jsonb not null,
+  recorded_at timestamptz not null default now(),
+  chain_seq bigint,
+  prev_hash bytea,
+  row_hash bytea
+);
+
+comment on table public.filing_facts is '@bsb append-only function-writes chain';
+```
+
+`better-supabase table filing_facts enable chain` adds the statements the tags
+need. The table then refuses edits, takes no direct writes from the Data API
+and links each row to the one before it
+([tables](/docs/repository/tables#evidence-tables)).
+
+One command appends the fact, records the audit event and writes any block
+rows in a single transaction. If a step returns an error, nothing is kept
+([transactions](/docs/auth/postgres)):
+
+```ts
+const result = await server.transaction(
+  userId,
+  async (db) => {
+    await db.$client.queryRaw("select public.append_filing_fact($1, $2, $3)", [
+      filingId,
+      "notice_prepared",
+      JSON.stringify(payload),
+    ]);
+
+    return db.audit.record({
+      eventType: "filing.notice_prepared",
+      organizationId,
+      record: filingId,
+    });
+  },
+  { tenant: organizationId },
+);
+```
+
+`append_filing_fact` is a `security definer` function you write; it is the
+only way a row arrives. A scheduled job signs the chain heads with
+`createChain(...).checkpoint()`, and `chain.proof` with `evidenceBundle`
+produce a document an outside party checks without your database
+([audit](/docs/blocks/audit#chains-on-your-own-tables)).
+
+## With ReUI
+
+- A DataGrid of facts per filing, with a Badge for each kind.
+- A Dialog that shows the verification result for a bundle before it is exported.
