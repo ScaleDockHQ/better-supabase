@@ -121,7 +121,7 @@ export type RateLimitSource =
       readonly transport?: never;
     };
 
-export interface RateLimitSettings extends BlockTemporalOptions {
+interface RateLimitBase extends BlockTemporalOptions {
   /**
    * The schema the functions live in, over a transport. Defaults to
    * `better_supabase`.
@@ -135,7 +135,7 @@ export interface RateLimitSettings extends BlockTemporalOptions {
   readonly logger?: Logger;
 }
 
-export type RateLimitOptions = RateLimitSource & RateLimitSettings;
+export type RateLimitOptions = RateLimitSource & RateLimitBase;
 
 /**
  * Fixed-window limits for keys that aren't claims, over the `rate-limit`

@@ -3,7 +3,7 @@ export {
   type MembershipsExtension,
   membershipsExtension,
   type MembershipsExtensionOptions,
-  type MembershipsFindArgs,
+  type MembershipsFindOptions,
   resolveOrganization,
 } from "./extension.ts";
 

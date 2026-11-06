@@ -98,7 +98,7 @@ import {
 } from "../wiring.ts";
 import { blockConfigImport, blocksWiringPath } from "./add.ts";
 
-export type InitArgs = CliArgs<
+export type InitOptions = CliArgs<
   typeof INIT_ARGS & typeof CONVENTION_ARGS & typeof PLAN_ARGS
 >;
 
@@ -238,7 +238,7 @@ async function initTarget(
 
 /** The preset `--preset` names, or the one the person picks; `null` for none. */
 async function chosenPreset(
-  args: InitArgs,
+  args: InitOptions,
   flags: Partial<ConfigConventions>,
   prompts: Prompter | undefined,
   root: string,
@@ -350,7 +350,7 @@ function withDesign(
 
 async function runInit(
   config: ResolvedConfig,
-  given: InitArgs,
+  given: InitOptions,
   prompts?: Prompter,
   now: Now = () => new Date(),
   env: CliEnv = {},
@@ -365,9 +365,9 @@ async function runInit(
   }
 
   // SAFETY: the spread keeps every parsed flag; only preset gains a value.
-  const withPreset = { ...given, preset: given.from } as InitArgs;
+  const withPreset = { ...given, preset: given.from } as InitOptions;
 
-  const args: InitArgs =
+  const args: InitOptions =
     given.from === undefined || databaseFrom !== undefined ? given : withPreset;
 
   const flags = conventionFlags(args);

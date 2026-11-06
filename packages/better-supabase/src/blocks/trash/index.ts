@@ -16,10 +16,10 @@ export {
 export type { BlockTransport } from "../../core/block-transport.ts";
 
 export {
-  type TrashDeleteArgs,
+  type TrashDeleteOptions,
   type TrashExtension,
   trashExtension,
-  type TrashFindArgs,
+  type TrashFindOptions,
   type TrashMethods,
 } from "./extension.ts";
 

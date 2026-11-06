@@ -1,6 +1,6 @@
 import type {
   DataId,
-  DataListArgs,
+  DataListOptions,
   DataRow,
   DataRows,
   DataSource,
@@ -26,7 +26,7 @@ export type DataView<S extends DataSource, T> = VueController<
 /** The composables `defineDataHooks` makes for one table or block instance. */
 export interface DataHooks<S extends DataSource> {
   /** `source.list(args)`, kept fresh after every write. */
-  readonly useList: (args?: DataListArgs<S>) => DataView<S, DataRows<S>>;
+  readonly useList: (args?: DataListOptions<S>) => DataView<S, DataRows<S>>;
   /** `source.get(id)`, kept fresh after every write. */
   readonly useOne: (id: DataId<S>) => DataView<S, DataRow<S>>;
 }

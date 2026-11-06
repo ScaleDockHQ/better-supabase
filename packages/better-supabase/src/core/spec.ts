@@ -1,8 +1,8 @@
 import type {
-  AggregateArgs,
+  AggregateOptions,
   AggregateResult,
-  CountArgs,
-  GetArgs,
+  CountOptions,
+  GetOptions,
   ListArgs,
   Payload,
 } from "../ir/args.ts";
@@ -18,8 +18,8 @@ import type {
   CursorPageArgs,
   FindExt,
   GetKey,
-  OffsetPageArgs,
-  OffsetRangeArgs,
+  OffsetPageOptions,
+  OffsetRangeOptions,
   PageOf,
 } from "./repository-types.ts";
 
@@ -181,13 +181,13 @@ export interface TableSpecs<M extends AnyModels, T extends TableKey<M>, E> {
   ): QuerySpec<T, "list", Payload<M, T, A>[]>;
   page<
     const A extends NoSignal<
-      OffsetPageArgs<M, T> | OffsetRangeArgs<M, T> | CursorPageArgs<M, T>
+      OffsetPageOptions<M, T> | OffsetRangeOptions<M, T> | CursorPageArgs<M, T>
     > &
       FindExt<E, M, T>,
   >(
     args: A,
   ): QuerySpec<T, "page", PageOf<M, T, A>>;
-  get<const A extends NoSignal<GetArgs<M, T>> & FindExt<E, M, T>>(
+  get<const A extends NoSignal<GetOptions<M, T>> & FindExt<E, M, T>>(
     key: GetKey<M, T>,
     args?: A,
   ): QuerySpec<
@@ -198,9 +198,11 @@ export interface TableSpecs<M extends AnyModels, T extends TableKey<M>, E> {
       : Payload<M, T, A>
   >;
   count(
-    args?: NoSignal<CountArgs<M, T>> & FindExt<E, M, T>,
+    args?: NoSignal<CountOptions<M, T>> & FindExt<E, M, T>,
   ): QuerySpec<T, "count", number>;
-  aggregate<const A extends NoSignal<AggregateArgs<M, T>> & FindExt<E, M, T>>(
+  aggregate<
+    const A extends NoSignal<AggregateOptions<M, T>> & FindExt<E, M, T>,
+  >(
     args: A,
   ): QuerySpec<T, "aggregate", AggregateResult<M, T, A>>;
 }

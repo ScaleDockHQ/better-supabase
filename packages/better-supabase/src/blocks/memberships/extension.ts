@@ -59,7 +59,7 @@ export interface MembershipsExtensionOptions<C = unknown> {
   readonly header?: string;
 }
 
-export interface MembershipsFindArgs {
+export interface MembershipsFindOptions {
   /**
    * Skip the tenant filter for this call (admin tooling, jobs). RLS still
    * applies.
@@ -69,11 +69,11 @@ export interface MembershipsFindArgs {
 
 export interface MembershipsExtension extends RepositoryExtension {
   readonly findArgs: HasFlag<this["M"], this["T"], "tenant"> extends true
-    ? MembershipsFindArgs
+    ? MembershipsFindOptions
     : unknown;
   readonly methods: unknown;
   readonly deleteArgs: HasFlag<this["M"], this["T"], "tenant"> extends true
-    ? MembershipsFindArgs
+    ? MembershipsFindOptions
     : unknown;
 }
 

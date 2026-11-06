@@ -20,14 +20,14 @@ import {
   withDefault,
 } from "../extension-shared.ts";
 
-export interface TrashFindArgs {
+export interface TrashFindOptions {
   /** Include soft-deleted rows of the queried table. */
   readonly withDeleted?: boolean;
   /** Only return soft-deleted rows of the queried table. */
   readonly onlyDeleted?: boolean;
 }
 
-export interface TrashDeleteArgs {
+export interface TrashDeleteOptions {
   /** Delete the row for real instead of setting the soft-delete column. */
   readonly hard?: boolean;
 }
@@ -45,10 +45,10 @@ export interface TrashExtension extends RepositoryExtension {
     ? TrashMethods<PrimaryKeyValue<this["M"], this["T"]>>
     : unknown;
   readonly findArgs: HasFlag<this["M"], this["T"], "softDelete"> extends true
-    ? TrashFindArgs
+    ? TrashFindOptions
     : unknown;
   readonly deleteArgs: HasFlag<this["M"], this["T"], "softDelete"> extends true
-    ? TrashDeleteArgs
+    ? TrashDeleteOptions
     : unknown;
 }
 

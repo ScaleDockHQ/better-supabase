@@ -196,7 +196,7 @@ export type BoundOutput<Bd> = Bd extends BoundSchema
   : readonly [];
 
 /** The arguments of the returned action: bound ones first, then the input. */
-export type BoundArgs<
+export type BoundOptions<
   Bd,
   S extends StandardSchemaV1 | undefined,
 > = Bd extends BoundSchema
@@ -331,7 +331,7 @@ export interface ContextualNext<
       bound: BoundOutput<Bd>,
     ) => Promise<T> | T,
   ) => (
-    ...args: BoundArgs<Bd, S>
+    ...args: BoundOptions<Bd, S>
   ) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
 }
 
@@ -590,7 +590,7 @@ export interface BetterNext<
       bound: BoundOutput<Bd>,
     ) => Promise<T> | T,
   ): (
-    ...args: BoundArgs<Bd, S>
+    ...args: BoundOptions<Bd, S>
   ) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
   /**
    * A server action that calls one block method as the caller, with the same

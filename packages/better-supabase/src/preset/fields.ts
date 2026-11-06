@@ -297,13 +297,13 @@ export interface PresetInstance extends InstanceKeys {
    * by entity key: `{ person: { auditReads: true } }`. They land on
    * `blocks.<name>.entities.<entity>` next to its name.
    */
-  readonly subjects?: Readonly<Record<string, PresetSubjectSettings>>;
+  readonly subjects?: Readonly<Record<string, PresetSubjectOptions>>;
   readonly options?: Readonly<Record<string, unknown>>;
   readonly tables?: Readonly<Record<string, string | null>>;
 }
 
 /** `team` and `auditReads` for one subject a block registers. */
-export type PresetSubjectSettings = Pick<EntityConfig, "team" | "auditReads">;
+export type PresetSubjectOptions = Pick<EntityConfig, "team" | "auditReads">;
 
 /** Every convention at its default. */
 export const DEFAULT_CONVENTIONS: PresetConventions = {

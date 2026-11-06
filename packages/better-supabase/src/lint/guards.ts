@@ -84,13 +84,13 @@ export interface GuardsOptions {
   readonly report?: (violation: GuardViolation) => void;
 }
 
-export interface GuardsFindArgs {
+export interface GuardsFindOptions {
   /** Allow reading `config.sensitive` columns in this call. */
   readonly sensitive?: boolean;
 }
 
 export interface GuardsExtension extends RepositoryExtension {
-  readonly findArgs: GuardsFindArgs;
+  readonly findArgs: GuardsFindOptions;
 }
 
 /** Catches data-exposure and correctness mistakes; everything else off. */

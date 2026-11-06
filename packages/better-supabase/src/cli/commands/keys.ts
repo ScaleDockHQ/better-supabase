@@ -30,7 +30,7 @@ const ARGS = {
   },
 } as const;
 
-export type KeysArgs = CliArgs<typeof ARGS>;
+export type KeysOptions = CliArgs<typeof ARGS>;
 
 interface SigningKey {
   readonly kty: "EC";
@@ -70,7 +70,7 @@ async function createSigningKey(): Promise<SigningKey> {
 
 async function runKeys(
   config: ResolvedConfig,
-  args: KeysArgs,
+  args: KeysOptions,
 ): Promise<CommandResult> {
   const dir = supabaseDir(config.root);
   const out = args.out ?? config.keys.output ?? `${dir}/signing_keys.json`;

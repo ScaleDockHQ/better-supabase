@@ -161,7 +161,7 @@ export interface QueueProvider {
    * Deletes up to `batch` archived messages of `queue`; an unset option keeps
    * the SQL default. Returns how many. Absent when the backend can't.
    */
-  purge?(queue: string, options: QueuePurgeArgs): Promise<number>;
+  purge?(queue: string, options: QueuePurgeOptions): Promise<number>;
   schedule(
     name: string,
     cron: string,
@@ -603,7 +603,7 @@ export function transportRows<T>(fn: string, value: unknown): readonly T[] {
 }
 
 /** The intervals are Postgres intervals such as `"7 days"`. */
-export interface QueuePurgeArgs {
+export interface QueuePurgeOptions {
   readonly olderThan?: string | undefined;
   readonly deadOlderThan?: string | undefined;
   readonly batch?: number | undefined;

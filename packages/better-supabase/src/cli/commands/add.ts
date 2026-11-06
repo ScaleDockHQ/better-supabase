@@ -91,7 +91,7 @@ const ADD_ARGS = {
   },
 } as const;
 
-export type AddArgs = CliArgs<
+export type AddOptions = CliArgs<
   typeof ADD_ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
 >;
 
@@ -102,7 +102,7 @@ export type AddArgs = CliArgs<
  */
 async function addBlocks(
   config: ResolvedConfig,
-  args: AddArgs,
+  args: AddOptions,
   names: readonly string[],
   deps: SqlDeps,
 ): Promise<CommandResult> {
@@ -284,7 +284,7 @@ const SYSTEM_DEPS: SqlDeps = { now: () => new Date() };
 
 async function runAdd(
   config: ResolvedConfig,
-  args: AddArgs,
+  args: AddOptions,
   prompts?: Prompter,
   deps: SqlDeps = SYSTEM_DEPS,
 ): Promise<CommandResult> {

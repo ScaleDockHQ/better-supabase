@@ -146,67 +146,272 @@
       "to": "AgentPassthroughOptions",
       "kind": "type",
       "since": "0.54"
+    },
+    {
+      "from": "AddArgs",
+      "to": "AddOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "AggregateArgs",
+      "to": "AggregateOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "AssistantRunArgs",
+      "to": "AssistantRunOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "BoundArgs",
+      "to": "BoundOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "BulkActionArgs",
+      "to": "BulkActionOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "CodemodArgs",
+      "to": "CodemodOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "CountArgs",
+      "to": "CountOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "DataListArgs",
+      "to": "DataListOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "DeleteArgs",
+      "to": "DeleteOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "DurableTurnAgentArgs",
+      "to": "DurableTurnAgentOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "EveDispatchArgs",
+      "to": "EveDispatchOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "EveScheduleArgs",
+      "to": "EveScheduleOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "GenerationRunArgs",
+      "to": "GenerationRunOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "GetArgs",
+      "to": "GetOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "GuardsFindArgs",
+      "to": "GuardsFindOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "IncludeArgs",
+      "to": "IncludeOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "InitArgs",
+      "to": "InitOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "KeysArgs",
+      "to": "KeysOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ManyWriteArgs",
+      "to": "ManyWriteOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "MembershipsFindArgs",
+      "to": "MembershipsFindOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "MigrateSchemaFirstArgs",
+      "to": "MigrateSchemaFirstOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "OffsetPageArgs",
+      "to": "OffsetPageOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "OffsetRangeArgs",
+      "to": "OffsetRangeOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "OverloadArgs",
+      "to": "OverloadOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "PresetSubjectSettings",
+      "to": "PresetSubjectOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "QueuePurgeArgs",
+      "to": "QueuePurgeOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ReadArgs",
+      "to": "ReadOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "RemoveArgs",
+      "to": "RemoveOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TanStackStartHandlerArgs",
+      "to": "TanStackStartHandlerOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TanStackStartServerArgs",
+      "to": "TanStackStartServerOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TrashDeleteArgs",
+      "to": "TrashDeleteOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TrashFindArgs",
+      "to": "TrashFindOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "UpdateArgs",
+      "to": "UpdateOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "UpsertArgs",
+      "to": "UpsertOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "UpsertManyArgs",
+      "to": "UpsertManyOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "WriteArgs",
+      "to": "WriteOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "WriteManyArgs",
+      "to": "WriteManyOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "AccountingSettings",
+      "to": "AccountingSetup",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "BucketSettings",
+      "to": "StorageBucketOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "RateLimitSettings",
+      "to": "RateLimitOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "IdempotencySettings",
+      "to": "IdempotencyOptions",
+      "kind": "type",
+      "since": "0.54"
     }
   ],
   "allowlist": {
     "env": [],
     "typeNames": [
-      "AccountingSettings",
       "ActionArgs",
-      "AddArgs",
-      "AggregateArgs",
       "Args",
-      "AssistantRunArgs",
       "AuthFailure",
       "BlockActionArgs",
-      "BoundArgs",
-      "BucketSettings",
-      "BulkActionArgs",
       "CliArgs",
-      "CodemodArgs",
-      "CountArgs",
       "CursorPageArgs",
-      "DataListArgs",
-      "DeleteArgs",
       "DoctorArgs",
-      "DurableTurnAgentArgs",
-      "EveDispatchArgs",
-      "EveScheduleArgs",
-      "GenerationRunArgs",
-      "GetArgs",
-      "GuardsFindArgs",
       "HookArgs",
-      "IdempotencySettings",
-      "IncludeArgs",
-      "InitArgs",
-      "KeysArgs",
       "ListArgs",
-      "ManyWriteArgs",
-      "MembershipsFindArgs",
-      "MigrateSchemaFirstArgs",
-      "OffsetPageArgs",
-      "OffsetRangeArgs",
-      "OverloadArgs",
-      "PresetSubjectSettings",
-      "QueuePurgeArgs",
-      "RateLimitSettings",
       "ReactRouterArgs",
-      "ReadArgs",
-      "RemoveArgs",
       "RequestArgs",
       "RpcArgs",
       "SearchArgs",
       "Settings",
-      "TableArgs",
-      "TanStackStartHandlerArgs",
-      "TanStackStartServerArgs",
-      "TrashDeleteArgs",
-      "TrashFindArgs",
-      "UpdateArgs",
-      "UpsertArgs",
-      "UpsertManyArgs",
-      "WriteArgs",
-      "WriteManyArgs"
+      "TableArgs"
     ],
     "subpaths": []
   }

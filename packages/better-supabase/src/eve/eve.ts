@@ -60,11 +60,11 @@ export {
 export type {
   AgentJobOptions,
   EveAgentJob,
-  EveDispatchArgs,
+  EveDispatchOptions,
   EveQueueDrainer,
   EveQueueJob,
   EveQueueScheduler,
-  EveScheduleArgs,
+  EveScheduleOptions,
   EveTargetHandle,
   QueueSchedulesOptions,
   ScheduleAgentOptions,

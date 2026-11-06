@@ -58,7 +58,7 @@ const REMOVE_ARGS = {
   },
 } as const;
 
-export type RemoveArgs = CliArgs<
+export type RemoveOptions = CliArgs<
   typeof REMOVE_ARGS &
     Pick<typeof PLAN_ARGS, "dry-run" | "check"> &
     Pick<typeof SQL_ARGS, "force">
@@ -81,7 +81,7 @@ const resolved = (names: readonly string[]) =>
  */
 async function runRemove(
   config: ResolvedConfig,
-  args: RemoveArgs,
+  args: RemoveOptions,
   deps: RemoveDeps = {},
 ): Promise<CommandResult> {
   const names = [...new Set(args._)];

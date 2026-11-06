@@ -2,7 +2,7 @@ export { createBulk } from "./bulk.ts";
 
 export type {
   Bulk,
-  BulkActionArgs,
+  BulkActionOptions,
   BulkDrainOptions,
   BulkInput,
   BulkOptions,

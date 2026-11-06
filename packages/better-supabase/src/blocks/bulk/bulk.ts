@@ -26,7 +26,7 @@ export type BuiltInBulkAction =
   | "appTables.set";
 
 /** Arguments per built-in action; an app's own actions take any object. */
-export interface BulkActionArgs {
+export interface BulkActionOptions {
   readonly "tags.set": {
     readonly add?: readonly string[];
     readonly remove?: readonly string[];
@@ -52,8 +52,8 @@ export interface BulkActionArgs {
   };
 }
 
-type ArgsOf<A extends string> = A extends keyof BulkActionArgs
-  ? BulkActionArgs[A]
+type ArgsOf<A extends string> = A extends keyof BulkActionOptions
+  ? BulkActionOptions[A]
   : Readonly<Record<string, unknown>>;
 
 /**

@@ -58,7 +58,7 @@ export interface DurableStop {
 }
 
 /** What the agent function gets for one segment. */
-export interface DurableTurnAgentArgs<CONTEXT = undefined> {
+export interface DurableTurnAgentOptions<CONTEXT = undefined> {
   readonly chatId: string;
   readonly userId: string;
   /** Missing for a chat outside a tenant. */
@@ -212,7 +212,7 @@ export interface DurableTurnDeps<CONTEXT = undefined> {
   ) => Promise<void>;
   /** Runs the agent for one segment: `(args) => agent.stream(args)`. */
   readonly agent: (
-    args: DurableTurnAgentArgs<CONTEXT>,
+    args: DurableTurnAgentOptions<CONTEXT>,
   ) => Promise<DurableTurnAgentResult>;
   readonly step: DurableStep;
 }

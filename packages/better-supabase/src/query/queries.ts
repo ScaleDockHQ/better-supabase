@@ -12,25 +12,25 @@ import type {
   CursorPage,
   CursorPageArgs,
   Db,
-  DeleteArgs,
+  DeleteOptions,
   DeleteExt,
   FindExt,
   GetKey,
   OffsetPage,
-  OffsetPageArgs,
-  OffsetRangeArgs,
+  OffsetPageOptions,
+  OffsetRangeOptions,
   Returned,
-  UpdateArgs,
-  UpsertArgs,
-  WriteArgs,
+  UpdateOptions,
+  UpsertOptions,
+  WriteOptions,
 } from "../core/repository-types.ts";
 import type { AsyncResult } from "../core/result.ts";
 import type { InferResult, QuerySpec } from "../core/spec.ts";
 import type {
-  AggregateArgs,
+  AggregateOptions,
   AggregateResult,
-  CountArgs,
-  GetArgs,
+  CountOptions,
+  GetOptions,
   ListArgs,
   Payload,
 } from "../ir/args.ts";
@@ -162,12 +162,12 @@ export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
     args?: A | SkipToken,
   ): QueryOptionsOf<Payload<M, T, A>[]>;
   page<
-    const A extends (OffsetPageArgs<M, T> | OffsetRangeArgs<M, T>) &
+    const A extends (OffsetPageOptions<M, T> | OffsetRangeOptions<M, T>) &
       FindExt<E, M, T>,
   >(
     args: A | SkipToken,
   ): QueryOptionsOf<OffsetPage<Payload<M, T, A>>>;
-  get<const A extends GetArgs<M, T> & FindExt<E, M, T>>(
+  get<const A extends GetOptions<M, T> & FindExt<E, M, T>>(
     key: GetKey<M, T> | SkipToken,
     args?: A,
   ): QueryOptionsOf<
@@ -176,9 +176,9 @@ export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
       : Payload<M, T, A>
   >;
   count(
-    args?: (CountArgs<M, T> & FindExt<E, M, T>) | SkipToken,
+    args?: (CountOptions<M, T> & FindExt<E, M, T>) | SkipToken,
   ): QueryOptionsOf<number>;
-  aggregate<const A extends AggregateArgs<M, T> & FindExt<E, M, T>>(
+  aggregate<const A extends AggregateOptions<M, T> & FindExt<E, M, T>>(
     args: A | SkipToken,
   ): QueryOptionsOf<AggregateResult<M, T, A>>;
   /** Cursor pages for `useInfiniteQuery`. */
@@ -189,24 +189,24 @@ export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
     options?: InfiniteExtras,
   ): InfiniteOptionsOf<CursorPage<Payload<M, T, A>>, string | null>;
   /** Numbered pages for `useInfiniteQuery`, starting at `args.page` (default 1). */
-  infinitePages<const A extends OffsetPageArgs<M, T> & FindExt<E, M, T>>(
+  infinitePages<const A extends OffsetPageOptions<M, T> & FindExt<E, M, T>>(
     args: A,
     options?: InfiniteExtras,
   ): InfiniteOptionsOf<OffsetPage<Payload<M, T, A>>, number>;
-  create<const A extends WriteArgs<M, T> = {}>(
+  create<const A extends WriteOptions<M, T> = {}>(
     args?: A,
   ): MutationOptionsOf<Insert<M, T>, Returned<M, T, A>>;
-  update<const A extends UpdateArgs<M, T> = {}>(
+  update<const A extends UpdateOptions<M, T> = {}>(
     args?: A,
   ): MutationOptionsOf<
     { readonly id: PrimaryKeyValue<M, T>; readonly patch: Update<M, T> },
     Returned<M, T, A>
   >;
-  upsert<const A extends UpsertArgs<M, T> = {}>(
+  upsert<const A extends UpsertOptions<M, T> = {}>(
     args?: A,
   ): MutationOptionsOf<Insert<M, T>, Returned<M, T, A>>;
   delete(
-    args?: DeleteArgs & DeleteExt<E, M, T>,
+    args?: DeleteOptions & DeleteExt<E, M, T>,
   ): MutationOptionsOf<PrimaryKeyValue<M, T>, void>;
 }
 

@@ -5,7 +5,7 @@ import type {
   DefaultAutomation,
 } from "../core/automation.ts";
 import type { EventMap, Events } from "../core/block-events.ts";
-import type { PresetSubjectSettings } from "../preset/fields.ts";
+import type { PresetSubjectOptions } from "../preset/fields.ts";
 import type { BlockContext } from "./create-blocks.ts";
 import type { BlockSchemas } from "./entity-schema.ts";
 import type { BlockOptionsSchema } from "./options.ts";
@@ -90,7 +90,7 @@ export interface PartDefaults {
   /** Entity names, by entity key (`{ task: "ticket" }`). */
   readonly names?: Readonly<Record<string, string>>;
   /** The record team and read log of the subjects the part registers. */
-  readonly subjects?: Readonly<Record<string, PresetSubjectSettings>>;
+  readonly subjects?: Readonly<Record<string, PresetSubjectOptions>>;
 }
 
 /**

@@ -7,7 +7,7 @@ import type {
   CursorPageArgs,
   FindExt,
   OffsetPage,
-  OffsetPageArgs,
+  OffsetPageOptions,
   RepositoryOf,
 } from "../core/repository-types.ts";
 import type { AsyncResult } from "../core/result.ts";
@@ -272,7 +272,7 @@ export interface ListDefinition<
   args(
     query: ListQuery<S, F>,
     clock?: Pick<FilterClock, "now">,
-  ): [P] extends ["cursor"] ? CursorPageArgs<M, T> : OffsetPageArgs<M, T>;
+  ): [P] extends ["cursor"] ? CursorPageArgs<M, T> : OffsetPageOptions<M, T>;
   /**
    * Runs the list against a table, merging your `select`, `include`, `where`
    * and `count`. One request, plus one per facet for `facetCounts`, always one
@@ -819,7 +819,7 @@ export function defineListQuery<
   function args(
     query: ListQuery<S, F>,
     clock?: Pick<FilterClock, "now">,
-  ): [P] extends ["cursor"] ? CursorPageArgs<M, T> : OffsetPageArgs<M, T> {
+  ): [P] extends ["cursor"] ? CursorPageArgs<M, T> : OffsetPageOptions<M, T> {
     const filter = where(query, clock);
 
     const paging = cursor

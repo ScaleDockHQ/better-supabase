@@ -50,7 +50,7 @@ export type DataRows<S extends DataSource> = DataOf<S["list"]>;
 export type DataRow<S extends DataSource> = DataOf<S["get"]>;
 
 /** What `source.list` takes. */
-export type DataListArgs<S extends DataSource> = FirstArg<S["list"]>;
+export type DataListOptions<S extends DataSource> = FirstArg<S["list"]>;
 
 /** The id `source.get`, `update` and `delete` take. */
 export type DataId<S extends DataSource> = FirstArg<S["get"]>;
@@ -263,7 +263,7 @@ function readController<S extends DataSource, T>(
 /** `source.list(args)` through the engine, with the writes. */
 export function createDataList<S extends DataSource>(
   target: DataTarget<S>,
-  args: DataListArgs<S> | undefined,
+  args: DataListOptions<S> | undefined,
 ): Controller<DataState<DataRows<S>>, DataWrites<S>> {
   const list = verb(target.source, "list");
 

@@ -39,7 +39,7 @@ const CODEMOD_ARGS = {
 } as const;
 
 /** `_` is the codemod name, then the paths. */
-export type CodemodArgs = CliOptions<typeof CODEMOD_ARGS>;
+export type CodemodOptions = CliOptions<typeof CODEMOD_ARGS>;
 
 const SOURCE_EXTENSIONS: ReadonlySet<string> = new Set([
   ".ts",
@@ -105,7 +105,7 @@ async function sourceFiles(path: string): Promise<string[]> {
 
 export async function runCodemod(
   config: ResolvedConfig,
-  args: CodemodArgs,
+  args: CodemodOptions,
   paint: Paint = plain,
 ): Promise<CommandResult> {
   const [name, ...paths] = args._ ?? [];

@@ -11,7 +11,7 @@ import { plain } from "../style.ts";
 
 const MIGRATE_ARGS = {} as const;
 
-export type MigrateSchemaFirstArgs = CliArgs<
+export type MigrateSchemaFirstOptions = CliArgs<
   typeof MIGRATE_ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
 >;
 
@@ -29,7 +29,7 @@ export interface MigrateDeps {
  */
 async function runMigrateSchemaFirst(
   config: ResolvedConfig,
-  args: MigrateSchemaFirstArgs,
+  args: MigrateSchemaFirstOptions,
   deps: MigrateDeps = {},
 ): Promise<CommandResult> {
   const built = await appTablePlan(

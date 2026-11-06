@@ -1,11 +1,11 @@
 import type {
-  AggregateArgs,
+  AggregateOptions,
   AggregateResult,
-  CountArgs,
-  GetArgs,
+  CountOptions,
+  GetOptions,
   ListArgs,
   Payload,
-  ReadArgs,
+  ReadOptions,
   RequestArgs,
   WhereInput,
 } from "../ir/args.ts";
@@ -48,10 +48,10 @@ export type DeleteExt<
   T extends keyof M,
 > = ApplyExtension<E, M, T, "deleteArgs">;
 
-export interface WriteArgs<
+export interface WriteOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends ReadArgs<M, T> {
+> extends ReadOptions<M, T> {
   /** `false` skips `RETURNING` (needed when RLS hides the written row). */
   readonly returning?: boolean;
   /**
@@ -62,10 +62,10 @@ export interface WriteArgs<
   readonly override?: boolean;
 }
 
-export interface UpdateArgs<
+export interface UpdateOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends WriteArgs<M, T> {
+> extends WriteOptions<M, T> {
   /**
    * More conditions the row must meet, such as a tenant or a status. A row with
    * this key that does not match returns `not_found`, in one request.
@@ -129,16 +129,16 @@ export type GetKey<M extends AnyModels, T extends keyof M> =
   | RowFilter<M, T>;
 
 /** Options of `update({ where })` and `delete({ where })`. */
-export interface ManyWriteArgs<
+export interface ManyWriteOptions<
   M extends AnyModels,
   T extends keyof M,
 > extends RequestArgs {
   /** Return the written rows instead of `{ count }`. */
   readonly returning?: boolean;
   /** The columns to return with `returning: true`. */
-  readonly select?: ReadArgs<M, T>["select"];
+  readonly select?: ReadOptions<M, T>["select"];
   /** Related rows to return with `returning: true`. */
-  readonly include?: ReadArgs<M, T>["include"];
+  readonly include?: ReadOptions<M, T>["include"];
   /**
    * The most rows the call may change. When `where` matches more, the call
    * fails with `max_affected` and changes nothing. Over PostgREST it needs
@@ -150,10 +150,10 @@ export interface ManyWriteArgs<
 }
 
 /** Options of `create` and `upsert` with an array of rows. */
-export interface WriteManyArgs<
+export interface WriteManyOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends WriteArgs<M, T> {
+> extends WriteOptions<M, T> {
   /**
    * Columns some rows leave out become `null` instead of their column default.
    * Defaults to `false`, so a left-out column takes its default.
@@ -171,21 +171,21 @@ export type ConflictTarget<M extends AnyModels, T extends keyof M> =
   | UniqueKeyName<M, T>
   | readonly Extract<keyof Row<M, T>, string>[];
 
-export interface UpsertArgs<
+export interface UpsertOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends WriteArgs<M, T> {
+> extends WriteOptions<M, T> {
   /** Unique constraint name or column list. Defaults to the primary key. */
   readonly onConflict?: ConflictTarget<M, T>;
   /** Keep the existing row instead of updating it (`ON CONFLICT DO NOTHING`). */
   readonly ignoreDuplicates?: boolean;
 }
 
-export type DeleteArgs = RequestArgs;
+export type DeleteOptions = RequestArgs;
 
 /** Options of `upsert` with an array of rows. */
-export interface UpsertManyArgs<M extends AnyModels, T extends keyof M>
-  extends UpsertArgs<M, T>, WriteManyArgs<M, T> {}
+export interface UpsertManyOptions<M extends AnyModels, T extends keyof M>
+  extends UpsertOptions<M, T>, WriteManyOptions<M, T> {}
 
 export type Returned<M extends AnyModels, T extends keyof M, A> = A extends {
   readonly returning: false;
@@ -193,7 +193,7 @@ export type Returned<M extends AnyModels, T extends keyof M, A> = A extends {
   ? null
   : Payload<M, T, A>;
 
-export type OffsetPageArgs<M extends AnyModels, T extends keyof M> = Omit<
+export type OffsetPageOptions<M extends AnyModels, T extends keyof M> = Omit<
   ListArgs<M, T>,
   "limit" | "offset"
 > & {
@@ -208,7 +208,7 @@ export type OffsetPageArgs<M extends AnyModels, T extends keyof M> = Omit<
   readonly limit?: never;
 };
 
-export type OffsetRangeArgs<M extends AnyModels, T extends keyof M> = Omit<
+export type OffsetRangeOptions<M extends AnyModels, T extends keyof M> = Omit<
   ListArgs<M, T>,
   "limit" | "offset"
 > & {
@@ -292,8 +292,8 @@ export interface Repository<
    */
   page<
     const A extends (
-      | OffsetPageArgs<M, T>
-      | OffsetRangeArgs<M, T>
+      | OffsetPageOptions<M, T>
+      | OffsetRangeOptions<M, T>
       | CursorPageArgs<M, T>
     ) &
       FindExt<E, M, T>,
@@ -306,7 +306,7 @@ export interface Repository<
    * row is a `not_found` error, or `null` with `optional: true`; several rows
    * matching `{ where }` are a `multiple_rows` error.
    */
-  get<const A extends GetArgs<M, T> & FindExt<E, M, T>>(
+  get<const A extends GetOptions<M, T> & FindExt<E, M, T>>(
     key: GetKey<M, T>,
     args?: A,
   ): AsyncResult<
@@ -314,22 +314,22 @@ export interface Repository<
       ? Payload<M, T, A> | null
       : Payload<M, T, A>
   >;
-  count(args?: CountArgs<M, T> & FindExt<E, M, T>): AsyncResult<number>;
+  count(args?: CountOptions<M, T> & FindExt<E, M, T>): AsyncResult<number>;
   /**
    * Counts, sums, averages, minimums and maximums in one request, grouped by
    * `groupBy` columns. Needs `pgrst.db_aggregates_enabled` over PostgREST.
    */
-  aggregate<const A extends AggregateArgs<M, T> & FindExt<E, M, T>>(
+  aggregate<const A extends AggregateOptions<M, T> & FindExt<E, M, T>>(
     args: A,
   ): AsyncResult<AggregateResult<M, T, A>>;
 
   /** Inserts one row, or several in one request when given an array. */
   /** Inserts one row, or several in one request when given an array. */
-  create<const A extends WriteArgs<M, T> = {}>(
+  create<const A extends WriteOptions<M, T> = {}>(
     data: Insert<M, T>,
     args?: A,
   ): AsyncResult<Returned<M, T, A>>;
-  create<const A extends WriteManyArgs<M, T> = {}>(
+  create<const A extends WriteManyOptions<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
   ): AsyncResult<ManyOutcome<M, T, A, true>>;
@@ -343,8 +343,8 @@ export interface Repository<
     patch: Update<M, T>,
   ): AsyncResult<{ count: number }>;
   update<
-    const A extends ManyWriteArgs<M, T> &
-      Pick<WriteArgs<M, T>, "override"> & {
+    const A extends ManyWriteOptions<M, T> &
+      Pick<WriteOptions<M, T>, "override"> & {
         /** Update every visible row when `where` filters nothing. */
         readonly allowAll?: boolean;
       } & FindExt<E, M, T>,
@@ -355,13 +355,13 @@ export interface Repository<
     patch: NoInfer<Update<M, T>>,
     args: A,
   ): AsyncResult<ManyResult<M, T, A>>;
-  update<const A extends UpdateArgs<M, T> = {}>(
+  update<const A extends UpdateOptions<M, T> = {}>(
     id: PrimaryKeyValue<M, T>,
     patch: Update<M, T>,
     args?: A,
   ): AsyncResult<Returned<M, T, A>>;
   /** Inserts or updates one row, or several when given an array. */
-  upsert<const A extends UpsertArgs<M, T> = {}>(
+  upsert<const A extends UpsertOptions<M, T> = {}>(
     data: Insert<M, T>,
     args?: A,
   ): AsyncResult<
@@ -369,7 +369,7 @@ export interface Repository<
       ? Returned<M, T, A> | null
       : Returned<M, T, A>
   >;
-  upsert<const A extends UpsertManyArgs<M, T> = {}>(
+  upsert<const A extends UpsertManyOptions<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
   ): AsyncResult<ManyOutcome<M, T, A, true>>;
@@ -379,14 +379,16 @@ export interface Repository<
    */
   delete(filter: RowFilter<M, T>): AsyncResult<{ count: number }>;
   delete<
-    const A extends ManyWriteArgs<M, T> & DeleteExt<E, M, T> & FindExt<E, M, T>,
+    const A extends ManyWriteOptions<M, T> &
+      DeleteExt<E, M, T> &
+      FindExt<E, M, T>,
   >(
     filter: RowFilter<M, T>,
     args: A,
   ): AsyncResult<ManyResult<M, T, A>>;
   delete(
     id: PrimaryKeyValue<M, T>,
-    args?: DeleteArgs & DeleteExt<E, M, T>,
+    args?: DeleteOptions & DeleteExt<E, M, T>,
   ): AsyncResult<void>;
 
   /** Adds methods built on this repository. */
@@ -489,7 +491,7 @@ export type OverloadReturns<O, A> = [MatchingOverload<O, A>] extends [never]
  * `A` when its names pick an overload, with a name that no overload takes typed
  * `never`, and `never` when the names mix overloads.
  */
-export type OverloadArgs<O extends { readonly Args: unknown }, A> = A &
+export type OverloadOptions<O extends { readonly Args: unknown }, A> = A &
   NoInfer<
     [MatchingOverload<O, A>] extends [never]
       ? never
@@ -544,7 +546,7 @@ export interface DbHelpers<
    */
   $rpc<N extends OverloadedName<F>, const A extends F[N]["Args"]>(
     name: N,
-    args: OverloadArgs<F[N], A>,
+    args: OverloadOptions<F[N], A>,
     options: RawRpcOptions,
   ): AsyncResult<unknown>;
   $rpc<
@@ -553,7 +555,7 @@ export interface DbHelpers<
     R = OverloadReturns<F[N], A>,
   >(
     name: N,
-    args: OverloadArgs<F[N], A>,
+    args: OverloadOptions<F[N], A>,
     options?: RpcOptions<R>,
   ): AsyncResult<R>;
   $rpc<N extends NoArgName<F>>(

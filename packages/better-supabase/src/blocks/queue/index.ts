@@ -49,7 +49,6 @@ export { createLeases } from "./leases.ts";
 export type {
   Idempotency,
   IdempotencyOptions,
-  IdempotencySettings,
   IdempotencySource,
   IdempotencyState,
 } from "./idempotency.ts";
@@ -125,7 +124,7 @@ export type {
   QueueMessageRow,
   QueueRpcClient,
   QueueStats,
-  QueuePurgeArgs,
+  QueuePurgeOptions,
   StoredSchedule,
   TransportQueueProviderOptions,
 } from "./backends.ts";

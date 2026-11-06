@@ -21,7 +21,7 @@ export {
   type AccountingPeriod,
   type AccountingPeriodStatus,
   type AccountingReportOptions,
-  type AccountingSettings,
+  type AccountingSetup,
   type AccountingSetupInput,
   type BalanceSheet,
   type FiscalYearClose,

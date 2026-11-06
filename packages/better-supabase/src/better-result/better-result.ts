@@ -10,17 +10,17 @@ import type {
 import type {
   CursorPageArgs,
   Db,
-  DeleteArgs,
+  DeleteOptions,
   DeleteExt,
   FindExt,
   GetKey,
   ManyOutcome,
   ManyResult,
-  ManyWriteArgs,
+  ManyWriteOptions,
   NoArgName,
-  OffsetPageArgs,
-  OffsetRangeArgs,
-  OverloadArgs,
+  OffsetPageOptions,
+  OffsetRangeOptions,
+  OverloadOptions,
   OverloadedName,
   OverloadReturns,
   PageOf,
@@ -30,20 +30,20 @@ import type {
   RowFilter,
   RpcArgs,
   RpcOptions,
-  UpdateArgs,
-  UpsertArgs,
-  UpsertManyArgs,
-  WriteArgs,
-  WriteManyArgs,
+  UpdateOptions,
+  UpsertOptions,
+  UpsertManyOptions,
+  WriteOptions,
+  WriteManyOptions,
 } from "../core/repository-types.ts";
 import type { BetterResultApi } from "../core/result.ts";
 import type { SearchArgs, SearchScore } from "../core/search.ts";
 import type { InferResult, QuerySpec } from "../core/spec.ts";
 import type {
-  AggregateArgs,
+  AggregateOptions,
   AggregateResult,
-  CountArgs,
-  GetArgs,
+  CountOptions,
+  GetOptions,
   ListArgs,
   Payload,
 } from "../ir/args.ts";
@@ -115,15 +115,15 @@ export interface BetterResultRepository<
   ): Out<Payload<M, T, A>[], Err>;
   page<
     const A extends (
-      | OffsetPageArgs<M, T>
-      | OffsetRangeArgs<M, T>
+      | OffsetPageOptions<M, T>
+      | OffsetRangeOptions<M, T>
       | CursorPageArgs<M, T>
     ) &
       FindExt<E, M, T>,
   >(
     args: A,
   ): Out<PageOf<M, T, A>, Err>;
-  get<const A extends GetArgs<M, T> & FindExt<E, M, T>>(
+  get<const A extends GetOptions<M, T> & FindExt<E, M, T>>(
     key: GetKey<M, T>,
     args?: A,
   ): Out<
@@ -132,16 +132,16 @@ export interface BetterResultRepository<
       : Payload<M, T, A>,
     Err
   >;
-  count(args?: CountArgs<M, T> & FindExt<E, M, T>): Out<number, Err>;
-  aggregate<const A extends AggregateArgs<M, T> & FindExt<E, M, T>>(
+  count(args?: CountOptions<M, T> & FindExt<E, M, T>): Out<number, Err>;
+  aggregate<const A extends AggregateOptions<M, T> & FindExt<E, M, T>>(
     args: A,
   ): Out<AggregateResult<M, T, A>, Err>;
 
-  create<const A extends WriteArgs<M, T> = {}>(
+  create<const A extends WriteOptions<M, T> = {}>(
     data: Insert<M, T>,
     args?: A,
   ): Out<Returned<M, T, A>, Err>;
-  create<const A extends WriteManyArgs<M, T> = {}>(
+  create<const A extends WriteManyOptions<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
   ): Out<ManyOutcome<M, T, A, true>, Err>;
@@ -150,7 +150,7 @@ export interface BetterResultRepository<
     patch: Update<M, T>,
   ): Out<{ count: number }, Err>;
   update<
-    const A extends ManyWriteArgs<M, T> & {
+    const A extends ManyWriteOptions<M, T> & {
       readonly allowAll?: boolean;
     } & FindExt<E, M, T>,
   >(
@@ -158,12 +158,12 @@ export interface BetterResultRepository<
     patch: NoInfer<Update<M, T>>,
     args: A,
   ): Out<ManyResult<M, T, A>, Err>;
-  update<const A extends UpdateArgs<M, T> = {}>(
+  update<const A extends UpdateOptions<M, T> = {}>(
     id: PrimaryKeyValue<M, T>,
     patch: Update<M, T>,
     args?: A,
   ): Out<Returned<M, T, A>, Err>;
-  upsert<const A extends UpsertArgs<M, T> = {}>(
+  upsert<const A extends UpsertOptions<M, T> = {}>(
     data: Insert<M, T>,
     args?: A,
   ): Out<
@@ -172,20 +172,22 @@ export interface BetterResultRepository<
       : Returned<M, T, A>,
     Err
   >;
-  upsert<const A extends UpsertManyArgs<M, T> = {}>(
+  upsert<const A extends UpsertManyOptions<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
   ): Out<ManyOutcome<M, T, A, true>, Err>;
   delete(filter: RowFilter<M, T>): Out<{ count: number }, Err>;
   delete<
-    const A extends ManyWriteArgs<M, T> & DeleteExt<E, M, T> & FindExt<E, M, T>,
+    const A extends ManyWriteOptions<M, T> &
+      DeleteExt<E, M, T> &
+      FindExt<E, M, T>,
   >(
     filter: RowFilter<M, T>,
     args: A,
   ): Out<ManyResult<M, T, A>, Err>;
   delete(
     id: PrimaryKeyValue<M, T>,
-    args?: DeleteArgs & DeleteExt<E, M, T>,
+    args?: DeleteOptions & DeleteExt<E, M, T>,
   ): Out<void, Err>;
 }
 
@@ -231,7 +233,7 @@ export interface BetterResultHelpers<
   ): Out<R, Err>;
   $rpc<N extends OverloadedName<F>, const A extends F[N]["Args"]>(
     name: N,
-    args: OverloadArgs<F[N], A>,
+    args: OverloadOptions<F[N], A>,
     options: RawRpcOptions,
   ): Out<unknown, Err>;
   $rpc<
@@ -240,7 +242,7 @@ export interface BetterResultHelpers<
     R = OverloadReturns<F[N], A>,
   >(
     name: N,
-    args: OverloadArgs<F[N], A>,
+    args: OverloadOptions<F[N], A>,
     options?: RpcOptions<R>,
   ): Out<R, Err>;
   $rpc<N extends NoArgName<F>>(
