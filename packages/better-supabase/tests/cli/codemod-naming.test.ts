@@ -46,6 +46,17 @@ describe("codemod naming", () => {
     expect(text).not.toContain("createRuleSink");
   });
 
+  it("renames imports from two statements in one file", () => {
+    const { text } = applyCodemod(
+      codemod,
+      'import { buildApiModel } from "better-supabase/spec";\nimport { buildJsonSchema } from "better-supabase/config";\nbuildApiModel(buildJsonSchema({}));\n',
+    );
+
+    expect(text).toBe(
+      'import { defineApiModel } from "better-supabase/spec";\nimport { toJsonSchema } from "better-supabase/config";\ndefineApiModel(toJsonSchema({}));\n',
+    );
+  });
+
   it("renames a subpath in specifiers", () => {
     const { text } = applyCodemod(
       codemod,

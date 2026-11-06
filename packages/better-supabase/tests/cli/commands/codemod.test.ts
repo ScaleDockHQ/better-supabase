@@ -124,6 +124,18 @@ describe("runCodemod", () => {
     ).toBe("select 1;\n");
   });
 
+  it("lists the lines a codemod leaves for review", async () => {
+    await writeFile(
+      join(root, "src/lib/reads.ts"),
+      "await Promise.all([db.customers.list(), db.orders.count()]);\n",
+    );
+
+    const result = await codemod(["read-many", "src/lib/reads.ts"]);
+
+    expect(result.output).toContain("Check these by hand:");
+    expect(result.output).toContain("src/lib/reads.ts:1:");
+  });
+
   it("writes no SQL migration while the table has no SQL renames", async () => {
     await codemod(["naming"]);
     expect(await readdir(root)).not.toContain("supabase");
