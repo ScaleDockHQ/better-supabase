@@ -20,6 +20,12 @@ import {
   triggerGrant,
 } from "../shared.ts";
 import { tableMoves } from "../table-renames.ts";
+import {
+  liveRowsIndex,
+  sourceTemplateColumnSql,
+  templateColumnSql,
+  templateGuardSql,
+} from "../template-rows-sql.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
@@ -114,6 +120,7 @@ const NAMES: BlockSqlNames = {
         search: { title: "title", body: ["identifier", "body"] },
         realtime: true,
         history: ["title", "body"],
+        template: "template",
       },
     },
     project: { table: "projects", singular: "project" },
@@ -125,6 +132,8 @@ const NAMES: BlockSqlNames = {
     "after_task_create",
     "before_task_update",
     "after_task_update",
+    "before_task_clone",
+    "after_task_clone",
   ],
   options: [
     "prefix",
@@ -134,6 +143,7 @@ const NAMES: BlockSqlNames = {
     "notify",
     "actionPath",
     "searchColumn",
+    "templates",
   ],
   tables: {
     items: {
@@ -166,6 +176,8 @@ const NAMES: BlockSqlNames = {
         locked: "locked",
         rank: "rank",
         archivedAt: "archived_at",
+        template: "template_id",
+        sourceTemplate: "source_template_id",
         recursFrom: "recurs_from",
         createdBy: "created_by",
         createdAt: "created_at",
@@ -181,6 +193,8 @@ const NAMES: BlockSqlNames = {
         "endAt",
         "recursFrom",
         "createdBy",
+        "template",
+        "sourceTemplate",
       ],
       typed: ["state", "closeReason"],
       mappable: ["priority"],
@@ -266,6 +280,52 @@ const NAMES: BlockSqlNames = {
   },
 };
 
+/** Template rows are on: the option, the column, and the templates block. */
+function templatesOn(ctx: BlockSqlContext): boolean {
+  if (!ctx.flag("templates", false)) {
+    return false;
+  }
+
+  if (!ctx.installed("templates")) {
+    throw new TypeError(
+      "blocks.tasks.options.templates needs the templates block",
+    );
+  }
+
+  return ctx.has("items", "template");
+}
+
+function templateColumns(ctx: BlockSqlContext): string {
+  if (!templatesOn(ctx)) {
+    return "";
+  }
+
+  const templates = ctx.of("templates").table("templates");
+
+  return `
+  ${templateColumnSql(ctx.colName("items", "template"), templates, true)},
+  ${ctx.has("items", "sourceTemplate") ? `${sourceTemplateColumnSql(ctx.colName("items", "sourceTemplate"), templates)},` : ""}`;
+}
+
+function templateGuard(
+  ctx: BlockSqlContext,
+  t: (table: string) => string,
+): string {
+  if (!templatesOn(ctx)) {
+    return "";
+  }
+
+  return `
+${templateGuardSql({
+  fn: ctx.fn("task_template_guard"),
+  trigger: ctx.trigger("task_template"),
+  table: t("items"),
+  column: ctx.colName("items", "template"),
+  hint: "TASK_TEMPLATE_IMMUTABLE",
+})}
+${triggerGrant(`${ctx.fn("task_template_guard")}()`)}`;
+}
+
 function tables(ctx: BlockSqlContext, n: WorkItemNames): string {
   if (!ctx.manages) {
     return "";
@@ -339,9 +399,9 @@ ${read("iterations")}
   return `${projects}${iterations}
 create table if not exists ${t("items")} (
   ${w("id")} uuid primary key default gen_random_uuid(),
-  ${w("tenant")} ${ctx.idType} not null,
-  ${w("number")} bigint not null,
-  ${w("identifier")} text not null,
+  ${w("tenant")} ${ctx.idType} not null,${templateColumns(ctx)}
+  ${w("number")} bigint${templatesOn(ctx) ? "" : " not null"},
+  ${w("identifier")} text${templatesOn(ctx) ? "" : " not null"},
   ${w("title")} text not null check (length(${w("title")}) between 1 and 500),${column("items", "body", (name) => `${name} text`)}
   ${w("parent")} uuid references ${t("items")} (${w("id")}) on delete cascade,
   ${w("team")} uuid,${column("items", "project", (name) => `${name} uuid${ctx.hasTable("projects") ? ` references ${t("projects")} (${p("id")}) on delete set null` : ""}`)}${column("items", "iteration", (name) => `${name} uuid${ctx.hasTable("iterations") ? ` references ${t("iterations")} (${i("id")}) on delete set null` : ""}`)}
@@ -362,7 +422,7 @@ create table if not exists ${t("items")} (
 );${appUniqueIndex(ctx, "items", ["tenant", "number"])}
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_board_idx`)} on ${t("items")} (${w("pipeline")}, ${w("stage")}, ${w("rank")});
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_parent_idx`)} on ${t("items")} (${w("parent")});${ctx.has("items", "project") ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("items").name}_${ctx.naming.rename("project_idx")}`)} on ${t("items")} (${w("project")});` : ""}${ctx.has("items", "iteration") ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("items").name}_${ctx.naming.rename("iteration_idx")}`)} on ${t("items")} (${w("iteration")});` : ""}
-create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_due_idx`)} on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${addExtraColumns(t("items"), ctx.extraColumns("items", ["fields"]))}${searchColumnSql(ctx, "items", ["identifier", "title", "body"])}
+create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_due_idx`)} on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${templatesOn(ctx) ? `\n${liveRowsIndex(`${ctx.tableName("items").name}_live_idx`, t("items"), `${w("tenant")}, ${w("number")} desc`, ctx.colName("items", "template"))}` : ""}${templateGuard(ctx, t)}${addExtraColumns(t("items"), ctx.extraColumns("items", ["fields"]))}${searchColumnSql(ctx, "items", ["identifier", "title", "body"])}
 ${lockModuleTable(ctx, "items", { read: true })}
 ${read("items")}
 
@@ -458,11 +518,11 @@ ${
       end if;
 `
     : ""
-}      ${ctx.record({ type: "task.closed", payload: payload(`, 'state', new.${w("state")}, 'closeReason', new.${w("closeReason")}`), subject, tenant, audit: false })}
+}      ${ctx.record({ type: "task.closed", payload: payload(`, 'state', new.${w("state")}, 'closeReason', new.${w("closeReason")}`), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
     elsif not (${closed}) and ${state(`old.${w("state")}`, ["completed", "canceled"])} then
       new.${w("closedAt")} := null;
       new.${w("closeReason")} := null;
-      ${ctx.record({ type: "task.reopened", payload: payload(""), subject, tenant, audit: false })}
+      ${ctx.record({ type: "task.reopened", payload: payload(""), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
     end if;
   end if;
   new.${w("updatedAt")} := now();
@@ -514,6 +574,7 @@ function build(ctx: BlockSqlContext): string {
     extras: ctx.extraColumns("items", ["fields"]),
     e: (name) => ctx.resolved.entityNaming.rename(name),
     type: taskType(ctx),
+    templates: templatesOn(ctx),
   };
 
   return `${schemaPreamble(ctx)}
@@ -529,6 +590,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "jsonb", "uuid[]"],
       returns: "jsonb",
     },
+    { name: "clone_task", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "update_tasks", args: ["jsonb", "boolean"], returns: "jsonb" },
     {
       name: "set_task_assignees",
@@ -637,6 +699,39 @@ const CONTRIBUTES: BlockContributes = {
       },
     },
   ],
+  templates: (own) => {
+    if (!own.flag("templates", false) || !own.has("items", "template")) {
+      return [];
+    }
+
+    const { schema, name } = own.tableName("items");
+
+    return [
+      {
+        type: taskType(own),
+        storage: "rows",
+        subject: taskType(own),
+        clone: own.fn("clone_task"),
+        table: `${schema}.${name}`,
+        templateColumn: own.colName("items", "template"),
+        idColumn: own.colName("items", "id"),
+        children: [
+          {
+            table: `${schema}.${own.tableName("assignees").name}`,
+            parent: own.colName("assignees", "item"),
+          },
+          ...(own.hasTable("checklist")
+            ? [
+                {
+                  table: `${schema}.${own.tableName("checklist").name}`,
+                  parent: own.colName("checklist", "item"),
+                },
+              ]
+            : []),
+        ],
+      },
+    ];
+  },
   pipelines: (own) => {
     const { schema, name } = own.tableName("items");
 
@@ -661,7 +756,7 @@ const CONTRIBUTES: BlockContributes = {
     where a.${own.col("assignees", "user")} = v_me
       and ${own.is("items", "state", w("state"), ["completed", "canceled"], true)}
       and ${w("archivedAt")} is null
-      and ${myWorkTenant(w("tenant"))}`,
+      and ${myWorkTenant(w("tenant"))}${own.flag("templates", false) && own.has("items", "template") ? `\n      and ${w("template")} is null` : ""}`,
       },
     ];
   },
@@ -684,6 +779,9 @@ export const WORK_ITEMS: BlockSqlDefinition = {
     "attachments",
     "reminders",
     "accounting",
+    "option-sets",
+    "templates",
+    "tags",
   ],
   target: "schema",
   modes: ["managed", "custom"],

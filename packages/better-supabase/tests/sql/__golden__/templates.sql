@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:1a16b70e1bb12879353b1ad95fa6ae2d58595932a9823f9a1b4ceb2bbd56e772
+-- @bsb-hash sha256:608b2842bf993c4193543b3aad9c822bd9b40504e6108107b84f8e6ac0fd2e7a
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -823,6 +823,83 @@ $$;
 revoke execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) to authenticated, service_role;
 
+create or replace function "better_supabase"."clone_row"(target regclass, source uuid, overrides jsonb default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+  v_new uuid := gen_random_uuid();
+  v_template uuid;
+  v_cols text;
+  v_vals text;
+  v_child record;
+begin
+  execute format('select to_jsonb(t) from %s t where t.id = $1', target) into v_row using source;
+  if v_row is null then
+    raise exception 'No such row' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  v_template := nullif(v_row ->> 'template_id', '')::uuid;
+  v_row := v_row || coalesce(overrides, '{}'::jsonb) || jsonb_build_object('id', v_new);
+  if not (coalesce(overrides, '{}'::jsonb) ? 'template_id') then
+    v_row := v_row || jsonb_build_object('template_id', null);
+  end if;
+  if v_template is not null and not (coalesce(overrides, '{}'::jsonb) ? 'source_template_id') then
+    v_row := v_row || jsonb_build_object('source_template_id', v_template);
+  end if;
+  select string_agg(format('%I', key), ', '), string_agg(format('%L', value), ', ')
+    into v_cols, v_vals
+    from jsonb_each_text(v_row);
+  execute format('insert into %s (%s) values (%s)', target, v_cols, v_vals);
+  for v_child in
+    select c.conrelid::regclass as child, a.attname as parent
+    from pg_catalog.pg_constraint c
+    join pg_catalog.pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+    where c.confrelid = target and c.contype = 'f' and c.conrelid <> target
+  loop
+    execute format(
+      'insert into %s select (jsonb_populate_record(null::%s, to_jsonb(x) || jsonb_build_object(%L, $1, ''id'', gen_random_uuid()))).* from %s x where x.%I = $2',
+      v_child.child, v_child.child, v_child.parent, v_child.child, v_child.parent
+    ) using v_new, source;
+  end loop;
+  return v_new;
+end;
+$$;
+revoke execute on function "better_supabase"."clone_row"(regclass, uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."clone_row"(regclass, uuid, jsonb) to service_role;
+
+create or replace function "better_supabase"."template_table"(target regclass)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  execute format('alter table %s add column if not exists template_id uuid unique references "better_supabase"."templates" (id) on delete cascade', target);
+  execute format('alter table %s add column if not exists source_template_id uuid references "better_supabase"."templates" (id) on delete set null', target);
+  execute format('drop trigger if exists bsb_template_row on %s', target);
+  execute format('create trigger bsb_template_row before update of template_id on %s for each row execute function "better_supabase"."template_row_guard"()', target);
+end;
+$$;
+revoke execute on function "better_supabase"."template_table"(regclass) from public, anon, authenticated;
+grant execute on function "better_supabase"."template_table"(regclass) to service_role;
+
+create or replace function "better_supabase"."template_row_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.template_id is distinct from old.template_id then
+    raise exception 'A row cannot change between a template and a live record' using errcode = '23514', hint = 'TEMPLATE_IMMUTABLE';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."template_row_guard"() from public, anon, authenticated;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -914,7 +991,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:c2ae4891d6d8170659d048bde35a7fc8917d8701d90609a5fec597cfbca79b27
+-- @bsb-hash sha256:74dc898be7cb2c33a88be5b6952d3b4da2ba20952f96af085d8511244f0928eb
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2299,6 +2376,83 @@ $$;
 revoke execute on function "better_supabase"."finish_template_occurrence"(uuid, timestamptz, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."finish_template_occurrence"(uuid, timestamptz, uuid) to service_role;
 
+create or replace function "better_supabase"."clone_row"(target regclass, source uuid, overrides jsonb default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+  v_new uuid := gen_random_uuid();
+  v_template uuid;
+  v_cols text;
+  v_vals text;
+  v_child record;
+begin
+  execute format('select to_jsonb(t) from %s t where t.id = $1', target) into v_row using source;
+  if v_row is null then
+    raise exception 'No such row' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  v_template := nullif(v_row ->> 'template_id', '')::uuid;
+  v_row := v_row || coalesce(overrides, '{}'::jsonb) || jsonb_build_object('id', v_new);
+  if not (coalesce(overrides, '{}'::jsonb) ? 'template_id') then
+    v_row := v_row || jsonb_build_object('template_id', null);
+  end if;
+  if v_template is not null and not (coalesce(overrides, '{}'::jsonb) ? 'source_template_id') then
+    v_row := v_row || jsonb_build_object('source_template_id', v_template);
+  end if;
+  select string_agg(format('%I', key), ', '), string_agg(format('%L', value), ', ')
+    into v_cols, v_vals
+    from jsonb_each_text(v_row);
+  execute format('insert into %s (%s) values (%s)', target, v_cols, v_vals);
+  for v_child in
+    select c.conrelid::regclass as child, a.attname as parent
+    from pg_catalog.pg_constraint c
+    join pg_catalog.pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+    where c.confrelid = target and c.contype = 'f' and c.conrelid <> target
+  loop
+    execute format(
+      'insert into %s select (jsonb_populate_record(null::%s, to_jsonb(x) || jsonb_build_object(%L, $1, ''id'', gen_random_uuid()))).* from %s x where x.%I = $2',
+      v_child.child, v_child.child, v_child.parent, v_child.child, v_child.parent
+    ) using v_new, source;
+  end loop;
+  return v_new;
+end;
+$$;
+revoke execute on function "better_supabase"."clone_row"(regclass, uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."clone_row"(regclass, uuid, jsonb) to service_role;
+
+create or replace function "better_supabase"."template_table"(target regclass)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  execute format('alter table %s add column if not exists template_id uuid unique references "better_supabase"."templates" (id) on delete cascade', target);
+  execute format('alter table %s add column if not exists source_template_id uuid references "better_supabase"."templates" (id) on delete set null', target);
+  execute format('drop trigger if exists bsb_template_row on %s', target);
+  execute format('create trigger bsb_template_row before update of template_id on %s for each row execute function "better_supabase"."template_row_guard"()', target);
+end;
+$$;
+revoke execute on function "better_supabase"."template_table"(regclass) from public, anon, authenticated;
+grant execute on function "better_supabase"."template_table"(regclass) to service_role;
+
+create or replace function "better_supabase"."template_row_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.template_id is distinct from old.template_id then
+    raise exception 'A row cannot change between a template and a live record' using errcode = '23514', hint = 'TEMPLATE_IMMUTABLE';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."template_row_guard"() from public, anon, authenticated;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2439,7 +2593,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:cbbab7bba9e9d8ef06773287ed2e60e9861a0bbcf8adcdfe0d3296921cbcddda
+-- @bsb-hash sha256:59e5284db6d39415f6fc8a6dddd7bf8845ba8afa465ab22cec34448b9888c2af
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3266,6 +3420,83 @@ $$;
 revoke execute on function "app_private"."template_applications_list"(uuid, uuid, text, text) from public, anon;
 grant execute on function "app_private"."template_applications_list"(uuid, uuid, text, text) to authenticated, service_role;
 
+create or replace function "app_private"."clone_row"(target regclass, source uuid, overrides jsonb default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+  v_new uuid := gen_random_uuid();
+  v_template uuid;
+  v_cols text;
+  v_vals text;
+  v_child record;
+begin
+  execute format('select to_jsonb(t) from %s t where t.id = $1', target) into v_row using source;
+  if v_row is null then
+    raise exception 'No such row' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  v_template := nullif(v_row ->> 'template_id', '')::uuid;
+  v_row := v_row || coalesce(overrides, '{}'::jsonb) || jsonb_build_object('id', v_new);
+  if not (coalesce(overrides, '{}'::jsonb) ? 'template_id') then
+    v_row := v_row || jsonb_build_object('template_id', null);
+  end if;
+  if v_template is not null and not (coalesce(overrides, '{}'::jsonb) ? 'source_template_id') then
+    v_row := v_row || jsonb_build_object('source_template_id', v_template);
+  end if;
+  select string_agg(format('%I', key), ', '), string_agg(format('%L', value), ', ')
+    into v_cols, v_vals
+    from jsonb_each_text(v_row);
+  execute format('insert into %s (%s) values (%s)', target, v_cols, v_vals);
+  for v_child in
+    select c.conrelid::regclass as child, a.attname as parent
+    from pg_catalog.pg_constraint c
+    join pg_catalog.pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+    where c.confrelid = target and c.contype = 'f' and c.conrelid <> target
+  loop
+    execute format(
+      'insert into %s select (jsonb_populate_record(null::%s, to_jsonb(x) || jsonb_build_object(%L, $1, ''id'', gen_random_uuid()))).* from %s x where x.%I = $2',
+      v_child.child, v_child.child, v_child.parent, v_child.child, v_child.parent
+    ) using v_new, source;
+  end loop;
+  return v_new;
+end;
+$$;
+revoke execute on function "app_private"."clone_row"(regclass, uuid, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."clone_row"(regclass, uuid, jsonb) to service_role;
+
+create or replace function "app_private"."template_table"(target regclass)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  execute format('alter table %s add column if not exists template_id uuid unique references "app_private"."templates" (id) on delete cascade', target);
+  execute format('alter table %s add column if not exists source_template_id uuid references "app_private"."templates" (id) on delete set null', target);
+  execute format('drop trigger if exists bsb_template_row on %s', target);
+  execute format('create trigger bsb_template_row before update of template_id on %s for each row execute function "app_private"."template_row_guard"()', target);
+end;
+$$;
+revoke execute on function "app_private"."template_table"(regclass) from public, anon, authenticated;
+grant execute on function "app_private"."template_table"(regclass) to service_role;
+
+create or replace function "app_private"."template_row_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.template_id is distinct from old.template_id then
+    raise exception 'A row cannot change between a template and a live record' using errcode = '23514', hint = 'TEMPLATE_IMMUTABLE';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "app_private"."template_row_guard"() from public, anon, authenticated;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3357,7 +3588,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:819f9f49443c996e512ab77792c27fe55aae0953977208ea547c928b901c5120
+-- @bsb-hash sha256:0d3b7c1026d20b73a8264a4a484d52d13bef51ef3e697ff47859e31a49cb48df
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4179,6 +4410,83 @@ $$;
 revoke execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) to authenticated, service_role;
 
+create or replace function "better_supabase"."clone_row"(target regclass, source uuid, overrides jsonb default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+  v_new uuid := gen_random_uuid();
+  v_template uuid;
+  v_cols text;
+  v_vals text;
+  v_child record;
+begin
+  execute format('select to_jsonb(t) from %s t where t.id = $1', target) into v_row using source;
+  if v_row is null then
+    raise exception 'No such row' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  v_template := nullif(v_row ->> 'template_id', '')::uuid;
+  v_row := v_row || coalesce(overrides, '{}'::jsonb) || jsonb_build_object('id', v_new);
+  if not (coalesce(overrides, '{}'::jsonb) ? 'template_id') then
+    v_row := v_row || jsonb_build_object('template_id', null);
+  end if;
+  if v_template is not null and not (coalesce(overrides, '{}'::jsonb) ? 'source_template_id') then
+    v_row := v_row || jsonb_build_object('source_template_id', v_template);
+  end if;
+  select string_agg(format('%I', key), ', '), string_agg(format('%L', value), ', ')
+    into v_cols, v_vals
+    from jsonb_each_text(v_row);
+  execute format('insert into %s (%s) values (%s)', target, v_cols, v_vals);
+  for v_child in
+    select c.conrelid::regclass as child, a.attname as parent
+    from pg_catalog.pg_constraint c
+    join pg_catalog.pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+    where c.confrelid = target and c.contype = 'f' and c.conrelid <> target
+  loop
+    execute format(
+      'insert into %s select (jsonb_populate_record(null::%s, to_jsonb(x) || jsonb_build_object(%L, $1, ''id'', gen_random_uuid()))).* from %s x where x.%I = $2',
+      v_child.child, v_child.child, v_child.parent, v_child.child, v_child.parent
+    ) using v_new, source;
+  end loop;
+  return v_new;
+end;
+$$;
+revoke execute on function "better_supabase"."clone_row"(regclass, uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."clone_row"(regclass, uuid, jsonb) to service_role;
+
+create or replace function "better_supabase"."template_table"(target regclass)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  execute format('alter table %s add column if not exists template_id uuid unique references "better_supabase"."templates" (id) on delete cascade', target);
+  execute format('alter table %s add column if not exists source_template_id uuid references "better_supabase"."templates" (id) on delete set null', target);
+  execute format('drop trigger if exists bsb_template_row on %s', target);
+  execute format('create trigger bsb_template_row before update of template_id on %s for each row execute function "better_supabase"."template_row_guard"()', target);
+end;
+$$;
+revoke execute on function "better_supabase"."template_table"(regclass) from public, anon, authenticated;
+grant execute on function "better_supabase"."template_table"(regclass) to service_role;
+
+create or replace function "better_supabase"."template_row_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.template_id is distinct from old.template_id then
+    raise exception 'A row cannot change between a template and a live record' using errcode = '23514', hint = 'TEMPLATE_IMMUTABLE';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."template_row_guard"() from public, anon, authenticated;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4385,6 +4693,24 @@ as $$ select "better_supabase"."template_applications_list"($1, $2, $3, $4) $$;
 revoke execute on function "api"."template_applications_list"(uuid, uuid, text, text) from public, anon;
 grant execute on function "api"."template_applications_list"(uuid, uuid, text, text) to authenticated, service_role;
 
+create or replace function "api"."clone_row"(target regclass, source uuid, overrides jsonb default null)
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."clone_row"($1, $2, $3) $$;
+revoke execute on function "api"."clone_row"(regclass, uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."clone_row"(regclass, uuid, jsonb) to service_role;
+
+create or replace function "api"."template_table"(target regclass)
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."template_table"($1) $$;
+revoke execute on function "api"."template_table"(regclass) from public, anon, authenticated;
+grant execute on function "api"."template_table"(regclass) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -4417,7 +4743,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:59df2860f01f1b42e740c691a7e84e758c0d7448648f6948a5a205286635e3bd
+-- @bsb-hash sha256:813b21a1637b423e14fbbc13daff31fc0e2b1b9c0620c78d3c1a6098fca4baf4
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5247,6 +5573,83 @@ $$;
 revoke execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) to authenticated, service_role;
 
+create or replace function "better_supabase"."clone_row"(target regclass, source uuid, overrides jsonb default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+  v_new uuid := gen_random_uuid();
+  v_template uuid;
+  v_cols text;
+  v_vals text;
+  v_child record;
+begin
+  execute format('select to_jsonb(t) from %s t where t.id = $1', target) into v_row using source;
+  if v_row is null then
+    raise exception 'No such row' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  v_template := nullif(v_row ->> 'template_id', '')::uuid;
+  v_row := v_row || coalesce(overrides, '{}'::jsonb) || jsonb_build_object('id', v_new);
+  if not (coalesce(overrides, '{}'::jsonb) ? 'template_id') then
+    v_row := v_row || jsonb_build_object('template_id', null);
+  end if;
+  if v_template is not null and not (coalesce(overrides, '{}'::jsonb) ? 'source_template_id') then
+    v_row := v_row || jsonb_build_object('source_template_id', v_template);
+  end if;
+  select string_agg(format('%I', key), ', '), string_agg(format('%L', value), ', ')
+    into v_cols, v_vals
+    from jsonb_each_text(v_row);
+  execute format('insert into %s (%s) values (%s)', target, v_cols, v_vals);
+  for v_child in
+    select c.conrelid::regclass as child, a.attname as parent
+    from pg_catalog.pg_constraint c
+    join pg_catalog.pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+    where c.confrelid = target and c.contype = 'f' and c.conrelid <> target
+  loop
+    execute format(
+      'insert into %s select (jsonb_populate_record(null::%s, to_jsonb(x) || jsonb_build_object(%L, $1, ''id'', gen_random_uuid()))).* from %s x where x.%I = $2',
+      v_child.child, v_child.child, v_child.parent, v_child.child, v_child.parent
+    ) using v_new, source;
+  end loop;
+  return v_new;
+end;
+$$;
+revoke execute on function "better_supabase"."clone_row"(regclass, uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."clone_row"(regclass, uuid, jsonb) to service_role;
+
+create or replace function "better_supabase"."template_table"(target regclass)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  execute format('alter table %s add column if not exists template_id uuid unique references "better_supabase"."templates" (id) on delete cascade', target);
+  execute format('alter table %s add column if not exists source_template_id uuid references "better_supabase"."templates" (id) on delete set null', target);
+  execute format('drop trigger if exists bsb_template_row on %s', target);
+  execute format('create trigger bsb_template_row before update of template_id on %s for each row execute function "better_supabase"."template_row_guard"()', target);
+end;
+$$;
+revoke execute on function "better_supabase"."template_table"(regclass) from public, anon, authenticated;
+grant execute on function "better_supabase"."template_table"(regclass) to service_role;
+
+create or replace function "better_supabase"."template_row_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.template_id is distinct from old.template_id then
+    raise exception 'A row cannot change between a template and a live record' using errcode = '23514', hint = 'TEMPLATE_IMMUTABLE';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."template_row_guard"() from public, anon, authenticated;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -5338,7 +5741,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:69e65b53c96df0cf4378b86c9c0d725adc4ef1ed0b997fb7ad3081ed8ea4dca7
+-- @bsb-hash sha256:717a4ab41a9bafe7918b5207cb46d89481aa458ab9ab5bd83a7783c254b5026a
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6159,6 +6562,83 @@ as $$
 $$;
 revoke execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."template_applications_list"(uuid, uuid, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."clone_row"(target regclass, source uuid, overrides jsonb default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+  v_new uuid := gen_random_uuid();
+  v_template uuid;
+  v_cols text;
+  v_vals text;
+  v_child record;
+begin
+  execute format('select to_jsonb(t) from %s t where t.id = $1', target) into v_row using source;
+  if v_row is null then
+    raise exception 'No such row' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
+  end if;
+  v_template := nullif(v_row ->> 'template_id', '')::uuid;
+  v_row := v_row || coalesce(overrides, '{}'::jsonb) || jsonb_build_object('id', v_new);
+  if not (coalesce(overrides, '{}'::jsonb) ? 'template_id') then
+    v_row := v_row || jsonb_build_object('template_id', null);
+  end if;
+  if v_template is not null and not (coalesce(overrides, '{}'::jsonb) ? 'source_template_id') then
+    v_row := v_row || jsonb_build_object('source_template_id', v_template);
+  end if;
+  select string_agg(format('%I', key), ', '), string_agg(format('%L', value), ', ')
+    into v_cols, v_vals
+    from jsonb_each_text(v_row);
+  execute format('insert into %s (%s) values (%s)', target, v_cols, v_vals);
+  for v_child in
+    select c.conrelid::regclass as child, a.attname as parent
+    from pg_catalog.pg_constraint c
+    join pg_catalog.pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+    where c.confrelid = target and c.contype = 'f' and c.conrelid <> target
+  loop
+    execute format(
+      'insert into %s select (jsonb_populate_record(null::%s, to_jsonb(x) || jsonb_build_object(%L, $1, ''id'', gen_random_uuid()))).* from %s x where x.%I = $2',
+      v_child.child, v_child.child, v_child.parent, v_child.child, v_child.parent
+    ) using v_new, source;
+  end loop;
+  return v_new;
+end;
+$$;
+revoke execute on function "better_supabase"."clone_row"(regclass, uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."clone_row"(regclass, uuid, jsonb) to service_role;
+
+create or replace function "better_supabase"."template_table"(target regclass)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  execute format('alter table %s add column if not exists template_id uuid unique references "better_supabase"."templates" (id) on delete cascade', target);
+  execute format('alter table %s add column if not exists source_template_id uuid references "better_supabase"."templates" (id) on delete set null', target);
+  execute format('drop trigger if exists bsb_template_row on %s', target);
+  execute format('create trigger bsb_template_row before update of template_id on %s for each row execute function "better_supabase"."template_row_guard"()', target);
+end;
+$$;
+revoke execute on function "better_supabase"."template_table"(regclass) from public, anon, authenticated;
+grant execute on function "better_supabase"."template_table"(regclass) to service_role;
+
+create or replace function "better_supabase"."template_row_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.template_id is distinct from old.template_id then
+    raise exception 'A row cannot change between a template and a live record' using errcode = '23514', hint = 'TEMPLATE_IMMUTABLE';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."template_row_guard"() from public, anon, authenticated;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

@@ -482,7 +482,14 @@ security definer
 set search_path = ''
 as $$
 ${declare}begin
-  if tg_op = 'INSERT' then
+  ${
+    item.template === undefined
+      ? ""
+      : `if new.${sqlIdent(item.template)} is not null then
+    return new;
+  end if;
+  `
+  }if tg_op = 'INSERT' then
     ${insert}
     return new;
   end if;

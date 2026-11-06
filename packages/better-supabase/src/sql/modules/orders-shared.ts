@@ -148,40 +148,65 @@ function sequenceFormat(
  * one more than the tenant's highest under a transaction lock, as plain
  * digits.
  */
+/** Template rows are on for orders (ADR 0244). */
+export function orderTemplatesOn(ctx: BlockSqlContext): boolean {
+  if (!ctx.flag("templates", false)) {
+    return false;
+  }
+
+  if (!ctx.installed("templates")) {
+    throw new TypeError(
+      "blocks.orders.options.templates needs the templates block",
+    );
+  }
+
+  return ctx.has("orders", "template");
+}
+
 export function assignNumber(
   ctx: BlockSqlContext,
   entity: "order" | "invoice",
   tenant: string,
   target: { readonly seq: string; readonly number: string },
+  when?: string,
 ): string {
   const format = sequenceFormat(ctx, entity, tenant);
+
+  const gate = (body: string): string =>
+    when === undefined
+      ? body
+      : `if ${when} then\n  ${body.replaceAll("\n", "\n  ")}\nend if;`;
 
   if (format !== undefined) {
     const next = ctx.of("numbering").fn("next_number");
 
-    return withFixedNumber(
-      ctx,
-      entity,
-      tenant,
-      { seq: target.seq, text: target.number },
-      `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
+    return gate(
+      withFixedNumber(
+        ctx,
+        entity,
+        tenant,
+        { seq: target.seq, text: target.number },
+        `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
   ${target.number} := better_supabase.format_assigned_number(${format}, ${target.seq}, now());`,
-      { at: "now()", scope: "''", registered: true },
+        { at: "now()", scope: "''", registered: true },
+      ),
     );
   }
 
   const o = columns(ctx, "orders");
   const column = entity === "order" ? o("sequence") : o("invoiceSequence");
 
-  return withFixedNumber(
-    ctx,
-    entity,
-    tenant,
-    { seq: target.seq, text: target.number },
-    `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ':commerce:${entity}', 0));
+  return gate(
+    withFixedNumber(
+      ctx,
+      entity,
+      tenant,
+      { seq: target.seq, text: target.number },
+      `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ':commerce:${entity}', 0));
   select coalesce(max(x.${column}), 0) + 1 into ${target.seq} from ${ctx.table("orders")} x where x.${o("tenant")} = ${tenant};
   ${target.number} := ${target.seq}::text;`,
-    { at: "now()", scope: "''" },
+      { at: "now()", scope: "''" },
+    ),
   );
 }
 

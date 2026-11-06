@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:078e802cdf304e9ce5e3c66c83fb891c695c6352a1fbafcc5ca935d34dadc31a
+-- @bsb-hash sha256:5c24b6c849c8f2c51ffef1903bea9e06ff1029975da1777d546af8f61f1b21aa
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -629,6 +629,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."quotes" x where x."id" = send_quote.quote and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.write'), false)) for update;
+  
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
@@ -804,6 +805,7 @@ begin
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
+  
   if decide_quote.decision not in ('accepted', 'rejected', 'changes_requested') then
     raise exception 'answer accepted, rejected or changes_requested' using errcode = '22023', hint = 'QUOTE_DECISION_INVALID';
   end if;
@@ -1263,7 +1265,53 @@ end;
 $$;
 revoke execute on function "better_supabase"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_quotes"() to service_role;
-
+create or replace function "better_supabase"."clone_quote"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."quotes";
+  v_created jsonb;
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."quotes" x where x."id" = clone_quote.source;
+  if not found then
+    raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'quotes.write'), false)) then
+    raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_quote_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_quote.source, clone_quote.overrides;
+    end if;
+  end;
+  v_created := "better_supabase"."create_quote"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object('title', v_src."title", 'currency', v_src."currency", 'templateId', null, 'sourceTemplateId', null)) || (coalesce(clone_quote.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), null);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."quote_lines"
+  select (jsonb_populate_record(null::"better_supabase"."quote_lines", to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), 'parent_id', v_id))).*
+  from "better_supabase"."quote_lines" l where l."parent_id" = clone_quote.source;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_quote_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return v_created;
+end;
+$$;
+revoke execute on function "better_supabase"."clone_quote"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_quote"(uuid, jsonb) to authenticated, service_role;
 -- Makes another variant of a quote: a new draft quote with the same pricing,
 -- party and lines, grouped under the same root. label names it (A, B, Basic,
 -- Premium) and is unique within the group; attrs change the new quote like
@@ -1670,7 +1718,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:e79211066edadae4b1594544ba5b6af4c1921ac53a3e2955da391742fd298f0a
+-- @bsb-hash sha256:c358a284d534e3121e320cfeaa6fa55443f511e3322690bfcd7c5324a1448676
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2304,6 +2352,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."quotes" x where x."id" = send_quote.quote and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.write'), false)) for update;
+  
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
@@ -2479,6 +2528,7 @@ begin
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
+  
   if decide_quote.decision not in ('accepted', 'rejected', 'changes_requested') then
     raise exception 'answer accepted, rejected or changes_requested' using errcode = '22023', hint = 'QUOTE_DECISION_INVALID';
   end if;
@@ -3037,7 +3087,53 @@ end;
 $$;
 revoke execute on function "better_supabase"."quote_from_deal"(uuid) from public, anon;
 grant execute on function "better_supabase"."quote_from_deal"(uuid) to authenticated, service_role;
-
+create or replace function "better_supabase"."clone_quote"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."quotes";
+  v_created jsonb;
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."quotes" x where x."id" = clone_quote.source;
+  if not found then
+    raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'quotes.write'), false)) then
+    raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_quote_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_quote.source, clone_quote.overrides;
+    end if;
+  end;
+  v_created := "better_supabase"."create_quote"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object('title', v_src."title", 'currency', v_src."currency", 'templateId', null, 'sourceTemplateId', null)) || (coalesce(clone_quote.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), null);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."quote_lines"
+  select (jsonb_populate_record(null::"better_supabase"."quote_lines", to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), 'parent_id', v_id))).*
+  from "better_supabase"."quote_lines" l where l."parent_id" = clone_quote.source;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_quote_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return v_created;
+end;
+$$;
+revoke execute on function "better_supabase"."clone_quote"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_quote"(uuid, jsonb) to authenticated, service_role;
 -- Makes another variant of a quote: a new draft quote with the same pricing,
 -- party and lines, grouped under the same root. label names it (A, B, Basic,
 -- Premium) and is unique within the group; attrs change the new quote like
@@ -3458,7 +3554,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:c3a644e2ef418b06da6e8c505d3c4a52cf63d688c27f3bccacd5533badab4369
+-- @bsb-hash sha256:902d3f304684ccde0b16861ea1b5a93866d20b8307e5320720d96f51885725f6
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4091,6 +4187,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."quotes" x where x."id" = send_quote.quote and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.write'), false)) for update;
+  
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
@@ -4266,6 +4363,7 @@ begin
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
+  
   if decide_quote.decision not in ('accepted', 'rejected', 'changes_requested') then
     raise exception 'answer accepted, rejected or changes_requested' using errcode = '22023', hint = 'QUOTE_DECISION_INVALID';
   end if;
@@ -4725,7 +4823,53 @@ end;
 $$;
 revoke execute on function "app_private"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "app_private"."expire_quotes"() to service_role;
-
+create or replace function "app_private"."clone_quote"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "app_private"."quotes";
+  v_created jsonb;
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "app_private"."quotes" x where x."id" = clone_quote.source;
+  if not found then
+    raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'quotes.write'), false)) then
+    raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_quote_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_quote.source, clone_quote.overrides;
+    end if;
+  end;
+  v_created := "app_private"."create_quote"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object('title', v_src."title", 'currency', v_src."currency", 'templateId', null, 'sourceTemplateId', null)) || (coalesce(clone_quote.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), null);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "app_private"."quote_lines"
+  select (jsonb_populate_record(null::"app_private"."quote_lines", to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), 'parent_id', v_id))).*
+  from "app_private"."quote_lines" l where l."parent_id" = clone_quote.source;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_quote_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return v_created;
+end;
+$$;
+revoke execute on function "app_private"."clone_quote"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."clone_quote"(uuid, jsonb) to authenticated, service_role;
 -- Makes another variant of a quote: a new draft quote with the same pricing,
 -- party and lines, grouped under the same root. label names it (A, B, Basic,
 -- Premium) and is unique within the group; attrs change the new quote like
@@ -5132,7 +5276,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:74572c6417d4a08781a3823521cfb75fbc55ea58ea6835f0ddd1c50c31c44917
+-- @bsb-hash sha256:0859cef080e4e9437db79a30ed17caa8c0beb3936a919a8e28672008322847df
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5760,6 +5904,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."quotes" x where x."id" = send_quote.quote and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.write'), false)) for update;
+  
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
@@ -5935,6 +6080,7 @@ begin
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
+  
   if decide_quote.decision not in ('accepted', 'rejected', 'changes_requested') then
     raise exception 'answer accepted, rejected or changes_requested' using errcode = '22023', hint = 'QUOTE_DECISION_INVALID';
   end if;
@@ -6394,7 +6540,53 @@ end;
 $$;
 revoke execute on function "better_supabase"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_quotes"() to service_role;
-
+create or replace function "better_supabase"."clone_quote"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."quotes";
+  v_created jsonb;
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."quotes" x where x."id" = clone_quote.source;
+  if not found then
+    raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'quotes.write'), false)) then
+    raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_quote_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_quote.source, clone_quote.overrides;
+    end if;
+  end;
+  v_created := "better_supabase"."create_quote"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object('title', v_src."title", 'currency', v_src."currency", 'templateId', null, 'sourceTemplateId', null)) || (coalesce(clone_quote.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), null);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."quote_lines"
+  select (jsonb_populate_record(null::"better_supabase"."quote_lines", to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), 'parent_id', v_id))).*
+  from "better_supabase"."quote_lines" l where l."parent_id" = clone_quote.source;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_quote_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return v_created;
+end;
+$$;
+revoke execute on function "better_supabase"."clone_quote"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_quote"(uuid, jsonb) to authenticated, service_role;
 -- Makes another variant of a quote: a new draft quote with the same pricing,
 -- party and lines, grouped under the same root. label names it (A, B, Basic,
 -- Premium) and is unique within the group; attrs change the new quote like
@@ -6938,6 +7130,15 @@ as $$ select "better_supabase"."expire_quotes"() $$;
 revoke execute on function "api"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "api"."expire_quotes"() to service_role;
 
+create or replace function "api"."clone_quote"(source uuid, overrides jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."clone_quote"($1, $2) $$;
+revoke execute on function "api"."clone_quote"(uuid, jsonb) from public, anon;
+grant execute on function "api"."clone_quote"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "api"."create_quote_variant"(quote uuid, label text, attrs jsonb default null)
 returns jsonb
 language sql
@@ -7025,7 +7226,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:aecd495a29d19ab036dedd5b140dec07dc40b1abeb49d24a55ba05f9ea41b3bc
+-- @bsb-hash sha256:345f4edc36e8f3cfa517d9d912fd36cac877410dbcd8ae356b94ff5d4f59606d
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7658,6 +7859,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."quotes" x where x."id" = send_quote.quote and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.write'), false)) for update;
+  
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
@@ -7833,6 +8035,7 @@ begin
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
+  
   if decide_quote.decision not in ('accepted', 'rejected', 'changes_requested') then
     raise exception 'answer accepted, rejected or changes_requested' using errcode = '22023', hint = 'QUOTE_DECISION_INVALID';
   end if;
@@ -8292,7 +8495,53 @@ end;
 $$;
 revoke execute on function "better_supabase"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_quotes"() to service_role;
-
+create or replace function "better_supabase"."clone_quote"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."quotes";
+  v_created jsonb;
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."quotes" x where x."id" = clone_quote.source;
+  if not found then
+    raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'quotes.write'), false)) then
+    raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_quote_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_quote.source, clone_quote.overrides;
+    end if;
+  end;
+  v_created := "better_supabase"."create_quote"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object('title', v_src."title", 'currency', v_src."currency", 'templateId', null, 'sourceTemplateId', null)) || (coalesce(clone_quote.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), null);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."quote_lines"
+  select (jsonb_populate_record(null::"better_supabase"."quote_lines", to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), 'parent_id', v_id))).*
+  from "better_supabase"."quote_lines" l where l."parent_id" = clone_quote.source;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_quote_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return v_created;
+end;
+$$;
+revoke execute on function "better_supabase"."clone_quote"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_quote"(uuid, jsonb) to authenticated, service_role;
 -- Makes another variant of a quote: a new draft quote with the same pricing,
 -- party and lines, grouped under the same root. label names it (A, B, Basic,
 -- Premium) and is unique within the group; attrs change the new quote like
@@ -8699,7 +8948,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:30738cff9d20d0465c055a7623e35be36666b517514017a2cd85eb6edc97ffc4
+-- @bsb-hash sha256:5460dbc0e3b7a44933886e422b5f503f6e319e5c34f52079a49b32526bb51d97
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9327,6 +9576,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."quotes" x where x."id" = send_quote.quote and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'quotes.write'), false)) for update;
+  
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
@@ -9502,6 +9752,7 @@ begin
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
+  
   if decide_quote.decision not in ('accepted', 'rejected', 'changes_requested') then
     raise exception 'answer accepted, rejected or changes_requested' using errcode = '22023', hint = 'QUOTE_DECISION_INVALID';
   end if;
@@ -9961,7 +10212,53 @@ end;
 $$;
 revoke execute on function "better_supabase"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_quotes"() to service_role;
-
+create or replace function "better_supabase"."clone_quote"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."quotes";
+  v_created jsonb;
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."quotes" x where x."id" = clone_quote.source;
+  if not found then
+    raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."org_id", 'quotes.write'), false)) then
+    raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_quote_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_quote.source, clone_quote.overrides;
+    end if;
+  end;
+  v_created := "better_supabase"."create_quote"(v_src."org_id", jsonb_strip_nulls(jsonb_build_object('title', v_src."title", 'currency', v_src."currency", 'templateId', null, 'sourceTemplateId', null)) || (coalesce(clone_quote.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), null);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."quote_lines"
+  select (jsonb_populate_record(null::"better_supabase"."quote_lines", to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), 'parent_id', v_id))).*
+  from "better_supabase"."quote_lines" l where l."parent_id" = clone_quote.source;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_quote_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return v_created;
+end;
+$$;
+revoke execute on function "better_supabase"."clone_quote"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_quote"(uuid, jsonb) to authenticated, service_role;
 -- Makes another variant of a quote: a new draft quote with the same pricing,
 -- party and lines, grouped under the same root. label names it (A, B, Basic,
 -- Premium) and is unique within the group; attrs change the new quote like

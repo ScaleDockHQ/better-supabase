@@ -1,3 +1,15 @@
+/**
+ * The outbox statement, written only when `live` is true. An empty event or no
+ * guard is returned unchanged.
+ */
+export function liveStatement(event: string, live: string | undefined): string {
+  if (event === "" || live === undefined) {
+    return event;
+  }
+
+  return `if ${live} then\n    ${event.replaceAll("\n", "\n    ")}\n  end if;`;
+}
+
 /** An event a module writes to the outbox, as SQL expressions. */
 export interface BlockSqlEmit {
   /** The event type, e.g. `organization.created`. */
@@ -80,4 +92,10 @@ export interface BlockSqlAction extends BlockSqlEmit {
    * action, such as a chat message or a run status.
    */
   readonly audit: BlockSqlAudit | false;
+  /**
+   * A boolean SQL expression. The outbox event is written only when it is true.
+   * The audit entry is written either way, so a template edit stays audited.
+   * ADR 0244.
+   */
+  readonly live?: string;
 }

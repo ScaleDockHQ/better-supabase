@@ -3010,6 +3010,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "contacts",
         "approvals",
         "inspections",
+        "templates",
         "imports"
       ],
       "manifest": "inventory",
@@ -3125,7 +3126,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "placedAt": "placed_at",
               "shipTo": "ship_to",
               "originType": "origin_type",
-              "originId": "origin_id"
+              "originId": "origin_id",
+              "template": "template_id",
+              "sourceTemplate": "source_template_id"
             }
           },
           "requisitions": {
@@ -3318,6 +3321,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "invoices",
         "quotes",
         "contacts",
+        "templates",
         "imports"
       ],
       "manifest": "orders",
@@ -3398,7 +3402,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
-              }
+              },
+              "template": "template"
             }
           },
           "cart": {
@@ -3414,6 +3419,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "tenant": "tenant_id",
               "number": "number",
               "sequence": "sequence",
+              "template": "template_id",
+              "sourceTemplate": "source_template_id",
               "cart": "cart_id",
               "customer": "customer_id",
               "email": "email",
@@ -4329,6 +4336,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "reminders",
         "accounting",
         "option-sets",
+        "templates",
+        "tags",
         "pipelines",
         "subjects"
       ],
@@ -4338,6 +4347,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "contributes": [
         "option-sets",
+        "templates",
         "pipelines",
         "subjects"
       ],
@@ -4374,7 +4384,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "history": [
                 "title",
                 "body"
-              ]
+              ],
+              "template": "template"
             }
           },
           "project": {
@@ -4419,6 +4430,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "locked": "locked",
               "rank": "rank",
               "archivedAt": "archived_at",
+              "template": "template_id",
+              "sourceTemplate": "source_template_id",
               "recursFrom": "recurs_from",
               "createdBy": "created_by",
               "createdAt": "created_at",
@@ -4500,6 +4513,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "orders",
         "invoices",
         "inventory",
+        "templates",
         "imports"
       ],
       "manifest": "quotes",
@@ -4507,7 +4521,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
-        "imports"
+        "imports",
+        "templates"
       ],
       "links": [
         {
@@ -4533,7 +4548,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
-              }
+              },
+              "template": "template"
             }
           }
         },
@@ -4580,6 +4596,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "variantOf": "variant_of",
               "variantLabel": "variant_label",
               "isSelected": "is_selected",
+              "template": "template_id",
+              "sourceTemplate": "source_template_id",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
@@ -4624,6 +4642,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "orders",
         "shipments",
         "billable-time",
+        "templates",
         "imports"
       ],
       "manifest": "invoices",
@@ -4632,7 +4651,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "contributes": [
         "accounting",
-        "imports"
+        "imports",
+        "templates"
       ],
       "links": [
         {
@@ -4667,7 +4687,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
-              }
+              },
+              "template": "template"
             }
           }
         },
@@ -4720,6 +4741,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "collectionStatus": "collection_status",
               "collectionAgencyId": "collection_agency_id",
               "collectionHandedAt": "collection_handed_at",
+              "template": "template_id",
+              "sourceTemplate": "source_template_id",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",

@@ -15,6 +15,10 @@ import {
 } from "../accounting-sources-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import {
+  sourceTemplateColumnSql,
+  templateColumnSql,
+} from "../template-rows-sql.ts";
 import { inventoryAccountingSources } from "./inventory-accounting.ts";
 import {
   addressColumn,
@@ -186,7 +190,7 @@ const NAMES: BlockSqlNames = {
     ...PROCUREMENT_ENTITIES,
   },
   events: EVENTS,
-  options: ["extraColumns", "receiptInspection"],
+  options: ["extraColumns", "receiptInspection", "templates"],
   hooks: [
     "before_stock_adjust",
     "after_stock_adjust",
@@ -300,8 +304,16 @@ const NAMES: BlockSqlNames = {
         shipTo: "ship_to",
         originType: "origin_type",
         originId: "origin_id",
+        template: "template_id",
+        sourceTemplate: "source_template_id",
       },
-      optional: ["shipTo", "originType", "originId"],
+      optional: [
+        "shipTo",
+        "originType",
+        "originId",
+        "template",
+        "sourceTemplate",
+      ],
       typed: ["status"],
     },
     purchaseOrderLines: {
@@ -475,7 +487,7 @@ ${read("transferLines")}
       ? `
 create table if not exists ${t("purchaseOrders")} (
   ${po("id")} uuid primary key default gen_random_uuid(),
-  ${po("tenant")} ${ctx.idType} not null,
+  ${po("tenant")} ${ctx.idType} not null,${purchaseTemplates(ctx) ? `\n  ${templateColumnSql(ctx.colName("purchaseOrders", "template"), ctx.of("templates").table("templates"), true)},${ctx.has("purchaseOrders", "sourceTemplate") ? `\n  ${sourceTemplateColumnSql(ctx.colName("purchaseOrders", "sourceTemplate"), ctx.of("templates").table("templates"))},` : ""}` : ""}
   ${po("location")} uuid not null references ${location},
   ${po("supplierType")} text,
   ${po("supplierId")} text,
@@ -727,6 +739,20 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
 const REQUIRES = ["memberships", "permissions", "catalog", "ledger"] as const;
 
+function purchaseTemplates(ctx: BlockSqlContext): boolean {
+  if (!ctx.flag("templates", false) || !ctx.hasTable("purchaseOrders")) {
+    return false;
+  }
+
+  if (!ctx.installed("templates")) {
+    throw new TypeError(
+      "blocks.inventory.options.templates needs the templates block",
+    );
+  }
+
+  return ctx.has("purchaseOrders", "template");
+}
+
 export const INVENTORY: BlockSqlDefinition = {
   name: "inventory",
   scopes: ["tenant"],
@@ -745,6 +771,7 @@ export const INVENTORY: BlockSqlDefinition = {
     "contacts",
     "approvals",
     "inspections",
+    "templates",
   ],
   target: "schema",
   modes: ["managed", "custom"],

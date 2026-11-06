@@ -354,6 +354,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0241: Let apps define document types with a variable contract.
 - 0242: Compute deadlines from approved, versioned rule sets.
 - 0243: Option sets, lane archiving with a move target and brand starters.
+- 0244: Store templates as rows of the record they create.
 
 ## Pre-release pins
 

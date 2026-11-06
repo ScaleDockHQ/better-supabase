@@ -24,6 +24,7 @@ import {
   serviceGrant,
   userGrant,
 } from "../shared.ts";
+import { templateRowsOf } from "../template-rows-sql.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
@@ -76,23 +77,30 @@ const qualified = (table: string): string =>
  */
 function declaredMetrics(ctx: BlockSqlContext): readonly MetricDefinition[] {
   return metricsOf(ctx.option("metrics")).map((metric) => {
-    if (metric.includeDeleted === true) {
-      return metric;
-    }
-
     const subject = Object.values(ctx.subjects).find(
-      (entry) =>
-        entry.deletedAt !== undefined &&
-        qualified(entry.table) === qualified(metric.table),
+      (entry) => qualified(entry.table) === qualified(metric.table),
     );
 
     const column = subject?.deletedAt;
 
-    if (column === undefined || Object.hasOwn(metric.where ?? {}, column)) {
-      return metric;
+    const template =
+      subject === undefined ? undefined : templateRowsOf(subject)?.column;
+
+    let next: MetricDefinition = metric;
+
+    if (
+      metric.includeDeleted !== true &&
+      column !== undefined &&
+      !Object.hasOwn(next.where ?? {}, column)
+    ) {
+      next = { ...next, where: { ...next.where, [column]: null } };
     }
 
-    return { ...metric, where: { ...metric.where, [column]: null } };
+    if (template !== undefined && !Object.hasOwn(next.where ?? {}, template)) {
+      next = { ...next, where: { ...next.where, [template]: null } };
+    }
+
+    return next;
   });
 }
 

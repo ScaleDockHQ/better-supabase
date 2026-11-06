@@ -319,6 +319,30 @@ export function registeredSubjects(
       column(`${where}.deletedAt`, entry.deletedAt);
     }
 
+    const template = entry.template;
+
+    if (typeof template === "string") {
+      column(`${where}.template`, template);
+    } else if (template !== undefined) {
+      column(`${where}.template.column`, template.column);
+
+      for (const [index, child] of (template.children ?? []).entries()) {
+        column(
+          `${where}.template.children[${String(index)}].column`,
+          child.column,
+        );
+
+        if (
+          typeof child.table !== "string" ||
+          !/^[a-z_][a-z0-9_]{0,62}(\.[a-z_][a-z0-9_]{0,62})?$/.test(child.table)
+        ) {
+          throw new TypeError(
+            `${where}.template.children[${String(index)}].table must be "table" or "schema.table"`,
+          );
+        }
+      }
+    }
+
     if (entry.url !== undefined) {
       for (const [, name] of entry.url.matchAll(PLACEHOLDER)) {
         column(`${where}.url {${name ?? ""}}`, name);
@@ -436,6 +460,12 @@ export function subjectColumns(
 
   if (entry.deletedAt !== undefined) {
     columns.push(["deletedAt", entry.deletedAt]);
+  }
+
+  if (typeof entry.template === "string") {
+    columns.push(["template", entry.template]);
+  } else if (entry.template !== undefined) {
+    columns.push(["template.column", entry.template.column]);
   }
 
   for (const [, name] of entry.url?.matchAll(PLACEHOLDER) ?? []) {

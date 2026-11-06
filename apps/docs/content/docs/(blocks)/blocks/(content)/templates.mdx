@@ -9,6 +9,14 @@ System templates (no organization) are starters your app ships and keeps by key 
 
 Reading templates needs `templates.read`, applying one needs `templates.apply`, and creating, editing, publishing, forking and attaching workflows needs `templates.manage`. Admins get every permission, and members get `templates.read` and `templates.apply`. Only the service role changes system templates.
 
+## Record templates
+
+A template is always a row in `templates`. Its content is either a versioned body (an email or a document) or real rows of another table. Turn that on per block with `options.templates`, or tag an app table `@bsb template`. The row's `template_id` points at the templates row. While it is set, numbering, search, pipelines, the state machine and domain events skip the row. Audit still records the edit.
+
+`tasks.clone`, and the same shape on quotes and invoices, copies a row and its block-owned children into a live record. `templates.instantiate` does that for a published rows template and records the application. `pack` snapshots the rows into a version body, and `unpack` materializes that body again, which is how a fork of a starter becomes editable rows.
+
+Extra data about the template, not the record, goes in `settings` (checked against the type's JSON Schema when `jsonb-schemas` is installed), in `extraColumns` on `templates`, or in an extension table the type names.
+
 ```bash
 better-supabase add templates
 ```

@@ -66,6 +66,10 @@ export type QuotesSqlOptions = {
    * Default `false`, so lines price as before.
    */
   readonly discountMatrix?: boolean;
+  /** Template rows skip numbering, search, state changes and events. ADR 0244. */
+  readonly templates?: boolean;
+  /** A live quote still needs a customer when template rows are on. */
+  readonly requireParty?: boolean;
 };
 
 export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
@@ -85,4 +89,6 @@ export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
     notifications: option.boolean({ default: true }),
     holds: option.boolean({ default: false }),
     discountMatrix: option.boolean({ default: false }),
+    templates: option.boolean({ default: false }),
+    requireParty: option.boolean({ default: false }),
   });

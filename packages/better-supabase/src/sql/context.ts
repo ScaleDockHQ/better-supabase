@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the template column on a subject adds one line past the limit. 1 finding. */
 import type {
   BlockMode,
   AnyBlocksConfig,
@@ -27,6 +28,7 @@ import { composeNames } from "../core/entity-naming.ts";
 import { configuredAction } from "../core/renames.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { tableOwnership } from "./app-owned.ts";
+import { liveStatement } from "./audit-actions.ts";
 import { defaultRuleRow, shipsEnabled } from "./default-rule-row.ts";
 import { checkedExtraColumns } from "./extra-columns.ts";
 import {
@@ -157,6 +159,7 @@ export interface BlockSqlEntitySubject {
    * when it is installed, without an entry in `blocks.field-history.on`.
    */
   readonly history?: readonly string[];
+  readonly template?: string;
 }
 
 /**
@@ -1381,9 +1384,10 @@ export function createModuleContext(
     hookTarget,
     emit: outbox,
     record(action) {
-      const parts = [outbox(action), auditEntry(action)].filter(
-        (part) => part !== "",
-      );
+      const parts = [
+        liveStatement(outbox(action), action.live),
+        auditEntry(action),
+      ].filter((part) => part !== "");
 
       return parts.length === 0 ? NOTHING : parts.join("\n  ");
     },

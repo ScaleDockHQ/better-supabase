@@ -56,6 +56,21 @@ export function quoteOrigin(ctx: BlockSqlContext): boolean {
  * `blocks.quotes.options.versionLines`: each published version keeps its lines
  * as rows with their own ids in `quote_version_lines`.
  */
+/** Template rows are on for quotes (ADR 0244). */
+export function quoteTemplatesOn(ctx: BlockSqlContext): boolean {
+  if (!ctx.flag("templates", false)) {
+    return false;
+  }
+
+  if (!ctx.installed("templates")) {
+    throw new TypeError(
+      "blocks.quotes.options.templates needs the templates block",
+    );
+  }
+
+  return ctx.has("quotes", "template");
+}
+
 export function versionLinesOn(ctx: BlockSqlContext): boolean {
   return ctx.flag("versionLines", false) && ctx.hasTable("versionLines");
 }
@@ -257,6 +272,9 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
       subject: `'quotes/' || ${alias}.${q("id")}::text`,
       tenant: `${alias}.${q("tenant")}::text`,
       audit: false,
+      ...(quoteTemplatesOn(ctx)
+        ? { live: `${alias}.${q("template")} is null` }
+        : {}),
     });
 
   const markViewed = (): string =>

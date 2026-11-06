@@ -1612,6 +1612,40 @@
             "type": "string",
             "description": "The soft-delete column."
           },
+          "template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "column": {
+                    "type": "string"
+                  },
+                  "children": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "table": {
+                          "type": "string"
+                        },
+                        "column": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["table", "column"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["column"],
+                "additionalProperties": false
+              }
+            ],
+            "description": "The column that marks a template row, or { column, children } for a clone."
+          },
           "held": {
             "type": "string"
           },
@@ -6116,6 +6150,10 @@
               },
               "receiptInspection": {
                 "type": "string"
+              },
+              "templates": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6269,6 +6307,14 @@
                 "default": false
               },
               "searchColumn": {
+                "type": "boolean",
+                "default": false
+              },
+              "templates": {
+                "type": "boolean",
+                "default": false
+              },
+              "requireParty": {
                 "type": "boolean",
                 "default": false
               }
@@ -6893,6 +6939,10 @@
               "discountMatrix": {
                 "type": "boolean",
                 "default": false
+              },
+              "templates": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -7388,6 +7438,14 @@
                 "default": false
               },
               "discountMatrix": {
+                "type": "boolean",
+                "default": false
+              },
+              "templates": {
+                "type": "boolean",
+                "default": false
+              },
+              "requireParty": {
                 "type": "boolean",
                 "default": false
               }
@@ -8088,6 +8146,10 @@
               "searchColumn": {
                 "type": "boolean",
                 "default": false
+              },
+              "templates": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -8148,7 +8210,8 @@
                 "additionalProperties": {
                   "type": "string"
                 }
-              }
+              },
+              "types": {}
             }
           }
         }

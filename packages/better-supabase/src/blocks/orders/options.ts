@@ -15,6 +15,8 @@ export type OrdersSqlOptions = {
    * Default `false`, so lines price as before.
    */
   readonly discountMatrix?: boolean;
+  /** Template rows take no number, no stock allocation and no order.placed. ADR 0244. */
+  readonly templates?: boolean;
 };
 
 export const ordersSqlOptions: BlockOptionsSchema<OrdersSqlOptions> =
@@ -23,4 +25,5 @@ export const ordersSqlOptions: BlockOptionsSchema<OrdersSqlOptions> =
     extraColumns: option.extraColumns(),
     kitchen: option.boolean({ default: false }),
     discountMatrix: option.boolean({ default: false }),
+    templates: option.boolean({ default: false }),
   });

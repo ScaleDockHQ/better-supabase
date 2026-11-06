@@ -15,6 +15,10 @@ import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { tableMoves } from "../table-renames.ts";
+import {
+  sourceTemplateColumnSql,
+  templateColumnSql,
+} from "../template-rows-sql.ts";
 import { afterSaleFunctions } from "./orders-after-sale.ts";
 import { cartFunctions, shippingRateFunctions } from "./orders-carts.ts";
 import { checkoutFunctions } from "./orders-checkout.ts";
@@ -29,7 +33,7 @@ import {
 } from "./orders-kitchen.ts";
 import { dropShipContract, dropShipFunctions } from "./orders-procurement.ts";
 import { ORDER_READS, orderReads } from "./orders-reads.ts";
-import { columns, paymentWindow } from "./orders-shared.ts";
+import { columns, orderTemplatesOn, paymentWindow } from "./orders-shared.ts";
 import {
   orderVariantContract,
   orderVariantFunctions,
@@ -113,6 +117,7 @@ const NAMES: BlockSqlNames = {
       subject: {
         title: "number",
         permissions: { read: "read", write: "manage" },
+        template: "template",
       },
     },
     cart: { table: "carts", singular: "cart" },
@@ -131,6 +136,7 @@ const NAMES: BlockSqlNames = {
     "extraColumns",
     "kitchen",
     "discountMatrix",
+    "templates",
   ],
   tables: {
     carts: {
@@ -200,6 +206,8 @@ const NAMES: BlockSqlNames = {
         tenant: "tenant_id",
         number: "number",
         sequence: "sequence",
+        template: "template_id",
+        sourceTemplate: "source_template_id",
         cart: "cart_id",
         customer: "customer_id",
         email: "email",
@@ -247,6 +255,8 @@ const NAMES: BlockSqlNames = {
         "variantOf",
         "variantLabel",
         "isSelected",
+        "template",
+        "sourceTemplate",
       ],
       typed: ["status"],
     },
@@ -516,8 +526,8 @@ ${policy("cartLines", `${tenantRead("cartLines")} or exists (select 1 from ${t("
 create table if not exists ${t("orders")} (
   ${o("id")} uuid primary key default gen_random_uuid(),
   ${o("tenant")} ${ctx.idType} not null,
-  ${o("number")} text not null,
-  ${o("sequence")} bigint not null,
+  ${o("number")} text${orderTemplatesOn(ctx) ? "" : " not null"},
+  ${o("sequence")} bigint${orderTemplatesOn(ctx) ? "" : " not null"},${orderTemplatesOn(ctx) ? `\n  ${templateColumnSql(ctx.colName("orders", "template"), ctx.of("templates").table("templates"), true)},${ctx.has("orders", "sourceTemplate") ? `\n  ${sourceTemplateColumnSql(ctx.colName("orders", "sourceTemplate"), ctx.of("templates").table("templates"))},` : ""}` : ""}
   ${o("cart")} uuid unique references ${t("carts")} (${c("id")}) on delete set null,
   ${o("customer")} uuid references auth.users (id) on delete set null,${optionalColumn("orders", "email", (name) => `${name} text`)}
   ${o("status")} text not null default 'pending_payment',
@@ -849,6 +859,7 @@ export const ORDERS: BlockSqlDefinition = {
     "invoices",
     "quotes",
     "contacts",
+    "templates",
   ],
   target: "schema",
   modes: ["managed", "custom"],

@@ -27,6 +27,12 @@ import {
   TYPE_PATTERN,
 } from "./templates-names.ts";
 import { recurringContract, recurringParts } from "./templates-recurring.ts";
+import {
+  forkUnpackSql,
+  templateRowsSql,
+  templateTypeCheck,
+} from "./templates-rows.ts";
+import { templateTypes } from "./templates-types.ts";
 import { workflowParts } from "./templates-workflows.ts";
 
 function build(ctx: BlockSqlContext): string {
@@ -400,7 +406,7 @@ begin
   end if;
   if save_template.template_id is null and (save_template.type is null or save_template.type !~ ${TYPE_PATTERN}) then
     ${fail("TEMPLATE_INVALID", "type must be lower-case letters, digits, dots, dashes or underscores", "22023")}
-  end if;
+  end if;${templateTypeCheck(ctx)}
   if save_template.template_id is null and save_template.name is null then
     ${fail("TEMPLATE_INVALID", "A template needs a name", "22023")}
   end if;
@@ -683,7 +689,7 @@ begin
   returning * into v_row;
   insert into ${ver} (${cv("template")}, ${cv("version")}, ${cv("body")}, ${cv("hash")}, ${cv("publishedAt")}${also("versions", "createdBy", () => `, ${cv("createdBy")}`)})
   values (v_row.${ct("id")}, 1, v_version.${cv("body")}, v_version.${cv("hash")}, now()${also("versions", "createdBy", () => ", (select auth.uid())")});
-${workflows?.forkCopy ?? ""}
+${workflows?.forkCopy ?? ""}${forkUnpackSql(ctx)}
   return ${templateJson("v_row")};
 end;
 $$;
@@ -833,7 +839,7 @@ as $$
   ) r
 $$;
 ${userGrant(`${fn("template_applications_list")}(${id}, uuid, text, text)`)}
-${workflows?.functions ?? ""}${recurringParts(ctx, { read, mayManage, visible: brands.visible, system })}`;
+${workflows?.functions ?? ""}${recurringParts(ctx, { read, mayManage, visible: brands.visible, system })}${templateRowsSql(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -895,6 +901,31 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         ]
       : []),
     ...recurringContract(ctx),
+    ...(templateTypes(ctx).some((item) => item.storage === "rows")
+      ? [
+          {
+            name: "instantiate_template",
+            args: ["uuid", "{id}", "jsonb"],
+            returns: "jsonb",
+          },
+          { name: "pack_template", args: ["uuid"], returns: "jsonb" },
+          {
+            name: "unpack_template",
+            args: ["uuid", "uuid", "{id}"],
+            returns: "uuid",
+          },
+        ]
+      : templateTypes(ctx).length === 0
+        ? []
+        : [
+            {
+              name: "instantiate_template",
+              args: ["uuid", "{id}", "jsonb"],
+              returns: "jsonb",
+            },
+          ]),
+    { name: "clone_row", args: ["regclass", "uuid", "jsonb"], returns: "uuid" },
+    { name: "template_table", args: ["regclass"], returns: "void" },
   ];
 }
 

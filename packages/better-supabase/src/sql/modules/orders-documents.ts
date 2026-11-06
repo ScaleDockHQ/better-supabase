@@ -10,6 +10,7 @@ import {
   assignNumber,
   columns,
   guard,
+  orderTemplatesOn,
   orderFields,
   orderPayload,
 } from "./orders-shared.ts";
@@ -143,6 +144,9 @@ export function documentFunctions(
     subject: "'orders/' || v_order.id::text",
     tenant: "v_order.tenant",
     audit: false,
+    ...(orderTemplatesOn(ctx)
+      ? { live: `v_order.${ctx.colName("orders", "template")} is null` }
+      : {}),
   });
 
   const fromQuote = ctx.installed("quotes")
@@ -184,14 +188,14 @@ begin
     ${fail("ORDERS_ORIGIN_UNSUPPORTED", "this orders table has no origin columns, so a document can't be ordered once", "22023")}
   end if;`
   }
-  ${assignNumber(ctx, "order", "p_tenant", { seq: "v_seq", number: "v_number" })}
+  ${assignNumber(ctx, "order", "p_tenant", { seq: "v_seq", number: "v_number" }, orderTemplatesOn(ctx) ? "nullif(p_attrs ->> 'templateId', '') is null" : undefined)}
   insert into ${orders} (${o("tenant")}, ${o("number")}, ${o("sequence")}, ${o("customer")}, ${email ? `${o("email")}, ` : ""}${o("status")}, ${o("currency")},
     ${o("subtotal")}, ${o("discountTotal")}, ${o("shippingTotal")}, ${o("taxTotal")}, ${o("total")}, ${o("taxInclusive")},
-    ${o("shippingAddress")}${billing ? `, ${o("billingAddress")}` : ""}${origin ? `, ${o("originType")}, ${o("originId")}` : ""})
+    ${o("shippingAddress")}${billing ? `, ${o("billingAddress")}` : ""}${origin ? `, ${o("originType")}, ${o("originId")}` : ""}${orderTemplatesOn(ctx) ? `, ${o("template")}${ctx.has("orders", "sourceTemplate") ? `, ${o("sourceTemplate")}` : ""}` : ""})
   values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, ${email ? "p_attrs ->> 'email', " : ""}${ctx.value("orders", "status", "confirmed")}, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
-    p_attrs -> 'shippingAddress'${billing ? ", p_attrs -> 'billingAddress'" : ""}${origin ? ", p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}'" : ""})
+    p_attrs -> 'shippingAddress'${billing ? ", p_attrs -> 'billingAddress'" : ""}${origin ? ", p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}'" : ""}${orderTemplatesOn(ctx) ? `, nullif(p_attrs ->> 'templateId', '')::uuid${ctx.has("orders", "sourceTemplate") ? ", nullif(p_attrs ->> 'sourceTemplateId', '')::uuid" : ""}` : ""})
   returning ${o("id")} into v_id;
   insert into ${ctx.table("orderLines")} (${ol("tenant")}, ${ol("order")}, ${ol("position")}, ${ol("variant")}, ${ol("product")}, ${ol("sku")}, ${ol("title")},
     ${ol("quantity")}, ${ol("unitAmount")}, ${ol("subtotal")}, ${ol("discount")}, ${ol("tax")}, ${ol("total")}, ${ol("requiresShipping")})
@@ -199,7 +203,7 @@ begin
     (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
     (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
-  select ${orderFields(ctx, "x")} into v_order from ${orders} x where x.${o("id")} = v_id;${allocateLines(ctx, "p_location")}
+  select ${orderFields(ctx, "x")} into v_order from ${orders} x where x.${o("id")} = v_id;${orderTemplatesOn(ctx) ? `\n  if nullif(p_attrs ->> 'templateId', '') is null then\n    ${allocateLines(ctx, "p_location")}\n  end if;` : allocateLines(ctx, "p_location")}
   ${placed}
   return ${fn("order_json")}(v_id) || jsonb_build_object('created', true);
 end;

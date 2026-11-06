@@ -2067,6 +2067,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "contacts",
         "approvals",
         "inspections",
+        "templates",
         "imports"
       ],
       "modes": [
@@ -2201,6 +2202,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "invoices",
         "quotes",
         "contacts",
+        "templates",
         "imports"
       ],
       "modes": [
@@ -2579,6 +2581,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "reminders",
         "accounting",
         "option-sets",
+        "templates",
+        "tags",
         "pipelines",
         "subjects"
       ],
@@ -2621,6 +2625,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "orders",
         "invoices",
         "inventory",
+        "templates",
         "imports"
       ],
       "modes": [
@@ -2670,6 +2675,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "orders",
         "shipments",
         "billable-time",
+        "templates",
         "imports"
       ],
       "modes": [

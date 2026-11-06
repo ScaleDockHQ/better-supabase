@@ -10,7 +10,7 @@ import {
   transitionReasonSql,
   userGrant,
 } from "../shared.ts";
-import { quoteGuest } from "./quotes-kit.ts";
+import { quoteGuest, quoteTemplatesOn } from "./quotes-kit.ts";
 
 /** The quote columns a customer sees of a published version. */
 const PUBLISHED = [
@@ -313,7 +313,8 @@ begin
   select * into v_row from ${t("quotes")} x where x.${q("id")} = decide_quote.quote and ${decideKey} for update;
   if v_row.${q("id")} is null then
     ${fail("QUOTE_NOT_FOUND", "no such quote you can edit", "P0002")}
-  end if;${answer({ name: "decide_quote", by: "coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email')", customer: false, expires: "decide_quote.actor is not null", actor: "decide_quote.actor", deposit: false })}
+  end if;
+  ${quoteTemplatesOn(ctx) ? `if v_row.${q("template")} is not null then\n    ${fail("QUOTE_TEMPLATE", "a template quote cannot be decided", "22023")}\n  end if;` : ""}${answer({ name: "decide_quote", by: "coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email')", customer: false, expires: "decide_quote.actor is not null", actor: "decide_quote.actor", deposit: false })}
   return ${row("v_row")};
 end;
 $$;

@@ -21,10 +21,16 @@ export type TemplatesSqlOptions = {
    */
   readonly brand?: TemplateBrandColumn;
   readonly extraColumns?: ExtraColumns;
+  /**
+   * Template types this app registers. A block can contribute its own. An empty
+   * registry keeps free-form types. ADR 0244.
+   */
+  readonly types?: Readonly<Record<string, unknown>>;
 };
 
 export const templatesSqlOptions: BlockOptionsSchema<TemplatesSqlOptions> =
   blockOptions<TemplatesSqlOptions>({
     brand: option.unknown(),
     extraColumns: option.extraColumns(),
+    types: option.unknown(),
   });
