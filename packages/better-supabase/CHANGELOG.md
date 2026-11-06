@@ -1,5 +1,81 @@
 # better-supabase
 
+## 0.54.0
+
+### Minor Changes
+
+- [#725](https://github.com/ScaleDockHQ/better-supabase/pull/725) [`31d5409`](https://github.com/ScaleDockHQ/better-supabase/commit/31d5409c8de457e72990726c668407242b2d4a4c) Thanks [@martijn00](https://github.com/martijn00)! - Document templates take app-defined types: `options.documentTypes` names a type, the app function that builds its variables and its variable contract. Templates, text blocks, snapshots, `render_document` and `freeze_document` accept the new type, and `validateDocumentTemplate` takes the app contracts as an optional argument. The built-in contract is unchanged.
+
+- [#722](https://github.com/ScaleDockHQ/better-supabase/pull/722) [`65d0248`](https://github.com/ScaleDockHQ/better-supabase/commit/65d02487a7a68c79b5d6dde1260527813886b1a3) Thanks [@martijn00](https://github.com/martijn00)! - `approval_eligible_ids` now answers for every pending request in one query. Users, roles, teams, managers and delegations are joins, and each permission is checked once per tenant and permission pair instead of once per request, so a list policy no longer scales with the number of pending requests. Only an access provider's `isApprover` still runs per request. On PGlite with 10 tenants, 54 pending requests take 2.5 ms (11.5 ms before) and 5,000 take 12 ms (920 ms before). Module version 5, no migration step.
+
+- [#725](https://github.com/ScaleDockHQ/better-supabase/pull/725) [`c0d9669`](https://github.com/ScaleDockHQ/better-supabase/commit/c0d9669e0329ba890512253e79942e19a5141991) Thanks [@martijn00](https://github.com/martijn00)! - Run the audit log's hash chain on the shared `chain` functions (audit module version 13). `createAuditChain` and its types are removed: call `createChain({ table: "better_supabase.audit_events", tenantColumn: "organization_id", ... })` instead, which also gives you `proof` and evidence bundles. Checkpoints move from `audit_checkpoints` to `chain_checkpoints` on upgrade, existing hashes stay valid, and a verdict no longer has `brokenAt`. `record_chain_checkpoint` now returns the tenant and the signature.
+
+- [#722](https://github.com/ScaleDockHQ/better-supabase/pull/722) [`86b0d44`](https://github.com/ScaleDockHQ/better-supabase/commit/86b0d44562c8e4343596131358cb0cc7f64010c6) Thanks [@martijn00](https://github.com/martijn00)! - `audit(..., statement => true)` works when the app keeps restricted details in their own table
+  (`options.restricted`, or a mapped `audit_log_restricted_details`). The statement trigger writes the
+  log rows and the restricted rows from the transition tables in one insert each, instead of raising
+  "needs an audit log without the restricted table", and `import_run()` and the tenant name are read
+  once per statement. On in-process Postgres (PGlite), an `update` of 48 rows went from a median of
+  20.3 ms in row mode to 8.5 ms in statement mode, and an `update` of 5,000 rows from 937 ms to
+  504 ms. The audit module is version 11: run `better-supabase upgrade`, then `add --adopt`.
+
+- [#722](https://github.com/ScaleDockHQ/better-supabase/pull/722) [`6c5e266`](https://github.com/ScaleDockHQ/better-supabase/commit/6c5e266d5b838428581a84e6fecbb3ee7eac2745) Thanks [@martijn00](https://github.com/martijn00)! - Adds the `better-supabase/auth` subpath. It exports `authErrorKind` and the `AuthErrorKind` type, so an app can classify an auth-js error (`"retryable"`, `"session-missing"`, `"invalid-credentials"`, `"rate-limited"`, `"banned"` or `"unknown"`) without importing the server entry. The docs showed an import from `better-supabase`, which never exported it.
+
+- [#723](https://github.com/ScaleDockHQ/better-supabase/pull/723) [`762f176`](https://github.com/ScaleDockHQ/better-supabase/commit/762f17643a69b1bf9a1ef743d37b85786f6635ad) Thanks [@martijn00](https://github.com/martijn00)! - `createChain` from `better-supabase/blocks/audit` verifies, checkpoints and builds proofs for any table tagged `chain`. `verifyChainProof` checks one row against its signed checkpoint on WebCrypto alone, and `evidenceBundle` and `verifyEvidenceBundle` seal and check a record's proofs and other sections. The audit module gains `chain_heads`, `list_chain_checkpoints` and `chain_proof`; no migration step.
+
+- [#722](https://github.com/ScaleDockHQ/better-supabase/pull/722) [`e345af0`](https://github.com/ScaleDockHQ/better-supabase/commit/e345af035b87421d0c86de46fa35827df54108c3) Thanks [@martijn00](https://github.com/martijn00)! - The `fields` schema that `gen` builds from a block's `columns` (and `columnsSchema`) no longer
+  requires a `not null` column that has a `default` on input, so a create that leaves
+  `risk text not null default 'low'` or a `metadata` column to its default passes validation. The
+  column is still required on output, and an explicit `null` is still refused. `columnsSchema` now
+  returns `StandardSchemaV1<ColumnsInput<C>, ColumnsOutput<C>>`, and `ColumnsInput` is exported from
+  `better-supabase/blocks`.
+
+- [#725](https://github.com/ScaleDockHQ/better-supabase/pull/725) [`6b5e973`](https://github.com/ScaleDockHQ/better-supabase/commit/6b5e973031c4af77cb116759bbb98a42c7069f53) Thanks [@martijn00](https://github.com/martijn00)! - Record the SHA-256 of file bytes. Attachments (module version 9) get `sha256` and `hash_verified_at`, set by the scanner from the file it downloaded. Versions (module version 2) get `file_hash` and `hash_version`, and `snapshot` takes `fileSha256` from the service role. `set_attachment_status`, `version_insert` and `snapshot_version` take one more trailing argument, and the old signatures are dropped.
+
+- [#725](https://github.com/ScaleDockHQ/better-supabase/pull/725) [`6be8e5b`](https://github.com/ScaleDockHQ/better-supabase/commit/6be8e5b9a992af5e5e745a650410e08ac249d351) Thanks [@martijn00](https://github.com/martijn00)! - New `deadlines` block (`better-supabase/blocks/deadlines`): due dates computed from approved, cited rule sets.
+  
+  - Rule sets belong to the platform, one per jurisdiction and kind. `saveRules` stores a draft version and `approveRules` freezes it with a SHA-256 content hash. With `approvals` installed, approval needs an approved request of the subject type `deadline_rule_version`. An approved version can't change (`DEADLINE_RULE_VERSION_FROZEN`).
+  - `compute` evaluates a rule against a subject's facts and stores the result as `due` with a date and a citation, or `unknown` with the missing facts named. `recompute` refreshes a subject's open deadlines, and `satisfy` closes one.
+  - `evaluateRule` and `validateRules` run the same rules in TypeScript, so a preview matches the database.
+  - Events `deadline.computed` and `deadline.satisfied`. The permission keys are `deadlines.read`, `deadlines.write` and `deadlines.manage`.
+  - The `filings` preset now includes `deadlines`.
+  
+  Run `better-supabase add deadlines` and generate a migration.
+
+- [#722](https://github.com/ScaleDockHQ/better-supabase/pull/722) [`17cfb87`](https://github.com/ScaleDockHQ/better-supabase/commit/17cfb87d71f8b1eebe795e7af74eb90f88b2937d) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: doctor reports BS315 (a table without an audit trigger, and an `audit.options.exempt` entry without a reason) as an error instead of a warning. The 0.53 to 0.54 guide lists the steps: audit the table, or exempt it with a reason.
+
+- [#723](https://github.com/ScaleDockHQ/better-supabase/pull/723) [`d6083b7`](https://github.com/ScaleDockHQ/better-supabase/commit/d6083b741df75b2b374742aed472a125b2f538ce) Thanks [@martijn00](https://github.com/martijn00)! - Three `@bsb` table tags guard evidence tables. `append-only` refuses update, delete and truncate, `function-writes` removes the Data API write privileges, and `chain` links each inserted row to the previous one with a hash. `better_supabase.verify_chain` (service role) finds a changed, removed or reordered row, and `record_chain_checkpoint` stores signed heads. The audit module is now version 12 and installs the helpers; no migration step.
+
+- [#723](https://github.com/ScaleDockHQ/better-supabase/pull/723) [`6797618`](https://github.com/ScaleDockHQ/better-supabase/commit/67976181c323ca93c6c10f5a10f111ff84b1e556) Thanks [@martijn00](https://github.com/martijn00)! - Add the `filings` preset for apps that prepare, sign, send and later prove documents. It installs contacts, versions, signatures, approvals, shipments, the ledger, cases, reminders and governance on top of `saas`.
+
+- [#722](https://github.com/ScaleDockHQ/better-supabase/pull/722) [`d90715c`](https://github.com/ScaleDockHQ/better-supabase/commit/d90715c24acc13b8b62418c5c4d118780a6e5e32) Thanks [@martijn00](https://github.com/martijn00)! - `bsb.withContext(factory)` accepts an async factory: each call awaits it, and concurrent calls on one context share a single run. `blocks.sessions.options.bootstrap` entries take `tables` (and a `{ function, tables?, subject? }` form), and `gen` records them in `meta.bootstrap.tables`, deriving them from the function body when an entry doesn't declare them. `bsb.bootstrap({ rpc })` tags its cache entry with those tables, so `bsb:<table>@<tenant>` invalidation reaches payload RPCs. The snapshot gains `extras.functionSources`. The Next.js docs now say which cache scopes tags invalidate.
+
+- [#726](https://github.com/ScaleDockHQ/better-supabase/pull/726) [`67935a3`](https://github.com/ScaleDockHQ/better-supabase/commit/67935a356be015e0b80a16299dc369b55c453f4e) Thanks [@martijn00](https://github.com/martijn00)! - New `option-sets` block (`better-supabase/blocks/option-sets`), lane archiving with a move target, stage icons and brand starters.
+  
+  - `option-sets` keeps tenant-editable items for a field such as priority. A binding `on.<type>.<field>` adds an option column to the record and writes the chosen item's level to the field's number column. `archiveItem({ itemId, replacementId })` moves the records that use the item. `createOptionSetsController` wraps the client for a settings screen. The permission keys are `option-sets.read` and `option-sets.manage`.
+  - `tasks` contributes a `priority` binding with the items None, Low, Medium, High and Urgent at levels 0 to 4, and adds `priority_option_id`.
+  - `pipelines.archiveStage` takes `{ stageId, moveTo }`. Records in the stage move to `moveTo` before it is archived, and the allowed stage changes do not apply to that move. `archive_pipeline_stage` now has two arguments and `save_pipeline_stage` takes an `icon`. Stages, board columns and stage templates carry an optional `icon`.
+  - `blocks.pipelines.options.brand` and `blocks.option-sets.options.brand`, with a `brands` map on a binding, start an organization of that brand with its own stages or items.
+  
+  Run `better-supabase add option-sets` and generate a migration. `archiveStage(stageId)` is now `archiveStage({ stageId })`.
+
+- [#722](https://github.com/ScaleDockHQ/better-supabase/pull/722) [`17cfb87`](https://github.com/ScaleDockHQ/better-supabase/commit/17cfb87d71f8b1eebe795e7af74eb90f88b2937d) Thanks [@martijn00](https://github.com/martijn00)! - Breaking for generated pgTAP helpers: `tests.authenticate_as` reads `auth.users` through the `security definer` helpers `tests._user_id_by_email` and `tests._email_of`, so a test that is already signed in can switch to another user by email or id without `tests.clear_authentication()`. Run `better-supabase gen` to refresh `supabase/tests`.
+
+- [#722](https://github.com/ScaleDockHQ/better-supabase/pull/722) [`f5080e3`](https://github.com/ScaleDockHQ/better-supabase/commit/f5080e3c0132a4cee4aefbdfd8933db8494bbc08) Thanks [@martijn00](https://github.com/martijn00)! - Adds `blocks.profiles.options.avatarSource`. With `"path"`, the author that `message_authors` and `attachment_authors` return carries `avatarPath` (the Storage path from the profiles `avatar_path` column) and a null `avatarUrl`, so an app that stores avatars in Storage can build the URL itself. The default `"url"` is unchanged. `Author` gains an optional `avatarPath`.
+
+- [#723](https://github.com/ScaleDockHQ/better-supabase/pull/723) [`a258cfb`](https://github.com/ScaleDockHQ/better-supabase/commit/a258cfbdeea78153ed2f58125d55ecfbf92f15ef) Thanks [@martijn00](https://github.com/martijn00)! - `server.transaction(userId, fn, options)` runs repositories and blocks as a user in one Postgres transaction. A throw rolls back, and so does a returned `Result` that is not ok. A nested transaction on a direct Postgres client now runs in a savepoint instead of being flattened, so one failed step no longer aborts the others. `BetterPostgres.transactionFor` is the optional hook behind it.
+
+- [#722](https://github.com/ScaleDockHQ/better-supabase/pull/722) [`464cb91`](https://github.com/ScaleDockHQ/better-supabase/commit/464cb915f819de7637d728defd504c8a7dac47d8) Thanks [@martijn00](https://github.com/martijn00)! - `blockSet.serviceBlocks(admin, options)` takes `options.blocks`, a typed map of options per block (a tenant for the comments copy, the Stripe and account resolvers for billing, a TTL for flags, the audit recorder). Each entry is what `block.with(options)` takes and applies for that call only, so a worker can build a different set per tenant or job. `ServiceBlocksOptions` is exported.
+
+- [#725](https://github.com/ScaleDockHQ/better-supabase/pull/725) [`d99cf79`](https://github.com/ScaleDockHQ/better-supabase/commit/d99cf796db46774514a8966f8c6721525d736ca6) Thanks [@martijn00](https://github.com/martijn00)! - Shipments (module version 4) record the proof of delivery: `recordProof` stores `deliveredTo`, a `proofReference` and a `proofAttachmentId` once for a delivered shipment and emits `shipment.proof_recorded`. A carrier can add the optional `proofOfDelivery` method. Tracking events are append-only: a trigger refuses edits and deletes with `SHIPMENT_EVENTS_APPEND_ONLY`, except in a tenant purge.
+
+- [#722](https://github.com/ScaleDockHQ/better-supabase/pull/722) [`6cf7d77`](https://github.com/ScaleDockHQ/better-supabase/commit/6cf7d775c026d22732460cbc6dcf3fdf5ddff2d6) Thanks [@martijn00](https://github.com/martijn00)! - Adds `archive_tasks` and `delete_tasks`, the set forms of `archive_task` and `delete_task`. The client takes `tasks.archive({ workItemIds })` and `tasks.remove(workItemIds)`, checks access once per statement, writes once, and returns `{ ids, skipped }` with the ids that were refused. The tasks module moves to version 5; `better-supabase upgrade` renders the new functions.
+
+### Patch Changes
+
+- [#728](https://github.com/ScaleDockHQ/better-supabase/pull/728) [`460ee52`](https://github.com/ScaleDockHQ/better-supabase/commit/460ee52c64225b255def06e0feee61eeb4ba0fa0) Thanks [@mick340](https://github.com/mick340)! - The discount matrix on quotes, invoices and orders now casts the party to text before it calls `resolve_line_discount`. A uuid company or customer column no longer fails with `function resolve_line_discount(uuid, uuid, ...) does not exist`.
+
+- [#722](https://github.com/ScaleDockHQ/better-supabase/pull/722) [`494d255`](https://github.com/ScaleDockHQ/better-supabase/commit/494d25586c9ff2d16549b3fb9928d9e1cd7092b8) Thanks [@martijn00](https://github.com/martijn00)! - `doctor` rule BS243 no longer reports a `security definer` function because its body is wrapped in a tagged dollar quote such as `$function$`. It measures only the quoted literals inside the body, so a migration with a long body and short literals is quiet and a literal above 1,024 characters is still reported.
+
 ## 0.53.0
 
 ### Minor Changes
