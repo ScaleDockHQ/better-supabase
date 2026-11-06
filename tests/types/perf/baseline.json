@@ -81,5 +81,22 @@
         "incremental": 4.65
       }
     }
+  },
+  "upgrade": {
+    "cold": {
+      "seconds": 8.03,
+      "rendered": 74,
+      "written": 74
+    },
+    "warm": {
+      "seconds": 7.51,
+      "rendered": 75,
+      "written": 1
+    },
+    "edit": {
+      "seconds": 8.98,
+      "rendered": 75,
+      "written": 0
+    }
   }
 }

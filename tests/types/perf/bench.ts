@@ -9,7 +9,15 @@ import type {
 
 import { fromCatalog } from "better-supabase/cli";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
@@ -56,6 +64,28 @@ interface Baseline {
    */
   readonly calibration: Readonly<Record<Compiler, number>>;
   readonly profiles: Readonly<Record<string, BaselineEntry>>;
+  /** `upgrade` on the CentraKit fixture, by case (ADR 0247). */
+  readonly upgrade?: UpgradeTimes;
+}
+
+/** What one `upgrade` run did. */
+interface UpgradeRun {
+  /** Seconds; machine-dependent, so gated loosely. */
+  readonly seconds: number;
+  /** Modules (and their data and test files) the run rendered. */
+  readonly rendered: number;
+  /** Files whose content changed on disk. */
+  readonly written: number;
+}
+
+/** The three cases of Part 7. */
+interface UpgradeTimes {
+  /** A tree with no module files. */
+  readonly cold: UpgradeRun;
+  /** Again with nothing changed. */
+  readonly warm: UpgradeRun;
+  /** After one check is added to an app file. */
+  readonly edit: UpgradeRun;
 }
 
 const PROFILES = {
@@ -780,10 +810,120 @@ function checkGen(
   }
 }
 
+/**
+ * `upgrade` on a copy of the CentraKit fixture: a cold run with no module
+ * files, a warm no-op and a run after one edit of an app file. The run count
+ * and the written count come from the command's own report, so a render cache
+ * shows up as fewer rendered modules, not only as less time.
+ */
+function upgradeRun(directory: string): UpgradeRun {
+  const started = performance.now();
+
+  const output = execFileSync(
+    process.execPath,
+    [cli, "upgrade", "--cwd", directory, "--agent", "no"],
+    { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+
+  const seconds = Number(((performance.now() - started) / 1000).toFixed(2));
+  const lines = output.split("\n").filter((line) => / \(.+\)$/.test(line));
+
+  return {
+    seconds,
+    rendered: lines.length,
+    written: lines.filter((line) => !line.startsWith("Unchanged ")).length,
+  };
+}
+
+function benchUpgrade(): UpgradeTimes {
+  const fixture = join(here, "../../validation-centrakit");
+  const directory = join(work, "upgrade");
+
+  rmSync(directory, { recursive: true, force: true });
+  mkdirSync(work, { recursive: true });
+  cpSync(fixture, directory, {
+    recursive: true,
+    filter: (source) => !source.includes("node_modules"),
+  });
+  symlinkSync(join(fixture, "node_modules"), join(directory, "node_modules"));
+
+  for (const folder of ["schemas", "better-supabase-data", "tests"]) {
+    const path = join(directory, "supabase", folder);
+
+    for (const file of readdirSync(path)) {
+      if (file.startsWith("900_better_supabase_")) {
+        rmSync(join(path, file));
+      }
+    }
+  }
+
+  const cold = upgradeRun(directory);
+  const warm = upgradeRun(directory);
+
+  const app = join(directory, "supabase", "schemas", "000_centrakit.sql");
+  writeFileSync(
+    app,
+    `${readFileSync(app, "utf-8")}\ncomment on schema centrakit is 'bench';\n`,
+  );
+  const edit = upgradeRun(directory);
+
+  rmSync(directory, { recursive: true, force: true });
+
+  return { cold, warm, edit };
+}
+
+function checkUpgrade(
+  now: UpgradeTimes,
+  before: UpgradeTimes | undefined,
+): void {
+  if (!before) {
+    console.error(
+      "upgrade has no baseline. Run `pnpm --filter @better-supabase/types-perf update`.",
+    );
+    process.exitCode = 1;
+
+    return;
+  }
+
+  const speed = Math.max(1, calibration.ts6 / baseline.calibration.ts6);
+
+  for (const phase of ["cold", "warm", "edit"] as const) {
+    const expected = before[phase].seconds * speed;
+    const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
+
+    if (now[phase].seconds > limit) {
+      console.error(
+        `upgrade ${phase} grew from ${expected.toFixed(2)}s to ${now[phase].seconds.toFixed(2)}s (limit ${limit.toFixed(2)}s).`,
+      );
+      process.exitCode = 1;
+    }
+
+    // The counts are exact, and they only shrink: a render cache lowers them.
+    for (const count of ["rendered", "written"] as const) {
+      if (now[phase][count] > before[phase][count]) {
+        console.error(
+          `upgrade ${phase}: ${count} grew from ${String(before[phase][count])} to ${String(now[phase][count])}.`,
+        );
+        process.exitCode = 1;
+      }
+    }
+  }
+}
+
+const upgradeNow = benchUpgrade();
+
+console.log(
+  `upgrade (centrakit): cold ${upgradeNow.cold.seconds.toFixed(2)}s (${String(upgradeNow.cold.rendered)} rendered, ${String(upgradeNow.cold.written)} written), warm ${upgradeNow.warm.seconds.toFixed(2)}s (${String(upgradeNow.warm.rendered)} rendered, ${String(upgradeNow.warm.written)} written), edit ${upgradeNow.edit.seconds.toFixed(2)}s (${String(upgradeNow.edit.rendered)} rendered, ${String(upgradeNow.edit.written)} written)`,
+);
+
+if (!update) {
+  checkUpgrade(upgradeNow, baseline.upgrade);
+}
+
 if (update) {
   writeFileSync(
     baselinePath,
-    `${JSON.stringify({ calibration, profiles: next }, null, 2)}\n`,
+    `${JSON.stringify({ calibration, profiles: next, upgrade: upgradeNow }, null, 2)}\n`,
   );
   console.log("baseline updated");
 }
