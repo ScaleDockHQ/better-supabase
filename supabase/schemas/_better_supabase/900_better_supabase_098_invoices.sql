@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:6b1ae5244f5e1f78c505a1dacae1f37b931e8ea293e946e11311a7450c9aefe7
+-- @bsb-hash sha256:6dae5045cf81e12897132ccbfa7398eb1c4e0dac22d722347aed4f9c3549423e
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1205,6 +1205,7 @@ begin
   if v_row."id" is null then
     raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
+  
   if v_row."status" <> 'draft' then
     raise exception 'the invoice was already issued' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
   end if;
@@ -4010,7 +4011,61 @@ end;
 $$;
 revoke execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) from public, anon;
 grant execute on function "better_supabase"."recompute_invoice_totals"(uuid, uuid[], boolean) to authenticated, service_role;
-
+create or replace function "better_supabase"."clone_invoice"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."invoices";
+  v_created jsonb;
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."invoices" x where x."id" = clone_invoice.source;
+  if not found then
+    raise exception 'no such invoice' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'invoices.write'), false)) then
+    raise exception 'not allowed to change invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_invoice_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_invoice.source, clone_invoice.overrides;
+    end if;
+  end;
+  v_created := "better_supabase"."create_invoice"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object('title', v_src."title", 'currency', v_src."currency", 'templateId', null, 'sourceTemplateId', null)) || (coalesce(clone_invoice.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), null);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."invoice_lines"
+  select (jsonb_populate_record(null::"better_supabase"."invoice_lines", to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), 'parent_id', v_id))).*
+  from "better_supabase"."invoice_lines" l where l."parent_id" = clone_invoice.source;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_invoice_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'deposit_amount', x."deposit_amount"::text, 'discount_amount', x."discount_amount"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
+      'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
+      'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text, 'dimensions', il."dimensions") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) from "better_supabase"."invoices" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."clone_invoice"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_invoice"(uuid, jsonb) to authenticated, service_role;
 -- Invoices several delivered sources for one billing party. party is { type, id }
 -- (the company or contact invoiced). source_refs is a list of
 --   { type: "order", id, lines?: [{ id, quantity }] }  the delivered, unreturned quantity of
@@ -5530,6 +5585,15 @@ set search_path = ''
 as $$ select "better_supabase"."recompute_invoice_totals"($1, $2, $3) $$;
 revoke execute on function "api"."recompute_invoice_totals"(uuid, uuid[], boolean) from public, anon;
 grant execute on function "api"."recompute_invoice_totals"(uuid, uuid[], boolean) to authenticated, service_role;
+
+create or replace function "api"."clone_invoice"(source uuid, overrides jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."clone_invoice"($1, $2) $$;
+revoke execute on function "api"."clone_invoice"(uuid, jsonb) from public, anon;
+grant execute on function "api"."clone_invoice"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."invoice_from_sources"(tenant uuid, party jsonb, source_refs jsonb, options jsonb default null)
 returns jsonb

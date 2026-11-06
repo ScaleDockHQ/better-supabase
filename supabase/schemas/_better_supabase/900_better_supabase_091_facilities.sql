@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@5 managed tasks
--- @bsb-hash sha256:aa86d2a63babc0a8aaa42e091d7c49b26af1742e2114a080aa21520e3db4ba7e
+-- @bsb-hash sha256:f7728a7395fe73a23336fe6305e1202ca14a88b693f82ba2c7458bdb162f24be
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -745,6 +745,77 @@ $$;
 revoke execute on function "better_supabase"."list_maintenance_requests"(uuid, jsonb, text, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_maintenance_requests"(uuid, jsonb, text, uuid, integer) to authenticated, service_role;
 
+-- Copies source into a new task. overrides replaces the fields the caller
+-- edited. A template becomes a live task unless overrides.templateId is set.
+create or replace function "better_supabase"."clone_maintenance_request"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."maintenance_requests"%rowtype;
+  v_id uuid;
+  v_created jsonb;
+  v_child uuid;
+  v_copy jsonb;
+  v_users uuid[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."maintenance_requests" x where x."id" = clone_maintenance_request.source;
+  if not found then
+    raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'facilities.write'), false)) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_maintenance_request_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_maintenance_request.source, clone_maintenance_request.overrides;
+    end if;
+  end;
+  select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."maintenance_request_assignees" ra where ra."maintenance_request_id" = v_src."id";
+  v_created := "better_supabase"."create_maintenance_request"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+    'title', v_src."title",
+    'body', v_src."body",
+    'parentId', v_src."parent_id",
+    'teamId', v_src."team_id",
+    'dueAt', v_src."due_at",
+    'priority', v_src."priority",
+    'templateId', null,
+    'sourceTemplateId', null
+  )) || (coalesce(clone_maintenance_request.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."maintenance_request_checklist_items" ("tenant_id", "maintenance_request_id", "title", "done", "rank")
+  select c."tenant_id", v_id, c."title", false, c."rank"
+  from "better_supabase"."maintenance_request_checklist_items" c where c."maintenance_request_id" = clone_maintenance_request.source;
+  insert into "better_supabase"."taggings" ("tenant_id", "tag_id", "subject_type", "subject_id")
+  select g."tenant_id", g."tag_id", g."subject_type", v_id::text
+  from "better_supabase"."taggings" g
+  where g."subject_type" = 'maintenance_request' and g."subject_id" = clone_maintenance_request.source::text;
+  for v_child in select c."id" from "better_supabase"."maintenance_requests" c where c."parent_id" = clone_maintenance_request.source loop
+    v_copy := "better_supabase"."clone_maintenance_request"(v_child, coalesce(clone_maintenance_request.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
+    update "better_supabase"."maintenance_requests" x set "parent_id" = v_id where x."id" = (v_copy ->> 'id')::uuid;
+  end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_maintenance_request_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."maintenance_request_assignees" ra where ra."maintenance_request_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."maintenance_request_checklist_items" rk where rk."maintenance_request_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'maintenance_request' and rr."subject_id" = x."id"::text)) from "better_supabase"."maintenance_requests" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."clone_maintenance_request"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_maintenance_request"(uuid, jsonb) to authenticated, service_role;
+
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "better_supabase"."save_maintenance_request_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
@@ -1177,6 +1248,15 @@ set search_path = ''
 as $$ select "better_supabase"."list_maintenance_requests"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."list_maintenance_requests"(uuid, jsonb, text, uuid, integer) from public, anon;
 grant execute on function "api"."list_maintenance_requests"(uuid, jsonb, text, uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."clone_maintenance_request"(source uuid, overrides jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."clone_maintenance_request"($1, $2) $$;
+revoke execute on function "api"."clone_maintenance_request"(uuid, jsonb) from public, anon;
+grant execute on function "api"."clone_maintenance_request"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."save_maintenance_request_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
 returns jsonb

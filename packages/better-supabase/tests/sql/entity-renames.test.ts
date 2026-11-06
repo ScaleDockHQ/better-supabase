@@ -125,6 +125,14 @@ describe("blocks.<name>.entities in the SQL", () => {
     orders: ["'cartId'", "'orderId'"],
     promotions: ['"promotions"', "'promotionId'"],
     tax: ["'taxCodeId'"],
+    // App tables tagged `@bsb template` keep these column and trigger names.
+    templates: [
+      "source_template_id",
+      "template_id",
+      "template_row_guard",
+      "template_table",
+      "bsb_template_row",
+    ],
     tills: ["'tillId'"],
     incidents: ["'incidentId'", "'filings'"],
     compliance: [
