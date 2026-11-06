@@ -11,6 +11,7 @@ import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { auditedSubjects, registeredIdMatches } from "../subject-registry.ts";
+import { excludeTemplates } from "../template-rows-sql.ts";
 import {
   representationActive,
   REPRESENTS,
@@ -101,10 +102,11 @@ function tenantLookup(
   return `  case ${fnName}.subject_type
 ${audited
   .map((subject) => {
-    const live =
+    const live = `${
       subject.config.deletedAt === undefined
         ? ""
-        : ` and s.${sqlIdent(subject.config.deletedAt)} is null`;
+        : ` and s.${sqlIdent(subject.config.deletedAt)} is null`
+    }${excludeTemplates(subject.config, "s")}`;
 
     return `    when ${sqlString(subject.type)} then
       select s.${subject.tenant!} into v_tenant from ${subject.qualified} s

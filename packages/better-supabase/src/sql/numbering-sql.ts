@@ -1,9 +1,12 @@
 import type { BlockSqlContext } from "./context.ts";
+import type { SequenceEntity } from "./modules/numbering-entities.ts";
 
 import { isRecord } from "../core/guards.ts";
-import { sqlString } from "../core/template.ts";
+import { sqlString, sqlIdent } from "../core/template.ts";
 import { sequenceEntry } from "./modules/numbering-entities.ts";
-import { fail } from "./shared.ts";
+import { fail, splitTable } from "./shared.ts";
+import { registeredSubjects } from "./subject-registry.ts";
+import { templateRowsOf } from "./template-rows-sql.ts";
 
 /**
  * The `numbering` format of `entity` in `tenant` as SQL, when the app
@@ -101,6 +104,11 @@ export function assignNumberSql(
   // A legal entity scope: the fallback counts that entity's rows only.
   const scoped = scope !== "''";
 
+  const gate = (body: string): string =>
+    options.when === undefined
+      ? body
+      : `if ${options.when} then\n  ${body.replaceAll("\n", "\n  ")}\nend if;`;
+
   if (sequence !== undefined) {
     const next = ctx.of("numbering").fn("next_number");
 
@@ -109,36 +117,40 @@ export function assignNumberSql(
   perform set_config('better_supabase.issued_number', ${sqlString(entity)} || chr(31) || ${target.seq}::text || chr(31) || ${target.identifier}, true);`
       : "";
 
-    return withFixedNumber(
+    return gate(
+      withFixedNumber(
+        ctx,
+        entity,
+        tenant,
+        { seq: target.seq, text: target.identifier },
+        `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, ${at}, ${scope});
+  ${target.identifier} := better_supabase.format_assigned_number(${sequence.format}, ${target.seq}, ${at});${issued}`,
+        {
+          at,
+          scope,
+          registered: true,
+          ...(options.fixed === undefined ? {} : { fixed: options.fixed }),
+          after: issued,
+        },
+      ),
+    );
+  }
+
+  return gate(
+    withFixedNumber(
       ctx,
       entity,
       tenant,
       { seq: target.seq, text: target.identifier },
-      `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, ${at}, ${scope});
-  ${target.identifier} := better_supabase.format_assigned_number(${sequence.format}, ${target.seq}, ${at});${issued}`,
+      `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ${sqlString(`:${entity}`)}${scoped ? ` || ':' || ${scope}` : ""}, 0));
+  select coalesce(max(x.${fallback.seq}), 0) + 1 into ${target.seq} from ${fallback.table} x where x.${fallback.tenant} = ${tenant}${scoped ? ` and ${ctx.of("numbering").fn("number_scope")}(x.${fallback.tenant}, x.legal_entity_id) = ${scope}` : ""};
+  ${target.identifier} := ${sqlString(fallback.prefix)} || ${target.seq}::text;`,
       {
         at,
         scope,
-        registered: true,
         ...(options.fixed === undefined ? {} : { fixed: options.fixed }),
-        after: issued,
       },
-    );
-  }
-
-  return withFixedNumber(
-    ctx,
-    entity,
-    tenant,
-    { seq: target.seq, text: target.identifier },
-    `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ${sqlString(`:${entity}`)}${scoped ? ` || ':' || ${scope}` : ""}, 0));
-  select coalesce(max(x.${fallback.seq}), 0) + 1 into ${target.seq} from ${fallback.table} x where x.${fallback.tenant} = ${tenant}${scoped ? ` and ${ctx.of("numbering").fn("number_scope")}(x.${fallback.tenant}, x.legal_entity_id) = ${scope}` : ""};
-  ${target.identifier} := ${sqlString(fallback.prefix)} || ${target.seq}::text;`,
-    {
-      at,
-      scope,
-      ...(options.fixed === undefined ? {} : { fixed: options.fixed }),
-    },
+    ),
   );
 }
 
@@ -147,6 +159,11 @@ export interface AssignOptions {
   readonly scope?: string;
   /** SQL text of a fixed number to take instead of the next one (import mode). */
   readonly fixed?: string;
+  /**
+   * A boolean SQL expression. The number is assigned only when it is true, so a
+   * template row leaves the sequence untouched. ADR 0244.
+   */
+  readonly when?: string;
 }
 
 /**
@@ -197,4 +214,27 @@ export function withFixedNumber(
   else
     ${normal}
   end if;`;
+}
+
+/**
+ * `assignOn`, and a template row never takes a number when the numbered table
+ * is a subject with a template column.
+ */
+export function assignWhen(ctx: BlockSqlContext, item: SequenceEntity): string {
+  if (item.table === undefined) {
+    return item.assignOn;
+  }
+
+  const [schema, table] = splitTable(item.table);
+
+  const subject = registeredSubjects(ctx.subjects, ctx.naming).find(
+    (entry) => entry.schema === schema && entry.table === table,
+  );
+
+  const column =
+    subject === undefined ? undefined : templateRowsOf(subject.config)?.column;
+
+  return column === undefined
+    ? item.assignOn
+    : `(${item.assignOn}) and new.${sqlIdent(column)} is null`;
 }

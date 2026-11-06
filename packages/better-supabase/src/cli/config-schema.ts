@@ -794,6 +794,19 @@ const FLAT = {
         cascade: v.optional(v.boolean()),
         history: v.optional(v.array(v.string())),
         deletedAt: v.optional(v.string()),
+        template: v.optional(
+          v.union([
+            v.string(),
+            v.strictObject({
+              column: v.string(),
+              children: v.optional(
+                v.array(
+                  v.strictObject({ table: v.string(), column: v.string() }),
+                ),
+              ),
+            }),
+          ]),
+        ),
         held: v.optional(v.string()),
         readAccess: v.optional(v.picklist(["tenant", "record"])),
         team: v.optional(v.strictObject({ actions: strings })),

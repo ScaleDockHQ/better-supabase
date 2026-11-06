@@ -30,6 +30,7 @@ import {
   teamActions,
   urlExpression,
 } from "../subject-registry.ts";
+import { excludeTemplates } from "../template-rows-sql.ts";
 import { accessModel } from "./permissions-model.ts";
 import { formerSubjectTypes } from "./subject-type-renames.ts";
 import {
@@ -277,9 +278,12 @@ function actionsOf(subject: RegisteredSubject): readonly string[] {
 function rowMatches(subject: RegisteredSubject, id: string): string {
   const match = registeredIdMatches(subject, id);
 
-  return subject.config.deletedAt === undefined
-    ? match
-    : `${match} and s.${sqlIdent(subject.config.deletedAt)} is null`;
+  const deleted =
+    subject.config.deletedAt === undefined
+      ? ""
+      : ` and s.${sqlIdent(subject.config.deletedAt)} is null`;
+
+  return `${match}${deleted}${excludeTemplates(subject.config, "s")}`;
 }
 
 function cases(
@@ -321,10 +325,11 @@ function titlesBranch(subject: RegisteredSubject): string {
       ? `s.${subject.id}::text = any(array(${ids}))`
       : `s.${subject.id} = any(array(${ids})::${idType}[])`;
 
-  const live =
+  const live = `${
     subject.config.deletedAt === undefined
       ? ""
-      : ` and s.${sqlIdent(subject.config.deletedAt)} is null`;
+      : ` and s.${sqlIdent(subject.config.deletedAt)} is null`
+  }${excludeTemplates(subject.config, "s")}`;
 
   const title =
     subject.config.title === undefined

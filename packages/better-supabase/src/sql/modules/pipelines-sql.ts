@@ -14,6 +14,11 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import {
+  excludeTemplates,
+  templateRowsOf,
+  templateTriggerReturn,
+} from "../template-rows-sql.ts";
 import { watchSql } from "../watch-sql.ts";
 import { brandSourceOf } from "./brand-source.ts";
 import { byType, outcomeCase } from "./pipelines-bindings.ts";
@@ -351,7 +356,7 @@ declare
   v_stage_name text;
   v_claims text;
 begin
-  if tg_op = 'UPDATE' and new.${stage} is not distinct from old.${stage} and new.${pipeline} is not distinct from old.${pipeline} then${follow}
+${templateTriggerReturn(templateRowsOf(binding.subject.config)?.column, "new")}  if tg_op = 'UPDATE' and new.${stage} is not distinct from old.${stage} and new.${pipeline} is not distinct from old.${pipeline} then${follow}
     return new;
   end if;
   if new.${pipeline} is null then
@@ -454,7 +459,7 @@ as $$
 declare
   v_status text;
 begin
-  select case s.${c("stages", "category")} ${mapping} end into v_status
+${templateTriggerReturn(templateRowsOf(binding.subject.config)?.column, "null")}  select case s.${c("stages", "category")} ${mapping} end into v_status
   from ${t("stages")} s where s.${c("stages", "id")} = new.${stage};
   if v_status is not null and v_status is distinct from new.${status}::text then
     update ${subject.qualified} r set ${status} = (jsonb_populate_record(null::${subject.qualified}, jsonb_build_object(${sqlString(binding.status.column)}, v_status))).${status}
@@ -508,7 +513,7 @@ declare
   v_current text;
   v_stage ${t("stages")}.${c("stages", "id")}%type;
 begin
-  if new.${status} is not distinct from old.${status} or new.${pipeline} is null then
+${templateTriggerReturn(templateRowsOf(binding.subject.config)?.column, "null")}  if new.${status} is not distinct from old.${status} or new.${pipeline} is null then
     return null;
   end if;
   select case s.${c("stages", "category")} ${mapping} end into v_current
@@ -946,7 +951,7 @@ export function readFunctions(
     (binding) => {
       const r = (column: string): string => `r.${sqlIdent(column)}`;
       const deleted = binding.subject.config.deletedAt;
-      const live = deleted === undefined ? "" : ` and ${r(deleted)} is null`;
+      const live = `${deleted === undefined ? "" : ` and ${r(deleted)} is null`}${excludeTemplates(binding.subject.config, "r")}`;
 
       const owner =
         binding.owner === undefined

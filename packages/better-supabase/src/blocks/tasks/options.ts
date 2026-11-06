@@ -17,6 +17,12 @@ export type TasksSqlOptions = {
    * `false`.
    */
   readonly searchColumn?: boolean;
+  /**
+   * Rows with `template_id` set are templates: they take no number, no search
+   * document, no pipeline history and no domain events. Needs the templates
+   * block. ADR 0244.
+   */
+  readonly templates?: boolean;
 };
 
 export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =
@@ -28,4 +34,5 @@ export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =
     notify: option.boolean({ default: true }),
     actionPath: option.string(),
     searchColumn: option.boolean({ default: false }),
+    templates: option.boolean({ default: false }),
   });

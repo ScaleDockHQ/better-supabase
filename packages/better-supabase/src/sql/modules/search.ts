@@ -110,6 +110,9 @@ function watchedColumns(subject: RegisteredSubject): readonly string[] {
     own ? config.search?.description : undefined,
     own ? config.search?.exclude : undefined,
     config.deletedAt,
+    typeof config.template === "string"
+      ? config.template
+      : config.template?.column,
     ...[...(config.url ?? "").matchAll(/\{([^}]*)\}/g)].map((m) => m[1]),
   ];
 
@@ -138,6 +141,16 @@ function refreshBranch(subject: RegisteredSubject, described: boolean): string {
       ? ""
       : `\n        and s.${sqlIdent(config.deletedAt)} is null`;
 
+  const template =
+    typeof config.template === "string"
+      ? config.template
+      : config.template?.column;
+
+  const templated =
+    template === undefined
+      ? ""
+      : `\n        and s.${sqlIdent(template)} is null`;
+
   const exclude = config.search?.exclude;
 
   const excluded =
@@ -156,7 +169,7 @@ function refreshBranch(subject: RegisteredSubject, described: boolean): string {
       select s.${subject.tenant ?? sqlIdent("organization_id")}, ${source}.${sqlIdent(title)}::text, ${bodySql}, ${url}${described ? `, ${description === undefined ? "null" : `${source}.${sqlIdent(description)}::text`}` : ""}
         into v_tenant, v_title, v_body, v_url${described ? ", v_description" : ""}
         from ${subject.qualified} s${join}
-        where ${registeredIdMatches(subject, "search_refresh.subject_id")}${deleted}${excluded};
+        where ${registeredIdMatches(subject, "search_refresh.subject_id")}${deleted}${templated}${excluded};
       v_found := found;`;
 }
 

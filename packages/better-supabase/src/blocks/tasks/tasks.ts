@@ -293,6 +293,15 @@ export interface Tasks<F extends object = Record<never, never>> {
     assigneeIds?: readonly string[] | undefined;
     custom?: Readonly<Record<string, string>> | undefined;
   }): AsyncResult<WorkItem<F>>;
+  /**
+   * Copies a task and its assignees, checklist and child tasks. `overrides`
+   * replace the fields the caller edited. A template becomes a live task unless
+   * `overrides.templateId` is set.
+   */
+  clone(input: {
+    sourceId: string;
+    overrides?: Readonly<Record<string, unknown>> | undefined;
+  }): AsyncResult<WorkItem<F>>;
   /** Extra column changes are validated with the `fields` schema first. */
   update(
     input: { changes: readonly WorkItemChange<F>[] } & WorkItemUpdateOptions,
@@ -779,6 +788,12 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
           return ok(created);
         });
     },
+    clone: ({ sourceId, overrides }) =>
+      call(
+        "clone_task",
+        { source: sourceId, overrides: overrides ?? null },
+        itemOf,
+      ).andThen(fields.row),
     update: ({ changes, ...updateOptions }) =>
       AsyncResult.from(async () => {
         for (const change of changes) {

@@ -26,6 +26,11 @@ import {
   schemaPreamble,
   triggerGrant,
 } from "../shared.ts";
+import {
+  sourceTemplateColumnSql,
+  templateColumnSql,
+  templateGuardSql,
+} from "../template-rows-sql.ts";
 import { shippedAutomation } from "./automation-defaults.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -37,7 +42,7 @@ import {
 } from "./quotes-functions.ts";
 import { quoteHolds } from "./quotes-holds.ts";
 import { quoteImportFunctions, quoteImportTargets } from "./quotes-import.ts";
-import { versionLinesOn } from "./quotes-kit.ts";
+import { quoteTemplatesOn, versionLinesOn } from "./quotes-kit.ts";
 import { hasVariants, quoteVariantFunctions } from "./quotes-variants.ts";
 
 const QUOTE = [
@@ -83,6 +88,7 @@ const NAMES: BlockSqlNames = {
       subject: {
         title: "title",
         permissions: { read: "read", write: "write" },
+        template: "template",
       },
     },
   },
@@ -92,6 +98,8 @@ const NAMES: BlockSqlNames = {
     "after_quote_send",
     "before_quote_accept",
     "after_quote_accept",
+    "before_quote_clone",
+    "after_quote_clone",
   ],
   options: [
     "company",
@@ -109,6 +117,8 @@ const NAMES: BlockSqlNames = {
     "notifications",
     "holds",
     "discountMatrix",
+    "templates",
+    "requireParty",
   ],
   tables: {
     quotes: {
@@ -155,6 +165,8 @@ const NAMES: BlockSqlNames = {
         variantOf: "variant_of",
         variantLabel: "variant_label",
         isSelected: "is_selected",
+        template: "template_id",
+        sourceTemplate: "source_template_id",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -187,6 +199,8 @@ const NAMES: BlockSqlNames = {
         "variantLabel",
         "isSelected",
         "createdBy",
+        "template",
+        "sourceTemplate",
         "listTotal",
         "discountTotal",
       ],
@@ -320,14 +334,21 @@ function tables(ctx: BlockSqlContext, n: QuoteNames): string {
     ...(origin
       ? [`check ((${q("originType")} is null) = (${q("originId")} is null))`]
       : []),
+    ...(quoteTemplatesOn(ctx) &&
+    ctx.flag("requireParty", false) &&
+    ctx.has("quotes", "companyId")
+      ? [
+          `check (${q("template")} is not null or ${q("companyId")} is not null)`,
+        ]
+      : []),
   ];
 
   return `
 create table if not exists ${t("quotes")} (
   ${q("id")} uuid primary key default gen_random_uuid(),
-  ${q("tenant")} ${ctx.idType} not null,
-  ${q("number")} bigint not null,
-  ${q("identifier")} text not null,
+  ${q("tenant")} ${ctx.idType} not null,${quoteTemplatesOn(ctx) ? `\n  ${templateColumnSql(ctx.colName("quotes", "template"), ctx.of("templates").table("templates"), true)},${ctx.has("quotes", "sourceTemplate") ? `\n  ${sourceTemplateColumnSql(ctx.colName("quotes", "sourceTemplate"), ctx.of("templates").table("templates"))},` : ""}` : ""}
+  ${q("number")} bigint${quoteTemplatesOn(ctx) ? "" : " not null"},
+  ${q("identifier")} text${quoteTemplatesOn(ctx) ? "" : " not null"},
   ${q("revision")} integer not null default 1,
   ${q("title")} text not null check (length(${q("title")}) between 1 and 300),${column("companyType", "text")}${column("companyId", "text")}${column("contactType", "text")}${column("contactId", "text")}
   ${q("owner")} uuid,
@@ -345,7 +366,7 @@ create table if not exists ${t("quotes")} (
 );
 ${added}create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);${ctx.has("quotes", "variantOf") ? `\ncreate index if not exists ${ctx.naming.rename("quotes_variant_idx")} on ${t("quotes")} (${q("variantOf")}) where ${q("variantOf")} is not null;` : ""}${origin ? `\ncreate index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});` : ""}
 ${addExtraColumns(t("quotes"), n.extras)}${appUniqueIndex(ctx, "quotes", ["tokenHash"])}
-${lockModuleTable(ctx, "quotes", { read: true })}
+${lockModuleTable(ctx, "quotes", { read: true })}${quoteTemplatesOn(ctx) ? `\n${templateGuardSql({ fn: ctx.fn("quote_template_guard"), trigger: ctx.trigger("quote_template"), table: t("quotes"), column: ctx.colName("quotes", "template"), hint: "QUOTE_TEMPLATE_IMMUTABLE" })}\n${triggerGrant(`${ctx.fn("quote_template_guard")}()`)}` : ""}
 ${renderPolicy(makePolicy({ table: t("quotes"), name: ctx.naming.rename("quotes_read"), command: "select", roles: ["authenticated"], using: guestOr(ctx.scope.check(q("tenant"), n.read), [quoteGuest(ctx, n, "")]) }), { drop: true, target: t("quotes") })}
 ${childTables(ctx, n)}`;
 }
@@ -537,6 +558,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "jsonb", "jsonb"],
       returns: "jsonb",
     },
+    { name: "clone_quote", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "update_quote", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "set_quote_lines", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "send_quote", args: ["uuid", "jsonb"], returns: "jsonb" },
@@ -610,6 +632,7 @@ export const QUOTES: BlockSqlDefinition = {
     "orders",
     "invoices",
     "inventory",
+    "templates",
   ],
   target: "schema",
   modes: ["managed", "custom"],
@@ -631,7 +654,34 @@ export const QUOTES: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
-  contributes: { imports: quoteImportTargets },
+  contributes: {
+    imports: quoteImportTargets,
+    templates: (own) => {
+      if (!quoteTemplatesOn(own)) {
+        return [];
+      }
+
+      const { schema, name } = own.tableName("quotes");
+
+      return [
+        {
+          type: "quote",
+          storage: "rows" as const,
+          subject: "quote",
+          clone: own.fn("clone_quote"),
+          table: `${schema}.${name}`,
+          templateColumn: own.colName("quotes", "template"),
+          idColumn: own.colName("quotes", "id"),
+          children: [
+            {
+              table: `${schema}.${own.tableName("lines").name}`,
+              parent: own.colName("lines", "parent"),
+            },
+          ],
+        },
+      ];
+    },
+  },
   data: (ctx) =>
     shippedAutomation(ctx, QUOTE_TO_ORDER, {
       module: "orders",

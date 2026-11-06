@@ -22,6 +22,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { excludeTemplates } from "../template-rows-sql.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const SEGMENT_PAYLOAD = [
@@ -211,8 +212,9 @@ function matchingIds(ctx: BlockSqlContext, n: SegmentNames): string {
   const branch = (subject: RegisteredSubject): string => {
     const deletedAt = subject.config.deletedAt;
 
-    const live =
-      deletedAt === undefined ? "" : ` and s.${sqlIdent(deletedAt)} is null`;
+    const live = `${
+      deletedAt === undefined ? "" : ` and s.${sqlIdent(deletedAt)} is null`
+    }${excludeTemplates(subject.config, "s")}`;
 
     return `if v_row.${n.s("subjectType")} = ${sqlString(subject.type)} then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (

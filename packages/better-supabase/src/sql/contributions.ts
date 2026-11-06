@@ -23,6 +23,7 @@ export interface BlockContributions {
   readonly "share-links": ShareLinkContribution;
   readonly "state-machine": StateMachineContribution;
   readonly subjects: SubjectContribution;
+  readonly templates: TemplateContribution;
 }
 
 /** `BlockSql.contributes`: one function per generic block it adds to. */
@@ -341,6 +342,50 @@ export interface SummarySection {
    * argument is the fallback.
    */
   readonly readAt?: string;
+}
+
+/**
+ * A template type the contributing block owns. `storage: "rows"` keeps the
+ * content as rows of `table` whose template column points at `templates`. ADR 0244.
+ */
+export interface TemplateContribution {
+  readonly type: string;
+  readonly storage: "body" | "rows";
+  readonly subject?: string;
+  /** Qualified `clone(source uuid, overrides jsonb) returns jsonb`. */
+  readonly clone?: string;
+  /** Qualified table of the root row, for `rows`. */
+  readonly table?: string;
+  /** The template column of `table`, unquoted. */
+  readonly templateColumn?: string;
+  /** The id column of `table`. Defaults to `id`. */
+  readonly idColumn?: string;
+  /** `schema.table` of a 1:1 extension keyed by `template_id`. */
+  readonly extension?: string;
+  /** JSON Schema for `templates.settings` of this type. */
+  readonly settings?: Readonly<Record<string, unknown>>;
+  readonly rules?: TemplateRules;
+  /** Child tables a pack copies, each referencing the root by `parent`. */
+  readonly children?: readonly TemplateChildTable[];
+}
+
+/** A child table packed and unpacked with a rows template. */
+export interface TemplateChildTable {
+  readonly table: string;
+  /** The column that references the root row. */
+  readonly parent: string;
+}
+
+/** Dates and `{{variables}}` applied when a template becomes a live record. */
+export interface TemplateRules {
+  readonly dates?: readonly {
+    readonly column: string;
+    /** `"now"`, or the name of another column on the new row. */
+    readonly from: string;
+    readonly days: string;
+  }[];
+  /** Text columns whose `{{name}}` placeholders `overrides.variables` fills. */
+  readonly variables?: readonly string[];
 }
 
 /** What the contributing block adds to the subject functions. */

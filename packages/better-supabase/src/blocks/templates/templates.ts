@@ -266,6 +266,16 @@ export interface Templates<F extends object = Record<never, never>> {
     organizationId: string;
   }): AsyncResult<Template<F>>;
   /**
+   * Creates a record from a published template. A body template returns its
+   * apply target. A rows template clones the record and returns the
+   * application.
+   */
+  instantiate(input: {
+    templateId: string;
+    organizationId: string;
+    overrides?: Readonly<Record<string, unknown>> | undefined;
+  }): AsyncResult<unknown>;
+  /**
    * Upserts the system templates by key and publishes a new version of each
    * whose body changed. Service role. Returns how many it published.
    */
@@ -685,6 +695,16 @@ export function createTemplates<
       call("fork_template", { source, tenant: organizationId }, (value) =>
         templateOf(recordOf(value, "fork_template")),
       ).andThen(fields.row),
+    instantiate: ({ templateId, organizationId, overrides }) =>
+      call(
+        "instantiate_template",
+        {
+          template: templateId,
+          tenant: organizationId,
+          overrides: overrides ?? null,
+        },
+        (value) => value,
+      ),
     sync: (starters) =>
       AsyncResult.from(async () => {
         const rows: Record<string, unknown>[] = [];

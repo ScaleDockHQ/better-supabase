@@ -24,7 +24,17 @@ import {
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { searchColumnSql } from "../search-column.ts";
-import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsArg,
+  schemaPreamble,
+  triggerGrant,
+} from "../shared.ts";
+import {
+  sourceTemplateColumnSql,
+  templateColumnSql,
+  templateGuardSql,
+} from "../template-rows-sql.ts";
 import { invoiceAccountingSources } from "./invoices-accounting.ts";
 import {
   APPROVAL_EVENTS,
@@ -84,6 +94,7 @@ import {
   sourceContract,
   sourceFunctions,
 } from "./invoices-sources.ts";
+import { invoiceTemplatesOn } from "./invoices-templates.ts";
 import {
   HANDOVER_COLUMNS,
   TERMS_COLUMNS,
@@ -176,6 +187,7 @@ const NAMES: BlockSqlNames = {
       subject: {
         title: "title",
         permissions: { read: "read", write: "write" },
+        template: "template",
       },
     },
   },
@@ -185,6 +197,8 @@ const NAMES: BlockSqlNames = {
     "after_invoice_issue",
     "before_invoice_payment",
     "after_invoice_payment",
+    "before_invoice_clone",
+    "after_invoice_clone",
   ],
   options: [
     "company",
@@ -210,6 +224,8 @@ const NAMES: BlockSqlNames = {
     "purchaseCreditPrefix",
     "matchTolerance",
     "correctionEvents",
+    "templates",
+    "requireParty",
   ],
   tables: {
     invoices: {
@@ -276,6 +292,8 @@ const NAMES: BlockSqlNames = {
         collectionStatus: "collection_status",
         collectionAgencyId: "collection_agency_id",
         collectionHandedAt: "collection_handed_at",
+        template: "template_id",
+        sourceTemplate: "source_template_id",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -297,6 +315,8 @@ const NAMES: BlockSqlNames = {
         "discountAmount",
         "pricesIncludeTax",
         "archivedAt",
+        "template",
+        "sourceTemplate",
         ...PURCHASE_COLUMNS,
         ...COLLECTION_COLUMNS,
         "buyer",
@@ -444,7 +464,7 @@ ${renderPolicy(
   return `
 create table if not exists ${t("invoices")} (
   ${i("id")} uuid primary key default gen_random_uuid(),
-  ${i("tenant")} ${ctx.idType} not null,
+  ${i("tenant")} ${ctx.idType} not null,${invoiceTemplatesOn(ctx) ? `\n  ${templateColumnSql(ctx.colName("invoices", "template"), ctx.of("templates").table("templates"), true)},${ctx.has("invoices", "sourceTemplate") ? `\n  ${sourceTemplateColumnSql(ctx.colName("invoices", "sourceTemplate"), ctx.of("templates").table("templates"))},` : ""}` : ""}
   ${i("kind")} text not null default 'invoice' check (${i("kind")} in ('invoice', 'credit_note')),
   ${i("number")} bigint,
   ${i("identifier")} text,
@@ -464,10 +484,10 @@ create table if not exists ${t("invoices")} (
   ${totalColumnsSql(ctx, "invoices")},
 ${uniqueNumber === false ? "" : `  unique (${numberKey.map(i).join(", ")}),\n`}  check ((${i("kind")} = 'credit_note') = (${i("original")} is not null)),
   check (${i("status")} <> 'draft' or ${i("number")} is null),
-  check (${i("status")} in ('draft', 'void') or ${i("number")} is not null)${company === "pair" ? `,\n  check ((${i("companyType")} is null) = (${i("companyId")} is null))` : ""}
+  check (${invoiceTemplatesOn(ctx) ? `${i("template")} is not null or ` : ""}${i("status")} in ('draft', 'void') or ${i("number")} is not null)${company === "pair" ? `,\n  check ((${i("companyType")} is null) = (${i("companyId")} is null))` : ""}${invoiceTemplatesOn(ctx) && ctx.flag("requireParty", false) && ctx.has("invoices", "companyId") ? `,\n  check (${i("template")} is not null or ${i("companyId")} is not null)` : ""}
 );
 ${added === "" ? "" : `${added.slice(1)}\n`}create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${addExtraColumns(t("invoices"), n.extras)}${searchColumnSql(ctx, "invoices", ["identifier", "title", "note", "supplierReference"])}${ctx.has("invoices", "purchaseOrder") ? index("invoices_purchase_order_idx", ["purchaseOrder"]) : ""}${uniqueNumber === false ? "" : appUniqueIndex(ctx, "invoices", numberKey)}
-${lockModuleTable(ctx, "invoices", { read: true })}
+${lockModuleTable(ctx, "invoices", { read: true })}${invoiceTemplatesOn(ctx) ? `\n${templateGuardSql({ fn: ctx.fn("invoice_template_guard"), trigger: ctx.trigger("invoice_template"), table: t("invoices"), column: ctx.colName("invoices", "template"), hint: "INVOICE_TEMPLATE_IMMUTABLE" })}\n${triggerGrant(`${ctx.fn("invoice_template_guard")}()`)}` : ""}
 ${renderPolicy(
   makePolicy({
     table: t("invoices"),
@@ -704,6 +724,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "jsonb", "jsonb"],
       returns: "jsonb",
     },
+    { name: "clone_invoice", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "update_invoice", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "delete_invoice", args: ["uuid"], returns: "boolean" },
     { name: "set_invoice_lines", args: ["uuid", "jsonb"], returns: "jsonb" },
@@ -827,6 +848,7 @@ export const INVOICES: BlockSqlDefinition = {
     "orders",
     "shipments",
     "billable-time",
+    "templates",
   ],
   target: "schema",
   modes: ["managed", "custom"],
@@ -844,6 +866,31 @@ export const INVOICES: BlockSqlDefinition = {
     accounting: (own) =>
       accountingContributions(own, invoiceAccountingSources(own)),
     imports: invoiceImportTargets,
+    templates: (own) => {
+      if (!invoiceTemplatesOn(own)) {
+        return [];
+      }
+
+      const { schema, name } = own.tableName("invoices");
+
+      return [
+        {
+          type: "invoice",
+          storage: "rows" as const,
+          subject: "invoice",
+          clone: own.fn("clone_invoice"),
+          table: `${schema}.${name}`,
+          templateColumn: own.colName("invoices", "template"),
+          idColumn: own.colName("invoices", "id"),
+          children: [
+            {
+              table: `${schema}.${own.tableName("lines").name}`,
+              parent: own.colName("lines", "parent"),
+            },
+          ],
+        },
+      ];
+    },
   },
   contract,
   build,

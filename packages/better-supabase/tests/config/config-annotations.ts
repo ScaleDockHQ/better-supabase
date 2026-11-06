@@ -279,6 +279,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   "subjects.*.cascade": { default: false },
   "subjects.*.deletedAt": { description: "The soft-delete column." },
+  "subjects.*.template": {
+    description:
+      "The column that marks a template row, or { column, children } for a clone.",
+  },
   "subjects.*.auditReads": {
     default: false,
     description:

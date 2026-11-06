@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:530656cc3e1340f02eb58900e3d306698f38bec3e62241d082f9b29c7d5d6986
+-- @bsb-hash sha256:1377321ffe33feb4e7ccf884bfff02cd9514035efbe4794fc21c303ed9621a6f
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -722,6 +722,73 @@ $$;
 revoke execute on function "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) to authenticated, service_role;
 
+-- Copies source into a new task. overrides replaces the fields the caller
+-- edited. A template becomes a live task unless overrides.templateId is set.
+create or replace function "better_supabase"."clone_task"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."tasks"%rowtype;
+  v_id uuid;
+  v_created jsonb;
+  v_child uuid;
+  v_copy jsonb;
+  v_users uuid[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."tasks" x where x."id" = clone_task.source;
+  if not found then
+    raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.write'), false)) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_task.source, clone_task.overrides;
+    end if;
+  end;
+  select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."task_assignees" ra where ra."task_id" = v_src."id";
+  v_created := "better_supabase"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+    'title', v_src."title",
+    'body', v_src."body",
+    'parentId', v_src."parent_id",
+    'teamId', v_src."team_id",
+    'dueAt', v_src."due_at",
+    'priority', v_src."priority",
+    'templateId', null,
+    'sourceTemplateId', null
+  )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."task_checklist_items" ("tenant_id", "task_id", "title", "done", "rank")
+  select c."tenant_id", v_id, c."title", false, c."rank"
+  from "better_supabase"."task_checklist_items" c where c."task_id" = clone_task.source;
+  for v_child in select c."id" from "better_supabase"."tasks" c where c."parent_id" = clone_task.source loop
+    v_copy := "better_supabase"."clone_task"(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
+    update "better_supabase"."tasks" x set "parent_id" = v_id where x."id" = (v_copy ->> 'id')::uuid;
+  end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_task_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."clone_task"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_task"(uuid, jsonb) to authenticated, service_role;
+
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "better_supabase"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
@@ -1092,7 +1159,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:3559f4ef5c80df695c1c043a07ad8e7b390e5775952b0e5ac6b770f61956560c
+-- @bsb-hash sha256:495fdb7a7916064e686a6e1b105d28dcec883288c8f67b8d00e01b96bbbefb94
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1866,6 +1933,77 @@ $$;
 revoke execute on function "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) to authenticated, service_role;
 
+-- Copies source into a new task. overrides replaces the fields the caller
+-- edited. A template becomes a live task unless overrides.templateId is set.
+create or replace function "better_supabase"."clone_task"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."tasks"%rowtype;
+  v_id uuid;
+  v_created jsonb;
+  v_child uuid;
+  v_copy jsonb;
+  v_users uuid[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."tasks" x where x."id" = clone_task.source;
+  if not found then
+    raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.write'), false)) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_task.source, clone_task.overrides;
+    end if;
+  end;
+  select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."task_assignees" ra where ra."task_id" = v_src."id";
+  v_created := "better_supabase"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+    'title', v_src."title",
+    'body', v_src."body",
+    'parentId', v_src."parent_id",
+    'teamId', v_src."team_id",
+    'dueAt', v_src."due_at",
+    'priority', v_src."priority",
+    'templateId', null,
+    'sourceTemplateId', null
+  )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."task_checklist_items" ("tenant_id", "task_id", "title", "done", "rank")
+  select c."tenant_id", v_id, c."title", false, c."rank"
+  from "better_supabase"."task_checklist_items" c where c."task_id" = clone_task.source;
+  insert into "better_supabase"."taggings" ("tenant_id", "tag_id", "subject_type", "subject_id")
+  select g."tenant_id", g."tag_id", g."subject_type", v_id::text
+  from "better_supabase"."taggings" g
+  where g."subject_type" = 'task' and g."subject_id" = clone_task.source::text;
+  for v_child in select c."id" from "better_supabase"."tasks" c where c."parent_id" = clone_task.source loop
+    v_copy := "better_supabase"."clone_task"(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
+    update "better_supabase"."tasks" x set "parent_id" = v_id where x."id" = (v_copy ->> 'id')::uuid;
+  end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_task_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."tasks" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."clone_task"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_task"(uuid, jsonb) to authenticated, service_role;
+
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "better_supabase"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
@@ -2466,7 +2604,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:ab314f888560f984eac20088f984d1f19dadba704a6c341e54ef56978a1b09c1
+-- @bsb-hash sha256:5708c1514d55096b176ffac640ec51139a475d3800adcf565693e4fa45de864a
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3192,6 +3330,73 @@ $$;
 revoke execute on function "app_private"."list_tasks"(uuid, jsonb, text, uuid, integer) from public, anon;
 grant execute on function "app_private"."list_tasks"(uuid, jsonb, text, uuid, integer) to authenticated, service_role;
 
+-- Copies source into a new task. overrides replaces the fields the caller
+-- edited. A template becomes a live task unless overrides.templateId is set.
+create or replace function "app_private"."clone_task"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "app_private"."tasks"%rowtype;
+  v_id uuid;
+  v_created jsonb;
+  v_child uuid;
+  v_copy jsonb;
+  v_users uuid[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "app_private"."tasks" x where x."id" = clone_task.source;
+  if not found then
+    raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.write'), false)) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_task.source, clone_task.overrides;
+    end if;
+  end;
+  select coalesce(array_agg(ra."user_id"), '{}') into v_users from "app_private"."task_assignees" ra where ra."task_id" = v_src."id";
+  v_created := "app_private"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+    'title', v_src."title",
+    'body', v_src."body",
+    'parentId', v_src."parent_id",
+    'teamId', v_src."team_id",
+    'dueAt', v_src."due_at",
+    'priority', v_src."priority",
+    'templateId', null,
+    'sourceTemplateId', null
+  )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "app_private"."task_checklist_items" ("tenant_id", "task_id", "title", "done", "rank")
+  select c."tenant_id", v_id, c."title", false, c."rank"
+  from "app_private"."task_checklist_items" c where c."task_id" = clone_task.source;
+  for v_child in select c."id" from "app_private"."tasks" c where c."parent_id" = clone_task.source loop
+    v_copy := "app_private"."clone_task"(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
+    update "app_private"."tasks" x set "parent_id" = v_id where x."id" = (v_copy ->> 'id')::uuid;
+  end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_task_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "app_private"."task_checklist_items" rk where rk."task_id" = x."id")) from "app_private"."tasks" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "app_private"."clone_task"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."clone_task"(uuid, jsonb) to authenticated, service_role;
+
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "app_private"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
@@ -3562,7 +3767,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:9c1441efd983967a107fdaec70c0ad75a61e13caf7b278f5dbbac9110c572a53
+-- @bsb-hash sha256:3c8720bf145ae339e0ce9755763d9abb3e2e3201d3a5898998ddff878895e7e1
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4283,6 +4488,73 @@ $$;
 revoke execute on function "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) to authenticated, service_role;
 
+-- Copies source into a new task. overrides replaces the fields the caller
+-- edited. A template becomes a live task unless overrides.templateId is set.
+create or replace function "better_supabase"."clone_task"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."tasks"%rowtype;
+  v_id uuid;
+  v_created jsonb;
+  v_child uuid;
+  v_copy jsonb;
+  v_users uuid[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."tasks" x where x."id" = clone_task.source;
+  if not found then
+    raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.write'), false)) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_task.source, clone_task.overrides;
+    end if;
+  end;
+  select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."task_assignees" ra where ra."task_id" = v_src."id";
+  v_created := "better_supabase"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+    'title', v_src."title",
+    'body', v_src."body",
+    'parentId', v_src."parent_id",
+    'teamId', v_src."team_id",
+    'dueAt', v_src."due_at",
+    'priority', v_src."priority",
+    'templateId', null,
+    'sourceTemplateId', null
+  )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."task_checklist_items" ("tenant_id", "task_id", "title", "done", "rank")
+  select c."tenant_id", v_id, c."title", false, c."rank"
+  from "better_supabase"."task_checklist_items" c where c."task_id" = clone_task.source;
+  for v_child in select c."id" from "better_supabase"."tasks" c where c."parent_id" = clone_task.source loop
+    v_copy := "better_supabase"."clone_task"(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
+    update "better_supabase"."tasks" x set "parent_id" = v_id where x."id" = (v_copy ->> 'id')::uuid;
+  end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_task_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."clone_task"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_task"(uuid, jsonb) to authenticated, service_role;
+
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "better_supabase"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
@@ -4736,6 +5008,15 @@ as $$ select "better_supabase"."list_tasks"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."list_tasks"(uuid, jsonb, text, uuid, integer) from public, anon;
 grant execute on function "api"."list_tasks"(uuid, jsonb, text, uuid, integer) to authenticated, service_role;
 
+create or replace function "api"."clone_task"(source uuid, overrides jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."clone_task"($1, $2) $$;
+revoke execute on function "api"."clone_task"(uuid, jsonb) from public, anon;
+grant execute on function "api"."clone_task"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "api"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language sql
@@ -4827,7 +5108,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:9be875f1ec7c431aee932ee1244ae86538004a019b23bbae7f6676467609ed6b
+-- @bsb-hash sha256:774dc7ab821575a300cdfbb215e68285f5cb6edabe48fd8151b6212b55fc9dfc
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5550,6 +5831,73 @@ $$;
 revoke execute on function "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) to authenticated, service_role;
 
+-- Copies source into a new task. overrides replaces the fields the caller
+-- edited. A template becomes a live task unless overrides.templateId is set.
+create or replace function "better_supabase"."clone_task"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."tasks"%rowtype;
+  v_id uuid;
+  v_created jsonb;
+  v_child uuid;
+  v_copy jsonb;
+  v_users uuid[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."tasks" x where x."id" = clone_task.source;
+  if not found then
+    raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.write'), false)) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_task.source, clone_task.overrides;
+    end if;
+  end;
+  select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."task_assignees" ra where ra."task_id" = v_src."id";
+  v_created := "better_supabase"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+    'title', v_src."title",
+    'body', v_src."body",
+    'parentId', v_src."parent_id",
+    'teamId', v_src."team_id",
+    'dueAt', v_src."due_at",
+    'priority', v_src."priority",
+    'templateId', null,
+    'sourceTemplateId', null
+  )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."task_checklist_items" ("tenant_id", "task_id", "title", "done", "rank")
+  select c."tenant_id", v_id, c."title", false, c."rank"
+  from "better_supabase"."task_checklist_items" c where c."task_id" = clone_task.source;
+  for v_child in select c."id" from "better_supabase"."tasks" c where c."parent_id" = clone_task.source loop
+    v_copy := "better_supabase"."clone_task"(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
+    update "better_supabase"."tasks" x set "parent_id" = v_id where x."id" = (v_copy ->> 'id')::uuid;
+  end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_task_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."clone_task"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_task"(uuid, jsonb) to authenticated, service_role;
+
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "better_supabase"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
@@ -5920,7 +6268,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:57d1e2526a9148b846b6c23376f6f946b7c5c9948612cddf89d6797dbfd430d7
+-- @bsb-hash sha256:10751ceaaafaf43a8175aa0376be2cefb4ba0657e683a4d9a2af1d03a5b8669e
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6640,6 +6988,73 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_tasks"(uuid, jsonb, text, uuid, integer) to authenticated, service_role;
+
+-- Copies source into a new task. overrides replaces the fields the caller
+-- edited. A template becomes a live task unless overrides.templateId is set.
+create or replace function "better_supabase"."clone_task"(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."tasks"%rowtype;
+  v_id uuid;
+  v_created jsonb;
+  v_child uuid;
+  v_copy jsonb;
+  v_users uuid[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."tasks" x where x."id" = clone_task.source;
+  if not found then
+    raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."org_id", 'tasks.write'), false)) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_clone"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using clone_task.source, clone_task.overrides;
+    end if;
+  end;
+  select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."task_assignees" ra where ra."task_id" = v_src."id";
+  v_created := "better_supabase"."create_task"(v_src."org_id", jsonb_strip_nulls(jsonb_build_object(
+    'title', v_src."title",
+    'body', v_src."body",
+    'parentId', v_src."parent_id",
+    'teamId', v_src."team_id",
+    'dueAt', v_src."due_at",
+    'priority', v_src."priority",
+    'templateId', null,
+    'sourceTemplateId', null
+  )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
+  v_id := (v_created ->> 'id')::uuid;
+  insert into "better_supabase"."task_checklist_items" ("org_id", "task_id", "title", "done", "rank")
+  select c."org_id", v_id, c."title", false, c."rank"
+  from "better_supabase"."task_checklist_items" c where c."task_id" = clone_task.source;
+  for v_child in select c."id" from "better_supabase"."tasks" c where c."parent_id" = clone_task.source loop
+    v_copy := "better_supabase"."clone_task"(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
+    update "better_supabase"."tasks" x set "parent_id" = v_id where x."id" = (v_copy ->> 'id')::uuid;
+  end loop;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_task_clone"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_id;
+    end if;
+  end;
+  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."clone_task"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."clone_task"(uuid, jsonb) to authenticated, service_role;
 
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.

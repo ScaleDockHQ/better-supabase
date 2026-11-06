@@ -292,6 +292,10 @@ function subjectsOf(
         ...(subject.deletedAt === undefined
           ? {}
           : { deletedAt: column(subject.deletedAt) }),
+        ...(subject.template === undefined ||
+        config.options["templates"] !== true
+          ? {}
+          : { template: column(subject.template) }),
         ...(subject.rank === undefined
           ? {}
           : {

@@ -83,6 +83,10 @@ export type InvoicesSqlOptions = {
    * `false`.
    */
   readonly searchColumn?: boolean;
+  /** Template rows skip events and cannot be issued. ADR 0244. */
+  readonly templates?: boolean;
+  /** A live invoice still needs a customer when template rows are on. */
+  readonly requireParty?: boolean;
 };
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
@@ -113,4 +117,6 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
       option.unknown<NonNullable<InvoicesSqlOptions["matchTolerance"]>>(),
     discountMatrix: option.boolean({ default: false }),
     searchColumn: option.boolean({ default: false }),
+    templates: option.boolean({ default: false }),
+    requireParty: option.boolean({ default: false }),
   });

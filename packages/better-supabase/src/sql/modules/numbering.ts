@@ -9,6 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { SequenceEntity, TenantColumn } from "./numbering-entities.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { assignWhen } from "../numbering-sql.ts";
 import {
   fail,
   lockTable,
@@ -1068,7 +1069,7 @@ begin
     end if;
     return new;
   end if;
-  if not (${item.assignOn}) then
+  if not (${assignWhen(ctx, item)}) then
     return new;
   end if;
   v_n := ${ctx.fn("next_number")}(new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, v_at, ${scope});

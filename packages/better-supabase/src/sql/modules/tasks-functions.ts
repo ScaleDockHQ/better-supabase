@@ -48,6 +48,8 @@ export interface WorkItemNames {
   readonly e: (name: string) => string;
   /** The subject type of a task (`task`, or its renamed singular). */
   readonly type: string;
+  /** Template rows are enabled (ADR 0244). */
+  readonly templates: boolean;
 }
 
 /**
@@ -193,6 +195,7 @@ export function workItemFunctions(
       subject: `'work-items/' || ${alias}.${w("id")}::text`,
       tenant: `${alias}.${w("tenant")}::text`,
       audit: false,
+      ...(n.templates ? { live: `${alias}.${w("template")} is null` } : {}),
     });
 
   const writes = [
@@ -515,6 +518,10 @@ begin
       tenant: w("tenant"),
       prefix: n.prefix,
     },
+    "now()",
+    n.templates
+      ? { when: "nullif(create_task.attrs ->> 'templateId', '') is null" }
+      : {},
   )}
   begin
     insert into ${t("items")} (${lines(
@@ -541,7 +548,7 @@ begin
         w("stage"),
         column("createdBy"),
       ],
-    )}${extrasInsert.columns})
+    )}${extrasInsert.columns}${n.templates ? `, ${w("template")}${ctx.has("items", "sourceTemplate") ? `, ${w("sourceTemplate")}` : ""}` : ""})
     values (${lines(
       "      ",
       [
@@ -604,7 +611,7 @@ begin
         "(create_task.attrs ->> 'stageId')::uuid",
         present("items", "createdBy", "auth.uid()"),
       ],
-    )}${extrasInsert.values})
+    )}${extrasInsert.values}${n.templates ? `, nullif(create_task.attrs ->> 'templateId', '')::uuid${ctx.has("items", "sourceTemplate") ? ", nullif(create_task.attrs ->> 'sourceTemplateId', '')::uuid" : ""}` : ""})
     returning ${w("id")} into v_id;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range or foreign_key_violation then
     ${fail("TASK_ATTRS_INVALID", "a work item field has an invalid value", "22023")}
@@ -887,7 +894,7 @@ as $$
   from (
     select ${row("x")} as value, x.${w("number")} as number
     from ${t("items")} x
-    where x.${w("tenant")} = list_tasks.tenant and x.${w("archivedAt")} is null
+    where x.${w("tenant")} = list_tasks.tenant and x.${w("archivedAt")} is null${n.templates ? `\n      and (case coalesce(list_tasks.filter ->> 'templates', 'exclude') when 'include' then true when 'only' then x.${w("template")} is not null else x.${w("template")} is null end)` : ""}
       and (list_tasks.filter ->> 'teamId' is null or x.${w("team")} = (list_tasks.filter ->> 'teamId')::uuid)
       and (list_tasks.filter ->> ${sqlString(e("projectId"))} is null or ${has("project") ? `x.${w("project")} = (list_tasks.filter ->> ${sqlString(e("projectId"))})::uuid` : "false"})
       and (list_tasks.filter ->> ${sqlString(e("iterationId"))} is null or ${has("iteration") ? `x.${w("iteration")} = (list_tasks.filter ->> ${sqlString(e("iterationId"))})::uuid` : "false"})
@@ -902,5 +909,93 @@ as $$
   ) p
 $$;
 ${userGrant(`${fn("list_tasks")}(${ctx.idType}, jsonb, text, uuid, integer)`)}
-${workItemExtraFunctions(ctx, n, row, record)}${projects}${iterations}`;
+${cloneTask(ctx, n, fn, t, w, a, row)}${workItemExtraFunctions(ctx, n, row, record)}${projects}${iterations}`;
+}
+
+/**
+ * Copies a task and its assignees, checklist and child tasks. A template copy
+ * is a live task (numbered, with events) unless overrides.templateId is set.
+ */
+function cloneTask(
+  ctx: BlockSqlContext,
+  n: WorkItemNames,
+  fn: (name: string) => string,
+  t: (table: string) => string,
+  w: (column: string) => string,
+  a: (column: string) => string,
+  row: (alias: string) => string,
+): string {
+  const template = n.templates
+    ? `case when coalesce(clone_task.overrides, '{}'::jsonb) ? 'templateId' then clone_task.overrides ->> 'templateId' else null end`
+    : "null";
+
+  const source = n.templates
+    ? `case when v_src.${w("template")} is not null then v_src.${w("template")}::text else v_src.${ctx.has("items", "sourceTemplate") ? w("sourceTemplate") : "id"}::text end`
+    : "null";
+
+  const tags = ctx.installed("tags")
+    ? `
+  insert into ${ctx.of("tags").table("taggings")} (${ctx.of("tags").col("taggings", "tenant")}, ${ctx.of("tags").col("taggings", "tag")}, ${ctx.of("tags").col("taggings", "subjectType")}, ${ctx.of("tags").col("taggings", "subjectId")})
+  select g.${ctx.of("tags").col("taggings", "tenant")}, g.${ctx.of("tags").col("taggings", "tag")}, g.${ctx.of("tags").col("taggings", "subjectType")}, v_id::text
+  from ${ctx.of("tags").table("taggings")} g
+  where g.${ctx.of("tags").col("taggings", "subjectType")} = ${sqlString(n.type)} and g.${ctx.of("tags").col("taggings", "subjectId")} = clone_task.source::text;`
+    : "";
+
+  const checklist = ctx.hasTable("checklist")
+    ? `
+  insert into ${t("checklist")} (${ctx.col("checklist", "tenant")}, ${ctx.col("checklist", "item")}, ${ctx.col("checklist", "title")}, ${ctx.col("checklist", "done")}, ${ctx.col("checklist", "rank")})
+  select c.${ctx.col("checklist", "tenant")}, v_id, c.${ctx.col("checklist", "title")}, false, c.${ctx.col("checklist", "rank")}
+  from ${t("checklist")} c where c.${ctx.col("checklist", "item")} = clone_task.source;`
+    : "";
+
+  return `
+-- Copies source into a new task. overrides replaces the fields the caller
+-- edited. A template becomes a live task unless overrides.templateId is set.
+create or replace function ${fn("clone_task")}(source uuid, overrides jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src ${t("items")}%rowtype;
+  v_id uuid;
+  v_created jsonb;
+  v_child uuid;
+  v_copy jsonb;
+  v_users uuid[];
+begin
+  select * into v_src from ${t("items")} x where x.${w("id")} = clone_task.source;
+  if not found then
+    ${fail("TASK_NOT_FOUND", "no such work item", "P0002")}
+  end if;
+  if not (${n.service} or ${ctx.scope.can(`v_src.${w("tenant")}`, n.create)}) then
+    ${fail("TASK_FORBIDDEN", "not allowed to change work items")}
+  end if;
+  ${ctx.hook("before_task_clone", [
+    ["uuid", "clone_task.source"],
+    ["jsonb", "clone_task.overrides"],
+  ])}
+  select coalesce(array_agg(ra.${a("user")}), '{}') into v_users from ${t("assignees")} ra where ra.${a("item")} = v_src.${w("id")};
+  v_created := ${fn("create_task")}(v_src.${w("tenant")}, jsonb_strip_nulls(jsonb_build_object(
+    'title', v_src.${w("title")},
+    'body', ${ctx.has("items", "body") ? `v_src.${w("body")}` : "null"},
+    'parentId', v_src.${w("parent")},
+    'teamId', v_src.${w("team")},
+    'dueAt', v_src.${w("dueAt")},
+    'priority', v_src.${w("priority")},
+    'templateId', ${template},
+    'sourceTemplateId', ${source}
+  )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', ${template}, 'sourceTemplateId', ${source})), v_users);
+  v_id := (v_created ->> 'id')::uuid;${checklist}${tags}
+  for v_child in select c.${w("id")} from ${t("items")} c where c.${w("parent")} = clone_task.source loop
+    v_copy := ${fn("clone_task")}(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
+    update ${t("items")} x set ${w("parent")} = v_id where x.${w("id")} = (v_copy ->> 'id')::uuid;
+  end loop;
+  ${ctx.hook("after_task_clone", [["uuid", "v_id"]])}
+  return (select ${row("x")} from ${t("items")} x where x.${w("id")} = v_id);
+end;
+$$;
+${userGrant(`${fn("clone_task")}(uuid, jsonb)`)}
+`;
 }

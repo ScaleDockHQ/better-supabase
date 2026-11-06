@@ -3,6 +3,7 @@ import type { EntityNames } from "../../core/entity-naming.ts";
 import type { BlockSqlContext } from "../context.ts";
 
 import { tenantColumnOf } from "../subject-registry.ts";
+import { templateRowsOf } from "../template-rows-sql.ts";
 import { workflowOf } from "./state-machine-lifecycle.ts";
 
 const NAME = /^[a-z][a-z0-9_]*$/;
@@ -46,6 +47,8 @@ export interface Machine {
    * a null status may only move to `initial`.
    */
   readonly optional?: true;
+  /** The column that marks a template row; the transition trigger skips it. */
+  readonly template?: string;
 }
 
 /** An app table that keeps a machine's history. */
@@ -296,7 +299,36 @@ function machine(
     flags,
     ...(workflow === undefined ? {} : { workflow }),
     ...(history === undefined ? {} : { history }),
+    ...templateOf(table, registry),
   };
+}
+
+/** The template column of the subject whose table this machine numbers. */
+function templateOf(
+  table: string,
+  registry: SubjectsConfig,
+): { readonly template: string } | Record<string, never> {
+  const bare = table.includes(".")
+    ? table.slice(table.lastIndexOf(".") + 1)
+    : table;
+
+  for (const entry of Object.values(registry)) {
+    const entryBare = entry.table.includes(".")
+      ? entry.table.slice(entry.table.lastIndexOf(".") + 1)
+      : entry.table;
+
+    if (entry.table !== table && entryBare !== bare) {
+      continue;
+    }
+
+    const column = templateRowsOf(entry)?.column;
+
+    if (column !== undefined) {
+      return { template: column };
+    }
+  }
+
+  return {};
 }
 
 function edgesOf(

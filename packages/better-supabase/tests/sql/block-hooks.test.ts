@@ -188,12 +188,16 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_task_create",
     "before_task_update",
     "after_task_update",
+    "before_task_clone",
+    "after_task_clone",
   ],
   quotes: [
     "before_quote_send",
     "after_quote_send",
     "before_quote_accept",
     "after_quote_accept",
+    "before_quote_clone",
+    "after_quote_clone",
   ],
   hiring: ["before_application_hire", "after_application_hire"],
   employees: [
@@ -209,6 +213,8 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_invoice_issue",
     "before_invoice_payment",
     "after_invoice_payment",
+    "before_invoice_clone",
+    "after_invoice_clone",
   ],
   risks: [
     "before_risk_create",

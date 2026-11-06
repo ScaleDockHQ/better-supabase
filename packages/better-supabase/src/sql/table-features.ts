@@ -22,6 +22,7 @@ export const TABLE_FEATURES = [
   "append-only",
   "function-writes",
   "chain",
+  "template",
 ] as const;
 
 export type TableFeature = (typeof TABLE_FEATURES)[number];
@@ -161,6 +162,10 @@ function featureStatement(
 
   if (feature === "chain") {
     return `select better_supabase.chain('${schema}.${table}');`;
+  }
+
+  if (feature === "template") {
+    return `select better_supabase.template_table('${schema}.${table}'::regclass);`;
   }
 
   if (feature === "events") {

@@ -85,6 +85,7 @@ describe("setFeatureStatement", () => {
   it.each([
     ["events", "better_supabase.track_events('public.t')"],
     ["audit-reads", "better_supabase.record_subject_read('t', p_id"],
+    ["template", "better_supabase.template_table('public.t'::regclass)"],
   ] as const)("adds and removes the %s statement", (feature, text) => {
     const on = setFeatureStatement(file, "public", "t", feature, true);
 

@@ -19,6 +19,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { registeredIdMatches, teamActions } from "../subject-registry.ts";
+import { excludeTemplates } from "../template-rows-sql.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 import { teamIdType } from "./teams.ts";
 
@@ -327,9 +328,12 @@ ${userGrant(`${fn("has_subject_role")}(text, text, text[])`)}
 function live(subject: RegisteredSubject, id: string): string {
   const match = registeredIdMatches(subject, id);
 
-  return subject.config.deletedAt === undefined
-    ? match
-    : `${match} and s.${sqlIdent(subject.config.deletedAt)} is null`;
+  const deleted =
+    subject.config.deletedAt === undefined
+      ? ""
+      : ` and s.${sqlIdent(subject.config.deletedAt)} is null`;
+
+  return `${match}${deleted}${excludeTemplates(subject.config, "s")}`;
 }
 
 /**

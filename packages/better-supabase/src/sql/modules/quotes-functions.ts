@@ -22,9 +22,15 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import { cloneQuoteSql } from "./quotes-clone.ts";
 import { quoteDecisions } from "./quotes-decisions.ts";
 import { holdsDeclare, holdsOnSend, holdsSql } from "./quotes-holds.ts";
-import { quoteKit, quoteOrigin, quoteParty } from "./quotes-kit.ts";
+import {
+  quoteKit,
+  quoteOrigin,
+  quoteParty,
+  quoteTemplatesOn,
+} from "./quotes-kit.ts";
 
 export { quoteGuest, quoteOrigin, quoteParty } from "./quotes-kit.ts";
 
@@ -98,6 +104,14 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
     .filter(has)
     .map((column) => `${q(column)} = null, `)
     .join("");
+
+  const templateColumns = quoteTemplatesOn(ctx)
+    ? `, ${q("template")}${ctx.has("quotes", "sourceTemplate") ? `, ${q("sourceTemplate")}` : ""}`
+    : "";
+
+  const templateValues = quoteTemplatesOn(ctx)
+    ? `, nullif(create_quote.attrs ->> 'templateId', '')::uuid${ctx.has("quotes", "sourceTemplate") ? ", nullif(create_quote.attrs ->> 'sourceTemplateId', '')::uuid" : ""}`
+    : "";
 
   // Refuses pricing the app's quotes table has no column for.
   const pricing = (attrs: string): string =>
@@ -332,10 +346,14 @@ begin
       tenant: q("tenant"),
       prefix: n.prefix,
     },
+    "now()",
+    quoteTemplatesOn(ctx)
+      ? { when: "nullif(create_quote.attrs ->> 'templateId', '') is null" }
+      : {},
   )}
   begin
     insert into ${t("quotes")} (${q("tenant")}, ${q("number")}, ${q("identifier")}, ${q("title")}${[...k.partyFields("company"), ...k.partyFields("contact")].map((field) => `, ${q(field)}`).join("")},
-      ${q("owner")}, ${q("currency")}, ${q("validUntil")}${also("terms")}${also("note")}${also("originType")}${also("originId")}${also("pricesIncludeTax")}${also("discountBps")}${also("discountAmount")}${also("depositBps")}${also("depositAmount")}${also("depositRequired")}${also("createdBy")}${insertExtraColumns(t("quotes"), n.extras, "coalesce(create_quote.attrs -> 'fields', '{}'::jsonb)").columns})
+      ${q("owner")}, ${q("currency")}, ${q("validUntil")}${also("terms")}${also("note")}${also("originType")}${also("originId")}${also("pricesIncludeTax")}${also("discountBps")}${also("discountAmount")}${also("depositBps")}${also("depositAmount")}${also("depositRequired")}${also("createdBy")}${templateColumns}${insertExtraColumns(t("quotes"), n.extras, "coalesce(create_quote.attrs -> 'fields', '{}'::jsonb)").columns})
     values (${valueLines(
       "      ",
       [
@@ -385,7 +403,7 @@ begin
         ),
         present("createdBy", "auth.uid()"),
       ],
-    )}${insertExtraColumns(t("quotes"), n.extras, "coalesce(create_quote.attrs -> 'fields', '{}'::jsonb)").values})
+    )}${templateValues}${insertExtraColumns(t("quotes"), n.extras, "coalesce(create_quote.attrs -> 'fields', '{}'::jsonb)").values})
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("QUOTE_ATTRS_INVALID", "a quote field has an invalid value", "22023")}
@@ -501,6 +519,7 @@ declare
   v_version uuid;${k.workingCopy ? "\n  v_linked boolean;" : ""}${holdsDeclare(ctx)}
 begin
   select * into v_row from ${t("quotes")} x where x.${q("id")} = send_quote.quote and ${editable("x", n.send)} for update;
+  ${quoteTemplatesOn(ctx) ? `if v_row.${q("template")} is not null then\n    ${fail("QUOTE_TEMPLATE", "a template quote cannot be sent", "22023")}\n  end if;` : ""}
   if v_row.${q("id")} is null then
     ${fail("QUOTE_NOT_FOUND", "no such quote you can edit", "P0002")}
   end if;
@@ -612,7 +631,7 @@ begin
   perform set_config('better_supabase.transition_actor', '', true);
   for v_row in
     update ${t("quotes")} x set ${q("status")} = ${sv("expired")}, ${q("updatedAt")} = now()
-    where ${st(`x.${q("status")}`, ["sent", "viewed"])} and x.${q("validUntil")} < current_date
+    where ${st(`x.${q("status")}`, ["sent", "viewed"])} and x.${q("validUntil")} < current_date${quoteTemplatesOn(ctx) ? ` and x.${q("template")} is null` : ""}
     returning *
   loop
     ${record("quote.expired", "v_row")}
@@ -622,7 +641,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("expire_quotes")}()`)}
-${holdsSql(ctx, n)}${appTotalsGuard(ctx, n, k)}${fromDeal}`;
+${holdsSql(ctx, n)}${appTotalsGuard(ctx, n, k)}${fromDeal}${cloneQuoteSql(ctx, n)}`;
 }
 
 /**

@@ -30,7 +30,7 @@ export const NAMES: BlockSqlNames = {
     "before_template_apply",
     "after_template_apply",
   ],
-  options: ["extraColumns", "brand"],
+  options: ["extraColumns", "brand", "types"],
   tables: {
     templates: {
       name: "templates",

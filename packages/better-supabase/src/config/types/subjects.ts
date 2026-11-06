@@ -80,6 +80,20 @@ export interface SubjectConfig {
    */
   readonly deletedAt?: string;
   /**
+   * The column that marks a template row. While it is set, numbering, search,
+   * pipelines, the state machine and domain events skip the row. An object also
+   * names the child tables a clone copies. ADR 0244.
+   */
+  readonly template?:
+    | string
+    | {
+        readonly column: string;
+        readonly children?: readonly {
+          readonly table: string;
+          readonly column: string;
+        }[];
+      };
+  /**
    * The column holding a legal hold's end time. The trash block keeps a batch
    * with a held subject in the trash instead of purging it.
    */
