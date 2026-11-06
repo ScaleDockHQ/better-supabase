@@ -24,7 +24,7 @@ while it waits, 200 with an `accessToken`, `refreshToken`, `expiresAt` and
 `email` once you approve, and 410 when the code expired or was denied.
 
 The login lives in `$XDG_CONFIG_HOME/better-supabase/auth.json`, or
-`~/.config/better-supabase/auth.json`, with mode 0600. `$BSB_CLOUD_URL` points
+`~/.config/better-supabase/auth.json`, with mode 0600. `$BETTER_SUPABASE_CLOUD_URL` points
 the CLI at another cloud address.
 
 When the access token is less than a minute from `expiresAt`, the CLI posts the

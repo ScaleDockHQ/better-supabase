@@ -472,10 +472,6 @@ They are not part of `SubjectEventType<M>`, the types in an event map `M`
 whose keys are never `null`, so a sink that wants them checks `subjectType`
 first.
 
-`BLOCK_EVENT_RENAMES` from `better-supabase/events` maps the 0.5 names to the
-current ones (`BLOCK_EVENT_RENAMES[type] ?? type`), for consumers that still
-receive both.
-
 Block events follow the same rules as the others: the data is a copy, and a
 handler can't change what the block does. To decide something, pass the module's
 policy callback instead (below).

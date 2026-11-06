@@ -183,7 +183,7 @@ Side effects: Stops or destroys local stacks.
 `db seed --apply` and [`db query`](/docs/cli/db) connect to the stack in
 `supabase/config.toml`. To keep a second stack for tests or a demo, give it
 its own `[db] port` in `supabase/stacks/<name>/config.toml` and pass
-`--stack <name>` or set `BSB_STACK=<name>`. Without a port there, the
+`--stack <name>` or set `BETTER_SUPABASE_STACK=<name>`. Without a port there, the
 command reads the `DB_URL` from `supabase status --stack <name>`, and fails
 with `not_found` when that stack isn't running. A connection string from
 `$DATABASE_URL` or `--db-url-stdin` still wins. If two stacks can't run side

@@ -355,6 +355,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0242: Compute deadlines from approved, versioned rule sets.
 - 0243: Option sets, lane archiving with a move target and brand starters.
 - 0244: Store templates as rows of the record they create.
+- 0245: Upgrades start at 0.53, and removed names have no alias.
+- 0246: One naming convention from api/naming.json.
 
 ## Pre-release pins
 

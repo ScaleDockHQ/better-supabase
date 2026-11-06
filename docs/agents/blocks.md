@@ -338,6 +338,6 @@ blocks next to its own tables. Things it ran into:
 - After changing a preset, run `pnpm --filter
   @better-supabase/validation-presets gen` to refresh its wiring, and update
   the preset's row and page under `apps/docs/content/docs/presets`.
-- A removed export, subpath or method gets a codemod rename or review hint
-  (`src/cli/codemod-block-renames.ts`) and, when app code can still call it,
-  a pattern in doctor's BS418 (`src/cli/doctor/removed-apis.ts`).
+- A renamed export, type, subpath or environment variable gets a row in
+  `api/naming.json` (the `naming` codemod and doctor BS260 read it). A removed
+  one is gone with no alias; the release notes name it.

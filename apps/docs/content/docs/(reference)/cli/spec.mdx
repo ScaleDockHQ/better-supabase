@@ -120,13 +120,9 @@ JSON keeps the generated key order and ends in a newline. YAML is YAML 1.2
 in the same order, with no anchors and no line folding, so the same document
 always gives the same bytes.
 
-### The `openapi` key
-
-`openapi: { entry, output }` is a deprecated alias of `specs`. When `specs`
-is unset, `api.openapi.entry` becomes `api.specs.entry` and `api.openapi.output` becomes
-the output of the one OpenAPI document. A module that exports a
-`createOpenApi` document instead of a `defineApi` definition works too, so
-`spec emit openapi` replaces the old `openapi emit` command.
+A module that exports a `createOpenApi` document instead of a `defineApi`
+definition works too, so `spec emit openapi` replaces the old `openapi emit`
+command. `api.specs` is the only config key.
 
 ## Options
 

@@ -24,7 +24,7 @@ other World.
 | Subpath                                 | What it gives you                                                                 |
 | --------------------------------------- | --------------------------------------------------------------------------------- |
 | `better-supabase/ai-sdk/workflow`       | `durableChat` for the routes, `durableTurn` for the workflow and the turn's steps |
-| `better-supabase/ai-sdk/workflow/react` | `useDurableAssistant` and `durableTransport` for the client                       |
+| `better-supabase/ai-sdk/workflow-react` | `useDurableAssistant` and `durableTransport` for the client                       |
 
 ## The workflow
 
@@ -184,7 +184,7 @@ Errors are RFC 9457 problem details with a `code`:
 ```tsx title="app/chat/[id]/chat.tsx"
 "use client";
 
-import { useDurableAssistant } from "better-supabase/ai-sdk/workflow/react";
+import { useDurableAssistant } from "better-supabase/ai-sdk/workflow-react";
 
 export function Chat({ id, initial, streaming }: Props) {
   const chat = useDurableAssistant({

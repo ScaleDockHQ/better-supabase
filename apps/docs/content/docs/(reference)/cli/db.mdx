@@ -14,11 +14,11 @@ pnpm better-supabase db query --single-transaction a.sql b.sql
 can hold many statements, so a data migration or a fixture file runs as it
 would in `psql -f`, without a `psql` install.
 
-| Flag                   | Effect                                                                            |
-| ---------------------- | --------------------------------------------------------------------------------- |
-| `--single-transaction` | Wraps every file in one transaction, so a failure keeps none.                     |
-| `--stack <name>`       | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`). |
-| `--db-url-stdin`       | Reads the connection string from stdin, so it never reaches argv.                 |
+| Flag                   | Effect                                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `--single-transaction` | Wraps every file in one transaction, so a failure keeps none.                                 |
+| `--stack <name>`       | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
+| `--db-url-stdin`       | Reads the connection string from stdin, so it never reaches argv.                             |
 
 Without `--db-url-stdin`, the command connects through `$DATABASE_URL`,
 `$SUPABASE_DB_URL`, or the local stack. Against a database that is not local,
@@ -57,12 +57,12 @@ The plan is checked before anything is written:
   column type) stops the diff with a `check_failed` error and writes nothing.
   Run it again with `--allow-data-loss` once you have read the list.
 
-| Flag                | Effect                                                                                 |
-| ------------------- | -------------------------------------------------------------------------------------- |
-| `-f, --file`        | Saves the diff as `supabase/migrations/<timestamp>_<name>.sql` instead of printing it. |
-| `--in-stack`        | Plans with the library on the running stack, without the Supabase CLI.                 |
-| `--allow-data-loss` | Writes the migration even when it destroys data.                                       |
-| `--stack <name>`    | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`).      |
+| Flag                | Effect                                                                                        |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| `-f, --file`        | Saves the diff as `supabase/migrations/<timestamp>_<name>.sql` instead of printing it.        |
+| `--in-stack`        | Plans with the library on the running stack, without the Supabase CLI.                        |
+| `--allow-data-loss` | Writes the migration even when it destroys data.                                              |
+| `--stack <name>`    | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
 
 A migration from the library plan starts with a comment that asks you to
 review it: it compares two databases, so check the order of the statements
@@ -246,19 +246,19 @@ the column is null, so a run that stops can start again, and a second run
 fills nothing. Rows whose source value is null, or that have no source row,
 stay null; the result counts them in `remaining`.
 
-| Flag                 | Effect                                                                             |
-| -------------------- | ---------------------------------------------------------------------------------- |
-| `--from <table.col>` | Copies the value from this column, joined through `via <column>`.                  |
-| `--via <column>`     | The foreign key column of the target table, the same as a trailing `via <column>`. |
-| `--value <literal>`  | Writes this SQL literal instead of `--from`.                                       |
-| `--array <path>`     | Changes the elements of the jsonb array at this key path instead of filling nulls. |
-| `--match <json>`     | With `--array`: the JSON object an element must contain to change.                 |
-| `--delete`           | With `--array`: removes the matching elements.                                     |
-| `--merge <json>`     | With `--array`: merges this JSON object into each matching element.                |
-| `--batch-size <n>`   | Rows per statement (default 1000).                                                 |
-| `--dry-run`          | Counts the rows (and elements) it would change and writes nothing.                 |
-| `--stack <name>`     | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`).  |
-| `--db-url-stdin`     | Reads the connection string from stdin, so it never reaches argv.                  |
+| Flag                 | Effect                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| `--from <table.col>` | Copies the value from this column, joined through `via <column>`.                             |
+| `--via <column>`     | The foreign key column of the target table, the same as a trailing `via <column>`.            |
+| `--value <literal>`  | Writes this SQL literal instead of `--from`.                                                  |
+| `--array <path>`     | Changes the elements of the jsonb array at this key path instead of filling nulls.            |
+| `--match <json>`     | With `--array`: the JSON object an element must contain to change.                            |
+| `--delete`           | With `--array`: removes the matching elements.                                                |
+| `--merge <json>`     | With `--array`: merges this JSON object into each matching element.                           |
+| `--batch-size <n>`   | Rows per statement (default 1000).                                                            |
+| `--dry-run`          | Counts the rows (and elements) it would change and writes nothing.                            |
+| `--stack <name>`     | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
+| `--db-url-stdin`     | Reads the connection string from stdin, so it never reaches argv.                             |
 
 ### Array elements
 
@@ -336,14 +336,14 @@ briefly. Running runs are never deleted. Run it on a schedule when the
 database has no pg_cron, or set the block's
 [`retention`](/docs/blocks/workflow-sdk#retention) option instead.
 
-| Flag                 | Effect                                                                            |
-| -------------------- | --------------------------------------------------------------------------------- |
-| `--older-than <age>` | `30d`, `12h`, `7 days` or `12 hours` (default `30d`).                             |
-| `--status <list>`    | Comma-separated: `completed`, `failed`, `cancelled` (default all three).          |
-| `--batch-size <n>`   | Runs per statement, 1 to 10000 (default 500).                                     |
-| `--dry-run`          | Counts the runs it would delete and writes nothing.                               |
-| `--stack <name>`     | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`). |
-| `--db-url-stdin`     | Reads the connection string from stdin, so it never reaches argv.                 |
+| Flag                 | Effect                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| `--older-than <age>` | `30d`, `12h`, `7 days` or `12 hours` (default `30d`).                                         |
+| `--status <list>`    | Comma-separated: `completed`, `failed`, `cancelled` (default all three).                      |
+| `--batch-size <n>`   | Runs per statement, 1 to 10000 (default 500).                                                 |
+| `--dry-run`          | Counts the runs it would delete and writes nothing.                                           |
+| `--stack <name>`     | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
+| `--db-url-stdin`     | Reads the connection string from stdin, so it never reaches argv.                             |
 
 Against a database that is not local, an agent needs the user's consent
 first. The JSON envelope returns `data.deleted`, or `data.pending` with
