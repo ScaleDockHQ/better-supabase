@@ -1,45 +1,11 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:ca5e10a72afecd86d1cdb78ccc8d7746024417374c283402beae3043e90edaec
+-- @bsb-hash sha256:bd6f9baaf2af656fc2ec47903b79ba2d47ebc2a77a77921fa5b03cdc72a7706c
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -70,8 +36,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Files linked to records. Each object lives at options.path (default
 -- {organization_id}/attachments/{id}) in the attachments bucket, or its
 -- subject's bucket; the record is created first, so the storage policies
@@ -1188,18 +1153,6 @@ grant execute on function "better_supabase"."seed_attachments_defaults"(uuid, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
 create policy bsb_tenant_scope_select on "better_supabase"."attachments" as restrictive
@@ -1272,19 +1225,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
@@ -1306,45 +1246,11 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:c52b0dc73a2fe2e50d1c0bec3d23d2c9c3c57df4a43da1b587933c25d7630102
+-- @bsb-hash sha256:c8d0da04b75cb7ebd8724bfe31f1e3e8c1525cc86728e3d057ec804f81d9f1d3
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -1375,8 +1281,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Files linked to records. Each object lives at options.path (default
 -- {organization_id}/attachments/{id}) in the attachments bucket, or its
 -- subject's bucket; the record is created first, so the storage policies
@@ -2635,18 +2540,6 @@ grant execute on function "better_supabase"."seed_attachments_defaults"(uuid, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
 create policy bsb_tenant_scope_select on "better_supabase"."attachments" as restrictive
@@ -2726,19 +2619,6 @@ begin
 end;
 $$;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
@@ -2760,45 +2640,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:f0d799d1e58a302843e1b2acd34d60499f17006464e40b6a69ffee1c877e44fa
+-- @bsb-hash sha256:c854bed9b1ac3e6a8d0b6c7eecf19e4ebe3b51ffda956bf96b5e8d4d96bb754b
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -2829,8 +2675,6 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -3952,18 +3796,6 @@ grant execute on function "app_private"."seed_attachments_defaults"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."attachments";
 drop policy if exists bsb_tenant_scope_select on "app_private"."attachments";
 create policy bsb_tenant_scope_select on "app_private"."attachments" as restrictive
@@ -4036,19 +3868,6 @@ create policy bsb_tenant_scope_delete on "app_private"."attachment_versions" as 
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
@@ -4070,45 +3889,11 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:fb31fad7c3580bdaf47a29073dd6b48d5a32cccafa7c6d6cc57a6610149b9309
+-- @bsb-hash sha256:83657cfb0348cba8b8e574d9aa09191267d90da0d3102d27d4710c64e48a6e42
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -4139,8 +3924,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Files linked to records. Each object lives at options.path (default
 -- {organization_id}/attachments/{id}) in the attachments bucket, or its
 -- subject's bucket; the record is created first, so the storage policies
@@ -5257,18 +5041,6 @@ grant execute on function "better_supabase"."seed_attachments_defaults"(uuid, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
 create policy bsb_tenant_scope_select on "better_supabase"."attachments" as restrictive
@@ -5357,25 +5129,6 @@ drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text
 drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer);
 drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, jsonb);
 drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text, jsonb);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."attachment_schema_error"(fields jsonb)
 returns text
@@ -5555,19 +5308,6 @@ as $$ select "better_supabase"."seed_attachments_defaults"($1, $2, $3) $$;
 revoke execute on function "api"."seed_attachments_defaults"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "api"."seed_attachments_defaults"(uuid, text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
@@ -5589,61 +5329,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:685696f5b2541337196597ab7a19023e86fef8aa247ffebb11ee0ce88952ea79
+-- @bsb-hash sha256:948cf7358cd3ca18aaff2cb0dda9bac0b06dc39ee218cf382283ce2950f3723e
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -5674,8 +5364,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Files linked to records. Each object lives at options.path (default
 -- {organization_id}/attachments/{id}) in the attachments bucket, or its
 -- subject's bucket; the record is created first, so the storage policies
@@ -6548,18 +6237,6 @@ grant execute on function "better_supabase"."seed_attachments_defaults"(uuid, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
 create policy bsb_tenant_scope_select on "better_supabase"."attachments" as restrictive
@@ -6632,19 +6309,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
@@ -6666,45 +6330,11 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:daefb192aa9480f61c0550c2ee09ddb2ca5c1cb32908a518bc84f173d76cacb8
+-- @bsb-hash sha256:3b159871b9c9ab9f97daf2c75184ddeceabe8b0ea210bd35fd686de197c96d91
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -6735,8 +6365,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Files linked to records. Each object lives at options.path (default
 -- {organization_id}/attachments/{id}) in the attachments bucket, or its
 -- subject's bucket; the record is created first, so the storage policies
@@ -7853,18 +7482,6 @@ grant execute on function "better_supabase"."seed_attachments_defaults"(uuid, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
 create policy bsb_tenant_scope_select on "better_supabase"."attachments" as restrictive
@@ -7936,19 +7553,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_v
 create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments

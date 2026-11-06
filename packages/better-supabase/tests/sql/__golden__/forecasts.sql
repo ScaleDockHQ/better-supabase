@@ -1,45 +1,11 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:7af1b3b7d523959944a2e317a86f0707025dcced40f0adfb9c6e4af0f8399005
+-- @bsb-hash sha256:3c65d25a0073e8213c258d2db24f39e3f3ca20bb2bfd4f7389fd87cba941ef31
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -62,8 +28,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Forecasts: snapshots of the forecast call over time, with the deals each
 -- one counted, and what changed between two of them.
 create table if not exists "better_supabase"."forecast_snapshots" (
@@ -285,18 +250,6 @@ grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
 create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshots" as restrictive
@@ -340,19 +293,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_de
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block-data forecasts
@@ -370,45 +310,11 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:84e1e8428feca7771c02b7519b4ed7a0471162c6d29a79d055f60c33171886a8
+-- @bsb-hash sha256:0fd55ad2c8d20748dad60a04820c524bcf4ddf16d55665e6ffdef816dd630f5b
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -431,8 +337,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Forecasts: snapshots of the forecast call over time, with the deals each
 -- one counted, and what changed between two of them.
 create table if not exists "better_supabase"."forecast_snapshots" (
@@ -654,18 +559,6 @@ grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
 create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshots" as restrictive
@@ -716,19 +609,6 @@ begin
 end;
 $$;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block-data forecasts
@@ -746,45 +626,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:fe6b23407a533f996acd6e4cb962d0614d1a9c7a5b8c33f8afc228ac1529dd42
+-- @bsb-hash sha256:b90e88e7a761dd71a8ce2dbffef88cfc7c41c84c37a149799d5eaa1c02b4adc7
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -807,8 +653,6 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -1035,18 +879,6 @@ grant execute on function "app_private"."forecast_changes"(uuid, uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."forecast_snapshots";
 drop policy if exists bsb_tenant_scope_select on "app_private"."forecast_snapshots";
 create policy bsb_tenant_scope_select on "app_private"."forecast_snapshots" as restrictive
@@ -1090,19 +922,6 @@ create policy bsb_tenant_scope_delete on "app_private"."forecast_snapshot_deals"
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block-data forecasts
@@ -1120,45 +939,11 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:94786003b5399836379bac0350b3b147c6475ae8d67beedc01744f70f71e0ed5
+-- @bsb-hash sha256:2aaac24d99cb36a79cf3abf462c6a165a6b25749779f9b95b8ac0b1ee19d3ebe
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -1181,8 +966,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Forecasts: snapshots of the forecast call over time, with the deals each
 -- one counted, and what changed between two of them.
 create table if not exists "better_supabase"."forecast_snapshots" (
@@ -1404,18 +1188,6 @@ grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
 create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshots" as restrictive
@@ -1463,25 +1235,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_de
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
-
 create or replace function "api"."take_forecast_snapshot"(tenant uuid, pipeline uuid, since date, until date, currency text, target bigint default null)
 returns jsonb
 language sql
@@ -1521,19 +1274,6 @@ as $$ select "better_supabase"."forecast_changes"($1, $2) $$;
 revoke execute on function "api"."forecast_changes"(uuid, uuid) from public, anon;
 grant execute on function "api"."forecast_changes"(uuid, uuid) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block-data forecasts
@@ -1551,61 +1291,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:29f81835dc634b37eedd104af629440cd0297198861df1916d9cc85d6d4528e2
+-- @bsb-hash sha256:487d3d9dd0d402071236993e142a48a0a056c56d630f0eac676181dce3f182b0
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -1628,8 +1318,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Forecasts: snapshots of the forecast call over time, with the deals each
 -- one counted, and what changed between two of them.
 -- better_supabase.forecast_snapshots is the app's table: this block adds only the columns it needs.
@@ -1845,18 +1534,6 @@ grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
 create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshots" as restrictive
@@ -1900,19 +1577,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_de
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block-data forecasts
@@ -1930,45 +1594,11 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:642cb7733cdcab9f86e5736452997cfa262c79d067f6255ecaf7af4268df34c6
+-- @bsb-hash sha256:213b7ec6703ca02ee53987d549a7155c01635d138c690f9d467aea8890ca0616
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -1991,8 +1621,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Forecasts: snapshots of the forecast call over time, with the deals each
 -- one counted, and what changed between two of them.
 create table if not exists "better_supabase"."forecast_snapshots" (
@@ -2214,18 +1843,6 @@ grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
 create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshots" as restrictive
@@ -2268,19 +1885,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_sna
 create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts

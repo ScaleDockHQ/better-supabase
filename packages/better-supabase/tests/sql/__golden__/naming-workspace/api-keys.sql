@@ -1,45 +1,11 @@
 -- ==== schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:585244d9661c3a5d224f660c5ee1145b29e59e0ce55936299e87dfe1ac43c078
+-- @bsb-hash sha256:c07d99e0d238e43db36cd5f08fcba0171a1d6d70ffa559f49402f65a856b6119
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -54,8 +20,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- API keys: `<prefix>_<public id>_<secret>`. Only the SHA-256 of the secret
 -- is stored. A key acts as its user (user_id), as its tenant (organization_id
 -- without user_id), or as a user inside one tenant (both).
@@ -468,19 +433,6 @@ grant execute on function "better_supabase"."rotate_api_key"(uuid, text, text, i
 grant execute on function "better_supabase"."verify_api_key"(text, text) to service_role;
 grant execute on function "better_supabase"."has_scope"(text) to anon, authenticated, service_role;
 grant execute on function "better_supabase"."api_key_tenant"() to anon, authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys

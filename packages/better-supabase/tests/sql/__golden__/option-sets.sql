@@ -1,45 +1,11 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:16e771286a0b3a0bdf2fadb30e0415b34d728f9af6e416809951d20b60fd344a
+-- @bsb-hash sha256:f2efe69a801abca72599571792d63a8ebdf514781fee75c34ce012c5cc99b9f8
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -62,8 +28,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Option sets (ADR 0243): tenant-editable items for a field such as priority,
 -- each with a level that is written to the record's own column, and starter
 -- items per brand.
@@ -439,18 +404,6 @@ grant execute on function "better_supabase"."archive_option_set_item"(uuid, uuid
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."option_sets";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."option_sets";
 create policy bsb_tenant_scope_select on "better_supabase"."option_sets" as restrictive
@@ -494,19 +447,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
@@ -524,45 +464,11 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:ac2e8bb675ea57a0835002370080d1edbaa9ea559a495ec9f1831c9115f15399
+-- @bsb-hash sha256:cd72d6081463003a316a843f5b0b12b1e9c93a759131b3ebc55521567a69495c
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -585,8 +491,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Option sets (ADR 0243): tenant-editable items for a field such as priority,
 -- each with a level that is written to the record's own column, and starter
 -- items per brand.
@@ -1093,18 +998,6 @@ grant execute on function "better_supabase"."archive_option_set_item"(uuid, uuid
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."option_sets";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."option_sets";
 create policy bsb_tenant_scope_select on "better_supabase"."option_sets" as restrictive
@@ -1155,19 +1048,6 @@ begin
 end;
 $$;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
@@ -1185,45 +1065,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:9d337b386d99c30f08e416f82d4b2181cd871a0b131bf578bad7cea60dd0d2ab
+-- @bsb-hash sha256:57a7bd684215396c7d08de2cbfb8f704b21e851b63bf431b7924076090885593
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -1246,8 +1092,6 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -1628,18 +1472,6 @@ grant execute on function "app_private"."archive_option_set_item"(uuid, uuid) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."option_sets";
 drop policy if exists bsb_tenant_scope_select on "app_private"."option_sets";
 create policy bsb_tenant_scope_select on "app_private"."option_sets" as restrictive
@@ -1683,19 +1515,6 @@ create policy bsb_tenant_scope_delete on "app_private"."option_set_items" as res
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
@@ -1713,45 +1532,11 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:5814314c3dd84a1ee801ff3da3d5ab287a6921309f14a91f00b7ca73d1ab6fdb
+-- @bsb-hash sha256:2daad488a0616ec52f99d1bcb8045667789aee7530962d37ab1bea55819a9f98
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -1774,8 +1559,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Option sets (ADR 0243): tenant-editable items for a field such as priority,
 -- each with a level that is written to the record's own column, and starter
 -- items per brand.
@@ -2151,18 +1935,6 @@ grant execute on function "better_supabase"."archive_option_set_item"(uuid, uuid
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."option_sets";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."option_sets";
 create policy bsb_tenant_scope_select on "better_supabase"."option_sets" as restrictive
@@ -2209,25 +1981,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as
 -- blocks.option-sets.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."default_option_set"(tenant uuid, subject_type text, field text, scope_id text)
 returns uuid
@@ -2293,19 +2046,6 @@ as $$ select "better_supabase"."archive_option_set_item"($1, $2) $$;
 revoke execute on function "api"."archive_option_set_item"(uuid, uuid) from public, anon;
 grant execute on function "api"."archive_option_set_item"(uuid, uuid) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
@@ -2323,45 +2063,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:01147ff4d9c8c4cf8f68ad0468279b290ede04cc87dc67ff6dee2d8231380199
+-- @bsb-hash sha256:3ae2bd544b80ea2fe60ae7f663bcf174453f012f523bcfeede214bc918696410
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -2384,8 +2090,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Option sets (ADR 0243): tenant-editable items for a field such as priority,
 -- each with a level that is written to the record's own column, and starter
 -- items per brand.
@@ -2757,18 +2462,6 @@ grant execute on function "better_supabase"."archive_option_set_item"(uuid, uuid
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."option_sets";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."option_sets";
 create policy bsb_tenant_scope_select on "better_supabase"."option_sets" as restrictive
@@ -2812,19 +2505,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
@@ -2842,45 +2522,11 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:66819f43feb3ca4943191be19fdad88b7f2db3bf7febe649778dfc53fd82af84
+-- @bsb-hash sha256:62e79ed7c314d50df128bc7be488ea651312ef353cdc15b1b5a9cf6ecf7d0a91
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -2903,8 +2549,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Option sets (ADR 0243): tenant-editable items for a field such as priority,
 -- each with a level that is written to the record's own column, and starter
 -- items per brand.
@@ -3280,18 +2925,6 @@ grant execute on function "better_supabase"."archive_option_set_item"(uuid, uuid
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."option_sets";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."option_sets";
 create policy bsb_tenant_scope_select on "better_supabase"."option_sets" as restrictive
@@ -3334,19 +2967,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."option_set_i
 create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets

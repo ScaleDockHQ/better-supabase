@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:663390ad68f1d9b88982c31a2471fa3967fa76c8947db0e96697e8b6bf43a004
+-- @bsb-hash sha256:a639c9582e7715ffadebc463bac635a9804642530167550ce8cc74fad9932280
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,8 +28,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Prompt templates the application versions by name, per tenant or for the
 -- whole system (tenant is null). A version never changes once saved; a label
 -- such as production points at one version. Templates can hold instructions
@@ -186,19 +185,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
@@ -217,7 +203,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:663390ad68f1d9b88982c31a2471fa3967fa76c8947db0e96697e8b6bf43a004
+-- @bsb-hash sha256:a639c9582e7715ffadebc463bac635a9804642530167550ce8cc74fad9932280
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -244,8 +230,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Prompt templates the application versions by name, per tenant or for the
 -- whole system (tenant is null). A version never changes once saved; a label
 -- such as production points at one version. Templates can hold instructions
@@ -403,19 +388,6 @@ $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
@@ -433,7 +405,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:5afe54112e2f53dc22377ebcc19b7cf023237f0dd00f6751fccbc4ac1b3fda68
+-- @bsb-hash sha256:100ba345cc4a5dc04967332b599bca357268061df048406d1ea4bf137fa0919a
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -460,8 +432,6 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -624,19 +594,6 @@ $$;
 revoke execute on function "app_private"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "app_private"."list_prompt_versions"(text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
@@ -654,7 +611,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:75689a6427546b58064fa474d2871f3ce63a5d8981028d225f3d3ef6c781f62b
+-- @bsb-hash sha256:e9f11eb3f7a2d1b6fa505140823b997d5764c3c2a22695ac0f972a7b13a14e36
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -681,8 +638,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Prompt templates the application versions by name, per tenant or for the
 -- whole system (tenant is null). A version never changes once saved; a label
 -- such as production points at one version. Templates can hold instructions
@@ -882,19 +838,6 @@ as $$ select "better_supabase"."list_prompt_versions"($1, $2) $$;
 revoke execute on function "api"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "api"."list_prompt_versions"(text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
@@ -912,7 +855,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:8b145d4dea13a0dd3255de338493b2d87527af6ff8d32897506fbe2a046d4582
+-- @bsb-hash sha256:7f3fd04dd0059bcb7585cee2bad26220c0a92ed1cf943e0c53a2a70f2a92ce06
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -939,8 +882,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Prompt templates the application versions by name, per tenant or for the
 -- whole system (tenant is null). A version never changes once saved; a label
 -- such as production points at one version. Templates can hold instructions
@@ -1094,19 +1036,6 @@ $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
@@ -1124,7 +1053,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:8ac3c2045eeb4a667da8e441c29ab58f826f8b9aea8941fc5e15adea92400fc6
+-- @bsb-hash sha256:3ee98bb08563cb449141ea3035849d49b1d588c0d81ef611bf0e02841e21737c
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1151,8 +1080,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Prompt templates the application versions by name, per tenant or for the
 -- whole system (tenant is null). A version never changes once saved; a label
 -- such as production points at one version. Templates can hold instructions
@@ -1309,19 +1237,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts

@@ -21,7 +21,6 @@ import { ownerSearchTriggers } from "./modules/search.ts";
 import { overAppTables } from "./over-app-tables.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
 import {
-  BLOCKS_TABLE,
   dataFileHeader,
   moduleHeader,
   moduleRow,
@@ -32,6 +31,7 @@ import {
   checkFunctionRenames,
   checkTenantName,
 } from "./pipeline/checks.ts";
+import { preludeFile } from "./pipeline/prelude.ts";
 import {
   guardBelowHeader,
   moduleSql,
@@ -116,7 +116,17 @@ export function renderBlocks(
       : file,
   );
 
-  return [...files, ...appFiles].map((file) => ({
+  const prelude = preludeFile(
+    layout,
+    installed,
+    [...files, ...appFiles].filter((file) => file.kind === "schema"),
+  );
+
+  return [
+    ...(prelude === undefined ? [] : [prelude]),
+    ...files,
+    ...appFiles,
+  ].map((file) => ({
     ...file,
     contents: withBlockHash(
       file.kind === "schema"
@@ -285,7 +295,7 @@ function moduleFiles(
     file(
       "schema",
       modulePath(module, layout, ctx.instance),
-      `${header}\n\n${body}\n${extra}${wrappers}${api}${BLOCKS_TABLE}`,
+      `${header}\n\n${body}\n${extra}${wrappers}${api}`,
     ),
     file(
       "data",

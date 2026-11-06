@@ -514,6 +514,9 @@ describe("doctor command", () => {
 
     expect(findings(loaded).map((finding) => finding.message)).toEqual([
       expect.stringContaining(
+        "supabase/schemas/900_better_supabase_000_prelude.sql",
+      ),
+      expect.stringContaining(
         "supabase/schemas/900_better_supabase_014_read_sets.sql",
       ),
       expect.stringContaining(

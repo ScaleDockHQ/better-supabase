@@ -1,12 +1,10 @@
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:0ef2ea592c8c8dde10885eea0096326f3f026919b0ca00727a7ca498d713061b
+-- @bsb-hash sha256:41b856932971430ca1feff4992b4bab463f3b5ba6a9ba5bd88c7e169676a948c
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Asymmetric signing keys per owner (a tenant, an app, a stream): the public
 -- JWK here, the private JWK in Vault. One key per owner is active; a retired
 -- key stays in the JWKS until publish_until, the latest exp a signer noted.
@@ -321,16 +319,3 @@ set search_path = ''
 as $$ select "better_supabase"."purge_signing_keys"($1) $$;
 revoke execute on function "api"."purge_signing_keys"(interval) from public, anon, authenticated;
 grant execute on function "api"."purge_signing_keys"(interval) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

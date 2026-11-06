@@ -367,9 +367,11 @@ describe("module modes", () => {
     });
     expect(moduleFileVersion("-- no marker")).toBeUndefined();
     expect(file!.contents).not.toContain("insert into");
-    expect(file!.contents).toContain(
-      "create table if not exists better_supabase.blocks",
-    );
+    expect(
+      renderBlocks(["memberships"]).find(
+        (module) => module.module === "prelude",
+      )!.contents,
+    ).toContain("create table better_supabase.blocks");
     const data = tenant.find((module) => module.kind === "data");
     expect(data).toMatchObject({
       kind: "data",
@@ -412,7 +414,7 @@ describe("module modes", () => {
     const files = renderBlocks(["invitations"], layout);
     expect(
       files.filter((file) => file.kind === "schema").map((file) => file.module),
-    ).toEqual(["updated-at", "invitations", "permissions"]);
+    ).toEqual(["prelude", "updated-at", "invitations", "permissions"]);
     expect(moduleBody("memberships", layout)).toBeUndefined();
     const [contract] = customContracts(["invitations"], layout);
     expect(contract).toMatchObject({
@@ -522,6 +524,7 @@ describe("module modes", () => {
     }).filter((file) => file.kind === "schema");
 
     expect(files.map((file) => file.module)).toEqual([
+      "prelude",
       "updated-at",
       "memberships",
       "permissions",

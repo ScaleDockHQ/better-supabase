@@ -6,6 +6,7 @@ import {
   presetBlocksSource,
   resolvePreset,
 } from "better-supabase/preset";
+import { PRELUDE_MODULE } from "better-supabase/sql";
 import { readFile, writeFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
@@ -44,7 +45,9 @@ describe("named presets", () => {
 
   it.each(PRESET_NAMES)("%s renders every block it lists", (name) => {
     const rendered = new Set(
-      presetFiles(name, { tests: true }).map((file) => file.module),
+      presetFiles(name, { tests: true })
+        .map((file) => file.module)
+        .filter((module) => module !== PRELUDE_MODULE),
     );
 
     const { instances } = resolveConfig({ preset: name }, "/");

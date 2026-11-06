@@ -1,13 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:45f57f7cc17c38aa8c0e2c4b9992a233abf38e2cbd1dd4f8c7706f72bb7bd655
+-- @bsb-hash sha256:a18dd13fa7cdbe41d3d47b753c4415c451497971f852d32623dd447984e84ff6
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
 drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
@@ -676,19 +673,6 @@ grant execute on function better_supabase.complete_lease(text, text, uuid, integ
 revoke execute on function better_supabase.release_lease_claim(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease_claim(text, text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
@@ -711,13 +695,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:d8675d72e7e94e5b6dae7eecba12207287250ac5f2e98504fba44ad66f395d35
+-- @bsb-hash sha256:10011df963154167eeecfb6d64b81d95f8b40f8c6293323965a0898421a031a0
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
 drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
@@ -1390,19 +1371,6 @@ grant execute on function better_supabase.complete_lease(text, text, uuid, integ
 revoke execute on function better_supabase.release_lease_claim(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease_claim(text, text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
@@ -1428,13 +1396,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:cb86c4cff85dcf253ede3129d4a09e3134038d37d955dd81aae1ffb38789300b
+-- @bsb-hash sha256:36a297021360b48b1ed8fe20d59ede3e848955f2d8155fe838593d9483d5c52e
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
 drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
@@ -2338,19 +2303,6 @@ as $$ select "better_supabase"."release_lease_claim"($1, $2, $3) $$;
 revoke execute on function "api"."release_lease_claim"(text, text, uuid) from public, anon, authenticated;
 grant execute on function "api"."release_lease_claim"(text, text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
@@ -2373,13 +2325,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:98814007445fa760f05190424501204f2fdf218f9e577d76298d7de14c4d8787
+-- @bsb-hash sha256:2bf9318edec6b11c4dc0e95649ecc63b200b0ba0f08e7dd0dd556de8695c335c
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
 drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
@@ -3046,19 +2995,6 @@ grant execute on function better_supabase.complete_lease(text, text, uuid, integ
 revoke execute on function better_supabase.release_lease_claim(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease_claim(text, text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
@@ -3081,13 +3017,10 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:45f57f7cc17c38aa8c0e2c4b9992a233abf38e2cbd1dd4f8c7706f72bb7bd655
+-- @bsb-hash sha256:a18dd13fa7cdbe41d3d47b753c4415c451497971f852d32623dd447984e84ff6
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
 drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
@@ -3755,19 +3688,6 @@ revoke execute on function better_supabase.complete_lease(text, text, uuid, inte
 grant execute on function better_supabase.complete_lease(text, text, uuid, integer) to service_role;
 revoke execute on function better_supabase.release_lease_claim(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease_claim(text, text, uuid) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue

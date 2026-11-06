@@ -11,7 +11,7 @@ import {
   recordMergeFunction,
   subjectMergeHandler,
   subjectTableKey,
-  withSubjectMergeFunction,
+  subjectMergeDispatcher,
 } from "../../src/sql/subject-merge-sql.ts";
 
 describe("subjectTableKey", () => {
@@ -70,21 +70,14 @@ describe("subjectMergeHandler", () => {
   });
 });
 
-describe("withSubjectMergeFunction", () => {
-  it("defines the dispatcher once, only for SQL that calls it", () => {
-    expect(withSubjectMergeFunction("select 1;")).toBe("select 1;");
-
-    const calling =
-      "perform better_supabase.merge_subject_refs('a.b', '1', '2');";
-
-    const sql = withSubjectMergeFunction(calling);
+describe("subjectMergeDispatcher", () => {
+  it("defines the dispatcher for the owner's marked handlers only", () => {
+    const sql = subjectMergeDispatcher();
 
     expect(sql).toContain(
       "create or replace function better_supabase.merge_subject_refs(",
     );
     expect(sql).toContain("p.proowner = ");
-    expect(sql.endsWith(calling)).toBe(true);
-    expect(withSubjectMergeFunction(sql)).toBe(sql);
   });
 });
 
@@ -155,19 +148,21 @@ describe("rendered modules", () => {
     }
   });
 
-  it("defines the dispatcher in each file that calls it", () => {
+  it("defines the dispatcher once, in the prelude", () => {
+    expect(
+      files
+        .filter((file) =>
+          file.contents.includes(
+            "create or replace function better_supabase.merge_subject_refs(",
+          ),
+        )
+        .map((file) => file.module),
+    ).toEqual(["prelude"]);
+
     const callers = files.filter((file) =>
       file.contents.includes("perform better_supabase.merge_subject_refs("),
     );
 
     expect(callers.map((file) => file.module)).toContain("contacts");
-    expect(
-      callers.filter(
-        (file) =>
-          !file.contents.includes(
-            "create or replace function better_supabase.merge_subject_refs(",
-          ),
-      ),
-    ).toEqual([]);
   });
 });

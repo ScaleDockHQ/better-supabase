@@ -224,9 +224,6 @@ const revokeDefaults = (schema: string): string =>
 alter default privileges in schema ${schema} revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema ${schema} revoke all on functions from public, anon, authenticated;`;
 
-export const SCHEMA = `create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;`;
-
 /**
  * A SQL condition true for the service role and for a direct admin connection
  * (no JWT, a privileged session user), which may act for others.
@@ -265,11 +262,10 @@ export function memberAddedRecord(
  */
 export function schemaPreamble(ctx: BlockSqlContext): string {
   if (ctx.schemaName === "better_supabase") {
-    return SCHEMA;
+    return "";
   }
 
-  return `${SCHEMA}
-create schema if not exists ${ctx.schema};
+  return `create schema if not exists ${ctx.schema};
 grant usage on schema ${ctx.schema} to anon, authenticated, service_role;
 ${revokeDefaults(ctx.schema)}`;
 }

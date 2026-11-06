@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:674313643b5a97b8e7f47d55f83609cd9bd9a5f40066025d40d408a45104580c
+-- @bsb-hash sha256:490edb44e6098aa283cdbf6a812d045c6fb8b5d5b3e3954233f431f3fbcfddb4
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20,8 +20,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- The activity feed: one row per outbox event, written by activitySink().
 create table if not exists "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -128,18 +127,6 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
@@ -162,19 +149,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."timeline_entries" as
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
@@ -192,7 +166,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:9315e1fb4c9f566973b56b2d7db1efa6cad6ac2a5bd95e9edf871759a5a0f13f
+-- @bsb-hash sha256:e7968511391692f5de51f478b9d554672122c19d7179bb38f664185621a42d3e
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -211,8 +185,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- The activity feed: one row per outbox event, written by activitySink().
 create table if not exists "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -319,18 +292,6 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
@@ -360,19 +321,6 @@ begin
 end;
 $$;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
@@ -390,7 +338,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:a6eb66be54d8e71477cf5d0c5f8e8322e15547eac543c42d8725c495cb85078d
+-- @bsb-hash sha256:3d8ee935179ec1399e76fe91ccdf0fe8ef1bac6f763c2b7937c28d0cc941e059
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -409,8 +357,6 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -522,18 +468,6 @@ grant execute on function "app_private"."record_activity"(jsonb) to service_role
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."timeline_entries";
 drop policy if exists bsb_tenant_scope_select on "app_private"."timeline_entries";
 create policy bsb_tenant_scope_select on "app_private"."timeline_entries" as restrictive
@@ -556,19 +490,6 @@ create policy bsb_tenant_scope_delete on "app_private"."timeline_entries" as res
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
@@ -586,7 +507,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:984ca4784f941a098f046d59c9c5cdf70830c6e05a92663fce8892dc0557c3c2
+-- @bsb-hash sha256:06a3d447c9e45d7ba1691842425ec6e723bc82b7c6f722dcbd86f8de4e3d8d72
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -605,8 +526,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- The activity feed: one row per outbox event, written by activitySink().
 create table if not exists "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -713,18 +633,6 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
@@ -770,19 +678,6 @@ as $$ select "better_supabase"."record_activity"($1) $$;
 revoke execute on function "api"."record_activity"(jsonb) from public, anon, authenticated;
 grant execute on function "api"."record_activity"(jsonb) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
@@ -800,7 +695,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:270e78cbed2e637c00d7101017a3bd96fd082ef4b6dd99ce99f789ca7b69ad74
+-- @bsb-hash sha256:390e218e2aadec49439440c8ba4d1b9f25f1c66e312c5c148aa1e3b30a6fd578
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -819,8 +714,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- The activity feed: one row per outbox event, written by activitySink().
 -- better_supabase.timeline_entries is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."timeline_entries" add column if not exists "id" uuid default gen_random_uuid();
@@ -926,18 +820,6 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
@@ -960,19 +842,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."timeline_entries" as
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
@@ -990,7 +859,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:fc26a058f82a16d432f104d5aa55c4d03995fed159331c0557c975d97684b623
+-- @bsb-hash sha256:d264d157c6a65337404eaf190eed0613cd607a11e44e7758f04de10d00ffa08f
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1009,8 +878,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- The activity feed: one row per outbox event, written by activitySink().
 create table if not exists "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1117,18 +985,6 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
@@ -1150,19 +1006,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_ent
 create policy bsb_tenant_scope_delete on "better_supabase"."timeline_entries" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline

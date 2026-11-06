@@ -1,41 +1,10 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:93999fe04089a36a8a2074e633bc652d78b7051d55feea1ed0079d5e97414d36
+-- @bsb-hash sha256:f46cd50b54e348a0bd83e67bcd329d9a9254d3ed6438d1213b87093ecbbd6918
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -66,8 +35,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 create table if not exists "better_supabase"."status_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -815,18 +783,6 @@ grant execute on function "better_supabase"."list_status_stages"(text, text) to 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
 create policy bsb_tenant_scope_select on "better_supabase"."status_history" as restrictive
@@ -915,26 +871,6 @@ drop function if exists "api"."lifecycle_graph"(uuid);
 
 drop function if exists "api"."transition"(text, text, text, text);
 
-create or replace function "api"."as_column_type"(value text, target anyelement)
-returns anyelement
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."as_column_type"($1, $2) $$;
-revoke execute on function "api"."as_column_type"(text, anyelement) from public;
-grant execute on function "api"."as_column_type"(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function "api"."import_run"()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."import_run"() $$;
-revoke execute on function "api"."import_run"() from public;
-grant execute on function "api"."import_run"() to anon, authenticated, service_role;
-
 create or replace function "api"."transition"(subject_type text, subject_id text, to_status text, reason text default null, actor jsonb default null)
 returns boolean
 language sql
@@ -999,16 +935,3 @@ set search_path = ''
 as $$ select "better_supabase"."list_status_stages"($1, $2) $$;
 revoke execute on function "api"."list_status_stages"(text, text) from public, anon;
 grant execute on function "api"."list_status_stages"(text, text) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

@@ -1,13 +1,11 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:8c8c52ce81fbbe8d700edc306d7e57a7023aaf0d14d7ec9104869918c4c97864
+-- @bsb-hash sha256:87f5a304b63b3ad59ea3b37eb7a806b11c005977b917a45144095a0add716406
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
 -- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
@@ -487,19 +485,6 @@ $$;
 revoke execute on function "better_supabase"."purge_shared_signals"(interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_shared_signals"(interval) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block-data security-events
@@ -517,13 +502,11 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:6c9e268d6d0af883dd390a550c8041adc913830708e3df142bfaf3729531e134
+-- @bsb-hash sha256:cdbae5c9422cabb2c53328e6cc1df19b589ee8846b1b40d389457e883d4cd021
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
 -- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
@@ -1041,19 +1024,6 @@ $$;
 revoke execute on function "better_supabase"."purge_shared_signals"(interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_shared_signals"(interval) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block-data security-events
@@ -1071,13 +1041,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:e8e58428548d57ce859d7d747a1f65089d1d5e443fdfc98296ad16e8dbd3e4a0
+-- @bsb-hash sha256:7bc52e6d7a211814385652d23f9a391b357961f5f9e5d96363554ff7a31e37e7
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -1562,19 +1530,6 @@ $$;
 revoke execute on function "app_private"."purge_shared_signals"(interval) from public, anon, authenticated;
 grant execute on function "app_private"."purge_shared_signals"(interval) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block-data security-events
@@ -1592,13 +1547,11 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:fb4ef1664e1e4cb20fcd4a20d51256e168a43d10b550c1b1ec6a7e2630b03f7e
+-- @bsb-hash sha256:4d55d4e802052998ba46ce3a1867480b1531757d165adedbe8573318284ce13a
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
 -- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
@@ -2202,19 +2155,6 @@ as $$ select "better_supabase"."purge_shared_signals"($1) $$;
 revoke execute on function "api"."purge_shared_signals"(interval) from public, anon, authenticated;
 grant execute on function "api"."purge_shared_signals"(interval) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block-data security-events
@@ -2232,28 +2172,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:b725af531283137e5113c448380b551780e3e0ad315c74251943ed465e62de87
+-- @bsb-hash sha256:92db260ba67daee4c64b32d5340670a322240737676dd18635d00b6be38fb993
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
 -- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
@@ -2727,19 +2650,6 @@ $$;
 revoke execute on function "better_supabase"."purge_shared_signals"(interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_shared_signals"(interval) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block-data security-events
@@ -2757,13 +2667,11 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:b8467c6121fe6a194a648eaa587315460efd34ddae886bd838977f8a645953f1
+-- @bsb-hash sha256:b19ccd45e7b827c1b29d3c843c7aef2b6bef95eee505e7b6a7fe795e5172fdfe
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
 -- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
@@ -3242,19 +3150,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_shared_signals"(interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_shared_signals"(interval) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events

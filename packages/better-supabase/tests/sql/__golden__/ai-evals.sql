@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:5341aa47f4de579e8f3e72318d9c0e28853508224c519f030f579eb31ed14805
+-- @bsb-hash sha256:09aed1731288f056d9312cbe0407eacf79355ce95b1ec27d181e13b8bc6a1c61
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,8 +28,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Evaluation datasets and runs. A dataset holds items (an input and, when
 -- known, the expected output); a run replays the items against one prompt
 -- version and model and keeps a score per scorer for each item. Inputs and
@@ -459,19 +458,6 @@ $$;
 revoke execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
@@ -489,7 +475,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:ce7c8667c7ee5fe2404be7aa31a43e7cad22b8bb2142cfd14cb0ac4eae2e9b3a
+-- @bsb-hash sha256:362058c2f6e3d127ebfa174579ced037e6fd47fce56bded6ebc4e6df803ef745
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -516,8 +502,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Evaluation datasets and runs. A dataset holds items (an input and, when
 -- known, the expected output); a run replays the items against one prompt
 -- version and model and keeps a score per scorer for each item. Inputs and
@@ -988,19 +973,6 @@ $$;
 revoke execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
@@ -1018,7 +990,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:f801a684972d3689888051988c9b4cfda847e36cfe1307b901306a125d3af817
+-- @bsb-hash sha256:89950b22ab3f261c53d441b4c31ab28237d46177c9418dce7ff551f6ea77e9df
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1045,8 +1017,6 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -1481,19 +1451,6 @@ $$;
 revoke execute on function "app_private"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "app_private"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
@@ -1511,7 +1468,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:b7e20a3948b93d58016c61b6cc2da0b3b8f12456d7dcd745bbc42d2b4c56ed92
+-- @bsb-hash sha256:6c7cd15e6e390bab987964d27bf877997b4382c9fe2433f7d651dea5c71cca31
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1538,8 +1495,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Evaluation datasets and runs. A dataset holds items (an input and, when
 -- known, the expected output); a run replays the items against one prompt
 -- version and model and keeps a score per scorer for each item. Inputs and
@@ -2087,19 +2043,6 @@ as $$ select "better_supabase"."compare_eval_runs"($1, $2, $3) $$;
 revoke execute on function "api"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "api"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
@@ -2117,7 +2060,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:780313c7b0718e57950d2f72e067ff46db7f3045afa0ae1989430e9f0c637a1d
+-- @bsb-hash sha256:b5a8db8d838f1429f7ebd44066ea81bda654e9fc45854e2b816f7f1a5657b0c6
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2144,8 +2087,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Evaluation datasets and runs. A dataset holds items (an input and, when
 -- known, the expected output); a run replays the items against one prompt
 -- version and model and keeps a score per scorer for each item. Inputs and
@@ -2566,19 +2508,6 @@ $$;
 revoke execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
@@ -2596,7 +2525,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:a1632055abc5106d67b3b96fd67f96e011f15eb46b8c504e4dcf9724b44fe67d
+-- @bsb-hash sha256:9b26c2c6e6ec7a083f0d1016818095aa062bf1501c7faeb3c802ca0c0b17cd9a
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2623,8 +2552,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Evaluation datasets and runs. A dataset holds items (an input and, when
 -- known, the expected output); a run replays the items against one prompt
 -- version and model and keeps a score per scorer for each item. Inputs and
@@ -3053,19 +2981,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals

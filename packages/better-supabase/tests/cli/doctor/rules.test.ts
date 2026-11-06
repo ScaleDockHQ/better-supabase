@@ -618,7 +618,8 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(missing.map((finding) => finding.target)).toEqual(
       files.map((file) => file.path),
     );
-    expect(missing[0]!.message).toMatch(/\(updated-at\) is missing\./);
+    expect(missing[0]!.message).toMatch(/\(prelude\) is missing\./);
+    expect(missing[1]!.message).toMatch(/\(updated-at\) is missing\./);
     expect(missing[0]!.message).toContain(
       "then `supabase db schema declarative sync`.",
     );
@@ -655,7 +656,7 @@ describe("generated and module files (BS303, BS304)", () => {
 
     await write(
       audit!.path,
-      audit!.contents.replace("create schema", "-- changed\ncreate schema"),
+      audit!.contents.replace("create table", "-- changed\ncreate table"),
     );
     expect(await run("BS304", ctx)).toEqual([
       expect.objectContaining({
@@ -718,7 +719,7 @@ describe("generated and module files (BS303, BS304)", () => {
 
     const missing = await run("BS304", ctx);
     expect(missing.map((finding) => finding.message)).toEqual(
-      ["updated-at", "memberships", "mfa"].map(
+      ["prelude", "updated-at", "memberships", "mfa"].map(
         (module) =>
           `${module} in supabase/migrations/<stamp>_better_supabase_modules.sql is missing. Run \`better-supabase upgrade\`, then \`supabase migration up\`.`,
       ),

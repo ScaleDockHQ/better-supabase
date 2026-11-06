@@ -143,9 +143,11 @@ describe("appTables SQL", () => {
       );
     }
 
-    expect(file!.contents).toContain(
-      "create or replace function better_supabase.actor_may_write()",
-    );
+    expect(
+      renderBlocks([], { scope: "user", appTables: TABLES }).find(
+        (each) => each.module === "prelude",
+      )!.contents,
+    ).toContain("create or replace function better_supabase.actor_may_write()");
   });
 
   it("renders nothing without app tables", () => {

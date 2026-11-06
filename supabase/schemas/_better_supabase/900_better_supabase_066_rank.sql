@@ -1,12 +1,10 @@
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:89f12444edd54e1a0da4a92584939b1834b0aadc9957c11da30428ea3f4d93d5
+-- @bsb-hash sha256:05a64ed55e708c5aa2084becf25640886d5414dbaae1aa36312c0cc4a5139a8e
 -- Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Fractional rank keys (ADR 0021). Keys are base-62 text compared with
 -- collate "C"; the steps match rankBetween in better-supabase/blocks/rank.
 create or replace function "better_supabase"."rank_between"(previous text, next text)
@@ -445,16 +443,3 @@ set search_path = ''
 as $$ select "better_supabase"."rebalance_ranks"($1, $2, $3) $$;
 revoke execute on function "api"."rebalance_ranks"(text, text, text) from public, anon, authenticated;
 grant execute on function "api"."rebalance_ranks"(text, text, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

@@ -1,6 +1,6 @@
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:5966a8085e19d42b5cf975654354f76edfed57db1dab119c8824d1ddedcf731a
+-- @bsb-hash sha256:d7bee79d8ce99d11e832f1b114f7a7b2214bbd43c435520591d5a0228e9d8d44
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,8 +19,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Model responses cached by a key the application derives from the request
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
@@ -184,16 +183,3 @@ set search_path = ''
 as $$ select "better_supabase"."purge_ai_cache"($1) $$;
 revoke execute on function "api"."purge_ai_cache"(integer) from public, anon, authenticated;
 grant execute on function "api"."purge_ai_cache"(integer) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

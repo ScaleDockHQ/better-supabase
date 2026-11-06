@@ -1,13 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:451070a12bb14c9f773a2ead20844201da75aea2e4824ac46b4325856d42f11e
+-- @bsb-hash sha256:73b71cc55fc67a6aacb0a55049d3962c60fde3375e7736294460911234f6ce56
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 create table if not exists "better_supabase"."idempotency_keys" (
   "scope" text not null default '',
@@ -235,19 +232,6 @@ revoke execute on function better_supabase.extend_lease(text, uuid, integer, tex
 grant execute on function better_supabase.extend_lease(text, uuid, integer, text) to service_role;
 revoke execute on function better_supabase.release_lease(text, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease(text, uuid, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
@@ -266,13 +250,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:451070a12bb14c9f773a2ead20844201da75aea2e4824ac46b4325856d42f11e
+-- @bsb-hash sha256:73b71cc55fc67a6aacb0a55049d3962c60fde3375e7736294460911234f6ce56
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 create table if not exists "better_supabase"."idempotency_keys" (
   "scope" text not null default '',
@@ -501,19 +482,6 @@ grant execute on function better_supabase.extend_lease(text, uuid, integer, text
 revoke execute on function better_supabase.release_lease(text, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease(text, uuid, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
@@ -531,13 +499,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:c190ba6affa222b28cc69241f42758fca6dea013d6cb8044aec54ef18748c643
+-- @bsb-hash sha256:09e1ecf34940e0309c758b7534ade6dc45a4dc197c0fa525d3990d1510f2e37a
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -771,19 +737,6 @@ grant execute on function better_supabase.extend_lease(text, uuid, integer, text
 revoke execute on function better_supabase.release_lease(text, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease(text, uuid, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
@@ -801,13 +754,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:686a2b807d9a919f1448ed2ab0381ff4bb4610960fcaa9975ec35a6f8aa08d9c
+-- @bsb-hash sha256:c9bd4d37ce5233a4717c8338702fab3c31d15af223bc864f2acd20af380b233c
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 create table if not exists "better_supabase"."idempotency_keys" (
   "scope" text not null default '',
@@ -1116,19 +1066,6 @@ as $$ select "better_supabase"."release_lease"($1, $2, $3) $$;
 revoke execute on function "api"."release_lease"(text, uuid, text) from public, anon, authenticated;
 grant execute on function "api"."release_lease"(text, uuid, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
@@ -1146,28 +1083,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:2285942a8f80462812015a310111f892cdeae408908b10c7e9daeeb59423fe01
+-- @bsb-hash sha256:fb6bd31da519e84a3ca79f1949c2c9d1fc1171970724f1b1b42df5dee9c10c72
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- better_supabase.idempotency_keys is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."idempotency_keys" add column if not exists "scope" text not null default '';
@@ -1391,19 +1310,6 @@ revoke execute on function better_supabase.extend_lease(text, uuid, integer, tex
 grant execute on function better_supabase.extend_lease(text, uuid, integer, text) to service_role;
 revoke execute on function better_supabase.release_lease(text, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease(text, uuid, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency

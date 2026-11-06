@@ -1195,10 +1195,10 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     const config: ResolveInput = { blocks: ["mfa"] };
     await sql(["sync"], config);
 
-    const [file] = renderBlocks(
+    const file = renderBlocks(
       ["mfa"],
       moduleLayout(resolveConfig(config, root)),
-    );
+    ).find((entry) => entry.module === "mfa");
 
     await writeFile(
       join(root, file!.path),
@@ -1238,10 +1238,10 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     const config: ResolveInput = { blocks: ["mfa"] };
     await sql(["sync"], config);
 
-    const [file] = renderBlocks(
+    const file = renderBlocks(
       ["mfa"],
       moduleLayout(resolveConfig(config, root)),
-    );
+    ).find((entry) => entry.module === "mfa");
 
     const current = join(root, file!.path);
     const twoDigit = current.replace(/_0(\d\d_mfa\.sql)$/, "_$1");

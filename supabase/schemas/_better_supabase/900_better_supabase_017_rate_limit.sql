@@ -1,12 +1,9 @@
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:7dc36ec17f4d6d66a3575cc139b224355c5afdf6a57b477f2dc60fc8866e1b96
+-- @bsb-hash sha256:c0ae38856c1bb263dee3570e4386b68d48069d0304464c5878e65ab28911823f
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- One rule per scope: '*' (every write), a table path ('/customers') or an
 -- RPC path ('/rpc/send_invite'). key_claim is the JWT claim each caller is
@@ -406,16 +403,3 @@ $$;
 
 revoke execute on function better_supabase.purge_rate_limits(integer) from public, anon, authenticated;
 grant execute on function better_supabase.purge_rate_limits(integer) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

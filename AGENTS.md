@@ -359,6 +359,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0246: One naming convention from api/naming.json.
 - 0247: Measure upgrade before splitting it, and hold SQL to the naming and Supabase practices.
 - 0248: Split the generator into stages and cache renders.
+- 0249: Define shared helpers once in a prelude file.
 
 ## Pre-release pins
 

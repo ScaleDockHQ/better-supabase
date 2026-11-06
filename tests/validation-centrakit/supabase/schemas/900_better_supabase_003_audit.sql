@@ -1,26 +1,10 @@
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:8b00f142c185fa682900526f692d1479bfab9b703bd188d528ee966d02c8ccfe
+-- @bsb-hash sha256:1cfc0f2716835487533e10d4c0950db226f1775abfb9456238fac101456197b2
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -34,27 +18,6 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
-create or replace function better_supabase.memo_get(key text)
-returns text
-language sql
-volatile
-set search_path = ''
-as $$
-  select nullif(pg_catalog.current_setting('better_supabase.memo.' || key, true), '')
-$$;
-
-create or replace function better_supabase.memo_set(key text, value text)
-returns text
-language sql
-volatile
-set search_path = ''
-as $$
-  select pg_catalog.set_config('better_supabase.memo.' || key, value, true)
-$$;
 
 create table if not exists "better_supabase"."audited_tables" (
   "target" regclass primary key,
@@ -71,31 +34,6 @@ alter table "better_supabase"."audited_tables" add column if not exists "tenant_
 alter table "better_supabase"."audited_tables" add column if not exists "label_column" text;
 alter table "better_supabase"."audited_tables" enable row level security;
 revoke all on "better_supabase"."audited_tables" from public, anon, authenticated;
-
--- The user a service caller acts for, from the x-bsb-actor header. Null for
--- every other caller, so the header cannot be spoofed with a user's token.
--- Only service_role may call it; the security definer functions and triggers
--- that record an actor call it as their owner.
-create or replace function better_supabase.acting_member()
-returns uuid
-language plpgsql
-stable
-set search_path = ''
-as $$
-declare
-  header text;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    return null;
-  end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
-  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
-exception when others then
-  return null;
-end;
-$$;
-revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
-grant execute on function better_supabase.acting_member() to service_role;
 
 -- The request headers, or null outside a Data API request.
 create or replace function better_supabase.request_headers()
@@ -495,39 +433,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.audit_statement_change() from public, anon, authenticated;
-
-create or replace function better_supabase.replace_equivalent_triggers(
-  target regclass,
-  module_trigger text,
-  pattern text,
-  replace_trigger boolean
-)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-declare
-  found record;
-begin
-  for found in
-    select t.tgname as name, p.proname as fn
-    from pg_catalog.pg_trigger t
-    join pg_catalog.pg_proc p on p.oid = t.tgfoid
-    where t.tgrelid = replace_equivalent_triggers.target
-      and not t.tgisinternal
-      and t.tgname <> replace_equivalent_triggers.module_trigger
-      and p.proname ~* replace_equivalent_triggers.pattern
-  loop
-    if replace_trigger then
-      execute format('drop trigger %I on %s', found.name, target);
-    else
-      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
-        target, found.name, found.fn, module_trigger;
-    end if;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;
 
 drop function if exists better_supabase.audit(regclass, text[]);
 drop function if exists better_supabase.audit(regclass, text[], boolean);
@@ -1838,18 +1743,6 @@ grant execute on function "better_supabase"."reveal_audit_entries"(text[]) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."audit_logs";
 drop policy if exists bsb_tenant_scope_select on "centrakit"."audit_logs";
 create policy bsb_tenant_scope_select on "centrakit"."audit_logs" as restrictive
@@ -1872,16 +1765,3 @@ drop policy if exists bsb_tenant_scope_delete on "centrakit"."audit_logs";
 create policy bsb_tenant_scope_delete on "centrakit"."audit_logs" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

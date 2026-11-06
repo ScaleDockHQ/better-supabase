@@ -40,9 +40,9 @@ function fakeTransport(answers: Readonly<Record<string, unknown>>): {
 
 /** The argument names of each wrapper `blocks.<module>.api` writes. */
 function wrapperArgs(module: string): Map<string, readonly string[]> {
-  const [file] = renderBlocks([module], {
+  const file = renderBlocks([module], {
     modules: { [module]: { api: "api" } },
-  });
+  }).find((entry) => entry.module === module);
 
   const args = new Map<string, readonly string[]>();
 

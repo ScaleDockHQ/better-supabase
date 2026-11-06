@@ -1,7 +1,5 @@
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { SCHEMA } from "../shared.ts";
-
 export const MFA: BlockSqlDefinition = {
   internal: ["mfa_satisfied"],
   name: "mfa",
@@ -10,8 +8,7 @@ export const MFA: BlockSqlDefinition = {
     "mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).",
   requires: [],
   target: "schema",
-  build: () => `${SCHEMA}
-
+  build: () => `
 -- authenticated can't read auth.mfa_factors, so the check runs as the owner.
 create or replace function better_supabase.mfa_satisfied()
 returns boolean

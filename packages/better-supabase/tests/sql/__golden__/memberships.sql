@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:9a96bcd9241976110d9d519f0e1aeadfddf33e9f462ad1b0d5109105ddc4dfff
+-- @bsb-hash sha256:6fe35c808bacc94f15af42c5716c0899dd3804eb960ec1544f73e11fcb26b644
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20,8 +20,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 grant usage on schema better_supabase to supabase_auth_admin;
 
 create table if not exists "better_supabase"."memberships" (
@@ -227,19 +226,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."memberships" as rest
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block-data memberships
@@ -257,7 +243,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:d37773ca7afb6387eed69ed41a565b4b6c406b63cd91653f6770ba946cbf3bb6
+-- @bsb-hash sha256:d345bfa8c2b669ea74caa1ad8f1f129e1f6d5b88e5d88732ee22a350905a96a4
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -276,8 +262,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 grant usage on schema better_supabase to supabase_auth_admin;
 set check_function_bodies = off;
 
@@ -458,19 +443,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."memberships" as rest
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block-data memberships
@@ -488,7 +460,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:e53071c976d8bd410c5d7c3f86eae2e0b55a04a86b3f4d2fced1f2a0d69d52b0
+-- @bsb-hash sha256:8dad9d995711474e66c6620496fd050b11d48a18af5d5bdec50254f13714d407
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -507,8 +479,6 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -719,19 +689,6 @@ create policy bsb_tenant_scope_delete on "app_private"."memberships" as restrict
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block-data memberships
@@ -749,7 +706,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:74751efccf61294c84f82e31543d0e5510461eeaae59cd0629f8c0b6d9b9054e
+-- @bsb-hash sha256:8035f247339219a037aa1a169bbf0efb529707bfc5c743bcfd45b579df84485b
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -768,8 +725,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 grant usage on schema better_supabase to supabase_auth_admin;
 
 create table if not exists "better_supabase"."memberships" (
@@ -1059,19 +1015,6 @@ as $$ select "better_supabase"."membership_claims"($1) $$;
 revoke execute on function "api"."membership_claims"(uuid) from public, anon, authenticated;
 grant execute on function "api"."membership_claims"(uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block-data memberships
@@ -1089,7 +1032,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:853c13b9a696bd4b154e068fd07dbe55175da4b35a7ca4e80156a50379a641c7
+-- @bsb-hash sha256:63eae6acfd232f559652991406a0ccc0b87dbf4622b1b3c80cd29240ef0441de
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1108,8 +1051,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- better_supabase.memberships is the app's table: this block adds only the columns it needs.
@@ -1312,19 +1254,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."memberships" as rest
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block-data memberships
@@ -1342,7 +1271,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:4bda478b89344f83481be589fd9709e3c7ed4498a33761999693297ee2a06b1e
+-- @bsb-hash sha256:f93b823e7705bea29304cd2614e6cd5cd4e0d9e345918d1254657968d0d20442
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1361,8 +1290,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 grant usage on schema better_supabase to supabase_auth_admin;
 set check_function_bodies = off;
 
@@ -1542,19 +1470,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships"
 create policy bsb_tenant_scope_delete on "better_supabase"."memberships" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships

@@ -80,11 +80,8 @@ describe("profiles module", () => {
     expect(sql).toContain(
       `better_supabase.try_column_type(nullif(btrim(coalesce(meta ->> 'locale')), ''), (null::"public"."profiles")."locale")`,
     );
-    expect(sql).toContain(
-      "create or replace function better_supabase.as_column_type(value text, target anyelement)",
-    );
-    expect(sql).toContain(
-      "create or replace function better_supabase.try_column_type(value text, target anyelement)",
+    expect(sql).not.toContain(
+      "create or replace function better_supabase.as_column_type(",
     );
     expect(body({})).not.toContain("_column_type(");
   });
@@ -214,7 +211,9 @@ describe("profiles module", () => {
           },
         },
       },
-    }).findLast((file) => file.kind === "schema")!.contents;
+    }).findLast(
+      (file) => file.kind === "schema" && file.module !== "prelude",
+    )!.contents;
 
     expect(sql).toContain(
       `alter table "better_supabase"."profiles" add column if not exists "locale" text not null default 'en';`,

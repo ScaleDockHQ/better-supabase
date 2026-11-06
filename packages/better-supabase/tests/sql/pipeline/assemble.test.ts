@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BLOCKS_TABLE,
   dataFileHeader,
   moduleHeader,
   moduleRow,
@@ -60,13 +59,6 @@ describe("moduleRow", () => {
   it("records the block of a renamed instance", () => {
     const sql = moduleRow(module, "managed", "jobs");
 
-    expect(sql).toContain("add column if not exists block text");
     expect(sql).toContain("values ('jobs', 'tasks', 3, 'managed')");
-  });
-
-  it("creates the registry table once per file", () => {
-    expect(BLOCKS_TABLE).toContain(
-      "create table if not exists better_supabase.blocks",
-    );
   });
 });

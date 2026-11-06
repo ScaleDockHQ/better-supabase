@@ -1,13 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:bf2fe551c5e9b397969c0d7ef4093559d6eabbb3971720e24d4a7a61f81813ee
+-- @bsb-hash sha256:0a2af48e09cdd4add092d44a613005663af7503e0db71d896f4ea98d4c33aede
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 create table if not exists better_supabase.webhook_inbox (
   id bigint generated always as identity primary key,
@@ -304,19 +301,6 @@ grant execute on function better_supabase.list_webhooks(text, text, text, intege
 revoke execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) from public, anon, authenticated;
 grant execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block-data webhook-inbox
@@ -334,13 +318,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:f81521a98928472c8eca3681683b78f4c65955c3c671920c8596a875b4f04305
+-- @bsb-hash sha256:64a214b66e468701eacf32f0d2881dce1906f18fa1e82f47d5d18f38d08d39af
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 create table if not exists better_supabase.webhook_inbox (
   id bigint generated always as identity primary key,
@@ -641,19 +622,6 @@ grant execute on function better_supabase.list_webhooks(text, text, text, intege
 revoke execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) from public, anon, authenticated;
 grant execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block-data webhook-inbox
@@ -671,13 +639,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:bf2fe551c5e9b397969c0d7ef4093559d6eabbb3971720e24d4a7a61f81813ee
+-- @bsb-hash sha256:0a2af48e09cdd4add092d44a613005663af7503e0db71d896f4ea98d4c33aede
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 create table if not exists better_supabase.webhook_inbox (
   id bigint generated always as identity primary key,
@@ -974,19 +939,6 @@ grant execute on function better_supabase.list_webhooks(text, text, text, intege
 revoke execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) from public, anon, authenticated;
 grant execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block-data webhook-inbox
@@ -1004,13 +956,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:c31e4ba70638f90cdd27010119951aead097a1978909ede5086e4e8c9cc8e3d1
+-- @bsb-hash sha256:9570f69dde3c2399f20382fc235b6d5499dc6ed0f858368375c9786eb89a1226
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 create table if not exists better_supabase.webhook_inbox (
   id bigint generated always as identity primary key,
@@ -1396,19 +1345,6 @@ as $$ select "better_supabase"."purge_webhooks"($1, $2, $3, $4) $$;
 revoke execute on function "api"."purge_webhooks"(interval, boolean, integer, text) from public, anon, authenticated;
 grant execute on function "api"."purge_webhooks"(interval, boolean, integer, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block-data webhook-inbox
@@ -1426,13 +1362,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:a7b17d5da4f15674c604d3ca51ca5bfe1dcab469e1699c48e6341ace356977bf
+-- @bsb-hash sha256:6cc782777fa8800cc7d85523e51d0951d3e5ecc5528eb52607f25bbbc70be76e
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- The webhook inbox over an app's table: "better_supabase"."webhook_inbox".
 -- The app owns its columns, a unique key per source, tenant and message id,
@@ -1683,19 +1616,6 @@ revoke execute on function better_supabase.list_webhooks(text, text, text, integ
 grant execute on function better_supabase.list_webhooks(text, text, text, integer) to service_role;
 revoke execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) from public, anon, authenticated;
 grant execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox

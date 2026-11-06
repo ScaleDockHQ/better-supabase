@@ -1,61 +1,10 @@
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:769f0cb4beae2c8eb46f81163a15c95e369f2387204d5b2778e229cf20550e1f
+-- @bsb-hash sha256:11468bc64a8a6d0a59e4e26460973d57b6a51b0ba8132b8f077b01ba0e1f0284
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -69,27 +18,6 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
-create or replace function better_supabase.memo_get(key text)
-returns text
-language sql
-volatile
-set search_path = ''
-as $$
-  select nullif(pg_catalog.current_setting('better_supabase.memo.' || key, true), '')
-$$;
-
-create or replace function better_supabase.memo_set(key text, value text)
-returns text
-language sql
-volatile
-set search_path = ''
-as $$
-  select pg_catalog.set_config('better_supabase.memo.' || key, value, true)
-$$;
 
 create table if not exists "better_supabase"."audited_tables" (
   "target" regclass primary key,
@@ -106,31 +34,6 @@ alter table "better_supabase"."audited_tables" add column if not exists "tenant_
 alter table "better_supabase"."audited_tables" add column if not exists "label_column" text;
 alter table "better_supabase"."audited_tables" enable row level security;
 revoke all on "better_supabase"."audited_tables" from public, anon, authenticated;
-
--- The user a service caller acts for, from the x-bsb-actor header. Null for
--- every other caller, so the header cannot be spoofed with a user's token.
--- Only service_role may call it; the security definer functions and triggers
--- that record an actor call it as their owner.
-create or replace function better_supabase.acting_member()
-returns uuid
-language plpgsql
-stable
-set search_path = ''
-as $$
-declare
-  header text;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    return null;
-  end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
-  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
-exception when others then
-  return null;
-end;
-$$;
-revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
-grant execute on function better_supabase.acting_member() to service_role;
 
 -- The request headers, or null outside a Data API request.
 create or replace function better_supabase.request_headers()
@@ -626,39 +529,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.audit_statement_change() from public, anon, authenticated;
-
-create or replace function better_supabase.replace_equivalent_triggers(
-  target regclass,
-  module_trigger text,
-  pattern text,
-  replace_trigger boolean
-)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-declare
-  found record;
-begin
-  for found in
-    select t.tgname as name, p.proname as fn
-    from pg_catalog.pg_trigger t
-    join pg_catalog.pg_proc p on p.oid = t.tgfoid
-    where t.tgrelid = replace_equivalent_triggers.target
-      and not t.tgisinternal
-      and t.tgname <> replace_equivalent_triggers.module_trigger
-      and p.proname ~* replace_equivalent_triggers.pattern
-  loop
-    if replace_trigger then
-      execute format('drop trigger %I on %s', found.name, target);
-    else
-      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
-        target, found.name, found.fn, module_trigger;
-    end if;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;
 
 drop function if exists better_supabase.audit(regclass, text[]);
 drop function if exists better_supabase.audit(regclass, text[], boolean);
@@ -2135,18 +2005,6 @@ grant execute on function "better_supabase"."revert_audit_entries"(text[]) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."audit_events";
 create policy bsb_tenant_scope_select on "better_supabase"."audit_events" as restrictive
@@ -2184,45 +2042,6 @@ drop function if exists "api"."audit_event_trusted"(text, text, text, text, text
 drop function if exists "api"."purge_audit_log"(interval, integer);
 drop function if exists "api"."list_audit_events"(uuid, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
 drop function if exists "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean);
-
-create or replace function "api"."import_run"()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."import_run"() $$;
-revoke execute on function "api"."import_run"() from public;
-grant execute on function "api"."import_run"() to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
-
-create or replace function "api"."acting_member"()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."acting_member"() $$;
-revoke execute on function "api"."acting_member"() from public, anon, authenticated;
-grant execute on function "api"."acting_member"() to service_role;
 
 create or replace function "api"."audit_event"(event_type text, category text default null, outcome text default 'success', source text default null, target_type text default null, record_id text default null, tenant uuid default null, metadata jsonb default '{}', idempotency_key text default null, restricted jsonb default null, actor_id uuid default null, summary text default null, target_label text default null, correlation_id text default null, actor_kind text default null, actor_label text default null, ip inet default null, user_agent text default null, session_id text default null, request_id text default null, scope text default null, support_session uuid default null, impersonated_by uuid default null, impersonation_reason text default null)
 returns text
@@ -2387,16 +2206,3 @@ set search_path = ''
 as $$ select "better_supabase"."revert_audit_entries"($1) $$;
 revoke execute on function "api"."revert_audit_entries"(text[]) from public, anon;
 grant execute on function "api"."revert_audit_entries"(text[]) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

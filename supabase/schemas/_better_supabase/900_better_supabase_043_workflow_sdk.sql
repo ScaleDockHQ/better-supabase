@@ -1,12 +1,10 @@
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:e7c2fae66de8a04c135b19428043bc56886d7547bf7c1f6877181319dfc14863
+-- @bsb-hash sha256:9771fa539ef1395cadcafaafd7636122f8a38d6d1e8bd049ec60e616e8b4e98c
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- The Workflow SDK World's tables (@workflow/world-postgres 5.1.0).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
@@ -620,16 +618,3 @@ revoke execute on function "better_supabase"."workflow_purge_runs"(interval, tex
 grant execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) to service_role;
 revoke execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

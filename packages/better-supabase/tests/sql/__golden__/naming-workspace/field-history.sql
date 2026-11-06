@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:129be868311a53b0eab7ff4243eeee7dbebd94abbe4067082ce872d4b5cb8b56
+-- @bsb-hash sha256:80484ed1e6649af3ac2f4ec199e376073d075b0513ac8208d7ec2d3be79760cb
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20,8 +20,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Field history: the old and new value of the watched columns of a record on
 -- every update, who made it and when.
 create table if not exists "better_supabase"."field_changes" (
@@ -86,18 +85,6 @@ grant execute on function "better_supabase"."field_history"(text, text, text, bi
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
-    create function better_supabase.member_workspace_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."field_changes";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_changes";
 create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as restrictive
@@ -119,19 +106,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_change
 create policy bsb_tenant_scope_delete on "better_supabase"."field_changes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history

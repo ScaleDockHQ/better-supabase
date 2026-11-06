@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:3471284b12c32fe5e4f149978d86b23f8c46ca6541e18b0a22183636c4ef4c05
+-- @bsb-hash sha256:8e9c9d5dfdc28d332e013b5604fddb40083dfee016e8d68d30d62c419c94a0b8
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,8 +28,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Each tenant's Stripe customer. The entitlements module reads it as its
 -- customer source when config.entitlements.customer is unset. A tenant billed
 -- as a Stripe Accounts v2 account has its acct_ id first; Stripe creates the
@@ -810,18 +809,6 @@ grant execute on function "better_supabase"."cancel_native_subscription"(uuid) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
 create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
@@ -844,19 +831,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."billing_customers" a
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block-data billing
@@ -874,7 +848,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:64894f5a0d01a901550b477a24e1f70197d0a6497baf6fd788e6ba4b2401caf6
+-- @bsb-hash sha256:bde117ab5e5550acb4b40869e909495c0ded09070a10c8fb2d29df529ab97ae8
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -901,8 +875,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Each tenant's Stripe customer. The entitlements module reads it as its
 -- customer source when config.entitlements.customer is unset. A tenant billed
 -- as a Stripe Accounts v2 account has its acct_ id first; Stripe creates the
@@ -1729,18 +1702,6 @@ grant execute on function "better_supabase"."cancel_native_subscription"(uuid) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
 create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
@@ -1763,19 +1724,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."billing_customers" a
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block-data billing
@@ -1793,7 +1741,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:f8dc4de5e21bf713d25aea2c7a71086a37be09b7a3ed2a9844a053875ec8fd8e
+-- @bsb-hash sha256:df76fc726a695cead24c5ff7c167c843ae4cf856f2942bbee2b43f7b43d2300f
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1820,8 +1768,6 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -2607,18 +2553,6 @@ grant execute on function "app_private"."cancel_native_subscription"(uuid) to se
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."billing_customers";
 drop policy if exists bsb_tenant_scope_select on "app_private"."billing_customers";
 create policy bsb_tenant_scope_select on "app_private"."billing_customers" as restrictive
@@ -2641,19 +2575,6 @@ create policy bsb_tenant_scope_delete on "app_private"."billing_customers" as re
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block-data billing
@@ -2671,7 +2592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:c96bf652187a0a10ee631b5b1a0799e27d883a72bf4f484973322f9cf61b60e4
+-- @bsb-hash sha256:68d5699fab59eac6a3fe8e548e419fb9055ff6044e1245a1c339576783fc6acd
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2698,8 +2619,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Each tenant's Stripe customer. The entitlements module reads it as its
 -- customer source when config.entitlements.customer is unset. A tenant billed
 -- as a Stripe Accounts v2 account has its acct_ id first; Stripe creates the
@@ -3480,18 +3400,6 @@ grant execute on function "better_supabase"."cancel_native_subscription"(uuid) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
 create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
@@ -3813,19 +3721,6 @@ as $$ select "better_supabase"."cancel_native_subscription"($1) $$;
 revoke execute on function "api"."cancel_native_subscription"(uuid) from public, anon, authenticated;
 grant execute on function "api"."cancel_native_subscription"(uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block-data billing
@@ -3843,7 +3738,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:64abe4712f65fc8ffb56708841daee5f28ce650b51d2795b094df6a1afa83f3f
+-- @bsb-hash sha256:6038f36ac92ad091e3e826baf3e5d1a12040a6cc152008c4eb7d97c423f1f658
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3870,8 +3765,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Each tenant's Stripe customer. The entitlements module reads it as its
 -- customer source when config.entitlements.customer is unset. A tenant billed
 -- as a Stripe Accounts v2 account has its acct_ id first; Stripe creates the
@@ -4643,18 +4537,6 @@ grant execute on function "better_supabase"."cancel_native_subscription"(uuid) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
 create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
@@ -4677,19 +4559,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."billing_customers" a
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block-data billing
@@ -4707,7 +4576,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:df877c0749136cbf0338d682cbc9d19ef62ad899c28efec5b21f0568141da1fe
+-- @bsb-hash sha256:e0b9b96c958438355e7fa4f45c599d2962cc239b1fd6b1ae512c5be3f320f47c
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4734,8 +4603,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Each tenant's Stripe customer. The entitlements module reads it as its
 -- customer source when config.entitlements.customer is unset. A tenant billed
 -- as a Stripe Accounts v2 account has its acct_ id first; Stripe creates the
@@ -5516,18 +5384,6 @@ grant execute on function "better_supabase"."cancel_native_subscription"(uuid) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
 create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
@@ -5549,19 +5405,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_cust
 create policy bsb_tenant_scope_delete on "better_supabase"."billing_customers" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_031_billing.sql
 -- better-supabase module: billing

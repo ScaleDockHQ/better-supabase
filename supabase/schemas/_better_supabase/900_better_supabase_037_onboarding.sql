@@ -1,12 +1,10 @@
 -- better-supabase module: onboarding
 -- @bsb-block onboarding@2 managed
--- @bsb-hash sha256:485722caab2a2c224b368ca6d562ba7bc9f06af46b915e67eb04119b860ead02
+-- @bsb-hash sha256:0a0c2a62ba10a5a03bdcf4cf9d45dc461ed47ad6078a01f3d05c4ef82bbfbd53
 -- Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Each checklist runs as the enrollment program onboarding:<checklist>: the
 -- organization is enrolled in an organization checklist, the user (without a
 -- tenant) in a user checklist. The checklists live in the app
@@ -161,16 +159,3 @@ set search_path = ''
 as $$ select "better_supabase"."reset_onboarding_step"($1, $2, $3) $$;
 revoke execute on function "api"."reset_onboarding_step"(text, text, uuid) from public, anon;
 grant execute on function "api"."reset_onboarding_step"(text, text, uuid) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

@@ -1,6 +1,6 @@
 -- better-supabase module: read-sets
 -- @bsb-block read-sets@1 managed
--- @bsb-hash sha256:766df24923f23a0bc3ad893a2240ecd2e62339f0eff0917253c684d7e23059c6
+-- @bsb-hash sha256:884e57d2f2d8ddeff02b85381183bcd5c66c454315a72ecf20c53c1535ba7f80
 -- One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,16 +38,3 @@ as $rs$
 $rs$;
 revoke execute on function public.rs_customer_detail(jsonb) from public, anon, authenticated;
 grant execute on function public.rs_customer_detail(jsonb) to authenticated;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

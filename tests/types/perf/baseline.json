@@ -85,17 +85,17 @@
   "upgrade": {
     "cold": {
       "seconds": 8.03,
-      "rendered": 74,
-      "written": 74
+      "rendered": 75,
+      "written": 75
     },
     "warm": {
       "seconds": 7.51,
-      "rendered": 75,
+      "rendered": 76,
       "written": 1
     },
     "edit": {
       "seconds": 8.98,
-      "rendered": 75,
+      "rendered": 76,
       "written": 0
     }
   }

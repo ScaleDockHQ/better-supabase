@@ -5,22 +5,6 @@ import { sqlString } from "../../core/template.ts";
 import { entitiesMarker } from "../markers.ts";
 import { blockSqlVersion } from "../module-types.ts";
 
-/** The table `moduleRow` writes to, created by every schema module's file. */
-export const BLOCKS_TABLE = `
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-`;
-
 /**
  * Records the module in `better_supabase.blocks`, which `upgrade` and doctor
  * read. An instance that installs it under another name records its block too.
@@ -37,8 +21,7 @@ export function moduleRow(
 values (${sqlString(module.name)}, ${version}, ${sqlString(mode)})
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();`
-    : `alter table better_supabase.blocks add column if not exists block text;
-insert into better_supabase.blocks (name, block, version, mode)
+    : `insert into better_supabase.blocks (name, block, version, mode)
 values (${sqlString(instance)}, ${sqlString(module.name)}, ${version}, ${sqlString(mode)})
 on conflict (name) do update
   set block = excluded.block, version = excluded.version, mode = excluded.mode, updated_at = now();`;

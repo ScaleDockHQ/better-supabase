@@ -1,8 +1,5 @@
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { MEMO_FUNCTIONS } from "../memo.ts";
-import { EQUIVALENT_TRIGGERS, SCHEMA } from "../shared.ts";
-
 export const UPDATED_AT: BlockSqlDefinition = {
   name: "updated-at",
   title: "Update timestamps",
@@ -11,8 +8,7 @@ export const UPDATED_AT: BlockSqlDefinition = {
   target: "schema",
   // Read by gen for the repository extension, not by the SQL.
   names: { tables: {}, options: ["createdAt", "updatedAt", "stamp"] },
-  build: () => `${SCHEMA}
-
+  build: () => `
 create or replace function better_supabase.set_updated_at()
 returns trigger
 language plpgsql
@@ -29,9 +25,6 @@ begin
   return new;
 end;
 $$;
-
-${EQUIVALENT_TRIGGERS}
-${MEMO_FUNCTIONS}
 
 drop function if exists better_supabase.track_updated_at(regclass, text);
 

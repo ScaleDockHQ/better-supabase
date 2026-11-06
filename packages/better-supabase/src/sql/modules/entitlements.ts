@@ -4,7 +4,7 @@ import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { quotedTable, SCHEMA } from "../shared.ts";
+import { quotedTable } from "../shared.ts";
 import {
   booleanEntitlementValue,
   memberships,
@@ -22,8 +22,7 @@ const entitlementsSql = (
   const source = layout.entitlements?.source ?? "stripe-sync";
 
   if (source === "custom") {
-    return `${SCHEMA}
-grant usage on schema better_supabase to supabase_auth_admin;
+    return `grant usage on schema better_supabase to supabase_auth_admin;
 
 -- entitlements.source is "custom": your better_supabase.tenant_entitlements(tenant ${id})
 -- returns the tenant's feature keys (text[]) and your
@@ -38,8 +37,7 @@ reset check_function_bodies;`;
   }
 
   if (typeof source === "object") {
-    return `${SCHEMA}
-grant usage on schema better_supabase to supabase_auth_admin;
+    return `grant usage on schema better_supabase to supabase_auth_admin;
 ${planEntitlements(source.plans, id)}
 ${layout.entitlementsProvider ? providerEntitlementChecks(claims, layout.entitlementsProvider, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
@@ -47,8 +45,7 @@ revoke execute on function better_supabase.feature_claims(uuid) from public, ano
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
   }
 
-  return `${SCHEMA}
-grant usage on schema better_supabase to supabase_auth_admin;
+  return `grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Lookup keys of the tenant's active entitlements, from the Stripe Sync
 -- Engine's stripe.active_entitlements. Empty before the engine is installed.

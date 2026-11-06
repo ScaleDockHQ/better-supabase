@@ -1,76 +1,11 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:342ec6c9e195dba5dcc557c3b09cf7ea053359253e593c27687996b23bb33ea0
+-- @bsb-hash sha256:0b2803c222f508db181a4118badddbfe0d6a875e7648c97c0c51725d0e5f41e0
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -125,8 +60,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Companies and people an organization works with, and who works where.
 
 create table if not exists "better_supabase"."payment_terms" (
@@ -1462,18 +1396,6 @@ grant execute on function "better_supabase"."find_person_by_identity"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
 create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
@@ -1601,19 +1523,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" a
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
@@ -1631,76 +1540,11 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:bee730cbe1d0fe2697b132a3839de934e6ee3c22ed5eb29ccc68b85a8f9e84b6
+-- @bsb-hash sha256:7f36d8e5fe253be7ba5bb7cb53952dc6b4b318276488b6b9ba47fe0bb9c87fc6
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -1755,8 +1599,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Companies and people an organization works with, and who works where.
 
 create table if not exists "better_supabase"."payment_terms" (
@@ -3249,18 +3092,6 @@ grant execute on function "better_supabase"."represented_by_me"(uuid) to authent
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
 create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
@@ -3396,19 +3227,6 @@ begin
 end;
 $$;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
@@ -3426,76 +3244,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:5db11cf41e421974088f82694562b46be9c2c682399a4516bdc029ca3401d150
+-- @bsb-hash sha256:9880426e276225bbefa628377608e026165af291f1489448322680cf6831d262
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -3550,8 +3303,6 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -4892,18 +4643,6 @@ grant execute on function "app_private"."find_person_by_identity"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."companies";
 drop policy if exists bsb_tenant_scope_select on "app_private"."companies";
 create policy bsb_tenant_scope_select on "app_private"."companies" as restrictive
@@ -5031,19 +4770,6 @@ create policy bsb_tenant_scope_delete on "app_private"."person_identities" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
@@ -5061,76 +4787,11 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:d1490cc761845ca08815f63967c447076701a0259ab7f2f0ca8a57cbc611476f
+-- @bsb-hash sha256:3bfa0f688fc4518d65687bd80d7f072b93b5ce68c5a099b71974de8d37490a86
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -5185,8 +4846,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Companies and people an organization works with, and who works where.
 
 create table if not exists "better_supabase"."payment_terms" (
@@ -6522,18 +6182,6 @@ grant execute on function "better_supabase"."find_person_by_identity"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
 create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
@@ -6670,25 +6318,6 @@ drop function if exists "api"."resolve_person"(uuid, jsonb);
 
 drop function if exists "api"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
 drop function if exists "api"."list_people"(uuid, text, text, uuid, text, uuid, integer);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_company"(tenant uuid, company uuid, attrs jsonb)
 returns jsonb
@@ -6933,19 +6562,6 @@ as $$ select "better_supabase"."find_person_by_identity"($1, $2, $3) $$;
 revoke execute on function "api"."find_person_by_identity"(uuid, text, text) from public, anon;
 grant execute on function "api"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
@@ -6963,91 +6579,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:d135e9fc2f76fe238f391472b1b8d114087ed0598aff32c0a26fc4d87b45ba3c
+-- @bsb-hash sha256:ed9ed3e1357232e72c7abddbbcd0c15c3e26469667d9506c6e10a03f4f1280e0
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -7102,8 +6638,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Companies and people an organization works with, and who works where.
 
 -- better_supabase.payment_terms is the app's table: this block adds only the columns it needs.
@@ -8427,18 +7962,6 @@ grant execute on function "better_supabase"."find_person_by_identity"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
 create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
@@ -8566,19 +8089,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" a
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
@@ -8596,76 +8106,11 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:a0560916c267d3d3418c6dfd152e9aa8fd61af9413ae786161e96d13e476fae0
+-- @bsb-hash sha256:01ab886ec5f41b6dcff6b8e72d09ad07ca0cda8b968f4d7358ffdd7856983c2a
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 -- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.
 do $$
@@ -8720,8 +8165,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Companies and people an organization works with, and who works where.
 
 create table if not exists "better_supabase"."payment_terms" (
@@ -10057,18 +9501,6 @@ grant execute on function "better_supabase"."find_person_by_identity"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
 create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
@@ -10195,19 +9627,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_ident
 create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts

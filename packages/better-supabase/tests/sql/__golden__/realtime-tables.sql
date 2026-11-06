@@ -1,13 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:67f7bd100c555d058907f53d57d591c9886140dc3f3ddc83d8a5d598bc8b3be9
+-- @bsb-hash sha256:14b51d8cd7fac3818f3e9ec369328bf2fde7357eeccec30ae8210021f44547a1
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
@@ -257,19 +254,6 @@ create policy bsb_realtime_tables_receive on realtime.messages
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     ));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block-data realtime-tables
@@ -287,13 +271,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:0af558ec917620c5bceb5a0a84bcfef1062ea8c2cccb438cdf48179d2fd7ec84
+-- @bsb-hash sha256:5948ca101f540b1b5b349f12e62f3aa921541d30c1da585e6307ced15bd8944e
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
@@ -546,19 +527,6 @@ create policy bsb_realtime_tables_receive on realtime.messages
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     ));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block-data realtime-tables
@@ -576,13 +544,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:67f7bd100c555d058907f53d57d591c9886140dc3f3ddc83d8a5d598bc8b3be9
+-- @bsb-hash sha256:14b51d8cd7fac3818f3e9ec369328bf2fde7357eeccec30ae8210021f44547a1
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
@@ -831,19 +796,6 @@ create policy bsb_realtime_tables_receive on realtime.messages
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     ));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
@@ -862,13 +814,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:67f7bd100c555d058907f53d57d591c9886140dc3f3ddc83d8a5d598bc8b3be9
+-- @bsb-hash sha256:14b51d8cd7fac3818f3e9ec369328bf2fde7357eeccec30ae8210021f44547a1
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
@@ -1117,19 +1066,6 @@ create policy bsb_realtime_tables_receive on realtime.messages
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     ));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables

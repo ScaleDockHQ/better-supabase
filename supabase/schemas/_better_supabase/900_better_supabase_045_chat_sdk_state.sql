@@ -1,6 +1,6 @@
 -- better-supabase module: chat-sdk-state
 -- @bsb-block chat-sdk-state@2 managed
--- @bsb-hash sha256:bad3b258d34d3ed19c85cfd530faa1975415b5d7b9e208cf914d2b3b1062dfbc
+-- @bsb-hash sha256:5e3223332edadecdd0dc73978348641696b2a0f4b6b02d698b2996951dc7f098
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,8 +19,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- The Chat SDK StateAdapter in Postgres: thread subscriptions, locks with a
 -- token, a key-value cache, capped lists and per-thread message queues, each
 -- under a key prefix so several bots share the tables. Only the service role
@@ -525,16 +524,3 @@ end;
 $$;
 revoke execute on function "better_supabase"."chat_uninstall"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."chat_uninstall"(text, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

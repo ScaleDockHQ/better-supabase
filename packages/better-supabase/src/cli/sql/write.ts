@@ -13,6 +13,7 @@ import {
   APP_TABLES_MARKER,
   APP_TABLES_MODULE,
   moduleTopics,
+  PRELUDE_MODULE,
   resolveBlocks,
   sameBlockFile,
 } from "../../sql/index.ts";
@@ -161,7 +162,10 @@ export async function write(
   );
 
   const files = rendered.filter(
-    (file) => only === undefined || only.includes(file.module),
+    (file) =>
+      only === undefined ||
+      only.includes(file.module) ||
+      file.module === PRELUDE_MODULE,
   );
 
   const written = files.filter((file) => !migrations || file.kind === "test");

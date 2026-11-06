@@ -5,7 +5,6 @@ import type { ApprovalSqlKit } from "./approvals-steps.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
-import { MEMO_FUNCTIONS } from "../memo.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
@@ -756,8 +755,6 @@ as $$
   select ${policyCase(policies)}
 $$;
 ${userGrant(`${fn("approval_policy")}(text, text)`)}
-
-${MEMO_FUNCTIONS.trim()}
 
 create or replace function ${fn("approval_memo_bump")}()
 returns trigger

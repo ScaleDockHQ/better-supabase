@@ -1,13 +1,11 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:67ab0478b9faaacd970302f92521db1b7da458518271d4b59ac84b2e80bb8c62
+-- @bsb-hash sha256:2dff4ec0384d1eb12d49cb53f9a7c070fca6392d2ae19122af79b73f9e2f60d0
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Vercel Marketplace: the teams that installed the integration, the resources
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
@@ -591,19 +589,6 @@ grant execute on function "better_supabase"."marketplace_resources"(text) to ser
 revoke execute on function "better_supabase"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."delete_marketplace_resource"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
@@ -621,13 +606,11 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:42f3a726a30ba3f0007503e9228e6c2b8bafe3aa13d3781504b433642f2812ac
+-- @bsb-hash sha256:824be3ef580f26b2e74790da2218fad4b3269b418ca388c23c4b65e3b2f68eae
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Vercel Marketplace: the teams that installed the integration, the resources
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
@@ -1239,19 +1222,6 @@ grant execute on function "better_supabase"."marketplace_resources"(text) to ser
 revoke execute on function "better_supabase"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."delete_marketplace_resource"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
@@ -1269,13 +1239,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:3d9ad0a38e157821d24b9a5e277c1a32057bd11c31a6d263f9f3035df4ec5f35
+-- @bsb-hash sha256:2be2d8173cc070b3af17f5c5955379138171c7b708b4e4d7f2a2bc5beb37db4b
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -1864,19 +1832,6 @@ grant execute on function "app_private"."marketplace_resources"(text) to service
 revoke execute on function "app_private"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "app_private"."delete_marketplace_resource"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
@@ -1894,13 +1849,11 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:b8be61592098424ad409d4234e3e2904c3fef137d1dac8a8deb4dd525a9a1fcd
+-- @bsb-hash sha256:2ec0d8f16fa51824a4a7edbbac1baa65a95d02297294d9db92becd8888bfe188
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Vercel Marketplace: the teams that installed the integration, the resources
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
@@ -2646,19 +2599,6 @@ as $$ select "better_supabase"."delete_marketplace_resource"($1, $2) $$;
 revoke execute on function "api"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "api"."delete_marketplace_resource"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
@@ -2676,28 +2616,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:a590d5fee14556214deda4ea0f91c01f3fa6b2979a9fb549a3bd77453f4b2199
+-- @bsb-hash sha256:cce5ba160319d8f905f16b93d903cb58b0b1606ed8961d90910d32a5a0d2f5b3
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Vercel Marketplace: the teams that installed the integration, the resources
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
@@ -3273,19 +3196,6 @@ grant execute on function "better_supabase"."marketplace_resources"(text) to ser
 revoke execute on function "better_supabase"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."delete_marketplace_resource"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
@@ -3303,13 +3213,11 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:c39a21fd3bbbb2ecc6cbf3dd1ddcd0142e38e0decdc0316b57a462e9b5575a1b
+-- @bsb-hash sha256:ca6454d18347f3b1de2a87f019b98770a977e20cb76a1ff03077f12d7da943d3
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Vercel Marketplace: the teams that installed the integration, the resources
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
@@ -3892,19 +3800,6 @@ revoke execute on function "better_supabase"."marketplace_resources"(text) from 
 grant execute on function "better_supabase"."marketplace_resources"(text) to service_role;
 revoke execute on function "better_supabase"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."delete_marketplace_resource"(text, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace

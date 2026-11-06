@@ -1,12 +1,10 @@
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:788b06753c1ccdbe1549ecd00e10c6570d3a022a24731a0f2409fb0300ee37b3
+-- @bsb-hash sha256:f35e45edd434824cc5ad7f9f2da4943ce933a028c4ae1d4f6c98f0833ecba86a
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Third-party credentials live in the app's "centrakit"."integration_credentials", each row naming its Vault secret. Only the service role reads or writes them.
 create or replace function "better_supabase"."credential_get"(provider text, name text)
 returns text
@@ -186,16 +184,3 @@ revoke execute on function "better_supabase"."drop_credential_vault_secret"() fr
 drop trigger if exists "bsb_credential_vault" on "centrakit"."integration_credentials";
 create trigger "bsb_credential_vault" after delete or update of "vault_secret_id" on "centrakit"."integration_credentials"
   for each row execute function "better_supabase"."drop_credential_vault_secret"();
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

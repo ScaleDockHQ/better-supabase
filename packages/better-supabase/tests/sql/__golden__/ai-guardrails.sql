@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:07ffb76b2928b5c9da5d292e208a16e4c00f31556af10c535f89f8731713afd0
+-- @bsb-hash sha256:312fb1c441224f582ed1fb2689f285f7c916a808bc558a803c0e768601e657f7
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,8 +28,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Input and output policies per agent, and the log of what the checks decided.
 -- A policy row holds the config the TypeScript check reads (injection
 -- heuristics, PII handling, deny topics, the deepest tool chain); tenant is
@@ -190,19 +189,6 @@ $$;
 revoke execute on function "better_supabase"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_guardrail_decisions"() to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
@@ -220,7 +206,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:216ddf33155b9a67d6cf7bd94e42c568503b878c0cc7fe683f5f4210a8d602a5
+-- @bsb-hash sha256:1410637d9b615060683d8ca7e08b0241232d75decf32d5a040f252c2954eec08
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -247,8 +233,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Input and output policies per agent, and the log of what the checks decided.
 -- A policy row holds the config the TypeScript check reads (injection
 -- heuristics, PII handling, deny topics, the deepest tool chain); tenant is
@@ -418,19 +403,6 @@ $$;
 revoke execute on function "better_supabase"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_guardrail_decisions"() to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
@@ -448,7 +420,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:1770c6e056cb43b67e7389d2491a66d768ad0d0c4ddb40d692381bf1b5d67b73
+-- @bsb-hash sha256:764681b3f74f534ab7c8ada6f0101307b66fa0314c46c41dc894060acddc5de7
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -475,8 +447,6 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -642,19 +612,6 @@ $$;
 revoke execute on function "app_private"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "app_private"."purge_guardrail_decisions"() to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
@@ -672,7 +629,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:bc365e36a3b9f1b4988325f3035f55abc06da8dd1751faa5e76ff48d9e2b98f1
+-- @bsb-hash sha256:55f7ed81fd189c6bf138084f4a22d62e9d2e948f5cb3f19dc69ceb38bcab6655
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -699,8 +656,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Input and output policies per agent, and the log of what the checks decided.
 -- A policy row holds the config the TypeScript check reads (injection
 -- heuristics, PII handling, deny topics, the deepest tool chain); tenant is
@@ -912,19 +868,6 @@ as $$ select "better_supabase"."purge_guardrail_decisions"() $$;
 revoke execute on function "api"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "api"."purge_guardrail_decisions"() to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
@@ -942,7 +885,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:2fb7aab0f15a98a26122c6fbe5af9c4eb1caf7ccf89761a3d4faf5eb378b1a68
+-- @bsb-hash sha256:60d2df75da387ab5708548d912fafcc034dddd47b2c8ec6958dad13d4dc2a134
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -969,8 +912,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Input and output policies per agent, and the log of what the checks decided.
 -- A policy row holds the config the TypeScript check reads (injection
 -- heuristics, PII handling, deny topics, the deepest tool chain); tenant is
@@ -1127,19 +1069,6 @@ $$;
 revoke execute on function "better_supabase"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_guardrail_decisions"() to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
@@ -1157,7 +1086,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:3a1575ef5d47e7ef3f98520f7617acc8f85e6f6bb2e90df89f2d0ff45f5c15e9
+-- @bsb-hash sha256:1ae093d8849c6ea2ba6d1360b1a98be04f537c1382b03b2201c8243f574055fb
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1184,8 +1113,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 -- Input and output policies per agent, and the log of what the checks decided.
 -- A policy row holds the config the TypeScript check reads (injection
 -- heuristics, PII handling, deny topics, the deepest tool chain); tenant is
@@ -1345,19 +1273,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_guardrail_decisions"() to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails

@@ -8,7 +8,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  EQUIVALENT_TRIGGERS,
   schemaPreamble,
   SERVICE_CALLER,
   fail,
@@ -1052,9 +1051,7 @@ function authTriggers(ctx: BlockSqlContext): string {
   const parts: string[] = [];
 
   if (ctx.flag("syncTrigger", true)) {
-    parts.push(`${EQUIVALENT_TRIGGERS}
-
-create or replace function ${ctx.fn("on_auth_user_created")}()
+    parts.push(`create or replace function ${ctx.fn("on_auth_user_created")}()
 returns trigger
 language plpgsql
 security definer

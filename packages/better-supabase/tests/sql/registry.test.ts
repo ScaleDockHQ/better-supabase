@@ -14,8 +14,17 @@ import {
 import { moduleLayout } from "../../src/sql/layout.ts";
 import { sameBlockFile } from "../../src/sql/markers.ts";
 import { resolveBlocks, SQL_MODULES } from "../../src/sql/registry.ts";
-import { moduleTopics, renderBlocks } from "../../src/sql/render.ts";
+import {
+  moduleTopics,
+  renderBlocks as renderAll,
+} from "../../src/sql/render.ts";
 import { stubProvider } from "../fixtures/authorization-provider.ts";
+
+// The module files, without the prelude that renderBlocks writes ahead of them.
+const renderBlocks = (
+  ...args: Parameters<typeof renderAll>
+): ReturnType<typeof renderAll> =>
+  renderAll(...args).filter((file) => file.module !== "prelude");
 
 describe("resolveBlocks", () => {
   it("adds dependencies and keeps registry order", () => {

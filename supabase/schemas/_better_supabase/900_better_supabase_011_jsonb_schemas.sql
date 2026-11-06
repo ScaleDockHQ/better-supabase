@@ -1,14 +1,11 @@
 -- better-supabase module: jsonb-schemas
 -- @bsb-block jsonb-schemas@1 managed
--- @bsb-hash sha256:e83c876a98ecc994b5f55086757fda03aec4b9b9d17a9ac83335ca1d7c372edf
+-- @bsb-hash sha256:ed17455f775eeb7c03c2b7905f4480557193a22bd32c72605d4225a850c1ac9b
 -- pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists pg_jsonschema with schema extensions;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- check_json_schema(column, schema[, where_column, where_value]) runs before the
 -- check constraint of the same name and raises 23514 with the schema errors as
@@ -48,16 +45,3 @@ end;
 $$;
 
 revoke execute on function better_supabase.check_json_schema() from public, anon, authenticated;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

@@ -3,7 +3,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { SCHEMA, triggerGrant } from "../shared.ts";
+import { triggerGrant } from "../shared.ts";
 
 /**
  * The branch for `bsb:t:<table>:<tenant>` topics: the tenant has to be one the
@@ -18,8 +18,7 @@ const tenantTopics = (ctx: BlockSqlContext): string =>
 `
     : "";
 
-const realtimeTablesSql = (ctx: BlockSqlContext): string => `${SCHEMA}
-
+const realtimeTablesSql = (ctx: BlockSqlContext): string => `
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
 returns trigger

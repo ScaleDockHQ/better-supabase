@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:cacce131c9f6cd77d0a4c0a45ab2404eb02101af89d3b6a262ffcd527eff76b9
+-- @bsb-hash sha256:fc86bbaae7e67b5cb309ff8c20aa4f8a2503b740034de32f3405de47b400eb75
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20,8 +20,7 @@ begin
   end;
 end $$;
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
+
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
 create table if not exists "better_supabase"."search_documents" (
@@ -377,18 +376,6 @@ grant execute on function "better_supabase"."search_star"(text, text, boolean) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
-    create function better_supabase.member_workspace_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
@@ -410,19 +397,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_docum
 create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search

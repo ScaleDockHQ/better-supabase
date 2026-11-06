@@ -1,12 +1,10 @@
 -- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
--- @bsb-hash sha256:b11c477c6c0a679d7769151cb4d8d34ae18ac6222394dd13bd58fbd98c97ce31
+-- @bsb-hash sha256:c664bc5ec3676a4a7b7c722d364f409d087408481c2587c3e33d96104a034b31
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Feature keys of the tenant's active plan (entitlements.source.plans):
@@ -222,16 +220,3 @@ set search_path = ''
 as $$ select "better_supabase"."feature_claims"($1) $$;
 revoke execute on function "api"."feature_claims"(uuid) from public, anon, authenticated;
 grant execute on function "api"."feature_claims"(uuid) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

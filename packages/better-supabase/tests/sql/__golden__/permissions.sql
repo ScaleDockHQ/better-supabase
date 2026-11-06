@@ -1,13 +1,11 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:bfd9ed6394224d87d8a89f578da185d7e9181984436d9e02ff075dd25fe58b04
+-- @bsb-hash sha256:9845609cc01ace08b8fc93f3c0b65467a1ba193090ef617013bc0b31b02c2343
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Disabled tenants and users get no permissions and no membership claims
@@ -426,19 +424,6 @@ grant execute on function better_supabase.can_assign_as(uuid, uuid, text) to ser
 --     end if;
 --     return jsonb_set(event, '{claims,permissions}', keys);
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block-data permissions
@@ -456,13 +441,11 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:056fc643972182fcd358c80dcd0ffc78b3f7427f1b731d8484aa057ea89610d8
+-- @bsb-hash sha256:55917b6cc593197654361bd7c021db4a5f77d7ba0386e0cf3d2740fcabb917f8
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 grant usage on schema better_supabase to supabase_auth_admin;
 set check_function_bodies = off;
 -- Disabled tenants and users get no permissions and no membership claims
@@ -1297,19 +1280,6 @@ grant execute on function better_supabase.can_assign_as(uuid, uuid, text) to ser
 --     end if;
 --     return jsonb_set(event, '{claims,permissions}', keys);
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block-data permissions
@@ -1327,13 +1297,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:9b24f7b1ea75a765b5f0106079616ccac9da2b9bb4f619f8a34d0a67455164c0
+-- @bsb-hash sha256:e10852ca48558505e5d42b236319b99348ff9450e9d2debc1ee6182303863253
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -1757,19 +1725,6 @@ grant execute on function better_supabase.can_assign_as(uuid, uuid, text) to ser
 --     end if;
 --     return jsonb_set(event, '{claims,permissions}', keys);
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block-data permissions
@@ -1787,13 +1742,11 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:9aa13966c429dde483941d716ecd7dd6da5d7497204a5072a41286de24615d13
+-- @bsb-hash sha256:0fe8a9d5c0b9fe47e3dab7a2e97558b506321a305cfed48960f42ba71908ca49
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Disabled tenants and users get no permissions and no membership claims
@@ -2426,19 +2379,6 @@ as $$ select "better_supabase"."can_assign_as"($1, $2, $3) $$;
 revoke execute on function "api"."can_assign_as"(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function "api"."can_assign_as"(uuid, uuid, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block-data permissions
@@ -2456,13 +2396,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:bfd9ed6394224d87d8a89f578da185d7e9181984436d9e02ff075dd25fe58b04
+-- @bsb-hash sha256:9845609cc01ace08b8fc93f3c0b65467a1ba193090ef617013bc0b31b02c2343
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Disabled tenants and users get no permissions and no membership claims
@@ -2881,19 +2819,6 @@ grant execute on function better_supabase.can_assign_as(uuid, uuid, text) to ser
 --     end if;
 --     return jsonb_set(event, '{claims,permissions}', keys);
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block-data permissions
@@ -2911,13 +2836,11 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:df58374da62dcc6eb67a3cc8d069fa8f0331fc958b3980895d8b36ddeadd1d53
+-- @bsb-hash sha256:410469a7e870e5500f17a6d2e3d0956d789fc4f32e89f5946413c6906ec2405c
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Disabled tenants and users get no permissions and no membership claims
@@ -3335,19 +3258,6 @@ grant execute on function better_supabase.can_assign_as(uuid, uuid, text) to ser
 --       keys := '{}'::jsonb;
 --     end if;
 --     return jsonb_set(event, '{claims,permissions}', keys);
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions

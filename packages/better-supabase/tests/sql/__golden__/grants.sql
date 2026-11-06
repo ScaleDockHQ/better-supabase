@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block grants@1 managed
--- @bsb-hash sha256:3baea11f307b20baa102f37aaa40773ff4658201e8d862a2aa15862e018f3e5e
+-- @bsb-hash sha256:c43480db762ccd6d20d22b0e1281d0a61644087233118024f72206c1cbaae8dd
 -- Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. A project with default privileges turned off grants new tables to no Data API role.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,19 +9,6 @@
 -- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
 -- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
@@ -40,7 +27,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block grants@1 managed
--- @bsb-hash sha256:3baea11f307b20baa102f37aaa40773ff4658201e8d862a2aa15862e018f3e5e
+-- @bsb-hash sha256:c43480db762ccd6d20d22b0e1281d0a61644087233118024f72206c1cbaae8dd
 -- Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. A project with default privileges turned off grants new tables to no Data API role.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,19 +35,6 @@ on conflict (name) do update
 -- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
 -- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
@@ -79,7 +53,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block grants@1 managed
--- @bsb-hash sha256:3baea11f307b20baa102f37aaa40773ff4658201e8d862a2aa15862e018f3e5e
+-- @bsb-hash sha256:c43480db762ccd6d20d22b0e1281d0a61644087233118024f72206c1cbaae8dd
 -- Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. A project with default privileges turned off grants new tables to no Data API role.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,19 +61,6 @@ on conflict (name) do update
 -- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
 -- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
@@ -118,7 +79,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_013_grants.sql
 -- better-supabase module: grants
 -- @bsb-block grants@1 managed
--- @bsb-hash sha256:3baea11f307b20baa102f37aaa40773ff4658201e8d862a2aa15862e018f3e5e
+-- @bsb-hash sha256:c43480db762ccd6d20d22b0e1281d0a61644087233118024f72206c1cbaae8dd
 -- Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. A project with default privileges turned off grants new tables to no Data API role.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -126,19 +87,6 @@ on conflict (name) do update
 -- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
 -- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_013_grants.sql
 -- better-supabase module: grants

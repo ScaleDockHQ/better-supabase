@@ -9,7 +9,6 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  SCHEMA,
   SERVICE_CALLER,
   revokeTable,
   userGrant,
@@ -1028,7 +1027,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   }
 
   return [
-    `${SCHEMA}${table(ctx)}${requestsTable(ctx)}`,
+    `${table(ctx)}${requestsTable(ctx)}`,
     requestFunctions(ctx, layout),
     start(ctx),
     end(ctx),

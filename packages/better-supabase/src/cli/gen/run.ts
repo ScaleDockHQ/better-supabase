@@ -85,7 +85,9 @@ async function readSetFile(
     readSets,
   );
 
-  return renderBlocks(["read-sets"], layout)[0];
+  return renderBlocks(["read-sets"], layout).find(
+    (file) => file.module === "read-sets",
+  );
 }
 
 /**

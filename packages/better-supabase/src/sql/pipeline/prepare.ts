@@ -3,7 +3,6 @@ import type { BlockSqlLayout, BlockSql } from "../module-types.ts";
 
 import { applyActorWriteGuards } from "../actor-guard.ts";
 import { blockNamesOnAppTables } from "../app-table-names.ts";
-import { withColumnTypeFunction } from "../column-type.ts";
 import { rangeChecks } from "../emit/check.ts";
 import {
   overAppTables,
@@ -15,7 +14,6 @@ import {
 } from "../over-app-tables.ts";
 import { withoutAppTablePolicies } from "../policy-cover.ts";
 import { renderSeedDefaults, seedFunctionName } from "../seeds.ts";
-import { withSubjectMergeFunction } from "../subject-merge-sql.ts";
 import { applyTenantScope } from "../tenant-scope.ts";
 import { appTableSet } from "./resolve.ts";
 
@@ -60,18 +58,14 @@ export function moduleSql(
   ctx: BlockSqlContext,
   layout: BlockSqlLayout,
 ): string {
-  return withSubjectMergeFunction(
-    withColumnTypeFunction(
-      applyActorWriteGuards(
-        applyTenantScope(
-          rangeChecks(
-            `${module.build(ctx, layout)}${seedDefaultsSql(module, ctx)}`,
-          ),
-          ctx,
-        ),
-        layout,
+  return applyActorWriteGuards(
+    applyTenantScope(
+      rangeChecks(
+        `${module.build(ctx, layout)}${seedDefaultsSql(module, ctx)}`,
       ),
+      ctx,
     ),
+    layout,
   );
 }
 

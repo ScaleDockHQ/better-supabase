@@ -9260,6 +9260,7 @@
       "POLICY_FUNCTIONS",
       "policyFunctionsSql",
       "policyGrants",
+      "PRELUDE_MODULE",
       "readArgSource",
       "readArgSqlType",
       "readGrants",
