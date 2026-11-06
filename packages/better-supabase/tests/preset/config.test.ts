@@ -263,6 +263,25 @@ describe("preset instances", () => {
     ).toMatchObject({ contacts: { names: { person: { name: "client" } } } });
   });
 
+  it("takes the config's own entity over a preset name or shorthand", () => {
+    expect(
+      expandPreset({
+        preset: "care",
+        blocks: { contacts: { names: { company: { auditReads: false } } } },
+      }).blocks,
+    ).toMatchObject({
+      contacts: { names: { company: { auditReads: false } } },
+    });
+
+    expect(
+      expandPreset({
+        preset: "care",
+        // @ts-expect-error contacts has no primary entity, so only the runtime accepts the shorthand
+        blocks: { contacts: { names: "client" } },
+      }).blocks,
+    ).toMatchObject({ contacts: { names: "client" } });
+  });
+
   it("names a name and its subject settings together", () => {
     const preset = {
       ...namedPreset("saas"),
