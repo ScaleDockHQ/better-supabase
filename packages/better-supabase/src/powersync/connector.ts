@@ -28,9 +28,18 @@ export interface CrudQueueLike {
  * plugins and validation run as they do online. `I` is the table's insert type
  * and `K` its primary key; every generated repository fits.
  */
+/** The write option a replay passes: keep the values the device recorded. */
+export interface UploadWriteArgs {
+  readonly override: true;
+}
+
 export interface UploadRepository<I = Record<string, unknown>, K = string> {
-  upsert(data: I): PromiseLike<Result<unknown>>;
-  update(id: K, patch: Partial<I>): PromiseLike<Result<unknown>>;
+  upsert(data: I, args?: UploadWriteArgs): PromiseLike<Result<unknown>>;
+  update(
+    id: K,
+    patch: Partial<I>,
+    args?: UploadWriteArgs,
+  ): PromiseLike<Result<unknown>>;
   delete(id: K): PromiseLike<Result<unknown>>;
 }
 
@@ -42,7 +51,7 @@ export interface CreateUploadRepository<
   I = Record<string, unknown>,
   K = string,
 > {
-  create(data: I): PromiseLike<Result<unknown>>;
+  create(data: I, args?: UploadWriteArgs): PromiseLike<Result<unknown>>;
   delete(id: K): PromiseLike<Result<unknown>>;
 }
 
@@ -248,6 +257,15 @@ function unsupportedOp(entry: CrudEntryLike, route: string): Result<never> {
 }
 
 /**
+ * A replay writes what the device recorded, including the columns the
+ * timestamps, actor and trash plugins fill: the local repository stamped them
+ * offline, so refusing them would refuse every queued insert. The plugins guard
+ * against mistakes in app code, not untrusted clients; a column the server must
+ * own needs its trigger (`bsb_updated_at`, `track_actor`).
+ */
+const REPLAY: UploadWriteArgs = { override: true };
+
+/**
  * Turns a repository into a function route. By default a `PUT` upserts, a
  * `PATCH` updates and a `DELETE` deletes, as a bare repository in `tables`
  * does. With `put: "create"`, a `PUT` inserts and a `conflict` counts as
@@ -283,7 +301,7 @@ export function uploadRoute(
     switch (entry.op) {
       case "PUT": {
         if (put === "create" && "create" in repository) {
-          const result = await repository.create(row);
+          const result = await repository.create(row, REPLAY);
 
           return !result.ok && result.error.kind === "conflict"
             ? ok(undefined)
@@ -291,13 +309,13 @@ export function uploadRoute(
         }
 
         return "upsert" in repository
-          ? repository.upsert(row)
+          ? repository.upsert(row, REPLAY)
           : unsupportedOp(entry, put);
       }
 
       case "PATCH": {
         return put === "upsert" && "update" in repository
-          ? repository.update(id, entry.opData ?? {})
+          ? repository.update(id, entry.opData ?? {}, REPLAY)
           : unsupportedOp(entry, put);
       }
 

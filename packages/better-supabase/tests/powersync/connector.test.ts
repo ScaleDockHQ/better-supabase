@@ -6,6 +6,8 @@ import type {
   CrudQueueLike,
 } from "../../src/powersync/connector.ts";
 
+import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
+import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import {
@@ -13,6 +15,8 @@ import {
   uploadOutcome,
   uploadRoute,
 } from "../../src/powersync/connector.ts";
+import { capturingClient } from "../fixtures/client.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 
 function queue(crud: CrudEntryLike[]) {
   const complete = vi.fn(async () => undefined);
@@ -443,5 +447,50 @@ describe("uploadOutcome", () => {
     expect(uploadOutcome("timeout")).toBe("retry");
     expect(uploadOutcome("stale")).toBe("conflict");
     expect(uploadOutcome("forbidden")).toBe("discard");
+  });
+});
+
+describe("replaying managed columns", () => {
+  const ORG = "00000000-0000-4000-8000-000000000001";
+  const NOW = Temporal.Instant.from("2026-09-24T10:00:00Z");
+
+  it("keeps the timestamps the device stamped offline", async () => {
+    const { client, requests } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "c" }],
+    }));
+
+    const db = defineSupabase(schema, { now: () => NOW })
+      .use(updatedAtExtension())
+      .connect(client);
+
+    const route = uploadRoute(db.customers);
+
+    const stamped = {
+      organizationId: ORG,
+      name: "A",
+      createdAt: "2026-09-20T08:00:00Z",
+      updatedAt: "2026-09-20T08:00:00Z",
+    };
+
+    expect((await route(put("c", stamped))).ok).toBe(true);
+    expect(
+      (
+        await route({
+          op: "PATCH",
+          table: "customers",
+          id: "c",
+          opData: { name: "B", updatedAt: "2026-09-21T08:00:00Z" },
+        })
+      ).ok,
+    ).toBe(true);
+    expect(requests[0]?.body).toMatchObject({
+      created_at: "2026-09-20T08:00:00Z",
+      updated_at: "2026-09-20T08:00:00Z",
+    });
+    expect(requests[1]?.body).toMatchObject({
+      name: "B",
+      updated_at: "2026-09-21T08:00:00Z",
+    });
   });
 });
