@@ -143,7 +143,7 @@ export type {
   NoExtension,
   WithExtension,
   HasFlag,
-  HookArgs,
+  HookParams,
   MutationEvent,
   MutationIntent,
   MutationKind,
@@ -207,7 +207,7 @@ export type { Policy, PolicyDecision } from "./core/policy.ts";
 export type {
   ConflictTarget,
   CursorPage,
-  CursorPageArgs,
+  CursorPageParams,
   Db,
   DbHelpers,
   DeleteOptions,
@@ -274,7 +274,7 @@ export type { StoragePath } from "./storage/path.ts";
 
 export type * from "./schema/types.ts";
 
-export type { SearchArgs } from "./core/search.ts";
+export type { TextSearchParams } from "./core/search.ts";
 
 export type * from "./ir/args.ts";
 

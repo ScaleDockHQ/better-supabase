@@ -51,7 +51,7 @@ export type {
 } from "./resources.ts";
 
 export type {
-  ActionArgs,
+  ActionParams,
   ResourceAction,
   ResourceContext,
   ResourceHooks,
@@ -65,7 +65,7 @@ export type { ResourceMap } from "../server/resources.ts";
 export type {
   Access,
   ActionOptions,
-  BlockActionArgs,
+  BlockActionParams,
   BetterNext,
   Bootstrap,
   BootstrapOptions,

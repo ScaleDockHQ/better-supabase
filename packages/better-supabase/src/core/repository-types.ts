@@ -3,10 +3,10 @@ import type {
   AggregateResult,
   CountOptions,
   GetOptions,
-  ListArgs,
+  ListParams,
   Payload,
   ReadOptions,
-  RequestArgs,
+  ApiRequestParams,
   WhereInput,
 } from "../ir/args.ts";
 import type { CountMode } from "../ir/types.ts";
@@ -30,7 +30,7 @@ import type { Executor } from "./executor.ts";
 import type { ApplyExtension, RequestContext } from "./plugin.ts";
 import type { InferReadSetParams, ReadSet, ReadSetResult } from "./read-set.ts";
 import type { AsyncResult } from "./result.ts";
-import type { SearchArgs, SearchScore } from "./search.ts";
+import type { TextSearchParams, SearchScore } from "./search.ts";
 import type { InferResult, QuerySpec } from "./spec.ts";
 import type { StandardSchemaV1 } from "./standard.ts";
 import type { DbStats } from "./stats.ts";
@@ -132,7 +132,7 @@ export type GetKey<M extends AnyModels, T extends keyof M> =
 export interface ManyWriteOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends RequestArgs {
+> extends ApiRequestParams {
   /** Return the written rows instead of `{ count }`. */
   readonly returning?: boolean;
   /** The columns to return with `returning: true`. */
@@ -181,7 +181,7 @@ export interface UpsertOptions<
   readonly ignoreDuplicates?: boolean;
 }
 
-export type DeleteOptions = RequestArgs;
+export type DeleteOptions = ApiRequestParams;
 
 /** Options of `upsert` with an array of rows. */
 export interface UpsertManyOptions<M extends AnyModels, T extends keyof M>
@@ -194,7 +194,7 @@ export type Returned<M extends AnyModels, T extends keyof M, A> = A extends {
   : Payload<M, T, A>;
 
 export type OffsetPageOptions<M extends AnyModels, T extends keyof M> = Omit<
-  ListArgs<M, T>,
+  ListParams<M, T>,
   "limit" | "offset"
 > & {
   /** 1-based page number. Defaults to 1. */
@@ -209,7 +209,7 @@ export type OffsetPageOptions<M extends AnyModels, T extends keyof M> = Omit<
 };
 
 export type OffsetRangeOptions<M extends AnyModels, T extends keyof M> = Omit<
-  ListArgs<M, T>,
+  ListParams<M, T>,
   "limit" | "offset"
 > & {
   /** Rows to skip before the page. */
@@ -223,8 +223,8 @@ export type OffsetRangeOptions<M extends AnyModels, T extends keyof M> = Omit<
   readonly size?: never;
 };
 
-export type CursorPageArgs<M extends AnyModels, T extends keyof M> = Omit<
-  ListArgs<M, T>,
+export type CursorPageParams<M extends AnyModels, T extends keyof M> = Omit<
+  ListParams<M, T>,
   "limit" | "offset"
 > & {
   /** Cursor from the previous page, or `null` for the first page. */
@@ -283,7 +283,7 @@ export interface Repository<
   readonly $meta: TableMeta;
 
   /** The rows matching `where`, ordered by `orderBy` or the primary key. */
-  list<const A extends ListArgs<M, T> & FindExt<E, M, T>>(
+  list<const A extends ListParams<M, T> & FindExt<E, M, T>>(
     args?: A,
   ): AsyncResult<Payload<M, T, A>[]>;
   /**
@@ -294,7 +294,7 @@ export interface Repository<
     const A extends (
       | OffsetPageOptions<M, T>
       | OffsetRangeOptions<M, T>
-      | CursorPageArgs<M, T>
+      | CursorPageParams<M, T>
     ) &
       FindExt<E, M, T>,
   >(
@@ -401,7 +401,7 @@ export type RepositoryOf<
   E,
 > = Repository<M, T, E> & ApplyExtension<E, M, T, "methods">;
 
-export interface RpcOptions<R> extends RequestArgs {
+export interface RpcOptions<R> extends ApiRequestParams {
   /**
    * Validates the return value after decoding, so the schema sees the
    * configured casing and codecs; the result carries its output type.
@@ -415,7 +415,7 @@ export interface RpcOptions<R> extends RequestArgs {
   readonly raw?: boolean;
 }
 
-export type RpcArgs<F extends AnyFunctions, N extends keyof F> =
+export type RpcParams<F extends AnyFunctions, N extends keyof F> =
   Record<never, never> extends F[N]["Args"]
     ? [args?: F[N]["Args"]]
     : [args: F[N]["Args"]];
@@ -534,11 +534,11 @@ export interface DbHelpers<
    */
   $rpc<N extends PlainName<F>>(
     name: N,
-    ...rest: [...RpcArgs<F, N>, options: RawRpcOptions]
+    ...rest: [...RpcParams<F, N>, options: RawRpcOptions]
   ): AsyncResult<unknown>;
   $rpc<N extends PlainName<F>, R = F[N]["Returns"]>(
     name: N,
-    ...rest: [...RpcArgs<F, N>, options?: RpcOptions<R>]
+    ...rest: [...RpcParams<F, N>, options?: RpcOptions<R>]
   ): AsyncResult<R>;
   /**
    * An overloaded function: the arguments match one overload, and the result is
@@ -622,7 +622,7 @@ export interface DbHelpers<
    * `search_<table>` function of the `vector-search` SQL module. RLS applies
    * inside the search; `where` filters the `k` rows it returns.
    */
-  $search<T extends TableKey<M>, const A extends SearchArgs<M, T>>(
+  $search<T extends TableKey<M>, const A extends TextSearchParams<M, T>>(
     table: T,
     args: A,
   ): AsyncResult<(Payload<M, T, A> & SearchScore<A>)[]>;

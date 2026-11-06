@@ -63,7 +63,7 @@ export function blockActionOf(
   const run = host.action(options as never, async (input, ctx) => {
     const call = methodOf(client(ctx), method);
 
-    // SAFETY: BlockActionArgs makes `args` required unless the method
+    // SAFETY: BlockActionParams makes `args` required unless the method
     // takes the validated input as its only argument.
     const args = (options.args?.(input, ctx) ?? [input]) as readonly unknown[];
 

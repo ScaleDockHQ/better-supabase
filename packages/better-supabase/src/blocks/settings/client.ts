@@ -5,7 +5,7 @@ import type {
   SettingEntries,
   SettingEntry,
   SettingInputs,
-  Settings,
+  SettingsClient,
   SettingValues,
 } from "./settings.ts";
 
@@ -148,13 +148,13 @@ export interface SettingsControllerOptions<E extends SettingEntries> {
    * The caller's own settings: a `createSettings` client. Pass this or
    * `organization`.
    */
-  readonly user?: Pick<Settings<E>, "getUser" | "setUser" | "resetUser">;
+  readonly user?: Pick<SettingsClient<E>, "getUser" | "setUser" | "resetUser">;
   /**
    * An organization's settings: a `createSettings` client, with
    * `organizationId`.
    */
   readonly organization?: Pick<
-    Settings<SettingEntries, E>,
+    SettingsClient<SettingEntries, E>,
     "getOrganization" | "setOrganization" | "resetOrganization"
   >;
   /** The organization for `organization`; the page waits without one. */

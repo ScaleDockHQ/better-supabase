@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { AnyCommand, CliValues } from "../core/command.ts";
 import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
@@ -37,7 +37,7 @@ const INSTALL_ARGS = {
   },
 } as const;
 
-type InstallArgs = CliArgs<
+type InstallArgs = CliValues<
   typeof INSTALL_ARGS &
     typeof SOURCE_ARG &
     Pick<typeof PLAN_ARGS, "dry-run" | "check">

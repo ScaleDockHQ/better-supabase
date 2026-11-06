@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { AnyCommand, CliValues } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import { defineCliCommand } from "../core/command.ts";
@@ -30,7 +30,7 @@ const ARGS = {
   },
 } as const;
 
-export type KeysOptions = CliArgs<typeof ARGS>;
+export type KeysOptions = CliValues<typeof ARGS>;
 
 interface SigningKey {
   readonly kty: "EC";

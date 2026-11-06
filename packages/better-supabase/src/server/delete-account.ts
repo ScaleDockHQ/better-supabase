@@ -45,7 +45,7 @@ export interface DeleteAccountResult {
 
 const REMOVE_BATCH = 1000;
 
-interface AuthFailure {
+interface AuthLinkError {
   readonly message?: string;
   readonly name?: string;
   readonly status?: number;
@@ -58,11 +58,11 @@ export function fromAuthError(raw: unknown): DbError {
     return raw;
   }
 
-  // SAFETY: every AuthFailure field is optional and read with a fallback, so
+  // SAFETY: every AuthLinkError field is optional and read with a fallback, so
   // any object fits.
   const failure = (
     typeof raw === "object" && raw !== null ? raw : {}
-  ) as AuthFailure;
+  ) as AuthLinkError;
 
   const message = failure.message ?? "Auth request failed";
 

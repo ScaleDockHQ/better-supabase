@@ -13,7 +13,7 @@ import type {
   PresetSpec,
   ResolvedPreset,
 } from "../../preset/index.ts";
-import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { AnyCommand, CliValues } from "../core/command.ts";
 import type { CommandResult, NextStep } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 import type { InstallTarget, Project } from "../project/detect.ts";
@@ -98,7 +98,7 @@ import {
 } from "../wiring.ts";
 import { blockConfigImport, blocksWiringPath } from "./add.ts";
 
-export type InitOptions = CliArgs<
+export type InitOptions = CliValues<
   typeof INIT_ARGS & typeof CONVENTION_ARGS & typeof PLAN_ARGS
 >;
 

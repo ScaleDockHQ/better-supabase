@@ -102,14 +102,14 @@ export const GLOBAL_ARGS = {
   },
 } as const;
 
-export type CliArgs<T extends ArgsDef> = ParsedArgs<T & typeof GLOBAL_ARGS>;
+export type CliValues<T extends ArgsDef> = ParsedArgs<T & typeof GLOBAL_ARGS>;
 
 /**
  * What a runner reads from a command's flags: any subset of them, so another
  * command's runner can call it without parsing argv.
  */
 export type CliOptions<T extends ArgsDef> = {
-  readonly [K in keyof T | keyof typeof GLOBAL_ARGS]?: CliArgs<T>[K];
+  readonly [K in keyof T | keyof typeof GLOBAL_ARGS]?: CliValues<T>[K];
 } & { readonly _?: readonly string[] };
 
 /**
@@ -139,7 +139,7 @@ export interface CliCommandDef<T extends ArgsDef> {
    */
   readonly readsLegacyTables?: boolean;
   readonly run: (
-    args: CliArgs<T>,
+    args: CliValues<T>,
     context: CliContext,
   ) => Promise<CommandResult>;
 }

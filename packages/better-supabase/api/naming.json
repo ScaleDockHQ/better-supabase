@@ -404,27 +404,89 @@
       "to": "betterSupabase",
       "kind": "function",
       "since": "0.54"
+    },
+    {
+      "from": "ActionArgs",
+      "to": "ActionParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "AuthFailure",
+      "to": "AuthLinkError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "BlockActionArgs",
+      "to": "BlockActionParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "CliArgs",
+      "to": "CliValues",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "CursorPageArgs",
+      "to": "CursorPageParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "DoctorArgs",
+      "to": "DoctorValues",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "HookArgs",
+      "to": "HookParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ListArgs",
+      "to": "ListParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ReactRouterArgs",
+      "to": "ReactRouterParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "RequestArgs",
+      "to": "ApiRequestParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "RpcArgs",
+      "to": "RpcParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "SearchArgs",
+      "to": "TextSearchParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TableArgs",
+      "to": "TableValues",
+      "kind": "type",
+      "since": "0.54"
     }
   ],
   "allowlist": {
     "env": [],
-    "typeNames": [
-      "ActionArgs",
-      "Args",
-      "AuthFailure",
-      "BlockActionArgs",
-      "CliArgs",
-      "CursorPageArgs",
-      "DoctorArgs",
-      "HookArgs",
-      "ListArgs",
-      "ReactRouterArgs",
-      "RequestArgs",
-      "RpcArgs",
-      "SearchArgs",
-      "Settings",
-      "TableArgs"
-    ],
+    "typeNames": [],
     "subpaths": []
   }
 }

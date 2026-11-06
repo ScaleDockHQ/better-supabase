@@ -70,7 +70,7 @@ export { toHono } from "../bridges/hono.ts";
 export type { HonoBridge } from "../bridges/hono.ts";
 
 export type {
-  ActionArgs,
+  ActionParams,
   ResourceAction,
   ResourceContext,
   ResourceHooks,

@@ -45,7 +45,7 @@ export { toEdge } from "../bridges/edge.ts";
 export type { EdgeExecutionContext, EdgeHandler } from "../bridges/edge.ts";
 
 export type {
-  ActionArgs,
+  ActionParams,
   ResourceAction,
   ResourceContext,
   ResourceHooks,

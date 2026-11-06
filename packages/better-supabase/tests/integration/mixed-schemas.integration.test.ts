@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { DoctorArgs } from "../../src/cli/commands/doctor.ts";
+import type { DoctorValues } from "../../src/cli/commands/doctor.ts";
 import type { CommandResult } from "../../src/cli/core/io.ts";
 
 import {
@@ -127,7 +127,7 @@ describe("blocks over an app's own declarative schema, on the local stack", () =
   const doctor = (argv: string[]): Promise<CommandResult> =>
     runDoctor(
       config(),
-      parseCommandArgs(doctorCommand, argv) as DoctorArgs,
+      parseCommandArgs(doctorCommand, argv) as DoctorValues,
       {},
       { dbUrl: url },
     );

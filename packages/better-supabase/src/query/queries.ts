@@ -10,7 +10,7 @@ import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type {
   CursorPage,
-  CursorPageArgs,
+  CursorPageParams,
   Db,
   DeleteOptions,
   DeleteExt,
@@ -31,7 +31,7 @@ import type {
   AggregateResult,
   CountOptions,
   GetOptions,
-  ListArgs,
+  ListParams,
   Payload,
 } from "../ir/args.ts";
 import type {
@@ -158,7 +158,7 @@ export interface MutationOptionsOf<V, R> {
 export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
   /** Prefix of every key for this table's own queries. */
   readonly key: readonly ["bsb", T];
-  list<const A extends ListArgs<M, T> & FindExt<E, M, T>>(
+  list<const A extends ListParams<M, T> & FindExt<E, M, T>>(
     args?: A | SkipToken,
   ): QueryOptionsOf<Payload<M, T, A>[]>;
   page<
@@ -183,7 +183,7 @@ export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
   ): QueryOptionsOf<AggregateResult<M, T, A>>;
   /** Cursor pages for `useInfiniteQuery`. */
   infinite<
-    const A extends Omit<CursorPageArgs<M, T>, "after"> & FindExt<E, M, T>,
+    const A extends Omit<CursorPageParams<M, T>, "after"> & FindExt<E, M, T>,
   >(
     args: A,
     options?: InfiniteExtras,

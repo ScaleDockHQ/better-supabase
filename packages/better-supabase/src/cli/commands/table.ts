@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { AnyCommand, CliValues } from "../core/command.ts";
 import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
@@ -41,7 +41,7 @@ const TABLE_ARGS = {
   },
 } as const;
 
-export type TableArgs = CliArgs<
+export type TableValues = CliValues<
   typeof TABLE_ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
 >;
 
@@ -74,7 +74,7 @@ async function sqlFiles(dir: string): Promise<string[]> {
  */
 async function runTable(
   config: ResolvedConfig,
-  args: TableArgs,
+  args: TableValues,
   deps: TableDeps = {},
 ): Promise<CommandResult> {
   const { action, feature } = args;

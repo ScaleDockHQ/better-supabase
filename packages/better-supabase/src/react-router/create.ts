@@ -34,7 +34,7 @@ export interface ReactRouterContextProvider {
 }
 
 /** The arguments of a loader, action or middleware. */
-export interface ReactRouterArgs {
+export interface ReactRouterParams {
   readonly request: Request;
   readonly context: ReactRouterContextProvider;
   readonly params?: Readonly<Record<string, string | undefined>>;
@@ -47,7 +47,7 @@ export interface ReactRouterOptions extends FrameworkOptions {
    * The host's env object for `getEnv`, e.g. `({ context }) =>
    * context.get(cloudflareContext).env` on Workers.
    */
-  readonly platformEnv?: (args: ReactRouterArgs) => unknown;
+  readonly platformEnv?: (args: ReactRouterParams) => unknown;
 }
 
 export interface BetterReactRouter<
@@ -69,21 +69,21 @@ export interface BetterReactRouter<
    * session cookie on navigations and form posts, and sets the context.
    */
   readonly middleware: (
-    args: ReactRouterArgs,
+    args: ReactRouterParams,
     next: () => Promise<Response>,
   ) => Promise<Response>;
   /**
    * `db`, `bsb`, `auth`, `tenant` and the serializable `session` of the
    * request.
    */
-  locals(args: ReactRouterArgs): FrameworkLocals<M, F, E, C, P, B>;
+  locals(args: ReactRouterParams): FrameworkLocals<M, F, E, C, P, B>;
   /**
    * A loader that runs the guard first. A refused caller gets a redirect to
    * `signIn` or `mfa` when configured, else a thrown Problem Details response
    * for the `ErrorBoundary`. `Result`s unwrap, and a failed one is thrown the
    * same way.
    */
-  loader<A extends ReactRouterArgs, T, R extends boolean = false>(
+  loader<A extends ReactRouterParams, T, R extends boolean = false>(
     options: BlockRequireOptions<
       C,
       P,
@@ -100,7 +100,7 @@ export interface BetterReactRouter<
   action<
     S extends StandardSchemaV1 | undefined,
     T,
-    A extends ReactRouterArgs = ReactRouterArgs,
+    A extends ReactRouterParams = ReactRouterParams,
     R extends boolean = false,
   >(
     options: BlockActionOptions<
@@ -140,7 +140,7 @@ export function createReactRouter<
 
   type Locals = FrameworkLocals<M, F, E, C, P, B>;
 
-  const locals = (args: ReactRouterArgs): Locals => {
+  const locals = (args: ReactRouterParams): Locals => {
     let value: unknown;
 
     try {

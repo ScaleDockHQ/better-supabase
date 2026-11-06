@@ -1,9 +1,9 @@
-import type { ListArgs } from "../ir/args.ts";
+import type { ListParams } from "../ir/args.ts";
 import type { AnyModels } from "../schema/types.ts";
 
 /** `db.$search(table, args)`: the `k` rows nearest to `vector`. */
-export type SearchArgs<M extends AnyModels, T extends keyof M> = Pick<
-  ListArgs<M, T>,
+export type TextSearchParams<M extends AnyModels, T extends keyof M> = Pick<
+  ListParams<M, T>,
   "select" | "include" | "where" | "signal"
 > & {
   /**

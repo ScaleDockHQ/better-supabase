@@ -8,7 +8,7 @@ import type {
   ReadSetResult,
 } from "../core/read-set.ts";
 import type {
-  CursorPageArgs,
+  CursorPageParams,
   Db,
   DeleteOptions,
   DeleteExt,
@@ -28,7 +28,7 @@ import type {
   RawRpcOptions,
   Returned,
   RowFilter,
-  RpcArgs,
+  RpcParams,
   RpcOptions,
   UpdateOptions,
   UpsertOptions,
@@ -37,14 +37,14 @@ import type {
   WriteManyOptions,
 } from "../core/repository-types.ts";
 import type { BetterResultApi } from "../core/result.ts";
-import type { SearchArgs, SearchScore } from "../core/search.ts";
+import type { TextSearchParams, SearchScore } from "../core/search.ts";
 import type { InferResult, QuerySpec } from "../core/spec.ts";
 import type {
   AggregateOptions,
   AggregateResult,
   CountOptions,
   GetOptions,
-  ListArgs,
+  ListParams,
   Payload,
 } from "../ir/args.ts";
 import type {
@@ -110,14 +110,14 @@ export interface BetterResultRepository<
   readonly $tableName: T;
   readonly $meta: TableMeta;
 
-  list<const A extends ListArgs<M, T> & FindExt<E, M, T>>(
+  list<const A extends ListParams<M, T> & FindExt<E, M, T>>(
     args?: A,
   ): Out<Payload<M, T, A>[], Err>;
   page<
     const A extends (
       | OffsetPageOptions<M, T>
       | OffsetRangeOptions<M, T>
-      | CursorPageArgs<M, T>
+      | CursorPageParams<M, T>
     ) &
       FindExt<E, M, T>,
   >(
@@ -225,11 +225,11 @@ export interface BetterResultHelpers<
   $from<T>(result: AsyncResult<T>): Out<T, Err>;
   $rpc<N extends PlainName<F>>(
     name: N,
-    ...rest: [...RpcArgs<F, N>, options: RawRpcOptions]
+    ...rest: [...RpcParams<F, N>, options: RawRpcOptions]
   ): Out<unknown, Err>;
   $rpc<N extends PlainName<F>, R = F[N]["Returns"]>(
     name: N,
-    ...rest: [...RpcArgs<F, N>, options?: RpcOptions<R>]
+    ...rest: [...RpcParams<F, N>, options?: RpcOptions<R>]
   ): Out<R, Err>;
   $rpc<N extends OverloadedName<F>, const A extends F[N]["Args"]>(
     name: N,
@@ -264,7 +264,7 @@ export interface BetterResultHelpers<
     specs: S,
     options?: { readonly signal?: AbortSignal },
   ): Out<{ -readonly [K in keyof S]: InferResult<S[K]> }, Err>;
-  $search<T extends TableKey<M>, const A extends SearchArgs<M, T>>(
+  $search<T extends TableKey<M>, const A extends TextSearchParams<M, T>>(
     table: T,
     args: A,
   ): Out<(Payload<M, T, A> & SearchScore<A>)[], Err>;

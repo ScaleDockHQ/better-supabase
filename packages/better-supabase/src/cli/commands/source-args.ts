@@ -1,4 +1,4 @@
-import type { CliArgs, CliOptions } from "../core/command.ts";
+import type { CliValues, CliOptions } from "../core/command.ts";
 import type { CliIo } from "../core/io.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
@@ -59,7 +59,7 @@ export function sourceFlags(args: CliOptions<typeof SOURCE_ARGS>): string[] {
 }
 
 export async function sourceArgs(
-  args: CliArgs<typeof SOURCE_ARGS>,
+  args: CliValues<typeof SOURCE_ARGS>,
   io: CliIo,
 ): Promise<SnapshotSource> {
   const snapshotPath = args.snapshot;

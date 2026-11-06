@@ -304,7 +304,7 @@ export type CountArg<M extends AnyModels, T extends keyof M> = {
 type TargetOf<R> = R extends { readonly table: infer X } ? X : never;
 
 /** Per-call request settings every repository method takes. */
-export interface RequestArgs {
+export interface ApiRequestParams {
   readonly signal?: AbortSignal;
   /**
    * Fails the call with a `timeout` error after this many milliseconds,
@@ -323,7 +323,7 @@ export interface RequestArgs {
 export interface ReadOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends RequestArgs {
+> extends ApiRequestParams {
   readonly select?: SelectArg<M, T>;
   readonly include?: IncludeArg<M, T>;
   /** Related counts go inside `include`: `include: { _count: { notes: true } }`. */
@@ -335,7 +335,7 @@ export interface ReadOptions<
   readonly _max?: never;
 }
 
-export interface ListArgs<
+export interface ListParams<
   M extends AnyModels,
   T extends keyof M,
 > extends ReadOptions<M, T> {
@@ -357,7 +357,7 @@ export interface GetOptions<
 export interface CountOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends RequestArgs {
+> extends ApiRequestParams {
   readonly where?: WhereArg<M, T>;
   readonly mode?: "exact" | "planned" | "estimated";
 }
@@ -365,7 +365,7 @@ export interface CountOptions<
 export interface AggregateOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends RequestArgs {
+> extends ApiRequestParams {
   readonly where?: WhereArg<M, T>;
   /** One result per distinct combination; without it, one result. */
   readonly groupBy?: SelectArg<M, T>;

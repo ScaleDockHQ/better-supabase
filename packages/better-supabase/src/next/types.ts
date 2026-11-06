@@ -253,7 +253,7 @@ export interface ActionOptions<
  * input as the only argument, so `args` is required when the method takes
  * anything else.
  */
-export type BlockActionArgs<S, A, Ctx> = [ActionParsed<S>] extends A
+export type BlockActionParams<S, A, Ctx> = [ActionParsed<S>] extends A
   ? { readonly args?: (input: ActionParsed<S>, ctx: Ctx) => A }
   : { readonly args: (input: ActionParsed<S>, ctx: Ctx) => A };
 
@@ -624,7 +624,7 @@ export interface BetterNext<
        * tagged with them, such as `reads.deals.board.tables`.
        */
       readonly invalidates?: readonly string[];
-    } & BlockActionArgs<
+    } & BlockActionParams<
         S,
         BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
         ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R>

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type {
-  AuthFailure,
+  AuthLinkError,
   AuthLinkClient,
   OAuthClient,
   WebBrowserLike,
@@ -15,7 +15,7 @@ import {
   signInWithOAuthBrowser,
 } from "../../../src/client/native/auth-link.ts";
 
-function fakeAuth(error: AuthFailure | null = null) {
+function fakeAuth(error: AuthLinkError | null = null) {
   const calls: unknown[] = [];
   const reply = () => Promise.resolve({ error });
 

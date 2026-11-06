@@ -1,5 +1,5 @@
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { CliArgs } from "../core/command.ts";
+import type { CliValues } from "../core/command.ts";
 import type { FilePlan, PLAN_ARGS } from "../core/files.ts";
 import type { CliIo, CommandResult } from "../core/io.ts";
 import type { CliLog } from "../core/log.ts";
@@ -34,7 +34,7 @@ export const SAVE_SNAPSHOT_ARGS = {
   },
 } as const;
 
-type SaveSnapshotArgs = CliArgs<
+type SaveSnapshotArgs = CliValues<
   typeof SAVE_SNAPSHOT_ARGS &
     typeof SOURCE_ARGS &
     Pick<typeof PLAN_ARGS, "check" | "dry-run">

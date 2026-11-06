@@ -24,7 +24,7 @@ import type { H3V1Handler } from "better-supabase/h3/v1";
 import type { BetterSupabaseNuxtModule, NuxtLike } from "better-supabase/nuxt";
 import type {
   BetterReactRouter,
-  ReactRouterArgs,
+  ReactRouterParams,
   ReactRouterMiddleware,
   ReactRouterOptions,
 } from "better-supabase/react-router";
@@ -50,7 +50,7 @@ type Kit = BetterSvelteKit<never, never, never>;
 
 /** React Router 7 (7.9 or later, with stable middleware). */
 export type ReactRouter7 = [
-  Fits<LoaderFunctionArgs, ReactRouterArgs>,
+  Fits<LoaderFunctionArgs, ReactRouterParams>,
   Fits<
     BetterReactRouter<never, never, never>["middleware"],
     MiddlewareFunction<Response>

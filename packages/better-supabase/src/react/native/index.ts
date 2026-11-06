@@ -5,7 +5,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AuthSnapshot } from "../../client/index.ts";
 import type {
-  AuthFailure,
+  AuthLinkError,
   AuthLinkClient,
   AuthLinkResult,
   OAuthClient,
@@ -29,7 +29,7 @@ import { ClientContext, useAuth } from "../hooks.ts";
 import { usePending } from "../sign-in.ts";
 
 export type {
-  AuthFailure,
+  AuthLinkError,
   AuthLinkResult,
   OAuthSignInOptions,
   WebBrowserLike,
@@ -46,7 +46,7 @@ interface IdTokenClient {
       token: string;
       nonce?: string;
       access_token?: string;
-    }): Promise<{ readonly error: AuthFailure | null }>;
+    }): Promise<{ readonly error: AuthLinkError | null }>;
   };
 }
 
@@ -63,7 +63,7 @@ export interface OAuth extends PendingState {
    * Opens the provider in an auth session and finishes the sign-in. A cancelled
    * browser is no error.
    */
-  readonly signIn: (provider: Provider) => Promise<AuthFailure | undefined>;
+  readonly signIn: (provider: Provider) => Promise<AuthLinkError | undefined>;
   /**
    * Native sign-in with an ID token from `expo-apple-authentication` or
    * `@react-native-google-signin/google-signin`.
@@ -73,7 +73,7 @@ export interface OAuth extends PendingState {
     readonly token: string;
     readonly nonce?: string;
     readonly accessToken?: string;
-  }) => Promise<AuthFailure | undefined>;
+  }) => Promise<AuthLinkError | undefined>;
 }
 
 function useClientOf<C>(explicit: C | undefined, hook: string): C {

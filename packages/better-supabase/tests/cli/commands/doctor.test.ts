@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DoctorArgs } from "../../../src/cli/commands/doctor.ts";
+import type { DoctorValues } from "../../../src/cli/commands/doctor.ts";
 import type { CommandResult } from "../../../src/cli/core/io.ts";
 import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
@@ -61,7 +61,7 @@ describe("doctor command", () => {
   ) =>
     runDoctor(
       resolveConfig(config, root),
-      parseCommandArgs(doctorCommand, argv) as DoctorArgs,
+      parseCommandArgs(doctorCommand, argv) as DoctorValues,
       env,
       options,
     );

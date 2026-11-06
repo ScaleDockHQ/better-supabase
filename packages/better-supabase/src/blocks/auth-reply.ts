@@ -10,7 +10,7 @@ export type AuthReply<T> =
   | { readonly data: T; readonly error: null }
   | { readonly data: null; readonly error: object };
 
-interface AuthFailure {
+interface AuthLinkError {
   readonly message?: unknown;
   readonly name?: unknown;
   readonly status?: unknown;
@@ -19,8 +19,8 @@ interface AuthFailure {
 
 /** An `AuthError` from the Auth API as a `DbError`, keeping its code. */
 function authFailure(error: object): DbError {
-  // SAFETY: every AuthFailure field is optional and type-checked below.
-  const failure = error as AuthFailure;
+  // SAFETY: every AuthLinkError field is optional and type-checked below.
+  const failure = error as AuthLinkError;
 
   const message =
     typeof failure.message === "string" && failure.message !== ""

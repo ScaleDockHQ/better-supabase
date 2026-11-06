@@ -3,7 +3,7 @@ import { dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { ResolvedPreset } from "../../preset/index.ts";
-import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { AnyCommand, CliValues, CliOptions } from "../core/command.ts";
 import type { CommandResult, NextStep } from "../core/io.ts";
 import type { Prompter } from "../prompts.ts";
 import type { WiredBlock } from "../sql/config-edit.ts";
@@ -91,7 +91,7 @@ const ADD_ARGS = {
   },
 } as const;
 
-export type AddOptions = CliArgs<
+export type AddOptions = CliValues<
   typeof ADD_ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
 >;
 

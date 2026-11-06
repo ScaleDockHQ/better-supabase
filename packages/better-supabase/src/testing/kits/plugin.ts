@@ -1,5 +1,9 @@
 import type { Executor } from "../../core/executor.ts";
-import type { AnyPlugin, HookArgs, RequestContext } from "../../core/plugin.ts";
+import type {
+  AnyPlugin,
+  HookParams,
+  RequestContext,
+} from "../../core/plugin.ts";
 import type { Operation } from "../../ir/types.ts";
 import type { ConformanceReport } from "../conformance.ts";
 import type { AnyDb, AnySupabase } from "./executor.ts";
@@ -48,7 +52,7 @@ export function testPlugin(
   const table = tableKey(betterSupabase, options.table);
   const context = options.context ?? {};
 
-  const hook = (op: Operation): HookArgs => ({
+  const hook = (op: Operation): HookParams => ({
     table: op.table,
     schema: betterSupabase.meta,
     context,

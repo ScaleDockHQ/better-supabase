@@ -1,4 +1,8 @@
-import type { HookArgs, Plugin, RepositoryExtension } from "../core/plugin.ts";
+import type {
+  HookParams,
+  Plugin,
+  RepositoryExtension,
+} from "../core/plugin.ts";
 import type { Condition, Operation, Selection } from "../ir/types.ts";
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
 
@@ -365,7 +369,7 @@ function pinsPrimaryKey(
   return columns.every((column) => pinned.has(column));
 }
 
-type Check = (op: Operation, hook: HookArgs) => string | undefined;
+type Check = (op: Operation, hook: HookParams) => string | undefined;
 
 function checks(rules: GuardSet): Record<GuardName, Check> {
   const maxLimit = optionOf(rules.maxLimit, 1000);

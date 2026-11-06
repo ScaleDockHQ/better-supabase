@@ -7,7 +7,7 @@ import type { ExecuteContext, ExecuteResult, Executor } from "./executor.ts";
 import type {
   AnyPlugin,
   CallOptions,
-  HookArgs,
+  HookParams,
   MutationEvent,
   MutationKind,
   RequestContext,
@@ -40,7 +40,7 @@ export interface Runtime {
   readonly tuning?: RequestTuning;
 }
 
-export type Args = Readonly<Record<string, unknown>>;
+export type CallParams = Readonly<Record<string, unknown>>;
 
 export type Row = Record<string, unknown>;
 
@@ -76,7 +76,7 @@ const KNOWN_KEYS = new Set([
 
 const NO_OPTIONS: CallOptions = Object.freeze({});
 
-export function optionsOf(args: Args | undefined): CallOptions {
+export function optionsOf(args: CallParams | undefined): CallOptions {
   if (!args) {
     return NO_OPTIONS;
   }
@@ -125,7 +125,9 @@ function isThenable<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
   );
 }
 
-export function signalOf(args: Args | undefined): AbortSignal | undefined {
+export function signalOf(
+  args: CallParams | undefined,
+): AbortSignal | undefined {
   const signal = args?.["signal"];
 
   return signal instanceof AbortSignal ? signal : undefined;
@@ -158,7 +160,7 @@ export class OperationRunner {
     table: TableMeta,
     options: CallOptions,
     signal?: AbortSignal,
-  ): HookArgs {
+  ): HookParams {
     return {
       table,
       schema: this.runtime.meta,

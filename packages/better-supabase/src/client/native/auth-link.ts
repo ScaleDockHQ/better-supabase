@@ -1,14 +1,14 @@
 import type { Provider } from "@supabase/supabase-js";
 
 /** An auth error: supabase-js `AuthError`s and the errors a link carries. */
-export interface AuthFailure {
+export interface AuthLinkError {
   readonly message: string;
   readonly code?: string | undefined;
   readonly status?: number | undefined;
 }
 
 interface AuthReply {
-  readonly error: AuthFailure | null;
+  readonly error: AuthLinkError | null;
 }
 
 /** The part of a supabase-js client the deep-link helpers call. */
@@ -36,7 +36,7 @@ export interface AuthLinkClient {
 export type AuthLinkResult =
   | { readonly type: "none" }
   | { readonly type: "signed-in"; readonly via: "code" | "tokens" | "otp" }
-  | { readonly type: "error"; readonly error: AuthFailure };
+  | { readonly type: "error"; readonly error: AuthLinkError };
 
 const OTP_TYPES = new Set([
   "signup",
@@ -181,7 +181,7 @@ export interface OAuthClient extends AuthLinkClient {
       };
     }): Promise<{
       readonly data: { readonly url: string | null } | { readonly url?: null };
-      readonly error: AuthFailure | null;
+      readonly error: AuthLinkError | null;
     }>;
   };
 }

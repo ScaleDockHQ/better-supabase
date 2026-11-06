@@ -110,7 +110,7 @@ export interface ResourceHooks<
  * What an action handler receives besides the context: values already
  * validated.
  */
-export interface ActionArgs<I = unknown, Q = unknown> {
+export interface ActionParams<I = unknown, Q = unknown> {
   /** The parsed key, for item actions (`/{id}/send`). */
   readonly id: unknown;
   readonly data: I;
@@ -126,7 +126,7 @@ export interface ResourceAction<
   Ref = string,
   DbT = unknown,
 > extends ResourceActionSpec<Ref> {
-  handler(ctx: ResourceContext<DbT>, args: ActionArgs): unknown;
+  handler(ctx: ResourceContext<DbT>, args: ActionParams): unknown;
 }
 
 export type Parsed<S> = S extends StandardSchemaV1

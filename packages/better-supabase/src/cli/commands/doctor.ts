@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { ConsentRequest } from "../core/agent.ts";
-import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { AnyCommand, CliValues } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { OpenLive } from "../doctor/live-source.ts";
 import type { DoctorContext, Finding, TextFile } from "../doctor/rules.ts";
@@ -152,7 +152,7 @@ const ARGS = {
   },
 } as const;
 
-export type DoctorArgs = CliArgs<typeof ARGS & typeof SOURCE_ARGS>;
+export type DoctorValues = CliValues<typeof ARGS & typeof SOURCE_ARGS>;
 
 export interface DoctorOptions {
   /** Pre-loaded snapshot (tests). */
@@ -278,7 +278,7 @@ async function readBaseline(
 
 export async function runDoctor(
   config: ResolvedConfig,
-  args: DoctorArgs,
+  args: DoctorValues,
   env: CliEnv,
   options: DoctorOptions = {},
 ): Promise<CommandResult> {
