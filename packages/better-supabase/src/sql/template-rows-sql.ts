@@ -39,7 +39,7 @@ export function templateRowsOf(
 }
 
 /** `alias.column is null`: the row is a live record, not a template. */
-export function isLiveRow(alias: string, column: string): string {
+function isLiveRow(alias: string, column: string): string {
   return `${alias}.${sqlIdent(column)} is null`;
 }
 
@@ -66,9 +66,7 @@ export function excludeTemplates(
 ): string {
   const column = templateRowsOf(config)?.column;
 
-  return column === undefined
-    ? ""
-    : ` and ${alias}.${sqlIdent(column)} is null`;
+  return column === undefined ? "" : ` and ${isLiveRow(alias, column)}`;
 }
 
 /**
@@ -121,22 +119,6 @@ drop trigger if exists ${options.trigger} on ${options.table};
 create trigger ${options.trigger}
   before update of ${column} on ${options.table}
   for each row execute function ${options.fn}();`;
-}
-
-/**
- * The party stays required on a live row: a template may leave it null.
- * `parties` are the columns that count (any one of them).
- */
-export function templatePartyCheck(
-  name: string,
-  template: string,
-  parties: readonly string[],
-): string {
-  const live = parties
-    .map((column) => `${sqlIdent(column)} is not null`)
-    .join(" or ");
-
-  return `constraint ${sqlIdent(name)} check (${sqlIdent(template)} is not null or ${live})`;
 }
 
 /** A partial index over the live rows, the ones lists read by default. */

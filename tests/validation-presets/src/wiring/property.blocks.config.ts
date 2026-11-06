@@ -147,6 +147,7 @@ export const blockConfig = {
         set_task_assignees: "set_maintenance_request_assignees",
         task_tree: "maintenance_request_tree",
         update_tasks: "update_maintenance_requests",
+        clone_task: "clone_maintenance_request",
         save_iteration: "maintenance_save_iteration",
         save_project: "maintenance_save_project",
       },
