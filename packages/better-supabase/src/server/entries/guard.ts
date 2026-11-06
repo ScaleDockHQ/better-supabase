@@ -8,7 +8,7 @@ import type { GuardOptions } from "../respond.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { defaultExpose, guard } from "../respond.ts";
 
-export interface GuardEntryConfig extends GuardOptions {
+export interface GuardEntryOptions extends GuardOptions {
   /**
    * Include error messages in problem responses. Defaults to `NODE_ENV ===
    * 'development'`.
@@ -22,7 +22,7 @@ export interface GuardEntryConfig extends GuardOptions {
  * `ctx.guard`, the options the caller passed.
  */
 export function withGuard<C, P>(
-  config: GuardEntryConfig = {},
+  config: GuardEntryOptions = {},
 ): SingleKeyEntry<"guard", { readonly auth: AuthState<C, P> }, GuardOptions> {
   const { expose = defaultExpose(), ...options } = config;
 

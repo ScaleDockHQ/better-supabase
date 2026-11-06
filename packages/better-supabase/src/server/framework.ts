@@ -5,7 +5,7 @@ import type {
   BetterSupabaseContributions,
   BetterSupabaseEntry,
 } from "./composite.ts";
-import type { SessionEntryConfig } from "./entries/session.ts";
+import type { SessionEntryOptions } from "./entries/session.ts";
 import type { ResourceLoaderContext } from "./kit.ts";
 import type { RefusalRedirects } from "./refusal.ts";
 import type { AllowedCaller } from "./respond.ts";
@@ -35,12 +35,12 @@ export interface FrameworkOptions
   extends
     ServerOptions,
     RefusalRedirects,
-    Pick<SessionEntryConfig, "verifySession" | "cookieScopes" | "encode"> {
+    Pick<SessionEntryOptions, "verifySession" | "cookieScopes" | "encode"> {
   /**
    * When the middleware refreshes an expired session cookie. Defaults to
    * `'navigation'`: page loads, client navigations and form posts.
    */
-  readonly refresh?: SessionEntryConfig["refresh"];
+  readonly refresh?: SessionEntryOptions["refresh"];
   /**
    * Include internal error messages in Problem Details. Defaults to development
    * only.

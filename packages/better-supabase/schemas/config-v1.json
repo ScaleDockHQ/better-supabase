@@ -918,10 +918,6 @@
                   "type": "string",
                   "description": "The permission keys {user} holds in {tenant}, as a text[]."
                 },
-                "canApprove": {
-                  "type": "string",
-                  "description": "Whether the caller may decide the tool call {tool} waits on in {tenant}."
-                },
                 "isApprover": {
                   "type": "string"
                 },
@@ -1373,16 +1369,6 @@
                     }
                   },
                   "description": "OAuth scope to the permission keys it grants a delegated token."
-                }
-              },
-              "additionalProperties": false
-            },
-            "approvals": {
-              "type": "object",
-              "properties": {
-                "distinctApprover": {
-                  "type": "boolean",
-                  "description": "The user who asked for a tool call can't approve it. Default false."
                 }
               },
               "additionalProperties": false
@@ -3028,27 +3014,12 @@
     "api": {
       "type": "object",
       "properties": {
-        "openapi": {
-          "type": "object",
-          "properties": {
-            "entry": {
-              "type": "string",
-              "default": "src/lib/openapi.ts"
-            },
-            "output": {
-              "type": "string",
-              "default": "openapi.json"
-            }
-          },
-          "additionalProperties": false,
-          "description": "Deprecated: use specs. openapi.entry and openapi.output map onto it."
-        },
         "specs": {
           "type": "object",
           "properties": {
             "entry": {
               "type": "string",
-              "description": "Module exporting a defineApi() result (or a function returning one) as api or default. Defaults to openapi.entry.",
+              "description": "Module exporting a defineApi() result (or a function returning one) as api or default. ",
               "default": "src/lib/openapi.ts"
             },
             "outputs": {

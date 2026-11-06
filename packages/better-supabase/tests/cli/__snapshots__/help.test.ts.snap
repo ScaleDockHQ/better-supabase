@@ -224,402 +224,13 @@ Docs: https://bettersupabase.com/docs/cli/presets#blocks
 "
 `;
 
-exports[`help > documents codemod 0.4 1`] = `
-"Usage: better-supabase codemod 0.4 [options] [path...]
-
-Renames from 0.3 to 0.4
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.5 1`] = `
-"Usage: better-supabase codemod 0.5 [options] [path...]
-
-Renames from 0.4 to 0.5
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.6 1`] = `
-"Usage: better-supabase codemod 0.6 [options] [path...]
-
-Changes from 0.5 to 0.6: kits become blocks and modules
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.9 1`] = `
-"Usage: better-supabase codemod 0.9 [options] [path...]
-
-Changes from 0.8 to 0.9: sql.modules becomes blocks, and CLI calls use the new subcommands and flags
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.11 1`] = `
-"Usage: better-supabase codemod 0.11 [options] [path...]
-
-Changes from 0.10 to 0.11: adopted outgoing webhooks get an explicit defaultFormat
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.15 1`] = `
-"Usage: better-supabase codemod 0.15 [options] [path...]
-
-Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, renamed blocks take their 0.15 names, and CLI calls use the new commands
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.29 1`] = `
-"Usage: better-supabase codemod 0.29 [options] [path...]
-
-Changes from 0.28 to 0.29: records is renamed back to subjects in the config, and record tags in the schema files become subject tags
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.32 1`] = `
-"Usage: better-supabase codemod 0.32 [options] [path...]
-
-Changes from 0.31 to 0.32: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.35 1`] = `
-"Usage: better-supabase codemod 0.35 [options] [path...]
-
-The 0.36 part of the 0.35 to 0.37 changes, as 0.36.0 shipped it: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone. Prefer codemod 0.37
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.37 1`] = `
-"Usage: better-supabase codemod 0.37 [options] [path...]
-
-Changes from 0.35 to 0.37: the proxy refreshes on every request, session cookies go through @supabase/ssr, the cookie codec and prefetch predicates are gone, and stock quantities are numeric
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.46 1`] = `
-"Usage: better-supabase codemod 0.46 [options] [path...]
-
-Changes from 0.45 to 0.46: permission keys use the block name as their area and the read, write and manage verbs
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.47 1`] = `
-"Usage: better-supabase codemod 0.47 [options] [path...]
-
-Changes from 0.46 to 0.47: entity keys equal the entity's singular, hint codes start with the entity's new name, the work_item, engagement and policy subject types become task, activity and compliance_policy, event types are named <entity>.<past verb>, and saved events split into created and updated
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
-exports[`help > documents codemod 0.53 1`] = `
-"Usage: better-supabase codemod 0.53 [options] [path...]
-
-Changes from 0.52 to 0.53: blockConfig is imported from blocks.config.ts, so client components stop importing every installed block client
-
-Arguments
-  [path...]  Files or directories to rewrite (default: the project)
-
-Options
-  --dry-run  Show the changes without writing them
-  --check    Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/codemod
-"
-`;
-
 exports[`help > documents codemod 1`] = `
 "Usage: better-supabase codemod <command> [options]
 
 Rewrites imports, calls and config keys for renamed better-supabase APIs
 
 Commands
-  0.4        Renames from 0.3 to 0.4
-  0.5        Renames from 0.4 to 0.5
-  0.6        Changes from 0.5 to 0.6: kits become blocks and modules
-  0.9        Changes from 0.8 to 0.9: sql.modules becomes blocks, and CLI calls use the new subcommands and flags
-  0.11       Changes from 0.10 to 0.11: adopted outgoing webhooks get an explicit defaultFormat
-  0.15       Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, renamed blocks take their 0.15 names, and CLI calls use the new commands
-  0.29       Changes from 0.28 to 0.29: records is renamed back to subjects in the config, and record tags in the schema files become subject tags
-  0.32       Changes from 0.31 to 0.32: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js
-  0.35       The 0.36 part of the 0.35 to 0.37 changes, as 0.36.0 shipped it: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone. Prefer codemod 0.37
-  0.37       Changes from 0.35 to 0.37: the proxy refreshes on every request, session cookies go through @supabase/ssr, the cookie codec and prefetch predicates are gone, and stock quantities are numeric
-  0.46       Changes from 0.45 to 0.46: permission keys use the block name as their area and the read, write and manage verbs
-  0.47       Changes from 0.46 to 0.47: entity keys equal the entity's singular, hint codes start with the entity's new name, the work_item, engagement and policy subject types become task, activity and compliance_policy, event types are named <entity>.<past verb>, and saved events split into created and updated
-  0.53       Changes from 0.52 to 0.53: blockConfig is imported from blocks.config.ts, so client components stop importing every installed block client
+  naming     Applies the renames in api/naming.json: exports, types, environment variables and, for installed blocks, renamed SQL objects
   read-many  List Promise.all groups of repository reads that db.$many or a read set can load in one round trip
 
 Global options
@@ -634,6 +245,35 @@ Global options
   --debug                Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help             Show help
 
+Docs: https://bettersupabase.com/docs/cli/codemod
+"
+`;
+
+exports[`help > documents codemod naming 1`] = `
+"Usage: better-supabase codemod naming [options] [path...]
+
+Applies the renames in api/naming.json: exports, types, environment variables and, for installed blocks, renamed SQL objects
+
+Arguments
+  [path...]  Files or directories to rewrite (default: the project)
+
+Options
+  --dry-run  Show the changes without writing them
+  --check    Write nothing; exit 1 with a diff when a file would change
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/codemod
 "
 `;
@@ -768,7 +408,7 @@ Options
   --batch-size <n>       Rows to update per statement (default 1000)
   --dry-run              Count the rows (and, with --array, the elements) it would change, and change nothing
   --db-url-stdin         Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --stack <name>         Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
+  --stack <name>         Use the stack in supabase/stacks/<name>/config.toml (default $BETTER_SUPABASE_STACK) instead of the default local stack
 
 Global options
   --cwd <dir>            Project directory
@@ -804,7 +444,7 @@ Options
   -f, --file <name>  Save the diff as supabase/migrations/<timestamp>_<name>.sql instead of printing it
   --in-stack         Diff inside the running stack with pg-delta's library plan, without the Supabase CLI's shadow database
   --allow-data-loss  Write the migration even when it drops tables or columns, or changes a column type
-  --stack <name>     Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
+  --stack <name>     Use the stack in supabase/stacks/<name>/config.toml (default $BETTER_SUPABASE_STACK) instead of the default local stack
 
 Global options
   --cwd <dir>            Project directory
@@ -840,7 +480,7 @@ Options
   --batch-size <n>    Runs to delete per statement, 1 to 10000 (default 500)
   --dry-run           Count the runs it would delete, and change nothing
   --db-url-stdin      Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --stack <name>      Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
+  --stack <name>      Use the stack in supabase/stacks/<name>/config.toml (default $BETTER_SUPABASE_STACK) instead of the default local stack
 
 Global options
   --cwd <dir>            Project directory
@@ -876,7 +516,7 @@ Arguments
 Options
   --single-transaction  Wrap every file in one transaction, so a failure keeps none
   --db-url-stdin        Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --stack <name>        Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
+  --stack <name>        Use the stack in supabase/stacks/<name>/config.toml (default $BETTER_SUPABASE_STACK) instead of the default local stack
 
 Global options
   --cwd <dir>            Project directory
@@ -917,7 +557,7 @@ Options
   --demo-org              Put the sample data in a new demo organization
   --tenant <slug>         Insert database.seed.perTenant (supabase/seed.tenant.ts) for this organization slug or id, or '*' for every organization
   --db-url-stdin          Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --stack <name>          Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
+  --stack <name>          Use the stack in supabase/stacks/<name>/config.toml (default $BETTER_SUPABASE_STACK) instead of the default local stack
   --dry-run               Print what would change, with a diff, and write nothing
   --check                 Write nothing; exit 1 with a diff when a file would change
   --force                 Overwrite files the CLI did not generate

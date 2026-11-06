@@ -9,13 +9,6 @@ export { isBlockSqlIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
 
 export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
 
-export {
-  BLOCK_RENAMES,
-  currentBlockName,
-  formerBlockName,
-  renamedBlock,
-} from "./block-renames.ts";
-
 export { entityRenamePlan } from "./entity-upgrade.ts";
 
 export { moduleDataDir, moduleFilePaths } from "./paths.ts";

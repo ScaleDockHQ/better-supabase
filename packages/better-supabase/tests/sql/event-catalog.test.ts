@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
-import { BLOCK_EVENT_RENAMES } from "../../src/core/block-events.ts";
 import {
   currentEventTypes,
   EVENT_TYPE_RENAMES,
@@ -129,15 +128,6 @@ describe("SQL module event catalog", () => {
       MAP_TYPES.filter(
         (type) =>
           !typeName.test(type) || !past.test(type) || type.includes("canceled"),
-      ),
-    ).toEqual([]);
-  });
-
-  it("maps every renamed type to a current one", () => {
-    const known = new Set(MAP_TYPES);
-    expect(
-      Object.entries(BLOCK_EVENT_RENAMES).filter(
-        ([from, to]) => known.has(from) || !known.has(to),
       ),
     ).toEqual([]);
   });

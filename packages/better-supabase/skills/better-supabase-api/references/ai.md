@@ -89,7 +89,7 @@ All from `better-supabase/ai-sdk` or its subpaths; the blocks never import the S
   request aborts.
 - Durable chats: `durableChat`, `durableTurn` and `durableSteps` from
   `ai-sdk/workflow` run a turn in a Workflow SDK run with approvals as hooks.
-  `durableTransport` and `useDurableAssistant` (`ai-sdk/workflow/react`) take
+  `durableTransport` and `useDurableAssistant` (`ai-sdk/workflow-react`) take
   `transportOptions` (the `WorkflowChatTransport` options except `api`).
   `createWorkflowAgentRuntime` builds a `WorkflowAgent` from an agent row;
   `toolApprovalSecret: { environmentVariable }` signs approvals.

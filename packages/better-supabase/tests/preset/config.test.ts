@@ -37,9 +37,9 @@ describe("presetOf", () => {
     );
   });
 
-  it("names the codemod for a 0.14 preset code", () => {
+  it("names the release to upgrade with for a 0.14 preset code", () => {
     expect(() => presetOf("1pWEF3d578B1iGt16")).toThrow(
-      /better-supabase codemod 0\.15/,
+      /Upgrade to 0\.53 with that release first/,
     );
   });
 

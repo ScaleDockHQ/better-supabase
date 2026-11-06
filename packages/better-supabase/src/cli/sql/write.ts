@@ -12,7 +12,6 @@ import { CONFIG_DEFAULTS } from "../../config/index.ts";
 import {
   APP_TABLES_MARKER,
   APP_TABLES_MODULE,
-  currentBlockName,
   moduleTopics,
   renderBlocks,
   resolveBlocks,
@@ -87,7 +86,7 @@ export async function staleModuleTests(
     const text = await readFile(resolve(config.root, path), "utf-8");
     const module = MODULE_TEST_MARKER.exec(text)?.[1];
 
-    if (module !== undefined && modules.has(currentBlockName(module))) {
+    if (module !== undefined && modules.has(module)) {
       stale.push(path);
     }
   }
@@ -148,7 +147,6 @@ export async function write(
   now: Now,
   only?: readonly string[],
   upgrade: readonly string[] = [],
-  former: readonly string[] = [],
 ): Promise<SqlWrite> {
   const workflow = sqlWorkflow(config, await readSupabaseToml(config.root));
   const migrations = workflow === "migrations";
@@ -177,7 +175,6 @@ export async function write(
       files: written.map((file) => moduleFile(file)),
       remove: [
         ...new Set([
-          ...former,
           ...orphans,
           ...(await staleModuleTests(
             config,

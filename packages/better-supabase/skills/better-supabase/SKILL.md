@@ -62,12 +62,12 @@ stay hidden.
 
 ## Workflow: after upgrading better-supabase
 
-1. Run `pnpm better-supabase codemod <version> --dry-run` for each version
-   that has one (`codemod` without a name lists them), then without
-   `--dry-run`, and fix the lines it lists for review. From 0.35, one
-   `codemod 0.37` covers 0.36 and 0.37; 0.38 to 0.43 have none, and
-   `codemod 0.46` renames permission keys, and `codemod 0.47` renames
-   entity keys and hint codes.
+1. This release upgrades from 0.53 only. An app on an older version
+   upgrades to 0.53 first with that release. Run
+   `pnpm better-supabase codemod <name> --dry-run` for each codemod the
+   release lists (`codemod` without a name lists them), then without
+   `--dry-run`, and fix the lines it lists for review. `codemod naming`
+   applies the renames in `api/naming.json`.
 2. Run `pnpm better-supabase upgrade`, so the SQL modules get the
    release's SQL and any forward steps land in a migration, then write a
    migration from the changed files (under the `migrations` workflow it
@@ -82,19 +82,9 @@ stay hidden.
    lockfile and the block SQL name different releases: run the install
    command it prints, then `upgrade --check`.
 6. Read the release's guide at https://bettersupabase.com/docs/migration.
-   From 0.35, read https://bettersupabase.com/docs/migration/0.35-to-0.37:
-   the proxy refreshes the session through `@supabase/ssr`, `bsb.cached()`
-   entries stay fresh for 300 seconds, `bsb.supabaseFor` is
-   `bsb.contextClient`, and stock counts fractional units. Every breaking
-   change is in
+   Every breaking change is in
    https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md.
-   For 0.6, kits are blocks imported from `better-supabase/blocks/<name>`. For 0.3: time values are
-   `Temporal` (see below), `--db-url` is gone, `doctor --format json` is
-   `doctor --json`, `BetterResultShape` is `BetterResultValue`, and an
-   exhaustive `switch` over the `invalid` auth reason needs an `'actor'` case.
-   For 0.15, follow the upgrade order at the end of
-   https://bettersupabase.com/docs/migration/0.14-to-0.15 and fix each
-   BS418 finding `doctor` reports.
+   Time values are `Temporal` (see below).
 
 Done when `gen --check`, `doctor` and the typecheck pass.
 

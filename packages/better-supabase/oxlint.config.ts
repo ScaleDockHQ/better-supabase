@@ -61,7 +61,7 @@ export default defineConfig({
       // files when measured.
       files: [
         "tests/ai-sdk/react/use-assistant.test.ts",
-        "tests/ai-sdk/workflow/react/use-durable-assistant.test.ts",
+        "tests/ai-sdk/workflow-react/use-durable-assistant.test.ts",
         "tests/ai-sdk/workflow/server.test.ts",
         "tests/blocks/*/react/*.test.ts",
         "tests/blocks/react-controller.test.ts",

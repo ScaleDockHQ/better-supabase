@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { sourceGlobs } from "../../../src/cli/doctor/inputs.ts";
+import { seedFiles, sourceGlobs } from "../../../src/cli/doctor/inputs.ts";
 import { CONFIG_DEFAULTS, resolveConfig } from "../../../src/config/index.ts";
 
 describe("sourceGlobs", () => {
@@ -63,5 +63,31 @@ describe("sourceGlobs", () => {
         ),
       ),
     ).toEqual(["lib/**/*.ts"]);
+  });
+});
+
+describe("seedFiles", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "bsb-doctor-seeds-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("reads the .sql files of the seeds folder, sorted, and nothing else", async () => {
+    expect(await seedFiles(root, undefined)).toEqual([]);
+
+    await mkdir(join(root, "supabase/seeds"), { recursive: true });
+    await writeFile(join(root, "supabase/seeds/b.sql"), "select 2;\n");
+    await writeFile(join(root, "supabase/seeds/a.sql"), "select 1;\n");
+    await writeFile(join(root, "supabase/seeds/notes.md"), "skip\n");
+
+    expect(await seedFiles(root, undefined)).toEqual([
+      { path: "supabase/seeds/a.sql", text: "select 1;\n" },
+      { path: "supabase/seeds/b.sql", text: "select 2;\n" },
+    ]);
   });
 });

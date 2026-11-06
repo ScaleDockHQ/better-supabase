@@ -44,12 +44,12 @@ export interface WorkItemRecurrenceSinkOptions {
 
 /**
  * An outbox sink that creates the next item when a repeating one is completed:
- * `outbox.relay('tasks', workItemRecurrenceSink(workItems))`. Build `workItems`
+ * `outbox.relay('tasks', taskRecurrenceSink(workItems))`. Build `workItems`
  * with a service transport. The next item is due at the rule's first occurrence
  * after the completed item's due date (or now), and `repeat` runs once per
  * item, so a redelivered event changes nothing.
  */
-export function workItemRecurrenceSink(
+export function taskRecurrenceSink(
   workItems: Pick<Tasks, "get" | "repeat">,
   options: WorkItemRecurrenceSinkOptions = {},
 ): EventSink {
@@ -77,7 +77,7 @@ export function workItemRecurrenceSink(
 
         if (!item.ok) {
           throw new Error(
-            `workItemRecurrenceSink: reading ${id} failed: ${item.error.message}`,
+            `taskRecurrenceSink: reading ${id} failed: ${item.error.message}`,
           );
         }
 
@@ -100,7 +100,7 @@ export function workItemRecurrenceSink(
 
         if (!repeated.ok) {
           throw new Error(
-            `workItemRecurrenceSink: repeating ${id} failed: ${repeated.error.message}`,
+            `taskRecurrenceSink: repeating ${id} failed: ${repeated.error.message}`,
           );
         }
       }

@@ -274,6 +274,5 @@ https://bettersupabase.com/docs/auth/account-deletion.md,
 https://bettersupabase.com/docs/frameworks/next-cache-components.md,
 https://bettersupabase.com/docs/frameworks/next-islands.md,
 https://bettersupabase.com/docs/frontend/authorization-refresh-native.md,
-https://bettersupabase.com/docs/frameworks/expo.md,
-https://bettersupabase.com/docs/migration/0.35-to-0.37.md and
+https://bettersupabase.com/docs/frameworks/expo.md and
 https://bettersupabase.com/docs/extending/authorization-providers.md.

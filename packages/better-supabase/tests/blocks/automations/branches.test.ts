@@ -12,7 +12,7 @@ import {
   createAutomationsAdmin,
   createActionRegistry,
   createRuleDispatcher,
-  createRuleSink,
+  automationSink,
   defineAction,
   eventTarget,
   ruleOf,
@@ -579,7 +579,7 @@ describe("dispatcher and sink", () => {
     const seen: unknown[] = [];
     const match: RuleMatch = { rule: rule(["echo"]), results: {} };
 
-    const sink = createRuleSink({
+    const sink = automationSink({
       rules: {
         run: ({ input }) => {
           runs.push({ ...input });
@@ -619,7 +619,7 @@ describe("dispatcher and sink", () => {
   it("falls back to the event target without a loader", async () => {
     const runs: unknown[] = [];
 
-    const sink = createRuleSink({
+    const sink = automationSink({
       rules: {
         run: ({ organizationId, input }) => {
           runs.push([organizationId, input.subjectId]);

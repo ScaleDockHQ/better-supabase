@@ -1247,7 +1247,7 @@ export function readDesignFile(text: string): {
     throw new DesignParseError(
       "invalid_file",
       "/design",
-      "design file: this is a 0.14 design file with a preset code. Run `better-supabase codemod 0.15` to convert it.",
+      "design file: this is a 0.14 design file with a preset code. Upgrade to 0.53 with that release first.",
     );
   }
 

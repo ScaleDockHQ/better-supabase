@@ -7,10 +7,7 @@ import type { GeneratorInput } from "../../src/config/index.ts";
 import type { ColumnMeta, TableMeta } from "../../src/schema/types.ts";
 
 import { resolveConfig } from "../../src/config/index.ts";
-import {
-  buildJsonSchema,
-  jsonSchema,
-} from "../../src/generators/json-schema.ts";
+import { toJsonSchema, jsonSchema } from "../../src/generators/json-schema.ts";
 import { standardSchema } from "../../src/generators/standard-schema.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
@@ -493,9 +490,9 @@ describe("standardSchema()", () => {
     expect(file!.contents).not.toContain("eventViewInsert");
   });
 
-  it("matches buildJsonSchema for every variant", async () => {
+  it("matches toJsonSchema for every variant", async () => {
     const [file] = await standardSchema().generate(input);
-    const defs = buildJsonSchema(input)["$defs"] as Record<string, unknown>;
+    const defs = toJsonSchema(input)["$defs"] as Record<string, unknown>;
 
     for (const name of Object.keys(defs)) {
       expect(file!.contents).toContain(`export const ${name}: TableSchema<`);

@@ -27,7 +27,10 @@ import {
   moduleLayout,
   SQL_MODULES,
 } from "../../../src/sql/index.ts";
-import { stubProvider } from "../../fixtures/authorization-provider.ts";
+import {
+  stubProvider,
+  withProvider,
+} from "../../fixtures/authorization-provider.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
 const base = await parseSnapshot(fixture);
@@ -259,6 +262,33 @@ describe("BS107 without the tenant plugin", () => {
     );
 
     expect(excluded.map((finding) => finding.target)).toEqual(["public.notes"]);
+  });
+
+  it("counts a policy that calls one of the provider's functions as tenant-scoped", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").policies = [
+        policy("notes_read", "select", "true", {
+          functions: ["authz.can_read"],
+        }),
+      ];
+    });
+
+    const config = {
+      auth: {
+        authorization: withProvider({
+          requires: [
+            { function: "authz.can_read", args: "uuid", role: "authenticated" },
+          ],
+        }),
+      },
+    };
+
+    expect(
+      (await run("BS107", context(snap, {}, config))).map(
+        (finding) => finding.target,
+      ),
+    ).toEqual(["public.notes"]);
+    expect(await run("BS107", context(snap))).toEqual([]);
   });
 
   it("counts a restrictive using (false) policy as covering the command", async () => {

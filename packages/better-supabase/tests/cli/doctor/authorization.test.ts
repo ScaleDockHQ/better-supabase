@@ -954,34 +954,6 @@ describe("BS334", () => {
   });
 });
 
-describe("BS415", () => {
-  it("warns while the provider sets canApprove", async () => {
-    const provider: AuthorizationProvider = {
-      ...stubProvider,
-      functions: {
-        ...stubProvider.functions,
-        // oxlint-disable-next-line typescript/no-deprecated -- the template BS415 reports
-        canApprove: "authz.can_approve({tool}, {tenant}::text)",
-      },
-    };
-
-    const result = await findings("BS415", {
-      auth: { authorization: provider },
-    });
-
-    expect(result).toEqual([
-      expect.objectContaining({
-        severity: "warning",
-        target: "authorization.functions.canApprove",
-      }),
-    ]);
-    expect(
-      await findings("BS415", { auth: { authorization: stubProvider } }),
-    ).toEqual([]);
-    expect(await findings("BS415", {})).toEqual([]);
-  });
-});
-
 describe("BS413", () => {
   it("warns when support sessions run under a provider without actorMayWrite", async () => {
     const config = {

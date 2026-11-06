@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ColumnMeta, TableMeta } from "../../src/schema/types.ts";
 
-import {
-  buildJsonSchema,
-  jsonSchema,
-} from "../../src/generators/json-schema.ts";
+import { toJsonSchema, jsonSchema } from "../../src/generators/json-schema.ts";
 
 const column = (
   db: string,
@@ -49,9 +46,9 @@ const input = {
 
 type Doc = Record<string, Record<string, Record<string, unknown>>>;
 
-describe("buildJsonSchema", () => {
+describe("toJsonSchema", () => {
   it("reads descriptions and deprecated from the meta without a catalog", () => {
-    const doc = buildJsonSchema(input) as Doc;
+    const doc = toJsonSchema(input) as Doc;
     const row = doc["$defs"]!["accountsRow"]!;
     expect(row["description"]).toBe("Customer accounts.");
     expect(row["deprecated"]).toBe(true);
@@ -70,7 +67,7 @@ describe("buildJsonSchema", () => {
   });
 
   it("writes a draft-07 document under definitions", () => {
-    const doc = buildJsonSchema(
+    const doc = toJsonSchema(
       input,
       "https://acme.test/schema.json",
       "draft-07",
@@ -87,7 +84,7 @@ describe("buildJsonSchema", () => {
   });
 
   it("writes the OpenAPI 3.0 dialect with nullable", () => {
-    const doc = buildJsonSchema(input, undefined, "openapi-3.0") as Doc;
+    const doc = toJsonSchema(input, undefined, "openapi-3.0") as Doc;
     expect(doc).not.toHaveProperty("$schema");
     expect(doc["definitions"]!["accountsRow"]!["properties"]).toMatchObject({
       legacyCode: { type: "string", nullable: true, deprecated: true },
@@ -96,7 +93,7 @@ describe("buildJsonSchema", () => {
   });
 
   it("keeps the default 2020-12 document", () => {
-    const doc = buildJsonSchema(input);
+    const doc = toJsonSchema(input);
     expect(doc["$schema"]).toBe("https://json-schema.org/draft/2020-12/schema");
     expect(doc).toHaveProperty("$defs");
   });

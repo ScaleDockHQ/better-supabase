@@ -324,7 +324,7 @@ export interface WaitlistHookOptions {
  * ```ts
  * export const POST = waitlistHook({
  *   transport,
- *   secret: env.BEFORE_USER_CREATED_SECRET,
+ *   secret: env.BETTER_SUPABASE_BEFORE_USER_CREATED_SECRET,
  * });
  * ```
  */

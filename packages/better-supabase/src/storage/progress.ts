@@ -55,7 +55,7 @@ export interface XhrUploadOptions {
 }
 
 /** The parsed error body of a failed signed upload, for `fromStorageError`. */
-export interface XhrFailure {
+export interface XhrError {
   readonly message: string;
   readonly statusCode: string;
   readonly name?: string;
@@ -70,7 +70,7 @@ export function xhrUpload(
   url: string,
   body: UploadBody,
   options: XhrUploadOptions,
-): Promise<XhrFailure | undefined> {
+): Promise<XhrError | undefined> {
   return new Promise((resolve) => {
     const xhr = new Request();
 
@@ -78,7 +78,7 @@ export function xhrUpload(
       xhr.abort();
     };
 
-    const done = (failure: XhrFailure | undefined) => {
+    const done = (failure: XhrError | undefined) => {
       options.signal?.removeEventListener("abort", onAbort);
       resolve(failure);
     };
@@ -138,7 +138,7 @@ export function xhrUpload(
   });
 }
 
-function parseFailure(status: number, text: string): XhrFailure {
+function parseFailure(status: number, text: string): XhrError {
   let message = `Upload failed with status ${String(status)}`;
   let statusCode = String(status);
 

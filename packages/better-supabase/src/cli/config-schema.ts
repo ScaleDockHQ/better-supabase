@@ -242,7 +242,6 @@ const authorization = v.strictObject({
     canAssign: v.optional(v.string()),
     canAssignFor: v.optional(v.string()),
     permissionsFor: v.optional(v.string()),
-    canApprove: v.optional(v.string()),
     isApprover: v.optional(v.string()),
     holdersOf: v.optional(v.string()),
     actorMayWrite: v.optional(v.string()),
@@ -394,9 +393,6 @@ const authorization = v.strictObject({
   versions: v.optional(blockSchemas.authorizationVersionsSchema),
   delegation: v.optional(
     v.strictObject({ scopes: v.optional(v.record(v.string(), strings)) }),
-  ),
-  approvals: v.optional(
-    v.strictObject({ distinctApprover: v.optional(v.boolean()) }),
   ),
   problems: v.optional(strings),
 });
@@ -862,12 +858,6 @@ const FLAT = {
       ),
     }),
   ),
-  openapi: v.optional(
-    v.strictObject({
-      entry: v.optional(v.string()),
-      output: v.optional(v.string()),
-    }),
-  ),
   specs: v.optional(
     v.strictObject({
       entry: v.optional(v.string()),
@@ -994,7 +984,7 @@ const ENTRIES = {
       ]),
     }),
   ),
-  api: v.optional(v.strictObject(pickEntries(["openapi", "specs"]))),
+  api: v.optional(v.strictObject(pickEntries(["specs"]))),
   tooling: v.optional(
     v.strictObject(pickEntries(["doctor", "env", "keys", "skills"])),
   ),

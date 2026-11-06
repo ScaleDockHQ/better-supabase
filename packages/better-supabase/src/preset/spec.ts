@@ -232,7 +232,7 @@ export function presetOfSpec(value: unknown): Preset {
 
     throw new TypeError(
       /^[1-9A-Z][0-9A-Za-z]{4,}$/.test(value)
-        ? `preset: "${value.slice(0, 20)}" is a preset code, which 0.15 no longer reads. Run \`better-supabase codemod 0.15\` to turn it into a preset object.`
+        ? `preset: "${value.slice(0, 20)}" is a preset code, which 0.15 no longer reads. Upgrade to 0.53 with that release first.`
         : `preset: "${value}" is not a preset name. Use one of ${PRESET_NAMES.join(", ")}, or an object of conventions and blocks.`,
     );
   }

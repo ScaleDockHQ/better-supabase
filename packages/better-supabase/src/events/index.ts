@@ -328,7 +328,6 @@ export function httpSink(
 
 export {
   BLOCK_ATTRIBUTES,
-  BLOCK_EVENT_RENAMES,
   blockEventAttributes,
   defineEvents,
   emitBlockEvent,

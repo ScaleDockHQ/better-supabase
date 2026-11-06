@@ -1,9 +1,17 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { configIssues } from "../../src/cli/config-schema.ts";
+import { configIssues, configSchemas } from "../../src/cli/config-schema.ts";
 import { loadConfig } from "../../src/cli/config.ts";
 import { stubProvider } from "../fixtures/authorization-provider.ts";
+
+describe("configSchemas", () => {
+  it("hands out the schemas the JSON Schema files are rendered from", () => {
+    expect(Object.keys(configSchemas())).toEqual(
+      expect.arrayContaining(["config", "environment", "design"]),
+    );
+  });
+});
 
 const repo = join(import.meta.dirname, "../../../..");
 
@@ -248,9 +256,7 @@ describe("configIssues for authorization", () => {
         functions: {
           ...stubProvider.functions,
           permissionsFor: "authz.permissions_for({user}, {tenant})",
-          canApprove: "authz.can_approve({tool}, {tenant})",
         },
-        approvals: { distinctApprover: true },
       }),
     ).toEqual([]);
     expect(configIssues({ auth: { claims: { memberships: "orgs" } } })).toEqual(
@@ -351,9 +357,9 @@ describe("configIssues for a config written before 0.15", () => {
         $production: { doctor: {} },
       }),
     ).toEqual([
-      "casing: moved to `gen.casing` in 0.15; run `better-supabase codemod 0.15`",
-      "integrations: moved to `adapters` in 0.15; run `better-supabase codemod 0.15`",
-      "$production.doctor: moved to `tooling.doctor` in 0.15; run `better-supabase codemod 0.15`",
+      "casing: moved to `gen.casing` in 0.15; upgrade to 0.53 with that release first",
+      "integrations: moved to `adapters` in 0.15; upgrade to 0.53 with that release first",
+      "$production.doctor: moved to `tooling.doctor` in 0.15; upgrade to 0.53 with that release first",
     ]);
   });
 
@@ -369,7 +375,7 @@ describe("configIssues for a config written before 0.15", () => {
 
   it("names gen.recordTypes for generateFeatures", () => {
     expect(configIssues({ gen: { generateFeatures: false } })).toContain(
-      "gen.generateFeatures: renamed to `gen.recordTypes` in 0.15; run `better-supabase codemod 0.15`",
+      "gen.generateFeatures: renamed to `gen.recordTypes` in 0.15; upgrade to 0.53 with that release first",
     );
   });
 });

@@ -281,7 +281,7 @@ describe("shipped JSON Schemas", () => {
       [["doctor", "--snapshot", "SNAPSHOT"], 1, "error"],
       [["config"], 0, "success"],
       [["add", "mfa", "--dry-run"], 0, "success"],
-      [["codemod", "0.9", "--dry-run"], 0, "success"],
+      [["codemod", "naming", "--dry-run"], 0, "success"],
     ])("describe the result of %j", async (argv, code, status) => {
       const result = await run(
         [

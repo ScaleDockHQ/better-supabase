@@ -980,28 +980,6 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     },
   },
   {
-    code: "BS415",
-    severity: "warning",
-    title: "The provider sets the deprecated canApprove template",
-    description:
-      "`authorization.functions.isApprover` replaces `canApprove`: one eligibility check for tool calls, support sessions and the app's own approvals, with `{kind}` and `{subject}` instead of `{tool}`. 0.9 still reads `canApprove` when `isApprover` is unset, and drops it in a later minor release.",
-    check: (context) => {
-      const provider = context.config.authorization;
-
-      // oxlint-disable-next-line typescript/no-deprecated -- the rule reports the deprecated template
-      if (provider?.functions.canApprove === undefined) {
-        return [];
-      }
-
-      return [
-        {
-          message: `${providerLabel(provider)} sets authorization.functions.canApprove, which is deprecated. Set isApprover with {kind}, {subject} and {tenant}; {kind} is 'ai-tool' and {subject} the tool name for AI tool calls.`,
-          target: "authorization.functions.canApprove",
-        },
-      ];
-    },
-  },
-  {
     code: "BS416",
     severity: "warning",
     title: "isApprover has no branch for support sessions",

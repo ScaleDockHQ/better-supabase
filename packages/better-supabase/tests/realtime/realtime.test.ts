@@ -1227,15 +1227,6 @@ describe("trigger with betterSupabase", () => {
       }),
     ).toThrow('no column for when.changed on "customers" ("missing")');
   });
-
-  it("keeps triggerSql as a deprecated alias", () => {
-    const options = { values: { organizationId: "organizationId" } } as const;
-
-    // oxlint-disable-next-line typescript/no-deprecated -- tests the deprecated alias (1 finding)
-    expect(customers.triggerSql(betterSupabase, "customers", options)).toBe(
-      customers.trigger("customers", { ...options, betterSupabase }),
-    );
-  });
 });
 
 describe("rowChange", () => {

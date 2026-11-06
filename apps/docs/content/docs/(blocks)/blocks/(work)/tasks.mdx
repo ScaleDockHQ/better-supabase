@@ -155,17 +155,14 @@ On the work item's own page, the block's record binding (`taskChecklistBinding`)
 
 With the [attachments](/docs/blocks/attachments) block installed, `create` takes `attachmentIds` and `update` takes an `attachments` change with a list of ids. Upload the files first without a subject, then link them: the block links only files the caller uploaded that have no subject yet (`TASK_ATTACHMENTS_INVALID`). A bucket whose path template uses `{subject_type}` or `{subject_id}` can't move a file after upload, so link through `attachments.upload` with the item as the subject instead (`TASK_ATTACHMENTS_PATH`).
 
-With the [reminders](/docs/blocks/reminders) block installed, `setRecurrence(id, { rrule, tzid })` gives an item a repeat rule, such as `FREQ=MONTHLY;BYMONTHDAY=1`, and `setRecurrence(id, null)` removes it. Items carry the rule as `recurrence`. A repeating item makes its next copy when it is completed, like Asana and Todoist: relay the block's events to `workItemRecurrenceSink`, built on a service transport.
+With the [reminders](/docs/blocks/reminders) block installed, `setRecurrence(id, { rrule, tzid })` gives an item a repeat rule, such as `FREQ=MONTHLY;BYMONTHDAY=1`, and `setRecurrence(id, null)` removes it. Items carry the rule as `recurrence`. A repeating item makes its next copy when it is completed, like Asana and Todoist: relay the block's events to `taskRecurrenceSink`, built on a service transport.
 
 ```ts
-import {
-  createTasks,
-  workItemRecurrenceSink,
-} from "better-supabase/blocks/tasks";
+import { createTasks, taskRecurrenceSink } from "better-supabase/blocks/tasks";
 
 const serviceItems = createTasks({ transport: serviceTransport });
 
-outbox.relay("tasks", workItemRecurrenceSink(serviceItems));
+outbox.relay("tasks", taskRecurrenceSink(serviceItems));
 ```
 
 The sink calls `repeat(id, dueAt)` with the rule's first occurrence after the completed item's due date. `repeat` copies the title, body, parent, team, project, priority, estimate, assignees, extra columns and an unchecked checklist, shifts the start and end dates by the same amount, and moves the rule to the copy, so a `COUNT` keeps counting. The copy's `recursFromId` names the item it repeats, and a second `repeat` of the same item returns the same copy, so a redelivered event changes nothing. After `names: { work_item: "task" }`, pass `{ type: "task.closed" }`.

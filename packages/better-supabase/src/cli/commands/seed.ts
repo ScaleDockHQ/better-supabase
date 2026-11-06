@@ -154,7 +154,12 @@ export async function runSeed(
     args.apply === true && args["dry-run"] !== true && args.check !== true;
 
   const url = inserts
-    ? await databaseUrl(config, env, dbUrl, args.stack ?? env.BSB_STACK)
+    ? await databaseUrl(
+        config,
+        env,
+        dbUrl,
+        args.stack ?? env.BETTER_SUPABASE_STACK,
+      )
     : undefined;
 
   if (url !== undefined && !isLocalDatabaseUrl(url)) {
@@ -279,7 +284,7 @@ async function runTenantSeed(
     config,
     env,
     dbUrl,
-    args.stack ?? env.BSB_STACK,
+    args.stack ?? env.BETTER_SUPABASE_STACK,
   );
 
   if (!isLocalDatabaseUrl(url)) {

@@ -155,15 +155,6 @@ describe("block instances on db", () => {
     ).toMatchObject({ ok: false, error: { kind: "unsupported" } });
   });
 
-  it("keeps $apiResult as $api", async () => {
-    const db = betterSupabase.connect(executor, {});
-
-    // oxlint-disable-next-line typescript/no-deprecated -- the alias under test
-    expect(await db.$apiResult("ping", { a: 1 })).toEqual(
-      await db.$api("ping", { a: 1 }),
-    );
-  });
-
   it("passes the definition's temporal to every instance", () => {
     const seen: unknown[] = [];
     const temporal = globalThis.Temporal;

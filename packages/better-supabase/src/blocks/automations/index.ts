@@ -1,7 +1,7 @@
 export {
   createRuleDispatcher,
   createAutomations,
-  createRuleSink,
+  automationSink,
   createAutomationsAdmin,
   evaluateRule,
   eventTarget,

@@ -949,6 +949,13 @@ transaction and send one reload.
 
 ## Drift
 
+### BS260
+
+**Warning: code uses a name that `api/naming.json` renamed.** Doctor reads the
+app sources in `doctor.sources` for an export, type, subpath
+or environment variable named in the rename table, which the
+[Naming page](/docs/concepts/naming) lists. The old names have no alias. Run `better-supabase codemod naming` to rename them.
+
 ### BS301
 
 **Warning: soft delete hidden by a select policy.** After an update, PostgREST
@@ -1387,8 +1394,7 @@ See [owner and expiry](/docs/blocks/flags#owner-and-expiry).
 `realtime.broadcast_changes(..., new, old)` or sends `old_record` and `record`
 through `realtime.send()`, and has no `better-supabase: payload row` comment.
 Every subscriber of the topic then sees every column, including ones their
-column grants hide. 0.8 `triggerSql()` functions and hand-written ones are
-reported. Regenerate the trigger with `topic.trigger()`, whose default payload
+column grants hide. Hand-written trigger functions are reported. Regenerate the trigger with `topic.trigger()`, whose default payload
 sends the primary key and the topic values, or pass `payload: "row"` to keep
 whole rows on purpose. See
 [row changes](/docs/platform/realtime#row-changes).
@@ -1895,7 +1901,7 @@ finding; verify the request there with `authHook` from
   `v1,whsec_<base64>` or decodes to fewer than 24 or more than 64 bytes. The
   message never quotes the secret;
 - a warning when the secret is written in `config.toml` instead of read with
-  `secrets = "env(AUTH_HOOK_SECRET)"`. A value read from `env()` is checked
+  `secrets = "env(BETTER_SUPABASE_AUTH_HOOK_SECRET)"`. A value read from `env()` is checked
   only when `@supabase/config` interpolated it;
 - a warning when a non-local endpoint uses plain `http`.
 
@@ -1967,13 +1973,6 @@ reports each policy and each function in `schemas` that calls them. Remove
 `model` to use the provider (the default with `authorization`), or call the
 provider's own function in that policy.
 
-### BS415
-
-**Warning: the provider sets the deprecated `canApprove` template.**
-`authorization.functions.isApprover` replaces it, with `{kind}` (`'ai-tool'`
-for tool calls) and `{subject}` (the tool name) instead of `{tool}`. 0.9 still
-reads `canApprove` when `isApprover` is unset.
-
 ### BS416
 
 **Warning: `isApprover` has no branch for support sessions.** Under the
@@ -1997,19 +1996,6 @@ the caller's teams. Without it, `team_ids_of()` reads the teams block's own
 Doctor warns when the provider declares a `team` (or `teams`) scope, one of
 those blocks is installed, and the template is unset. Set `teamIdsOf` to a
 set-returning call with `{user}`, such as `provider.team_ids_of({user})`.
-
-### BS418
-
-**Warning: code uses an API that 0.15 renamed or removed.** Doctor reads the
-app sources in `doctor.sources` for imports of a renamed block subpath
-(`better-supabase/blocks/work-items`), a built-in plugin subpath
-(`better-supabase/plugins/soft-delete`), a renderer subpath that
-`better-supabase/spec` replaced (`better-supabase/openapi`, `/asyncapi`,
-`/arazzo` and `/overlay`), an export named after a renamed
-block (`workItemsBlock`), and the record feature, leases maintenance and pass
-credit APIs that 0.15 removed. Run `better-supabase codemod 0.15` for the
-renames, and use the replacement the finding names for the removed APIs. The
-[0.14 to 0.15 guide](/docs/migration/0.14-to-0.15) lists each one.
 
 ### BS419
 
@@ -2183,14 +2169,6 @@ such as an SLA check, but no app source calls `blockTickHandler(...)`, so the
 timers never fire. Call
 `jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })`
 once and drain the `block_ticks` queue with `blockTickHandler`.
-
-### BS509
-
-**Warning: a block client call passes positional arguments.** Since 0.47 every
-block client method takes one object, such as
-`drive.list({ organizationId, options })`. A call that still passes several
-positional arguments no longer type-checks. Run `bsb codemod 0.47`, which
-rewrites the calls it can place and lists the others for review.
 
 ### BS510
 

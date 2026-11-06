@@ -47,7 +47,7 @@ export interface UseAssistantOptions<
   readonly throttle?: number;
   /**
    * Makes the transport instead of the default one, such as `durableTransport`
-   * from `better-supabase/ai-sdk/workflow/react`. Pass a function defined
+   * from `better-supabase/ai-sdk/workflow-react`. Pass a function defined
    * outside the component, so the transport is kept.
    */
   readonly transport?: (

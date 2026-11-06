@@ -303,13 +303,13 @@ function bytesOf(hex: string | undefined): Uint8Array {
 }
 
 /** Why `verifyChainProof` refused a proof. */
-export type ChainProofFailure = ChainBreak | "empty" | "signature" | "unsigned";
+export type ChainProofError = ChainBreak | "empty" | "signature" | "unsigned";
 
 export type ChainProofVerdict =
   | { readonly valid: true; readonly signed: boolean; readonly checked: number }
   | {
       readonly valid: false;
-      readonly reason: ChainProofFailure;
+      readonly reason: ChainProofError;
       readonly seq?: number;
     };
 

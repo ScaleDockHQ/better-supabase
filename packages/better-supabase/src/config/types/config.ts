@@ -36,7 +36,6 @@ import type {
   GenConfig,
   IntegrationName,
   KeysConfig,
-  OpenApiConfig,
   SkillsConfig,
   SpecOutputConfig,
   SpecsConfig,
@@ -199,8 +198,6 @@ export interface FlatConfig {
    */
   readonly sql?: SqlConfig;
   readonly seed?: SeedConfig;
-  /** @deprecated Use `specs`; `openapi.entry` and `openapi.output` map onto it. */
-  readonly openapi?: OpenApiConfig;
   /**
    * The documents `better-supabase spec emit` writes (OpenAPI, AsyncAPI,
    * Arazzo).
@@ -288,7 +285,6 @@ export interface ResolvedConfig {
   readonly appTables: AppTablesConfig;
   readonly sql: ResolvedSqlConfig;
   readonly seed: ResolvedSeedConfig;
-  readonly openapi: Required<OpenApiConfig>;
   readonly specs: {
     readonly entry: string;
     readonly outputs: readonly SpecOutputConfig[];

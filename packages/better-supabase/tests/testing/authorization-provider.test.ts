@@ -426,14 +426,12 @@ describe("testAuthorizationProvider", () => {
     ]);
   });
 
-  it("accepts permissionsFor and canApprove", async () => {
+  it("accepts permissionsFor", async () => {
     const report = await testAuthorizationProvider(
       withProvider({
         functions: {
           ...stubProvider.functions,
           permissionsFor: "authz.permissions_for({user}, {tenant})",
-          // oxlint-disable-next-line typescript/no-deprecated -- the deprecated template still passes.
-          canApprove: "authz.can_approve({tenant}, {tool})",
         },
         requires: [
           ...stubProvider.requires,
@@ -448,7 +446,6 @@ describe("testAuthorizationProvider", () => {
             role: "authenticated",
           },
         ],
-        approvals: { distinctApprover: true },
       }),
     );
 

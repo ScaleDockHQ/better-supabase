@@ -487,21 +487,6 @@ export interface Topic<
     },
   ): string;
   trigger(table: string, options?: TopicTriggerOptions<P>): string;
-  /**
-   * @deprecated Use `trigger(table, { ...options, betterSupabase })`. The
-   * payload default is keys only; pass `payload: "row"` for whole rows.
-   */
-  triggerSql<
-    M extends AnyModels,
-    D,
-    F extends AnyFunctions,
-    X,
-    T extends TableKey<M>,
-  >(
-    betterSupabase: BetterSupabase<M, D, F, X>,
-    table: T,
-    options: TriggerOptions<M, T, P>,
-  ): string;
   subscribe(
     client: RealtimeClient,
     values: TemplateValues<P>,
@@ -1064,10 +1049,6 @@ export function defineTopic<
       }
 
       return `${lines.join("\n")}\n`;
-    },
-    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias itself (1 finding)
-    triggerSql(betterSupabase, table, trigger) {
-      return triggerStatement(table, { ...trigger, betterSupabase });
     },
     trigger(table: string, trigger?: AnyTriggerOptions) {
       return triggerStatement(table, trigger ?? {});

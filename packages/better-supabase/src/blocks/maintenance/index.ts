@@ -59,7 +59,7 @@ export {
   ingestTelemetry,
   parseOtlpMetrics,
   parseTelemetryPoints,
-  type TelemetryFailure,
+  type TelemetryError,
   type TelemetryHandlerOptions,
   type TelemetryIngestOptions,
   type TelemetryPoint,

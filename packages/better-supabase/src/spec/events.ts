@@ -552,7 +552,7 @@ function cloudEventChannel<Ref>(
   return true;
 }
 
-/** What `buildApiModel` takes from the event options and the app's own lists. */
+/** What `defineApiModel` takes from the event options and the app's own lists. */
 export interface EventParts {
   readonly channels: readonly ModelChannel[];
   readonly messages: Readonly<Record<string, ModelMessage>>;

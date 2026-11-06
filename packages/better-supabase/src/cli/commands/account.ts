@@ -19,7 +19,7 @@ import {
 
 /** The cloud app the account commands call. */
 export const cloudUrl = (env: CliEnv): string =>
-  (env.BSB_CLOUD_URL ?? DEFAULT_CLOUD_URL).replace(/\/$/, "");
+  (env.BETTER_SUPABASE_CLOUD_URL ?? DEFAULT_CLOUD_URL).replace(/\/$/, "");
 
 export interface LoginTools {
   readonly fetch: Fetch;

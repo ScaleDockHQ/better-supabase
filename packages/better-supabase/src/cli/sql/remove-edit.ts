@@ -9,11 +9,12 @@ import type { ConfigEdit, Property, WiredBlock } from "./config-edit.ts";
 import {
   closingIndex,
   configObject,
+  cutRange,
   mask,
   properties,
+  tidyInline,
   wiringBlocks,
 } from "./config-edit.ts";
-import { cutRange, tidyInline } from "./config-group.ts";
 
 /** `source` with `props` whose key is in `keys` cut from the object at `open`. */
 function cutKeys(

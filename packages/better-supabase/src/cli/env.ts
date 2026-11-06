@@ -36,7 +36,7 @@ export interface CliEnv {
    * The named local stack `db query` and `seed` use when `--stack` is not
    * passed.
    */
-  readonly BSB_STACK?: string | undefined;
+  readonly BETTER_SUPABASE_STACK?: string | undefined;
   /**
    * The directory with `pg_dump` and `psql` for `db diff --in-stack`; found
    * from the stack's postmaster otherwise.
@@ -45,7 +45,7 @@ export interface CliEnv {
    * The cloud app `login`, `whoami` and `db seed --sample` call; defaults to
    * https://app.bettersupabase.com.
    */
-  readonly BSB_CLOUD_URL?: string | undefined;
+  readonly BETTER_SUPABASE_CLOUD_URL?: string | undefined;
   /**
    * Where the saved login lives, under `better-supabase/auth.json`; defaults to
    * `~/.config`.
@@ -108,8 +108,8 @@ export function parseEnv(
       CI: optionalString,
       BETTER_SUPABASE_ENV: optionalString,
       BETTER_SUPABASE_AGENT: optionalString,
-      BSB_STACK: optionalString,
-      BSB_CLOUD_URL: optionalUrl,
+      BETTER_SUPABASE_STACK: optionalString,
+      BETTER_SUPABASE_CLOUD_URL: optionalUrl,
       XDG_CONFIG_HOME: optionalString,
     },
     runtimeEnv: env,

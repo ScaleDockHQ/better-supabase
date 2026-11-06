@@ -142,7 +142,6 @@ interface AuthorizationProvider {
   decidingColumns?: string[];
   tokenHook?: AuthorizationTokenHook;
   versions?: { function: string };
-  approvals?: { distinctApprover?: boolean };
   operations?: Record<string, AuthorizationOperation>;
   problems?: string[];
 }
@@ -210,7 +209,6 @@ puts the result into a policy or a module function:
 | `canAssignFor`   | `{user}`, `{role}`, `{roles}`, `{tenant}`, `{scope}`                       | as `canAssign`, for another user                                                           |
 | `permissionsFor` | `{user}`, `{tenant}`, `{scope}`                                            | `text[]`: the permission keys `{user}` holds in `{tenant}`                                 |
 | `isApprover`     | `{kind}`, `{subject}`, `{tenant}`, `{requester}`, `{approvers}`, `{scope}` | `boolean`: the caller may approve request `{subject}` of kind `{kind}`                     |
-| `canApprove`     | `{tool}`, `{tenant}`, `{scope}`                                            | deprecated: `isApprover` with `{kind}` `'ai-tool'`                                         |
 | `holdersOf`      | `{permission}`, `{tenant}`, `{scope}`                                      | a set of user ids that hold `{permission}` on `{tenant}`                                   |
 | `actorMayWrite`  | none                                                                       | `boolean`: the caller's session may write                                                  |
 | `permitted`      | `{permission}`, `{id}`, `{tenant}`, `{resource}`, `{scope}`                | `boolean`: the caller holds `{permission}` on instance `{id}` of `{resource}`              |
@@ -374,13 +372,9 @@ count, or the step's `escalateTo` once the step is escalated, for example
 let a cover approve only where the absent user is a named approver. AI tool
 calls and support sessions pass `null`. Under the `provider` model,
 `decide_ai_tool_approval` lets the service role and any caller `isApprover`
-allows decide the call. `approvals.distinctApprover: true` keeps the
-requester from deciding their own request, for four-eyes approval. Without
+allows decide the call. `isApprover` always refuses the requester, so
+a request needs a second approver. Without
 `isApprover`, the chat's owner decides a tool call.
-
-`canApprove` still works in 0.9 and is read when `isApprover` is unset;
-`better-supabase codemod 0.9` points at each use. Doctor BS415 warns while a
-provider sets it.
 
 `holdersOf` is the audience for `notifications.send({ permission })`: the
 user ids that hold that key on the tenant. A provider sets it from its
@@ -401,7 +395,6 @@ functions: {
   // ...
   isApprover: "authz.is_approver({kind}, {subject}, {tenant}::text, {requester})",
 },
-approvals: { distinctApprover: true },
 ```
 
 #### Out-of-office covers
