@@ -4,7 +4,11 @@
   "tags": ["published"],
   "tasks": {
     "test": {
-      "passThroughEnv": ["BS_TOML_SITE_URL", "DATABASE_URL"],
+      "passThroughEnv": [
+        "BS_TOML_SITE_URL",
+        "DATABASE_URL",
+        "UPDATE_PRACTICES"
+      ],
       "dependsOn": ["$TURBO_EXTENDS$", "build"],
       "outputs": [".vitest/blob/**"],
       "inputs": [

@@ -1678,6 +1678,33 @@ SQL function with the same name and arguments as a `stable` or `immutable`
 function in another schema, which is how a wrapper from an older release looks.
 Run `better-supabase sql upgrade` to rewrite it.
 
+### BS365
+
+**Warning: an update policy has no select policy.** Postgres only updates rows the
+caller can also select, so a table with a `for update` policy and no `for select`
+or `for all` policy updates zero rows and reports no error. Add a select policy
+with the same condition. Doctor reads the app's own schema files.
+
+### BS366
+
+**Error: a policy decides on `user_metadata`.** `raw_user_meta_data` and
+`user_metadata` are editable by the signed-in user, so a policy that reads them
+lets anyone grant themselves access. Put authorization data in `app_metadata` or
+in the authorization provider. A trigger may read `raw_user_meta_data` for
+display fields; a policy never does.
+
+### BS367
+
+**Warning: a view skips the caller's row level security.** A view runs with its
+owner's rights unless it sets `security_invoker = true`, so it returns rows the
+caller's policies would hide. Create the view `with (security_invoker = true)`.
+
+### BS368
+
+**Info: a column uses `timestamp` or `serial`.** `timestamp` has no time zone and
+`serial` is the legacy form of an identity column. Use `timestamptz` and
+`generated always as identity`.
+
 ## Auth config
 
 ### BS353

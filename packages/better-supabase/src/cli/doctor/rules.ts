@@ -52,6 +52,7 @@ import { NOT_VALID_RULES } from "./not-valid.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { PLAIN_SECRET_RULES } from "./plain-secrets.ts";
 import { POLICY_RULES } from "./policies.ts";
+import { PRACTICE_RULES } from "./practices.ts";
 import { REALTIME_RULES } from "./realtime.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
 import { ROUND_TRIP_RULES } from "./round-trips.ts";
@@ -1158,6 +1159,7 @@ export const RULES: readonly Rule[] = [
   ...PLAIN_SECRET_RULES,
   ...MIGRATION_SAFETY_RULES,
   ...NOT_VALID_RULES,
+  ...PRACTICE_RULES,
   ...LIVE_STATE_RULES,
   ...APP_TABLE_SCOPE_RULES,
   ...ENV_RULES,
