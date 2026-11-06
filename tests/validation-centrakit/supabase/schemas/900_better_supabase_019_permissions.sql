@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:8ae96366fcaa73406cbba54439004f81fde79a994d1688d2a001b65fe06bd660
+-- @bsb-hash sha256:b84e2485a60735bb2522bca176a0c6d9bc70170456958a356e1dbd6662ea3b17
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -119,8 +119,6 @@ as $$
     when 'audit.read' then 'audit.view'
     when 'audit.readAll' then 'platform.users.manage'
     when 'audit.revert' then 'audit.revert'
-    when 'audit.view' then 'audit.view'
-    when 'audit.viewAll' then 'platform.users.manage'
     when 'comments.create' then 'comments.create'
     when 'comments.moderate' then 'comments.moderate'
     when 'comments.read' then 'comments.read'
@@ -136,13 +134,11 @@ as $$
     when 'impersonation.read' then 'platform.users.manage'
     when 'impersonation.revoke' then 'impersonation.revoke'
     when 'impersonation.start' then 'platform.users.manage'
-    when 'impersonation.view' then 'platform.users.manage'
     when 'imports.manage' then 'imports.manage'
     when 'invitations.invite' then 'members.invite'
     when 'invitations.invitePlatform' then 'platform.invite'
     when 'invitations.read' then 'members.invite'
     when 'invitations.revoke' then 'members.invite'
-    when 'invitations.view' then 'members.invite'
     when 'messaging.moderate' then 'comments.moderate'
     when 'messaging.read' then 'comments.read'
     when 'messaging.send' then 'comments.create'
@@ -175,10 +171,8 @@ as $$
     when 'webhooks-in.delete' then 'webhook.manage'
     when 'webhooks-in.read' then 'webhook.view'
     when 'webhooks-in.update' then 'webhook.manage'
-    when 'webhooks-in.view' then 'webhook.view'
     when 'webhooks-out.manage' then 'webhook.manage'
     when 'webhooks-out.read' then 'webhook.view'
-    when 'webhooks-out.view' then 'webhook.view'
   end
 $$;
 
