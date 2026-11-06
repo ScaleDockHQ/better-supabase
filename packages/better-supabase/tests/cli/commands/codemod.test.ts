@@ -136,6 +136,26 @@ describe("runCodemod", () => {
     expect(result.output).toContain("src/lib/reads.ts:1:");
   });
 
+  it("moves the policy helper functions the project's SQL names", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/schemas/notes.sql"),
+      "create policy p on notes using (bsb.owns(owner_id));\n",
+    );
+
+    await codemod(["naming"]);
+
+    const [name] = await readdir(join(root, "supabase/migrations"));
+
+    const sql = await readFile(
+      join(root, "supabase/migrations", name!),
+      "utf-8",
+    );
+
+    expect(sql).toContain("alter function bsb.owns(uuid) set schema");
+    expect(sql).not.toContain("bsb.uid()");
+  });
+
   it("writes no SQL migration while the table has no SQL renames", async () => {
     await codemod(["naming"]);
     expect(await readdir(root)).not.toContain("supabase");

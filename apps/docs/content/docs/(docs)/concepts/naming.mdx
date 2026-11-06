@@ -177,27 +177,31 @@ when code breaks a rule, and the old names have no alias. Run
 [`better-supabase codemod naming`](/docs/cli/codemod) to rename them in your
 app, and `better-supabase doctor` (BS260) to find the ones left.
 
-| Kind     | Old                          | New                                          | Since |
-| -------- | ---------------------------- | -------------------------------------------- | ----- |
-| env      | `AUTH_HOOK_SECRET`           | `BETTER_SUPABASE_AUTH_HOOK_SECRET`           | 0.54  |
-| env      | `BEFORE_USER_CREATED_SECRET` | `BETTER_SUPABASE_BEFORE_USER_CREATED_SECRET` | 0.54  |
-| env      | `BSB_CLOUD_URL`              | `BETTER_SUPABASE_CLOUD_URL`                  | 0.54  |
-| env      | `BSB_STACK`                  | `BETTER_SUPABASE_STACK`                      | 0.54  |
-| function | `buildJsonSchema`            | `toJsonSchema`                               | 0.54  |
-| function | `buildApiModel`              | `defineApiModel`                             | 0.54  |
-| function | `createRuleSink`             | `automationSink`                             | 0.54  |
-| function | `workItemRecurrenceSink`     | `taskRecurrenceSink`                         | 0.54  |
-| type     | `SessionEntryConfig`         | `SessionEntryOptions`                        | 0.54  |
-| type     | `GuardEntryConfig`           | `GuardEntryOptions`                          | 0.54  |
-| subpath  | `ai-sdk/workflow/react`      | `ai-sdk/workflow-react`                      | 0.54  |
-| type     | `ChainProofFailure`          | `ChainProofError`                            | 0.54  |
-| type     | `ParseScaledFailure`         | `ParseScaledError`                           | 0.54  |
-| type     | `RefreshFailure`             | `RefreshError`                               | 0.54  |
-| type     | `StorageFailure`             | `StorageError`                               | 0.54  |
-| type     | `SvelteKitFailure`           | `SvelteKitError`                             | 0.54  |
-| type     | `TelemetryFailure`           | `TelemetryError`                             | 0.54  |
-| type     | `XhrFailure`                 | `XhrError`                                   | 0.54  |
-| type     | `AgentPassthroughSettings`   | `AgentPassthroughOptions`                    | 0.54  |
+| Kind     | Old                           | New                                                   | Since |
+| -------- | ----------------------------- | ----------------------------------------------------- | ----- |
+| env      | `AUTH_HOOK_SECRET`            | `BETTER_SUPABASE_AUTH_HOOK_SECRET`                    | 0.54  |
+| env      | `BEFORE_USER_CREATED_SECRET`  | `BETTER_SUPABASE_BEFORE_USER_CREATED_SECRET`          | 0.54  |
+| env      | `BSB_CLOUD_URL`               | `BETTER_SUPABASE_CLOUD_URL`                           | 0.54  |
+| env      | `BSB_STACK`                   | `BETTER_SUPABASE_STACK`                               | 0.54  |
+| function | `buildJsonSchema`             | `toJsonSchema`                                        | 0.54  |
+| function | `buildApiModel`               | `defineApiModel`                                      | 0.54  |
+| function | `createRuleSink`              | `automationSink`                                      | 0.54  |
+| function | `workItemRecurrenceSink`      | `taskRecurrenceSink`                                  | 0.54  |
+| type     | `SessionEntryConfig`          | `SessionEntryOptions`                                 | 0.54  |
+| type     | `GuardEntryConfig`            | `GuardEntryOptions`                                   | 0.54  |
+| subpath  | `ai-sdk/workflow/react`       | `ai-sdk/workflow-react`                               | 0.54  |
+| type     | `ChainProofFailure`           | `ChainProofError`                                     | 0.54  |
+| type     | `ParseScaledFailure`          | `ParseScaledError`                                    | 0.54  |
+| type     | `RefreshFailure`              | `RefreshError`                                        | 0.54  |
+| type     | `StorageFailure`              | `StorageError`                                        | 0.54  |
+| type     | `SvelteKitFailure`            | `SvelteKitError`                                      | 0.54  |
+| type     | `TelemetryFailure`            | `TelemetryError`                                      | 0.54  |
+| type     | `XhrFailure`                  | `XhrError`                                            | 0.54  |
+| type     | `AgentPassthroughSettings`    | `AgentPassthroughOptions`                             | 0.54  |
+| hint     | `APPEND_ONLY`                 | `TABLE_APPEND_ONLY`                                   | 0.54  |
+| hint     | `CHAIN_SIGNER`                | `AUDIT_CHAIN_SIGNER`                                  | 0.54  |
+| hint     | `FISCAL_YEAR_CLOSED`          | `PERIOD_CLOSED`                                       | 0.54  |
+| function | `bsb.uid()`, `bsb.owns(uuid)` | `better_supabase.uid()`, `better_supabase.owns(uuid)` | 0.54  |
 
 The rules:
 
@@ -205,8 +209,11 @@ The rules:
   The platform's own names (`SUPABASE_*`, `NEXT_PUBLIC_*`, `EXPO_PUBLIC_*`,
   `PUBLIC_*`, `VERCEL_*`, `DATABASE_URL`) keep theirs.
 - An exported type ends in `Options`, `Config`, `Decision` or `Error`, never in
-  `Settings`, `Args` or `Failure`. Some existing types still do; the allowlist
-  in `naming.json` lists them, and the check fails when one is renamed but
-  still listed.
+  `Settings`, `Args` or `Failure`. `naming.json` keeps an allowlist for a
+  violation that is not renamed yet, and the check fails when a listed name
+  stops violating. The type list is empty.
+- A hint code is `<ENTITY>_<REASON>`, and a core hint carries its core noun
+  (`AUDIT_CHAIN_SIGNER`, `TABLE_APPEND_ONLY`, `PERIOD_CLOSED`).
+- The helper functions live in `better_supabase`. The `bsb` schema is gone.
 - Doctor codes are `BS` and three digits, never lower case.
 - A subpath is `better-supabase/<area>` or `better-supabase/<area>/<variant>`.
