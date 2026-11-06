@@ -4,10 +4,8 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { lockTable, schemaPreamble, serviceOnly } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("idempotency", 1),
   tables: {
     keys: {
       name: "idempotency_keys",

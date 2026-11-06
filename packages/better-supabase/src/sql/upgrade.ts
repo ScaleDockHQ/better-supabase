@@ -18,7 +18,6 @@ import {
   checkModules,
 } from "./registry.ts";
 import { nameMigrationSql } from "./rename-sql.ts";
-import { freesTableName } from "./table-renames.ts";
 
 /**
  * The compatibility wrappers of a module's deprecated symbols that are not
@@ -84,13 +83,7 @@ export function upgradePlan(
 
   const defaults = withProviderDefaults(layout);
 
-  const ordered = installed.toSorted(
-    (a, b) =>
-      Number(freesTableName(b.block ?? b.module)) -
-      Number(freesTableName(a.block ?? a.module)),
-  );
-
-  return ordered.flatMap((entry): BlockSqlUpgradePlan[] => {
+  return installed.flatMap((entry): BlockSqlUpgradePlan[] => {
     const block = entry.block ?? entry.module;
     const module = modules[block];
 

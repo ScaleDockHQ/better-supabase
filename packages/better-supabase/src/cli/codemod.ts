@@ -27,9 +27,11 @@ export interface Codemod {
   };
   /**
    * SQL for a hand migration the codemod writes next to the app's own, or
-   * `undefined` when nothing needs renaming.
+   * `undefined` when nothing needs renaming. `sql` is the text of the project's
+   * `.sql` files, so a rename of an object the project never mentions writes
+   * nothing.
    */
-  readonly migration?: () => string | undefined;
+  readonly migration?: (sql: string) => string | undefined;
 }
 
 export interface ReviewLine {

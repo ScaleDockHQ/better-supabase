@@ -15,7 +15,6 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { ACTION_ITEMS_TO_TASKS } from "./incidents-data.ts";
 import { incidentsFunctions } from "./incidents-functions.ts";
 import {
@@ -83,7 +82,6 @@ const EVENTS: BlockSqlEvents<IncidentsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("incidents", 1),
   entities: {
     incident: {
       table: "incidents",

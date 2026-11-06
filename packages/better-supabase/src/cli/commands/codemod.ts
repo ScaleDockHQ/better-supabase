@@ -103,6 +103,24 @@ async function sourceFiles(path: string): Promise<string[]> {
   return files.toSorted();
 }
 
+/** The text of the project's `.sql` files under `supabase/`, joined. */
+async function projectSql(root: string): Promise<string> {
+  const base = resolve(root, "supabase");
+
+  const entries = await readdir(base, {
+    recursive: true,
+    withFileTypes: true,
+  }).catch(() => []);
+
+  const texts = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
+      .map((entry) => readFile(join(entry.parentPath, entry.name), "utf-8")),
+  );
+
+  return texts.join("\n");
+}
+
 export async function runCodemod(
   config: ResolvedConfig,
   args: CodemodOptions,
@@ -152,7 +170,7 @@ export async function runCodemod(
     }
   }
 
-  const sql = codemod.migration?.();
+  const sql = codemod.migration?.(await projectSql(config.root));
 
   if (sql !== undefined) {
     const dir = migrationsDir(config);

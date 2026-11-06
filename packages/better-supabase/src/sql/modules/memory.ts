@@ -12,7 +12,6 @@ import {
   userGrant,
   revokeTable,
 } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { embeddingColumn, textSearchConfig } from "./knowledge.ts";
 import { DOCUMENTS, memoryDocumentsSql } from "./memory-documents.ts";
 import {
@@ -77,7 +76,6 @@ const MESSAGE_EMBEDDINGS = {
 } as const;
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("memory", 4),
   entities: {
     memory: {
       table: "memories",

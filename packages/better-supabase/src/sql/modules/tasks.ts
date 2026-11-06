@@ -19,7 +19,6 @@ import {
   schemaPreamble,
   triggerGrant,
 } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import {
   liveRowsIndex,
   sourceTemplateColumnSql,
@@ -89,7 +88,6 @@ const EVENTS: BlockSqlEvents<TasksEvents> = {
 
 const NAMES: BlockSqlNames = {
   migrations: [
-    ...tableMoves("tasks", 2),
     {
       from: 3,
       description:

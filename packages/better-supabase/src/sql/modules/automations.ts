@@ -9,7 +9,6 @@ import { sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, raise, schemaPreamble, SERVICE_CALLER } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { defaultRulesSql, saveVersionSql } from "./automations-defaults-sql.ts";
 import { operatorTable, rulesEvaluator } from "./automations-evaluate.ts";
 import {
@@ -23,7 +22,6 @@ import {
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("automations", 1),
   entities: {
     automation: {
       table: "rules",

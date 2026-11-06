@@ -9,13 +9,11 @@ import type { ActivitySourceName } from "./timeline-reads.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { SERVICE_CALLER, schemaPreamble, pageSize, fail } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { activityReads } from "./timeline-reads.ts";
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("timeline", 1),
   entities: {
     timeline_entry: {
       table: "activity",

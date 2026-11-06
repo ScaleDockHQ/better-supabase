@@ -1122,26 +1122,30 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
   });
 
-  it("moves a module's tables to their 0.47 names with renames, not drops", async () => {
-    const config: ResolveInput = { blocks: ["goals"] };
+  it("moves a module's tables to their current names with renames, not drops", async () => {
+    const config: ResolveInput = { blocks: ["invoices"] };
     await sql(["sync"], config);
 
     const file = renderBlocks(
-      ["goals"],
+      ["invoices"],
       moduleLayout(resolveConfig(config, root)),
-    ).find((module) => module.module === "goals" && module.kind === "schema");
+    ).find(
+      (module) => module.module === "invoices" && module.kind === "schema",
+    );
 
     const path = join(root, file!.path);
     const text = await readFile(path, "utf-8");
     await writeFile(
       path,
-      text.replace("-- @bsb-block goals@2", "-- @bsb-block goals@1"),
+      text.replace("-- @bsb-block invoices@3", "-- @bsb-block invoices@2"),
     );
 
     const done = await sql(["upgrade"], config);
     expect(done.code).toBe(0);
-    expect(done.output).toContain("goals: version 1 to 2");
-    expect(done.output).toContain("The targets table is goals (ADR 0130).");
+    expect(done.output).toContain("invoices: version 2 to 3");
+    expect(done.output).toContain(
+      "The delivery log is e_invoice_deliveries (ADR 0206).",
+    );
 
     const upgrade = (await readdir(join(root, "supabase/migrations"))).find(
       (name) => name.endsWith("_better_supabase_block_upgrade.sql"),
@@ -1153,7 +1157,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
 
     expect(migration).toContain(
-      'alter table "better_supabase"."targets" rename to "goals"',
+      'alter table "better_supabase"."invoice_e_deliveries" rename to "e_invoice_deliveries"',
     );
     expect(migration).not.toMatch(/\bdrop\b/i);
   });

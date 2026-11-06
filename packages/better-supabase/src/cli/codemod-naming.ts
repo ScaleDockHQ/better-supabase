@@ -108,10 +108,12 @@ function qualifiedOf(table: string): { schema: string; name: string } {
 /**
  * The statements that rename installed SQL objects, or `undefined` when no
  * rename applies. Each one checks that the old object exists, so an app that
- * never installed the block runs the migration unchanged.
+ * never installed the block runs the migration unchanged. With `projectSql`, a
+ * renamed SQL function the project's files never name is left out.
  */
 export function renameMigrationSql(
   renames: readonly NamingRename[],
+  projectSql?: string,
 ): string | undefined {
   const statements = renames.flatMap((rename): string[] => {
     switch (rename.kind) {
@@ -140,6 +142,13 @@ export function renameMigrationSql(
       }
 
       case "sqlFunction": {
+        // A function the project's SQL never names has nothing to move.
+        const name = rename.from.slice(0, rename.from.indexOf("("));
+
+        if (projectSql !== undefined && !projectSql.includes(name)) {
+          return [];
+        }
+
         const toSchema = rename.to.slice(0, rename.to.indexOf("."));
 
         return [
@@ -185,6 +194,6 @@ export function namingCodemod(
       text: renameQuotedNames(renameEnvNames(text, renames), renames),
       review: [],
     }),
-    migration: () => renameMigrationSql(renames),
+    migration: (sql) => renameMigrationSql(renames, sql),
   };
 }

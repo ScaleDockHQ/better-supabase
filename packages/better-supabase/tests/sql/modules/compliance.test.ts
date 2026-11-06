@@ -133,9 +133,6 @@ describe("compliance module", () => {
     });
 
     expect(customAcknowledgements).not.toContain("policy_acknowledgements");
-    expect(customAcknowledgements).toContain(
-      'alter table "better_supabase"."policies" rename to "compliance_policies"',
-    );
   });
 
   it("contributes the policy's current version to the acknowledgements block", () => {

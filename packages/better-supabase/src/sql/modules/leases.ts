@@ -17,7 +17,6 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { tableMoves } from "../table-renames.ts";
 import { leaseAccountingSources } from "./leases-accounting.ts";
 import { LEASE_RESERVED, leasesFunctions } from "./leases-functions.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -60,7 +59,6 @@ const EVENTS: BlockSqlEvents<LeasesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("leases", 2),
   entities: {
     lease: {
       table: "leases",

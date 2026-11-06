@@ -14,7 +14,6 @@ import {
 import { sqlString } from "../../core/template.ts";
 import { link } from "../links.ts";
 import { fail, SERVICE_CALLER } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { messagingSql } from "./messaging-names.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -385,7 +384,6 @@ export const INBOX_NAMES: BlockSqlNames = {
       table: "conversations",
       was: "conversations",
     },
-    ...tableMoves("inbox", 6),
   ],
 };
 

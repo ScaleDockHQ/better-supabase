@@ -22,7 +22,6 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
-import { tableMoves } from "../table-renames.ts";
 import { bookingEngagementsSql, logsBookings } from "./activities-bookings.ts";
 import { NOTE_ACTION_ITEMS_TO_TASKS } from "./activities-data.ts";
 import {
@@ -84,7 +83,6 @@ const EVENTS: BlockSqlEvents<ActivitiesEvents> = {
 
 const NAMES: BlockSqlNames = {
   migrations: [
-    ...tableMoves("activities", 1),
     {
       from: 2,
       description:

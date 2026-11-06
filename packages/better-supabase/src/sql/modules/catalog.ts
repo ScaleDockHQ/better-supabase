@@ -17,7 +17,6 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import {
   catalogLocales,
   channelContract,
@@ -494,7 +493,6 @@ const NAMES: BlockSqlNames = {
       table: "collections",
       was: "collections",
     },
-    ...tableMoves("catalog", 3),
   ],
 };
 

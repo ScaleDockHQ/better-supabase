@@ -14,7 +14,6 @@ import { BILLING_PARTIES, COST_SOURCES } from "../line-items-sql.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import {
   sourceTemplateColumnSql,
   templateColumnSql,
@@ -108,7 +107,6 @@ const NAMES: BlockSqlNames = {
       "order_from_quote",
     ),
   ],
-  migrations: tableMoves("orders", 3),
   entities: {
     order: {
       table: "orders",

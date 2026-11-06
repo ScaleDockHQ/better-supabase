@@ -21,7 +21,6 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { acknowledgementTables } from "./acknowledgements.ts";
 import { complianceFunctions } from "./compliance-functions.ts";
 import { OSCAL_CONTRACT, oscalFunctions } from "./compliance-oscal.ts";
@@ -71,7 +70,6 @@ const EVENTS: BlockSqlEvents<ComplianceEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("compliance", 2),
   entities: {
     control: {
       table: "controls",

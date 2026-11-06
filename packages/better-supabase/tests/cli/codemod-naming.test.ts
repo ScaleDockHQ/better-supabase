@@ -136,6 +136,20 @@ describe("renameMigrationSql", () => {
     ).toBeUndefined();
   });
 
+  it("leaves out a renamed SQL function the project's SQL never names", () => {
+    const rename = {
+      from: "bsb.owns(uuid)",
+      to: "better_supabase.owns(uuid)",
+      kind: "sqlFunction",
+      since: "0.54",
+    } as const;
+
+    expect(renameMigrationSql([rename], "select 1;")).toBeUndefined();
+    expect(renameMigrationSql([rename], "using (bsb.owns(owner))")).toContain(
+      "alter function bsb.owns(uuid)",
+    );
+  });
+
   it("moves renamed SQL functions to their new schema behind an existence check", () => {
     const sql = renameMigrationSql([
       {

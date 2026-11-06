@@ -17,12 +17,10 @@ import {
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { invoiceLedger } from "./invoices-ledger.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("goals", 1),
   entities: {
     goal: {
       table: "targets",

@@ -15,7 +15,6 @@ import {
   SERVICE_CALLER,
   schemaPreamble,
 } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<DomainsEvents> = {
@@ -50,7 +49,6 @@ const HOSTNAMES = {
 } as const;
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("domains", 1),
   events: EVENTS,
   options: ["platformDomain", "txtPrefix"],
   hooks: [],

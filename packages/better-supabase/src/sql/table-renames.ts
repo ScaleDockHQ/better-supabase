@@ -81,38 +81,6 @@ export const TABLE_RENAMES: Readonly<
   timeline: tables({ activity: ["activity_entries", "timeline_entries"] }),
 });
 
-/**
- * `module`'s 0.47 table renames (`TABLE_RENAMES`) as `NAMES.migrations`
- * entries, run on installs below version `from + 1`.
- */
-export function tableMoves(
-  module: string,
-  from: number,
-): readonly BlockSqlNameMigration[] {
-  return Object.entries(TABLE_RENAMES[module] ?? {}).map(([table, rename]) => ({
-    from,
-    description: `The ${rename.from} table is ${rename.to} (ADR 0130).`,
-    table,
-    was: rename.from,
-    objects: true,
-  }));
-}
-
-const taken = new Set(
-  Object.values(TABLE_RENAMES).flatMap((renames) =>
-    Object.values(renames).map((rename) => rename.to),
-  ),
-);
-
-/**
- * Whether `module` moves a table off a name another module's move takes, as
- * idempotency frees `leases` for the leases block. Its upgrade runs first.
- */
-export const freesTableName = (module: string): boolean =>
-  Object.values(TABLE_RENAMES[module] ?? {}).some((rename) =>
-    taken.has(rename.from),
-  );
-
 /** Whether 0.47 renamed `module`'s logical `table`. */
 const movedTable = (module: string, table: string): boolean =>
   Object.hasOwn(TABLE_RENAMES[module] ?? {}, table);

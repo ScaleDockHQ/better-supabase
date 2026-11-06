@@ -20,7 +20,6 @@ import {
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { subjectCascades } from "../subjects.ts";
-import { tableMoves } from "../table-renames.ts";
 import {
   collectionExtras,
   collectionFunctions,
@@ -72,7 +71,6 @@ const EVENTS: BlockSqlEvents<CollectionsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("collections", 1),
   entities: {
     subject_collection: {
       table: "collections",

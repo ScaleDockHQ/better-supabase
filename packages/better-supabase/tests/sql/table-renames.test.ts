@@ -1,14 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { moduleContext } from "../../src/sql/module-context.ts";
-import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renameTableObjects } from "../../src/sql/rename-sql.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
-import {
-  freesTableName,
-  TABLE_RENAMES,
-  tableMoves,
-} from "../../src/sql/table-renames.ts";
+import { TABLE_RENAMES } from "../../src/sql/table-renames.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { liteStack } from "../../src/testing/lite.ts";
 
@@ -35,50 +30,28 @@ describe("TABLE_RENAMES", () => {
     expect(names.filter((entry) => entry.name !== entry.to)).toEqual([]);
     expect(names.filter((entry) => entry.from === entry.to)).toEqual([]);
   });
-
-  it("gives every renamed table an upgrade step", () => {
-    const steps = (module: string): string[] =>
-      (SQL_MODULES[module]?.names?.migrations ?? [])
-        .filter((step) => step.objects === true)
-        .map((step) => step.table)
-        .toSorted();
-
-    for (const [module, renames] of Object.entries(TABLE_RENAMES)) {
-      expect(steps(module)).toEqual(Object.keys(renames).toSorted());
-    }
-  });
-
-  it("moves the idempotency leases before the leases block takes the name", () => {
-    expect(freesTableName("idempotency")).toBe(true);
-    expect(freesTableName("leases")).toBe(false);
-
-    const plans = upgradePlan([
-      { module: "leases", version: 2 },
-      { module: "idempotency", version: 1 },
-    ]);
-
-    expect(plans.map((plan) => plan.module)).toEqual(["idempotency", "leases"]);
-  });
 });
 
 describe("module table upgrades", () => {
   it("renames the table and its objects, and drops nothing", () => {
-    const [plan] = upgradePlan([{ module: "activities", version: 1 }]);
+    const [plan] = upgradePlan([{ module: "invoices", version: 2 }]);
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
 
     expect(plan?.steps.map((step) => step.description)).toContain(
-      "The engagements table is activities (ADR 0130).",
+      "The delivery log is e_invoice_deliveries (ADR 0206).",
     );
     expect(sql).toContain(
-      `alter table "better_supabase"."engagements" rename to "activities"`,
+      `alter table "better_supabase"."invoice_e_deliveries" rename to "e_invoice_deliveries"`,
     );
     expect(sql).toContain("alter index %I.%I rename to %I");
     expect(sql).not.toMatch(/\bdrop\b/i);
   });
 
   it("skips a step on a table the app adopted", () => {
-    const [plan] = upgradePlan([{ module: "goals", version: 1 }], {
-      modules: { goals: { tables: { targets: "public.targets" } } },
+    const [plan] = upgradePlan([{ module: "invoices", version: 2 }], {
+      modules: {
+        invoices: { tables: { eDeliveries: "public.invoice_e_deliveries" } },
+      },
     });
 
     expect(plan?.steps.map((step) => step.sql).join("")).not.toContain(
@@ -115,36 +88,36 @@ describe("module table upgrades", () => {
   it(
     "moves the old table with its indexes, policies, constraints and sequences",
     async () => {
-      const [plan] = upgradePlan([{ module: "goals", version: 1 }]);
+      const [plan] = upgradePlan([{ module: "invoices", version: 2 }]);
 
       await using stack = await liteStack({
         driver: "pglite",
         migrations: [
           `create schema if not exists better_supabase;
-create table better_supabase.targets (id uuid primary key, n serial, name text not null check (name <> ''));
-create index targets_name_idx on better_supabase.targets (name);
-alter table better_supabase.targets enable row level security;
-create policy targets_read on better_supabase.targets for select using (true);`,
+create table better_supabase.invoice_e_deliveries (id uuid primary key, n serial, name text not null check (name <> ''));
+create index invoice_e_deliveries_name_idx on better_supabase.invoice_e_deliveries (name);
+alter table better_supabase.invoice_e_deliveries enable row level security;
+create policy invoice_e_deliveries_read on better_supabase.invoice_e_deliveries for select using (true);`,
           ...(plan?.steps.map((step) => step.sql) ?? []),
         ],
         seed: [
           `do $$
 begin
-  if to_regclass('better_supabase.goals') is null
-    or to_regclass('better_supabase.targets') is not null then
+  if to_regclass('better_supabase.e_invoice_deliveries') is null
+    or to_regclass('better_supabase.invoice_e_deliveries') is not null then
     raise exception 'table not renamed';
   end if;
-  if to_regclass('better_supabase.goals_name_idx') is null then
+  if to_regclass('better_supabase.e_invoice_deliveries_name_idx') is null then
     raise exception 'index not renamed';
   end if;
-  if not exists (select 1 from pg_policy where polname = 'goals_read') then
+  if not exists (select 1 from pg_policy where polname = 'e_invoice_deliveries_read') then
     raise exception 'policy not renamed';
   end if;
-  if not exists (select 1 from pg_constraint where conname = 'goals_name_check')
-    or not exists (select 1 from pg_constraint where conname = 'goals_pkey') then
+  if not exists (select 1 from pg_constraint where conname = 'e_invoice_deliveries_name_check')
+    or not exists (select 1 from pg_constraint where conname = 'e_invoice_deliveries_pkey') then
     raise exception 'constraints not renamed';
   end if;
-  if to_regclass('better_supabase.goals_n_seq') is null then
+  if to_regclass('better_supabase.e_invoice_deliveries_n_seq') is null then
     raise exception 'sequence not renamed';
   end if;
 end;
@@ -156,10 +129,4 @@ $$;`,
     },
     BOOT.timeout,
   );
-});
-
-describe("tableMoves", () => {
-  it("returns nothing for a module 0.47 left alone", () => {
-    expect(tableMoves("contacts", 1)).toEqual([]);
-  });
 });
