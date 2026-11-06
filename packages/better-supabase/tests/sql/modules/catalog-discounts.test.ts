@@ -62,4 +62,10 @@ describe("discountMatrix option", () => {
       'resolve_line_discount"(v_tenant',
     );
   });
+
+  it("passes a uuid party column as the text party", () => {
+    expect(render(["catalog", "quotes"], { discountMatrix: true })).toMatch(
+      /resolve_line_discount"\(v_tenant, \(\(select [^;]+\)\)::text,/,
+    );
+  });
 });

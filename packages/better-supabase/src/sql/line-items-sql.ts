@@ -780,7 +780,7 @@ function discountMatrixSql(
   const catalog = ctx.of("catalog");
   const type = sqlString(catalog.naming.rename("product_variant"));
 
-  const call = `${catalog.fn("resolve_line_discount")}(v_tenant, ${matrix.party}, (x.value -> 'product' ->> 'id')::uuid, coalesce((x.value ->> 'quantity')::numeric, 1), ${matrix.on}, v_currency)`;
+  const call = `${catalog.fn("resolve_line_discount")}(v_tenant, (${matrix.party})::text, (x.value -> 'product' ->> 'id')::uuid, coalesce((x.value ->> 'quantity')::numeric, 1), ${matrix.on}, v_currency)`;
 
   const rule = (key: string, cast: string): string =>
     `case when x.value -> 'product' ->> 'type' = ${type} then (${call} ->> '${key}')::${cast} end`;
