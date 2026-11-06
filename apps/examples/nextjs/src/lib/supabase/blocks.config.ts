@@ -860,6 +860,7 @@ export const blockConfig = {
       functions: {
         archive_task: "archive_work_item",
         archive_tasks: "archive_work_items",
+        clone_task: "clone_work_item",
         create_task: "create_work_item",
         delete_task: "delete_work_item",
         delete_task_checklist_item: "delete_work_item_checklist_item",
@@ -896,6 +897,7 @@ export const blockConfig = {
       functions: {
         archive_task: "archive_maintenance_request",
         archive_tasks: "archive_maintenance_requests",
+        clone_task: "clone_maintenance_request",
         create_task: "create_maintenance_request",
         delete_task: "delete_maintenance_request",
         delete_task_checklist_item: "delete_maintenance_request_checklist_item",
@@ -907,7 +909,6 @@ export const blockConfig = {
         set_task_assignees: "set_maintenance_request_assignees",
         task_tree: "maintenance_request_tree",
         update_tasks: "update_maintenance_requests",
-        clone_task: "clone_maintenance_request",
         save_iteration: "facilities_save_iteration",
         save_project: "facilities_save_project",
       },

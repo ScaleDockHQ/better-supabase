@@ -136,6 +136,7 @@ export const blockConfig = {
       functions: {
         archive_task: "archive_maintenance_request",
         archive_tasks: "archive_maintenance_requests",
+        clone_task: "clone_maintenance_request",
         create_task: "create_maintenance_request",
         delete_task: "delete_maintenance_request",
         delete_task_checklist_item: "delete_maintenance_request_checklist_item",
@@ -147,7 +148,6 @@ export const blockConfig = {
         set_task_assignees: "set_maintenance_request_assignees",
         task_tree: "maintenance_request_tree",
         update_tasks: "update_maintenance_requests",
-        clone_task: "clone_maintenance_request",
         save_iteration: "maintenance_save_iteration",
         save_project: "maintenance_save_project",
       },
