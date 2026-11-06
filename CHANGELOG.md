@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.54.0 (2026-11-06)
+
+- Document templates take app-defined types: `options.documentTypes` names a type, the app function that builds its variables and its variable contract. Templates, text blocks, snapshots, `render_document` and `freeze_document` accept the new type, and `validateDocumentTemplate` takes the app contracts as an optional argument. The built-in contract is unchanged.
+- `approval_eligible_ids` now answers for every pending request in one query. Users, roles, teams, managers and delegations are joins, and each permission is checked once per tenant and permission pair instead of once per request, so a list policy no longer scales with the number of pending requests. Only an access provider's `isApprover` still runs per request. On PGlite with 10 tenants, 54 pending requests take 2.5 ms (11.5 ms before) and 5,000 take 12 ms (920 ms before). Module version 5, no migration step.
+- Run the audit log's hash chain on the shared `chain` functions (audit module version 13). `createAuditChain` and its types are removed: call `createChain({ table: "better_supabase.audit_events", tenantColumn: "organization_id", ... })` instead, which also gives you `proof` and evidence bundles. Checkpoints move from `audit_checkpoints` to `chain_checkpoints` on upgrade, existing hashes stay valid, and a verdict no longer has `brokenAt`. `record_chain_checkpoint` now returns the tenant and the signature.
+- `audit(..., statement => true)` works when the app keeps restricted details in their own table
+  (`options.restricted`, or a mapped `audit_log_restricted_details`). The statement trigger writes the
+  log rows and the restricted rows from the transition tables in one insert each, instead of raising
+  "needs an audit log without the restricted table", and `import_run()` and the tenant name are read
+  once per statement. On in-process Postgres (PGlite), an `update` of 48 rows went from a median of
+  20.3 ms in row mode to 8.5 ms in statement mode, and an `update` of 5,000 rows from 937 ms to
+  504 ms. The audit module is version 11: run `better-supabase upgrade`, then `add --adopt`.
+- Adds the `better-supabase/auth` subpath. It exports `authErrorKind` and the `AuthErrorKind` type, so an app can classify an auth-js error (`"retryable"`, `"session-missing"`, `"invalid-credentials"`, `"rate-limited"`, `"banned"` or `"unknown"`) without importing the server entry. The docs showed an import from `better-supabase`, which never exported it.
+- `createChain` from `better-supabase/blocks/audit` verifies, checkpoints and builds proofs for any table tagged `chain`. `verifyChainProof` checks one row against its signed checkpoint on WebCrypto alone, and `evidenceBundle` and `verifyEvidenceBundle` seal and check a record's proofs and other sections. The audit module gains `chain_heads`, `list_chain_checkpoints` and `chain_proof`; no migration step.
+- The `fields` schema that `gen` builds from a block's `columns` (and `columnsSchema`) no longer
+  requires a `not null` column that has a `default` on input, so a create that leaves
+  `risk text not null default 'low'` or a `metadata` column to its default passes validation. The
+  column is still required on output, and an explicit `null` is still refused. `columnsSchema` now
+  returns `StandardSchemaV1<ColumnsInput<C>, ColumnsOutput<C>>`, and `ColumnsInput` is exported from
+  `better-supabase/blocks`.
+- Record the SHA-256 of file bytes. Attachments (module version 9) get `sha256` and `hash_verified_at`, set by the scanner from the file it downloaded. Versions (module version 2) get `file_hash` and `hash_version`, and `snapshot` takes `fileSha256` from the service role. `set_attachment_status`, `version_insert` and `snapshot_version` take one more trailing argument, and the old signatures are dropped.
+- New `deadlines` block (`better-supabase/blocks/deadlines`): due dates computed from approved, cited rule sets.
+
+  - Rule sets belong to the platform, one per jurisdiction and kind. `saveRules` stores a draft version and `approveRules` freezes it with a SHA-256 content hash. With `approvals` installed, approval needs an approved request of the subject type `deadline_rule_version`. An approved version can't change (`DEADLINE_RULE_VERSION_FROZEN`).
+  - `compute` evaluates a rule against a subject's facts and stores the result as `due` with a date and a citation, or `unknown` with the missing facts named. `recompute` refreshes a subject's open deadlines, and `satisfy` closes one.
+  - `evaluateRule` and `validateRules` run the same rules in TypeScript, so a preview matches the database.
+  - Events `deadline.computed` and `deadline.satisfied`. The permission keys are `deadlines.read`, `deadlines.write` and `deadlines.manage`.
+  - The `filings` preset now includes `deadlines`.
+
+  Run `better-supabase add deadlines` and generate a migration.
+- Breaking: doctor reports BS315 (a table without an audit trigger, and an `audit.options.exempt` entry without a reason) as an error instead of a warning. The 0.53 to 0.54 guide lists the steps: audit the table, or exempt it with a reason.
+- Three `@bsb` table tags guard evidence tables. `append-only` refuses update, delete and truncate, `function-writes` removes the Data API write privileges, and `chain` links each inserted row to the previous one with a hash. `better_supabase.verify_chain` (service role) finds a changed, removed or reordered row, and `record_chain_checkpoint` stores signed heads. The audit module is now version 12 and installs the helpers; no migration step.
+- Add the `filings` preset for apps that prepare, sign, send and later prove documents. It installs contacts, versions, signatures, approvals, shipments, the ledger, cases, reminders and governance on top of `saas`.
+- `bsb.withContext(factory)` accepts an async factory: each call awaits it, and concurrent calls on one context share a single run. `blocks.sessions.options.bootstrap` entries take `tables` (and a `{ function, tables?, subject? }` form), and `gen` records them in `meta.bootstrap.tables`, deriving them from the function body when an entry doesn't declare them. `bsb.bootstrap({ rpc })` tags its cache entry with those tables, so `bsb:<table>@<tenant>` invalidation reaches payload RPCs. The snapshot gains `extras.functionSources`. The Next.js docs now say which cache scopes tags invalidate.
+- New `option-sets` block (`better-supabase/blocks/option-sets`), lane archiving with a move target, stage icons and brand starters.
+
+  - `option-sets` keeps tenant-editable items for a field such as priority. A binding `on.<type>.<field>` adds an option column to the record and writes the chosen item's level to the field's number column. `archiveItem({ itemId, replacementId })` moves the records that use the item. `createOptionSetsController` wraps the client for a settings screen. The permission keys are `option-sets.read` and `option-sets.manage`.
+  - `tasks` contributes a `priority` binding with the items None, Low, Medium, High and Urgent at levels 0 to 4, and adds `priority_option_id`.
+  - `pipelines.archiveStage` takes `{ stageId, moveTo }`. Records in the stage move to `moveTo` before it is archived, and the allowed stage changes do not apply to that move. `archive_pipeline_stage` now has two arguments and `save_pipeline_stage` takes an `icon`. Stages, board columns and stage templates carry an optional `icon`.
+  - `blocks.pipelines.options.brand` and `blocks.option-sets.options.brand`, with a `brands` map on a binding, start an organization of that brand with its own stages or items.
+
+  Run `better-supabase add option-sets` and generate a migration. `archiveStage(stageId)` is now `archiveStage({ stageId })`.
+- Breaking for generated pgTAP helpers: `tests.authenticate_as` reads `auth.users` through the `security definer` helpers `tests._user_id_by_email` and `tests._email_of`, so a test that is already signed in can switch to another user by email or id without `tests.clear_authentication()`. Run `better-supabase gen` to refresh `supabase/tests`.
+- Adds `blocks.profiles.options.avatarSource`. With `"path"`, the author that `message_authors` and `attachment_authors` return carries `avatarPath` (the Storage path from the profiles `avatar_path` column) and a null `avatarUrl`, so an app that stores avatars in Storage can build the URL itself. The default `"url"` is unchanged. `Author` gains an optional `avatarPath`.
+- `server.transaction(userId, fn, options)` runs repositories and blocks as a user in one Postgres transaction. A throw rolls back, and so does a returned `Result` that is not ok. A nested transaction on a direct Postgres client now runs in a savepoint instead of being flattened, so one failed step no longer aborts the others. `BetterPostgres.transactionFor` is the optional hook behind it.
+- `blockSet.serviceBlocks(admin, options)` takes `options.blocks`, a typed map of options per block (a tenant for the comments copy, the Stripe and account resolvers for billing, a TTL for flags, the audit recorder). Each entry is what `block.with(options)` takes and applies for that call only, so a worker can build a different set per tenant or job. `ServiceBlocksOptions` is exported.
+- Shipments (module version 4) record the proof of delivery: `recordProof` stores `deliveredTo`, a `proofReference` and a `proofAttachmentId` once for a delivered shipment and emits `shipment.proof_recorded`. A carrier can add the optional `proofOfDelivery` method. Tracking events are append-only: a trigger refuses edits and deletes with `SHIPMENT_EVENTS_APPEND_ONLY`, except in a tenant purge.
+- Adds `archive_tasks` and `delete_tasks`, the set forms of `archive_task` and `delete_task`. The client takes `tasks.archive({ workItemIds })` and `tasks.remove(workItemIds)`, checks access once per statement, writes once, and returns `{ ids, skipped }` with the ids that were refused. The tasks module moves to version 5; `better-supabase upgrade` renders the new functions.
+- The discount matrix on quotes, invoices and orders now casts the party to text before it calls `resolve_line_discount`. A uuid company or customer column no longer fails with `function resolve_line_discount(uuid, uuid, ...) does not exist`.
+- `doctor` rule BS243 no longer reports a `security definer` function because its body is wrapped in a tagged dollar quote such as `$function$`. It measures only the quoted literals inside the body, so a migration with a long body and short literals is quiet and a literal above 1,024 characters is still reported.
+
 ## 0.54.0 (2026-11-05)
 
 - Breaking: doctor reports BS315 as an error, and `tests.authenticate_as` reads users through
