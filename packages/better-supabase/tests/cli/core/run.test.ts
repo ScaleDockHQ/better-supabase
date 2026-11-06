@@ -1,5 +1,5 @@
 import { existsSync, utimesSync, writeFileSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -85,11 +85,11 @@ describe("run", () => {
   it("runs the codemod command over the project", async () => {
     await writeFile(join(dir, "a.ts"), "export const a = 1;\n");
     expect(
-      await run(["codemod", "0.5", "--dry-run", "--cwd", dir]),
+      await run(["codemod", "naming", "--dry-run", "--cwd", dir]),
     ).toMatchObject({ code: 0 });
   });
 
-  it("runs codemod 0.9 on a config that still has sql.modules", async () => {
+  it("refuses a config written before 0.15 and names the release to upgrade with", async () => {
     const path = join(dir, "better-supabase.config.ts");
     await writeFile(
       path,
@@ -98,18 +98,7 @@ describe("run", () => {
 
     const before = await run(["blocks", "list", "--installed", "--cwd", dir]);
     expect(before.code).toBe(2);
-    expect(before.stderr).toContain("better-supabase codemod 0.9");
-
-    const nested = join(dir, "src");
-    await mkdir(nested);
-
-    expect(await run(["codemod", "0.9", "--cwd", nested])).toMatchObject({
-      code: 0,
-      stdout: expect.stringContaining("better-supabase.config.ts"),
-    });
-    expect(await readFile(path, "utf-8")).toBe(
-      "export default {\n  blocks: { memberships: true },\n};\n",
-    );
+    expect(before.stderr).toContain("upgrade to 0.53 with that release first");
   });
 
   it("prints the usage to stderr without a command and to stdout for help", async () => {
@@ -156,14 +145,8 @@ describe("run", () => {
       (await run(["--cwd", dir, "--config=x.ts", "--help"])).stdout,
     ).toContain("Usage: better-supabase <command> [options]");
     expect((await run(["--", "gen"])).code).toBe(2);
-    expect(await run(["--cwd", dir, "openapi", "emit"])).toMatchObject({
-      code: 2,
-      stderr: expect.stringMatching(
-        /^"openapi emit" is now "spec emit openapi"\. Run: better-supabase spec emit openapi --cwd /,
-      ),
-    });
-    expect((await run(["spec", "check", "--cwd", dir])).stderr).toMatch(
-      /^"spec check" is now "spec emit --check"/,
+    expect((await run(["--cwd", dir, "openapi", "emit"])).stderr).toMatch(
+      /^Unknown command "openapi"/,
     );
     expect((await run(["skills", "--cwd", dir])).stderr).toMatch(
       /^Name a skills subcommand: list, install\.\n\nUsage: better-supabase skills /,
@@ -171,17 +154,7 @@ describe("run", () => {
     expect((await run(["skills", "remove", "--cwd", dir])).stderr).toMatch(
       /^Unknown command "skills remove"/,
     );
-    expect(await run(["gen", "--tasks", "types", "--cwd", dir])).toMatchObject({
-      code: 2,
-      stderr: expect.stringMatching(
-        /^--tasks is now --only\. Run: better-supabase gen --only types --cwd /,
-      ),
-    });
-    expect(
-      (await run(["doctor", "--strict", "--json", "--cwd", dir])).stdout,
-    ).toContain(
-      '"suggestion": "better-supabase doctor --fail-on warning --json --cwd',
-    );
+    expect((await run(["gen", "--tasks", "types", "--cwd", dir])).code).toBe(2);
     const skills = await run(["skills", "list", "--cwd", dir]);
     expect(skills.code).toBe(0);
     expect(skills.stdout).toMatch(/^better-supabase\n {2}\S/m);

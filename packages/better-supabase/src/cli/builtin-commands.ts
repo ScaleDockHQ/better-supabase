@@ -97,56 +97,9 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/skills.ts").then((m) => m.skillsInstallCommand),
   ],
   [
-    "codemod 0.4",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.4")),
-  ],
-  [
-    "codemod 0.5",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.5")),
-  ],
-  [
-    "codemod 0.6",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.6")),
-  ],
-  [
-    "codemod 0.9",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.9")),
-  ],
-  [
-    "codemod 0.11",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.11")),
-  ],
-  [
-    "codemod 0.15",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.15")),
-  ],
-  [
-    "codemod 0.29",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.29")),
-  ],
-  [
-    "codemod 0.32",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.32")),
-  ],
-  [
-    "codemod 0.35",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.35")),
-  ],
-  [
-    "codemod 0.37",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.37")),
-  ],
-  [
-    "codemod 0.46",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.46")),
-  ],
-  [
-    "codemod 0.47",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.47")),
-  ],
-  [
-    "codemod 0.53",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.53")),
+    "codemod naming",
+    () =>
+      import("./commands/codemod.ts").then((m) => m.codemodCommand("naming")),
   ],
   [
     "codemod read-many",

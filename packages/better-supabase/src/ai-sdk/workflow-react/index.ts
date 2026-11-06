@@ -7,13 +7,13 @@ import { WorkflowChatTransport } from "@ai-sdk/workflow/client";
 import { lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
 import { useMemo } from "react";
 
-import type { AssistantTransportConfig } from "../../react/body.ts";
-import type { AssistantState, UseAssistantOptions } from "../../react/index.ts";
+import type { AssistantTransportConfig } from "../react/body.ts";
+import type { AssistantState, UseAssistantOptions } from "../react/index.ts";
 
-import { assistantBody } from "../../react/body.ts";
-import { useAssistant } from "../../react/index.ts";
+import { assistantBody } from "../react/body.ts";
+import { useAssistant } from "../react/index.ts";
 
-export type { AssistantState } from "../../react/index.ts";
+export type { AssistantState } from "../react/index.ts";
 
 /** The decisions in an assistant message whose approvals the user answered. */
 function approvalsOf(

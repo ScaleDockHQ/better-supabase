@@ -5,7 +5,7 @@ import type {
   StorageApi,
   StorageBucketApi,
   StorageDestinationOptions,
-  StorageFailure,
+  StorageError,
   StorageFileOptions,
   StorageListEntry,
   StorageListV2Folder,
@@ -124,7 +124,7 @@ where bucket_id = $1 and name = $2 and owner_id is not distinct from $6`;
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
-const STALE: StorageFailure = {
+const STALE: StorageError = {
   name: "StorageApiError",
   message: "The object was stored before the support session started",
   status: 403,
@@ -132,7 +132,7 @@ const STALE: StorageFailure = {
   code: "AccessDenied",
 };
 
-const OWNED: StorageFailure = {
+const OWNED: StorageError = {
   name: "StorageApiError",
   message: "The object belongs to another user",
   status: 403,
@@ -245,7 +245,7 @@ const apiError = (
   status: number,
   message: string,
   code: string,
-): StorageFailure => ({
+): StorageError => ({
   name: "StorageApiError",
   message,
   status,
@@ -263,7 +263,7 @@ const stampOf = (
   supportAdminId: session.adminId,
 });
 
-const failed = <T>(error: StorageFailure): StorageResponse<T> => ({
+const failed = <T>(error: StorageError): StorageResponse<T> => ({
   data: null,
   error,
 });
@@ -272,7 +272,7 @@ const failed = <T>(error: StorageFailure): StorageResponse<T> => ({
  * Storage answers a hidden object like a missing one: HTTP 400 with
  * `statusCode` 404.
  */
-const NOT_FOUND: StorageFailure = {
+const NOT_FOUND: StorageError = {
   name: "StorageApiError",
   message: "Object not found",
   status: 400,
@@ -280,14 +280,14 @@ const NOT_FOUND: StorageFailure = {
   code: "NoSuchKey",
 };
 
-const invalid = (message: string): StorageFailure =>
+const invalid = (message: string): StorageError =>
   apiError(400, message, "InvalidRequest");
 
 /**
  * A database failure as a Storage `error` that `fromStorageError` passes
  * through unchanged.
  */
-function sqlFailure(cause: unknown): StorageFailure {
+function sqlFailure(cause: unknown): StorageError {
   const raw = fromPgError(cause);
   const error: DbError = raw ? mapDbError(raw) : toDbError(cause);
 
@@ -298,7 +298,7 @@ function sqlFailure(cause: unknown): StorageFailure {
  * An RLS or duplicate failure of a dry run, as Storage reports it for the
  * target's own request.
  */
-function refusedWrite(cause: unknown): StorageFailure | undefined {
+function refusedWrite(cause: unknown): StorageError | undefined {
   const raw = fromPgError(cause);
 
   if (raw?.code === "42501") {
@@ -592,8 +592,8 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
     isVersioned().then(upsertObject);
 
   const rehearse = async (
-    run: (client: SqlClient) => Promise<StorageFailure | null>,
-  ): Promise<StorageFailure | null> => {
+    run: (client: SqlClient) => Promise<StorageError | null>,
+  ): Promise<StorageError | null> => {
     if (!sql.transaction) {
       return refusal;
     }
@@ -625,7 +625,7 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
     name: string,
     statement: string,
     metadata: Readonly<Record<string, unknown>>,
-  ): Promise<StorageFailure | null> =>
+  ): Promise<StorageError | null> =>
     rehearse(async (client) => {
       await client.queryRaw(statement, [
         bucket,

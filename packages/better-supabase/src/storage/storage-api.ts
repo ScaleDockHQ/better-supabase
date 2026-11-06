@@ -6,7 +6,7 @@ import { isRecord } from "../core/guards.ts";
  * A failed Storage call's `error`, as supabase-js returns it
  * (`StorageApiError`, `StorageUnknownError`).
  */
-export interface StorageFailure {
+export interface StorageError {
   readonly name: string;
   readonly message: string;
   readonly status?: number | undefined;
@@ -18,7 +18,7 @@ export interface StorageFailure {
 /** What a supabase-js Storage call resolves to: `data` or `error`, never both. */
 export type StorageResponse<T> =
   | { readonly data: T; readonly error: null }
-  | { readonly data: null; readonly error: StorageFailure };
+  | { readonly data: null; readonly error: StorageError };
 
 export interface StorageTransform {
   readonly width?: number;
@@ -210,7 +210,7 @@ export interface StorageBucketApi {
     path: string,
   ): PromiseLike<
     | { readonly data: boolean; readonly error: null }
-    | { readonly data: boolean; readonly error: StorageFailure }
+    | { readonly data: boolean; readonly error: StorageError }
   >;
   createSignedUrl(
     path: string,

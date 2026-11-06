@@ -292,8 +292,6 @@ export function resolveConfig(
 ): ResolvedConfig {
   const config = expandFlatPreset(flattenConfig(input));
   const output = config.output ?? CONFIG_DEFAULTS.output;
-  // oxlint-disable-next-line typescript/no-deprecated -- the deprecated key still resolves, and maps onto specs
-  const legacyOpenApi = config.openapi;
   const tenantName = tenantNameOf(config.blocks);
   const appTables = appTablesOf(config.appTables, tenantName);
 
@@ -409,20 +407,10 @@ export function resolveConfig(
       perTenant: config.seed?.perTenant ?? CONFIG_DEFAULTS.seed.perTenant,
       ...resolveSeedModes(config.seed),
     },
-    openapi: {
-      entry: legacyOpenApi?.entry ?? CONFIG_DEFAULTS.openapi.entry,
-      output: legacyOpenApi?.output ?? CONFIG_DEFAULTS.openapi.output,
-    },
     specs: {
-      entry:
-        config.specs?.entry ??
-        legacyOpenApi?.entry ??
-        CONFIG_DEFAULTS.openapi.entry,
+      entry: config.specs?.entry ?? CONFIG_DEFAULTS.specs.entry,
       outputs: config.specs?.outputs ?? [
-        {
-          format: "openapi",
-          output: legacyOpenApi?.output ?? CONFIG_DEFAULTS.openapi.output,
-        },
+        { format: "openapi", output: CONFIG_DEFAULTS.specs.output },
       ],
       failOn: config.specs?.failOn ?? CONFIG_DEFAULTS.specs.failOn,
       ...(config.specs?.manifest === undefined

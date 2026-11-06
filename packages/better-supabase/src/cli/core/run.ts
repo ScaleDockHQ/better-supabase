@@ -29,7 +29,6 @@ import { CliError, toCliError } from "./errors.ts";
 import { commandHelp, rootHelp, treeJson } from "./help.ts";
 import { createLog, milliseconds } from "./log.ts";
 import { COMPLETE_COMMAND, RESERVED_NAMES } from "./manifest.ts";
-import { movedCommand, movedFlag } from "./moved.ts";
 import { document, envelope, renderError, renderResult } from "./output.ts";
 import {
   checkArgs,
@@ -465,12 +464,6 @@ export function cliFromTree(
         return finish(0);
       }
 
-      const moved = movedCommand(argv, bin);
-
-      if (moved) {
-        return reportError(moved, parent);
-      }
-
       const suggestion = await closestName(name, candidates);
       const full = [...parent, name].join(" ");
       const suggested = suggestion ? [...parent, suggestion].join(" ") : "";
@@ -538,12 +531,6 @@ export function cliFromTree(
           { choices: { "<command>": names } },
         ),
       );
-    }
-
-    const movedOption = movedFlag(node.path, rest, bin);
-
-    if (movedOption) {
-      return reportError(movedOption);
     }
 
     if (agentError !== undefined) {

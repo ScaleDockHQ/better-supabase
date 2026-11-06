@@ -241,10 +241,7 @@ const SOURCES = [
 ];
 
 /** Pages that quote the old names on purpose. */
-const HISTORY = new Set([
-  "apps/docs/content/docs/(docs)/concepts/naming.mdx",
-  "apps/docs/content/docs/(docs)/migration/(older)/0.1-to-0.2.mdx",
-]);
+const HISTORY = new Set(["apps/docs/content/docs/(docs)/concepts/naming.mdx"]);
 
 async function sources(): Promise<{ path: string; text: string }[]> {
   const paths: string[] = [];

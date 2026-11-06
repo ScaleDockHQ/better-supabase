@@ -121,7 +121,6 @@ export type {
   IntegrationName,
   KeysConfig,
   MigrationSafetyConfig,
-  OpenApiConfig,
   PowerSyncGenConfig,
   SkillsAgent,
   SkillsConfig,
@@ -223,7 +222,7 @@ export {
 } from "../core/claims.ts";
 
 export {
-  buildJsonSchema,
+  toJsonSchema,
   jsonSchema,
   type JsonSchemaGeneratorOptions,
   type JsonSchemaTarget,

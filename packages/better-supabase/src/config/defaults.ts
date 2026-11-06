@@ -29,8 +29,11 @@ export const CONFIG_DEFAULTS: {
       readonly output: string;
     };
   };
-  readonly openapi: { readonly entry: string; readonly output: string };
-  readonly specs: { readonly failOn: "error" };
+  readonly specs: {
+    readonly entry: string;
+    readonly output: string;
+    readonly failOn: "error";
+  };
   readonly doctor: {
     readonly format: "text";
     readonly sources: readonly string[];
@@ -56,8 +59,11 @@ export const CONFIG_DEFAULTS: {
     defaults: { onCreate: true, locale: "en" },
     sample: { size: "m", seed: 1, output: "supabase/seeds/900_sample.sql" },
   },
-  openapi: { entry: "src/lib/openapi.ts", output: "openapi.json" },
-  specs: { failOn: "error" },
+  specs: {
+    entry: "src/lib/openapi.ts",
+    output: "openapi.json",
+    failOn: "error",
+  },
   doctor: {
     format: "text",
     sources: ["src/**/*.{ts,tsx}"],

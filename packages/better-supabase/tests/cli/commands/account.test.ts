@@ -74,7 +74,7 @@ function tools(replies: (() => Promise<Response>)[], startAt = 0) {
 describe("cloudUrl", () => {
   it("defaults to the cloud app and trims a trailing slash", () => {
     expect(cloudUrl({})).toBe("https://app.bettersupabase.com");
-    expect(cloudUrl({ BSB_CLOUD_URL: "https://c.test/" })).toBe(
+    expect(cloudUrl({ BETTER_SUPABASE_CLOUD_URL: "https://c.test/" })).toBe(
       "https://c.test",
     );
   });
@@ -91,7 +91,7 @@ describe("runLogin", () => {
     ]);
 
     const result = await runLogin(
-      { ...env, BSB_CLOUD_URL: "https://c.test" },
+      { ...env, BETTER_SUPABASE_CLOUD_URL: "https://c.test" },
       run.tools,
     );
 

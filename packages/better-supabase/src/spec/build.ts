@@ -71,7 +71,7 @@ function level<K extends object, V>(
  * set and options object. Formats lower it to each version; `defineApi` wraps
  * it.
  */
-export function buildApiModel<Ref = string>(
+export function defineApiModel<Ref = string>(
   source: ApiSource,
   options: ApiOptions<Ref>,
 ): BuiltModel {

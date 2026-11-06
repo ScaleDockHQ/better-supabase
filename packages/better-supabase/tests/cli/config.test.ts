@@ -158,7 +158,7 @@ describe("config environments", () => {
     ).toThrow("The test environment makes the config invalid");
   });
 
-  it("points sql.modules at the 0.9 codemod", async () => {
+  it("names the release to upgrade with for sql.modules", async () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
@@ -171,7 +171,7 @@ describe("config environments", () => {
     expect(error).toMatchObject({
       code: "config_invalid",
       message: expect.stringContaining(
-        "sql.modules: moved to the top-level `blocks` key in 0.9; run `better-supabase codemod 0.9`",
+        "sql.modules: moved to the top-level `blocks` key in 0.9; upgrade to 0.53 with that release first",
       ),
     });
     expect(error).toMatchObject({

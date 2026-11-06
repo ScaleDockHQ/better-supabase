@@ -767,11 +767,11 @@ export function eventTarget(event: RuleSinkEvent): RuleSinkTarget | undefined {
  * An outbox consumer handler that tests the rules whose trigger is the event's
  * type, or the name the type had before 0.46 (such as `agent.saved` for
  * `agent.created`) until the next minor, and runs the actions of the ones that
- * match, for `outbox.consume("rules", createRuleSink(...))`. It throws when the
+ * match, for `outbox.consume("rules", automationSink(...))`. It throws when the
  * evaluation fails, so the outbox retries the event; a failed action goes to
  * `onOutcomes` instead, since a retry would run the others again.
  */
-export function createRuleSink(
+export function automationSink(
   options: RuleSinkOptions,
 ): (events: readonly RuleSinkEvent[]) => Promise<void> {
   return async (events) => {

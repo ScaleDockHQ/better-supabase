@@ -198,20 +198,12 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "The team ids {user} belongs to, as a set. Under the provider model team_ids_of(), saved-views and collections call it.",
   },
-  "auth.authorization.functions.canApprove": {
-    description:
-      "Whether the caller may decide the tool call {tool} waits on in {tenant}.",
-  },
   "auth.authorization.decidingColumns[]": {
     description: "`schema.table.column`.",
   },
   "auth.authorization.delegation.scopes": {
     description:
       "OAuth scope to the permission keys it grants a delegated token.",
-  },
-  "auth.authorization.approvals.distinctApprover": {
-    description:
-      "The user who asked for a tool call can't approve it. Default false.",
   },
   "database.vectorSearch": {
     description:
@@ -399,19 +391,13 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "database.seed.entry": { default: "supabase/seed.ts" },
   "database.seed.output": { default: "supabase/seeds/000_better_supabase.sql" },
   "database.seed.perTenant": { default: "supabase/seed.tenant.ts" },
-  "api.openapi": {
-    description:
-      "Deprecated: use specs. openapi.entry and openapi.output map onto it.",
-  },
-  "api.openapi.entry": { default: "src/lib/openapi.ts" },
-  "api.openapi.output": { default: "openapi.json" },
   "api.specs": {
     description:
       "The documents better-supabase spec emit writes (OpenAPI, AsyncAPI, Arazzo).",
   },
   "api.specs.entry": {
     description:
-      "Module exporting a defineApi() result (or a function returning one) as api or default. Defaults to openapi.entry.",
+      "Module exporting a defineApi() result (or a function returning one) as api or default. ",
     default: "src/lib/openapi.ts",
   },
   "api.specs.outputs[].format": {

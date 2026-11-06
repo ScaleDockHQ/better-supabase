@@ -317,13 +317,6 @@ export interface BlockSqlLayout {
    */
   readonly customAccessTokenHook?: string;
   /**
-   * Ignored: the header names only the module, so a release doesn't rewrite
-   * every file. The `@bsb-block name@N` marker carries the module version.
-   *
-   * @deprecated Remove it; it has no effect.
-   */
-  readonly version?: string;
-  /**
    * `config.realtime.tables`: registered at the end of the `realtime-tables`
    * module.
    */
@@ -496,8 +489,6 @@ export interface BlockSqlAccessProvider {
   readonly memberships?: readonly AuthorizationMembership[];
   /** `blocks.invitations.options.platformRoles` defaults to this. */
   readonly platformRoles?: AuthorizationPlatformRoles;
-  /** How `ai-chat` applies `functions.canApprove`. */
-  readonly approvals?: { readonly distinctApprover?: boolean };
   /** The provider's operations table; `operationPermission` reads it. */
   readonly operations?: Readonly<Record<string, AuthorizationOperation>>;
   /**

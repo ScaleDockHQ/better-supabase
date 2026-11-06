@@ -25,7 +25,7 @@ export {
 
 export {
   nextWorkItemOccurrence,
-  workItemRecurrenceSink,
+  taskRecurrenceSink,
   type WorkItemRecurrenceSinkOptions,
 } from "./recurrence.ts";
 

@@ -39,7 +39,7 @@ export const CONFIG_GROUPS: Readonly<Record<string, readonly string[]>> = {
     "generators",
     "readSets",
   ],
-  api: ["openapi", "specs"],
+  api: ["specs"],
   tooling: ["doctor", "env", "keys", "skills"],
 };
 

@@ -91,7 +91,7 @@ export async function runDbQuery(
     config,
     env,
     dbUrl,
-    args.stack ?? env.BSB_STACK,
+    args.stack ?? env.BETTER_SUPABASE_STACK,
   );
 
   if (!isLocalDatabaseUrl(url)) {
@@ -272,7 +272,7 @@ export async function runDbDiff(
 
   let fellBack = false;
   const command = cliDiffCommand(workflow, name);
-  const stack = args.stack ?? env.BSB_STACK;
+  const stack = args.stack ?? env.BETTER_SUPABASE_STACK;
 
   // A local pg-delta project plans with the library, which gates renames and data loss.
   const url: string | null = await databaseUrl(config, env, "", stack).catch(

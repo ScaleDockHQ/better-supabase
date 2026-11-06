@@ -97,7 +97,7 @@ export type {
   StorageClient,
   StorageDestinationOptions,
   StorageDownloadOptions,
-  StorageFailure,
+  StorageError,
   StorageFetchParameters,
   StorageFileOptions,
   StorageListEntry,

@@ -652,7 +652,7 @@ export async function runBackfill(
     config,
     env,
     dbUrl,
-    args.stack ?? env.BSB_STACK,
+    args.stack ?? env.BETTER_SUPABASE_STACK,
   );
 
   if (!dryRun && !isLocalDatabaseUrl(url)) {

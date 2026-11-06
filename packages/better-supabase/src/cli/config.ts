@@ -319,7 +319,7 @@ export async function databaseUrl(
   config: ResolvedConfig,
   env: CliEnv,
   fromStdin?: string,
-  stack: string | undefined = env.BSB_STACK,
+  stack: string | undefined = env.BETTER_SUPABASE_STACK,
 ): Promise<string> {
   const given = databaseUrlCredential(config, env, fromStdin);
 

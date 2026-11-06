@@ -6,7 +6,7 @@ import { taskFromConversationFactory } from "./actions.ts";
 import { tasksEvents } from "./events.ts";
 import { tasksSqlOptions } from "./options.ts";
 import { taskChecklistBinding } from "./record-binding.ts";
-import { workItemRecurrenceSink } from "./recurrence.ts";
+import { taskRecurrenceSink } from "./recurrence.ts";
 import {
   workItemChangeSchema,
   workItemInputSchema,
@@ -28,7 +28,7 @@ export const tasksBlock: BlockOf<
   options: { tasks: tasksSqlOptions },
   consumes: { customFields: "optional" },
   events: tasksEvents,
-  provides: { sink: (client) => workItemRecurrenceSink(client) },
+  provides: { sink: (client) => taskRecurrenceSink(client) },
   create: createTasks,
   record: taskChecklistBinding,
   category: "work",

@@ -53,15 +53,6 @@ export interface AuthorizationFunctions {
    */
   readonly permissionsFor?: string;
   /**
-   * Whether the caller may decide the tool call `{tool}` (text) waits on in
-   * `{tenant}`. Without it only the chat's owner and the service role decide.
-   *
-   * @deprecated Use `isApprover`, which every module that waits for an
-   * approval reads. `canApprove` is read for tool calls only when
-   * `isApprover` is unset.
-   */
-  readonly canApprove?: string;
-  /**
    * Whether the caller may approve the request `{subject}` (text) of kind
    * `{kind}` (a text literal: `'ai-tool'` with the tool name as `{subject}`,
    * `'support-session'` with the request id, or the app's own kind) in
@@ -388,11 +379,6 @@ export interface AuthorizationProvider<Key extends string = string> {
      * the app). `blocks.permissions.scopes` is merged over it.
      */
     readonly scopes?: Readonly<Record<string, readonly string[]>>;
-  };
-  /** How `canApprove` decisions are made. */
-  readonly approvals?: {
-    /** The user who asked for the tool call can't approve it. Default `false`. */
-    readonly distinctApprover?: boolean;
   };
   /** What the provider found wrong while building this, for doctor. */
   readonly problems?: readonly string[];

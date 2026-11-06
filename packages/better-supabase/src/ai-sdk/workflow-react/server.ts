@@ -1,13 +1,13 @@
 import type { ChatTransport, UIMessage } from "ai";
 
-import type { AssistantTransportConfig } from "../../react/body.ts";
-import type { AssistantState } from "../../react/index.ts";
+import type { AssistantTransportConfig } from "../react/body.ts";
+import type { AssistantState } from "../react/index.ts";
 import type {
   DurableTransportOptions,
   UseDurableAssistantOptions,
 } from "./index.ts";
 
-export type { AssistantState } from "../../react/index.ts";
+export type { AssistantState } from "../react/index.ts";
 
 export type {
   DurableTransportOptions,

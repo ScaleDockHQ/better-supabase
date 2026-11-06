@@ -3,7 +3,7 @@ import type { DbError } from "../core/errors.ts";
 import { DbException, dbError, isDbError } from "../core/errors.ts";
 import { toDbError } from "../core/result.ts";
 
-interface StorageFailure {
+interface StorageError {
   readonly message?: string;
   readonly name?: string;
   readonly status?: number;
@@ -25,9 +25,9 @@ export function fromStorageError(raw: unknown, table?: string): DbError {
     return toDbError(raw);
   }
 
-  // SAFETY: the check above narrows raw to an object; every StorageFailure
+  // SAFETY: the check above narrows raw to an object; every StorageError
   // field is optional.
-  const failure = raw as StorageFailure;
+  const failure = raw as StorageError;
 
   if (failure.name === "AbortError") {
     return toDbError(raw);

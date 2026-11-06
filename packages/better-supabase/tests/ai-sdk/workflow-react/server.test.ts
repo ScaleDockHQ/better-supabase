@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import * as client from "../../../../src/ai-sdk/workflow/react/index.ts";
-import * as server from "../../../../src/ai-sdk/workflow/react/server.ts";
+import * as client from "../../../src/ai-sdk/workflow-react/index.ts";
+import * as server from "../../../src/ai-sdk/workflow-react/server.ts";
 
-describe("ai-sdk/workflow/react react-server build", () => {
+describe("ai-sdk/workflow-react react-server build", () => {
   it("exports the client entry's runtime names", () => {
     expect(Object.keys(server).toSorted()).toEqual(
       Object.keys(client).toSorted(),

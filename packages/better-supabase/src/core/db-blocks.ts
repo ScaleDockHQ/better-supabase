@@ -123,11 +123,6 @@ export type BlocksHelper<K, T extends PropertyKey = never> = unknown extends K
         args?: Readonly<Record<string, unknown>>,
         options?: ApiOptions,
       ): AsyncResult<unknown>;
-      /** @deprecated `$api` returns the same `Result`; call it instead. */
-      $apiResult(
-        fn: string,
-        args?: Readonly<Record<string, unknown>>,
-      ): AsyncResult<unknown>;
     };
 
 /** Options for `db.$api`: `$rpc`'s, without `schema`. */
@@ -248,19 +243,6 @@ export function blocksPrototype(
       }
 
       return this.$rpc(fn, args, { ...options, schema: source.api });
-    },
-    configurable: true,
-    enumerable: false,
-    writable: false,
-  });
-
-  Object.defineProperty(prototype, "$apiResult", {
-    value(
-      this: { $api(fn: string, args?: object): AsyncResult<unknown> },
-      fn: string,
-      args: Readonly<Record<string, unknown>> = {},
-    ): AsyncResult<unknown> {
-      return this.$api(fn, args);
     },
     configurable: true,
     enumerable: false,

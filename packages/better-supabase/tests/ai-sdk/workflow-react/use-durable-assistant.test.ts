@@ -5,11 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   durableTransport,
   useDurableAssistant,
-} from "../../../../src/ai-sdk/workflow/react/index.ts";
+} from "../../../src/ai-sdk/workflow-react/index.ts";
 import {
   durableTransport as durableTransportOnServer,
   useDurableAssistant as useDurableAssistantOnServer,
-} from "../../../../src/ai-sdk/workflow/react/server.ts";
+} from "../../../src/ai-sdk/workflow-react/server.ts";
 
 const chatHook = vi.hoisted(() => vi.fn());
 

@@ -47,7 +47,7 @@ import {
 } from "../core/problem.ts";
 import { validate } from "../core/standard.ts";
 import { boundedTtlCache } from "../core/ttl-cache.ts";
-import { buildJsonSchema } from "../generators/json-schema.ts";
+import { toJsonSchema } from "../generators/json-schema.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { withExtra } from "../server/extra.ts";
 import { defineResource } from "../server/resource.ts";
@@ -498,7 +498,7 @@ function tableTools(
   const { table, keyParam } = resource;
   const row = defs[`${table}Row`] ?? { type: "object" };
 
-  // SAFETY: buildJsonSchema writes row schemas with a properties object of JSON Schemas.
+  // SAFETY: toJsonSchema writes row schemas with a properties object of JSON Schemas.
   const key: Json | undefined = keyParam
     ? ((row["properties"] as Record<string, Json> | undefined)?.[keyParam] ?? {
         type: "string",
@@ -632,8 +632,8 @@ export function createMcp<
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
 
-  // SAFETY: buildJsonSchema always writes a $defs map of JSON Schemas.
-  const defs = buildJsonSchema({
+  // SAFETY: toJsonSchema always writes a $defs map of JSON Schemas.
+  const defs = toJsonSchema({
     meta: betterSupabase.meta,
     config: { json: options.json ?? {} },
   })["$defs"] as Record<string, Json>;

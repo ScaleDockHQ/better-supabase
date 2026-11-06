@@ -4,7 +4,7 @@
 import type { UIMessage } from "ai";
 
 import { useAssistant } from "better-supabase/ai-sdk/react";
-import { useDurableAssistant } from "better-supabase/ai-sdk/workflow/react";
+import { useDurableAssistant } from "better-supabase/ai-sdk/workflow-react";
 import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";

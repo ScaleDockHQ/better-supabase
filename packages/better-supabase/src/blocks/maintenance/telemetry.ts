@@ -169,7 +169,7 @@ export function parseOtlpMetrics(body: unknown): readonly TelemetryPoint[] {
 }
 
 /** A failed meter update in a summary. */
-export interface TelemetryFailure {
+export interface TelemetryError {
   readonly meterId: string;
   readonly error: DbError;
 }
@@ -181,7 +181,7 @@ export interface TelemetrySummary {
   readonly unmapped: number;
   /** Meters whose reading was written. */
   readonly updated: readonly string[];
-  readonly failures: readonly TelemetryFailure[];
+  readonly failures: readonly TelemetryError[];
 }
 
 export interface TelemetryIngestOptions {
@@ -236,7 +236,7 @@ export async function ingestTelemetry(
   }
 
   const updated: string[] = [];
-  const failures: TelemetryFailure[] = [];
+  const failures: TelemetryError[] = [];
 
   for (const [meterId, point] of best) {
     const result = await options.maintenance.recordReading({

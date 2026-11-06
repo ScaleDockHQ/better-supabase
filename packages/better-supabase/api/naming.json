@@ -1,0 +1,213 @@
+{
+  "version": 1,
+  "words": {
+    "tenant": "The unit that owns rows. Never `organization` as a concept; a fixture table may be called `organizations`.",
+    "record type": "A kind of record blocks attach to. Never `subject` in new names.",
+    "member": "A tenant membership.",
+    "user": "A row in `auth.users`.",
+    "actor": "Whoever runs a statement.",
+    "block": "A feature module, installed as an instance.",
+    "module": "A generated SQL file.",
+    "app file": "A SQL file the app owns."
+  },
+  "env": {
+    "prefix": "BETTER_SUPABASE_",
+    "platform": [
+      "SUPABASE_",
+      "NEXT_PUBLIC_",
+      "EXPO_PUBLIC_",
+      "PUBLIC_",
+      "VERCEL_",
+      "CRON_SECRET",
+      "NODE_ENV",
+      "CI",
+      "DATABASE_URL",
+      "HOME",
+      "XDG_CONFIG_HOME"
+    ]
+  },
+  "bannedTypeSuffixes": [
+    "Settings",
+    "Args",
+    "Failure"
+  ],
+  "subpathPattern": "^\\./[a-z0-9-]+(/[a-z0-9-]+)?(/[a-z*0-9-]+\\.json)?$",
+  "renames": [
+    {
+      "from": "AUTH_HOOK_SECRET",
+      "to": "BETTER_SUPABASE_AUTH_HOOK_SECRET",
+      "kind": "env",
+      "since": "0.54"
+    },
+    {
+      "from": "BEFORE_USER_CREATED_SECRET",
+      "to": "BETTER_SUPABASE_BEFORE_USER_CREATED_SECRET",
+      "kind": "env",
+      "since": "0.54"
+    },
+    {
+      "from": "BSB_CLOUD_URL",
+      "to": "BETTER_SUPABASE_CLOUD_URL",
+      "kind": "env",
+      "since": "0.54"
+    },
+    {
+      "from": "BSB_STACK",
+      "to": "BETTER_SUPABASE_STACK",
+      "kind": "env",
+      "since": "0.54"
+    },
+    {
+      "from": "buildJsonSchema",
+      "to": "toJsonSchema",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "buildApiModel",
+      "to": "defineApiModel",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "createRuleSink",
+      "to": "automationSink",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "workItemRecurrenceSink",
+      "to": "taskRecurrenceSink",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "SessionEntryConfig",
+      "to": "SessionEntryOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "GuardEntryConfig",
+      "to": "GuardEntryOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ai-sdk/workflow/react",
+      "to": "ai-sdk/workflow-react",
+      "kind": "subpath",
+      "since": "0.54"
+    },
+    {
+      "from": "ChainProofFailure",
+      "to": "ChainProofError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ParseScaledFailure",
+      "to": "ParseScaledError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "RefreshFailure",
+      "to": "RefreshError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "StorageFailure",
+      "to": "StorageError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "SvelteKitFailure",
+      "to": "SvelteKitError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TelemetryFailure",
+      "to": "TelemetryError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "XhrFailure",
+      "to": "XhrError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "AgentPassthroughSettings",
+      "to": "AgentPassthroughOptions",
+      "kind": "type",
+      "since": "0.54"
+    }
+  ],
+  "allowlist": {
+    "env": [],
+    "typeNames": [
+      "AccountingSettings",
+      "ActionArgs",
+      "AddArgs",
+      "AggregateArgs",
+      "Args",
+      "AssistantRunArgs",
+      "AuthFailure",
+      "BlockActionArgs",
+      "BoundArgs",
+      "BucketSettings",
+      "BulkActionArgs",
+      "CliArgs",
+      "CodemodArgs",
+      "CountArgs",
+      "CursorPageArgs",
+      "DataListArgs",
+      "DeleteArgs",
+      "DoctorArgs",
+      "DurableTurnAgentArgs",
+      "EveDispatchArgs",
+      "EveScheduleArgs",
+      "GenerationRunArgs",
+      "GetArgs",
+      "GuardsFindArgs",
+      "HookArgs",
+      "IdempotencySettings",
+      "IncludeArgs",
+      "InitArgs",
+      "KeysArgs",
+      "ListArgs",
+      "ManyWriteArgs",
+      "MembershipsFindArgs",
+      "MigrateSchemaFirstArgs",
+      "OffsetPageArgs",
+      "OffsetRangeArgs",
+      "OverloadArgs",
+      "PresetSubjectSettings",
+      "QueuePurgeArgs",
+      "RateLimitSettings",
+      "ReactRouterArgs",
+      "ReadArgs",
+      "RemoveArgs",
+      "RequestArgs",
+      "RpcArgs",
+      "SearchArgs",
+      "Settings",
+      "TableArgs",
+      "TanStackStartHandlerArgs",
+      "TanStackStartServerArgs",
+      "TrashDeleteArgs",
+      "TrashFindArgs",
+      "UpdateArgs",
+      "UpsertArgs",
+      "UpsertManyArgs",
+      "WriteArgs",
+      "WriteManyArgs"
+    ],
+    "subpaths": []
+  }
+}

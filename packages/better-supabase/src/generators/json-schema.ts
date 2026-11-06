@@ -148,7 +148,7 @@ function withLabels(
  * `target` lowers the document to draft-07 or the OpenAPI 3.0 dialect, which
  * keep the schemas under `definitions`.
  */
-export function buildJsonSchema(
+export function toJsonSchema(
   input: DocsSource,
   id?: string,
   target: JsonSchemaTarget = "draft-2020-12",
@@ -259,12 +259,7 @@ export function jsonSchema(
 
       const extras = extraSchemas(input);
 
-      const document = buildJsonSchema(
-        input,
-        options.id,
-        options.target,
-        extras,
-      );
+      const document = toJsonSchema(input, options.id, options.target, extras);
 
       return [
         {

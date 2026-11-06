@@ -45,31 +45,11 @@ describe("resolveConfig specs", () => {
     });
   });
 
-  it("reads the deprecated openapi key as an alias", () => {
-    expect(
-      resolveConfig(
-        // oxlint-disable-next-line typescript/no-deprecated -- the alias under test
-        { api: { openapi: { entry: "api.ts", output: "docs/openapi.json" } } },
-        "/app",
-      ).specs,
-    ).toEqual({
-      entry: "api.ts",
-      outputs: [{ format: "openapi", output: "docs/openapi.json" }],
-      failOn: "error",
-    });
-  });
-
-  it("prefers specs over openapi", () => {
+  it("reads specs", () => {
     const outputs = [{ format: "asyncapi" }] as const;
     expect(
       resolveConfig(
-        {
-          api: {
-            // oxlint-disable-next-line typescript/no-deprecated -- the alias under test
-            openapi: { entry: "old.ts" },
-            specs: { entry: "new.ts", outputs, failOn: "warning" },
-          },
-        },
+        { api: { specs: { entry: "new.ts", outputs, failOn: "warning" } } },
         "/app",
       ).specs,
     ).toEqual({ entry: "new.ts", outputs, failOn: "warning" });

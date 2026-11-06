@@ -22,7 +22,7 @@ export const STACK_ARG = {
   stack: {
     type: "string",
     description:
-      "Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack",
+      "Use the stack in supabase/stacks/<name>/config.toml (default $BETTER_SUPABASE_STACK) instead of the default local stack",
     valueHint: "name",
   },
 } as const;

@@ -20,7 +20,7 @@ import type {
 
 import { openapiFormat } from "../openapi/format.ts";
 import { publishedBlocks } from "./build-blocks.ts";
-import { buildApiModel, publishedResources } from "./build.ts";
+import { defineApiModel, publishedResources } from "./build.ts";
 
 /**
  * Applies Overlay documents in order to a rendered document and reports what it
@@ -152,7 +152,7 @@ export function defineApi<Ref = string>(
   source: ApiSource,
   options: DefineApiOptions<Ref>,
 ): Api {
-  const built = buildApiModel(source, options);
+  const built = defineApiModel(source, options);
   const lowered = new WeakMap<AnyDocumentFormat, Map<string, Lowered>>();
 
   const lower = (format: AnyDocumentFormat, version: string): Lowered => {

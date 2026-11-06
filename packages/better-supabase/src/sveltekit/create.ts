@@ -36,7 +36,7 @@ import { defaultExpose } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 /** SvelteKit's `fail()` result, typed structurally. */
-export interface SvelteKitFailure<T> {
+export interface SvelteKitError<T> {
   readonly status: number;
   readonly data: T;
 }
@@ -49,10 +49,7 @@ export interface SvelteKitFailure<T> {
 export interface SvelteKitHelpers {
   error(status: number, message: string): never;
   redirect(status: 303, location: string): never;
-  fail(
-    status: number,
-    data: Record<string, unknown>,
-  ): SvelteKitFailure<unknown>;
+  fail(status: number, data: Record<string, unknown>): SvelteKitError<unknown>;
 }
 
 export interface SvelteKitOptions extends FrameworkOptions {
@@ -142,7 +139,7 @@ export interface BetterSvelteKit<
   ): (
     event: SvelteKitRequestEvent,
   ) => Promise<
-    ActionResult<Unwrapped<Awaited<T>>> | SvelteKitFailure<ActionResult<never>>
+    ActionResult<Unwrapped<Awaited<T>>> | SvelteKitError<ActionResult<never>>
   >;
   /**
    * `handleError` for `hooks.server.ts`: `DbError`s keep their message and kind

@@ -31,7 +31,6 @@ import type {
   GenConfig,
   IntegrationName,
   KeysConfig,
-  OpenApiConfig,
   SkillsConfig,
   SpecsConfig,
 } from "./tooling.ts";
@@ -224,8 +223,6 @@ export interface GenGroupConfig extends GenConfig {
 
 /** The API documents `better-supabase spec emit` writes. */
 export interface ApiConfig {
-  /** @deprecated Use `specs`; `openapi.entry` and `openapi.output` map onto it. */
-  readonly openapi?: OpenApiConfig;
   /** The documents `spec emit` writes (OpenAPI, AsyncAPI, Arazzo). */
   readonly specs?: SpecsConfig;
 }

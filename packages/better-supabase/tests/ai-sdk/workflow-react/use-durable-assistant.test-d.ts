@@ -5,12 +5,12 @@ import { describe, expectTypeOf, it } from "vitest";
 import type {
   DurableTransportOptions,
   UseDurableAssistantOptions,
-} from "../../../../src/ai-sdk/workflow/react/index.ts";
+} from "../../../src/ai-sdk/workflow-react/index.ts";
 
 import {
   durableTransport,
   useDurableAssistant,
-} from "../../../../src/ai-sdk/workflow/react/index.ts";
+} from "../../../src/ai-sdk/workflow-react/index.ts";
 
 type Chat = UIMessage<{ model: string }, { note: { text: string } }>;
 

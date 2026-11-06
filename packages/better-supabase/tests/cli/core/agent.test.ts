@@ -358,18 +358,6 @@ describe("agent mode in run()", () => {
     );
   });
 
-  it("points the old skills install --agent at --for instead of agent mode", async () => {
-    const result = await cli.run(
-      ["skills", "install", "--agent", "cursor", "--json", "--cwd", dir],
-      { env: {} },
-    );
-
-    expect(result.code).toBe(2);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      error: { code: "flag_renamed" },
-    });
-  });
-
   it("answers a missing input with action_required and the next command", async () => {
     const result = await cli.run(["ask", "--cwd", dir], {
       env: { CLAUDECODE: "1" },

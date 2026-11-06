@@ -231,8 +231,6 @@ describe("impersonation approvers from the provider", () => {
         functions: {
           ...moduleProvider.functions,
           ...(isApprover === undefined ? {} : { isApprover }),
-          // oxlint-disable-next-line typescript/no-deprecated -- canApprove covers tool calls only.
-          canApprove: "authz.can_approve({tool}, {tenant})",
         },
       },
     }).find(
@@ -250,7 +248,7 @@ describe("impersonation approvers from the provider", () => {
     expect(sql).not.toContain("can_approve");
   });
 
-  it("keeps the start permission without isApprover, never canApprove", () => {
+  it("keeps the start permission without isApprover", () => {
     const sql = withApprover();
     expect(sql).not.toContain("can_approve");
     expect(sql).toContain(

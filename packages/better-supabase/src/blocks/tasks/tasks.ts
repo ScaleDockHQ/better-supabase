@@ -345,7 +345,7 @@ export interface Tasks<F extends object = Record<never, never>> {
   removeChecklistItem(checklistItemId: string): AsyncResult<boolean>;
   /**
    * Makes the item repeat (`null` stops it). Needs the reminders block;
-   * `workItemRecurrenceSink` creates the next item when one is completed.
+   * `taskRecurrenceSink` creates the next item when one is completed.
    */
   setRecurrence(input: {
     workItemId: string;

@@ -8,8 +8,7 @@ import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 
 import { CLI_CALL_FILE, SHELL_FILE } from "../codemod-calls.ts";
-import { DESIGN_FILE_NAME } from "../codemod-preset-code.ts";
-import { legacySqlNameHints } from "../codemod-sql-names.ts";
+import { DESIGN_FILE_NAME } from "../codemod-design-file.ts";
 import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
@@ -20,6 +19,8 @@ import {
   planResult,
 } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
+import { migrationsDir } from "../sql-layout.ts";
+import { stampAfter } from "../sql/migrations.ts";
 import { plain } from "../style.ts";
 
 const CODEMOD_ARGS = {
@@ -64,6 +65,9 @@ const SKIPPED_DIRS: ReadonlySet<string> = new Set([
   "coverage",
 ]);
 
+/** `.env*` files and `turbo.json`, where environment variable names live. */
+const ENV_FILE = /^(?:\.env(?:\.[\w.-]+)?|turbo\.jsonc?)$/;
+
 const SCHEMA_SQL = /(?:^|[\\/])supabase[\\/]schemas[\\/].*\.sql$/;
 
 /**
@@ -95,6 +99,7 @@ async function sourceFiles(path: string, sql: boolean): Promise<string[]> {
       (SOURCE_EXTENSIONS.has(extname(entry.name)) &&
         !entry.name.endsWith(".d.ts")) ||
       CONFIG_FILE.test(entry.name) ||
+      ENV_FILE.test(entry.name) ||
       DESIGN_FILE_NAME.test(entry.name) ||
       CLI_CALL_FILE.test(full) ||
       SHELL_FILE.test(entry.name) ||
@@ -160,8 +165,24 @@ export async function runCodemod(
     }
   }
 
-  if (codemod.sqlNames === true) {
-    review.push(...(await legacySqlNameHints(config)));
+  const sql = codemod.migration?.();
+
+  if (sql !== undefined) {
+    const dir = migrationsDir(config);
+
+    const existing: string[] = await readdir(resolve(config.root, dir)).catch(
+      () => [],
+    );
+
+    edits.push({
+      path: resolve(
+        config.root,
+        dir,
+        `${stampAfter(existing, new Date())}_better_supabase_${codemod.name}.sql`,
+      ),
+      contents: sql,
+      policy: "create",
+    });
   }
 
   const plan: FilePlan = {

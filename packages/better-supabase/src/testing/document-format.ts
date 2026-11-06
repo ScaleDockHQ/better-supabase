@@ -8,7 +8,7 @@ import type { ApiModel, JsonSchema } from "../spec/model.ts";
 import type { StandardLike } from "../spec/schemas.ts";
 import type { ConformanceReport } from "./conformance.ts";
 
-import { buildApiModel } from "../spec/build.ts";
+import { defineApiModel } from "../spec/build.ts";
 import { conform, expect, frozenCopy, same } from "./conformance.ts";
 
 export interface TestDocumentFormatOptions<V extends string = string> {
@@ -45,7 +45,7 @@ function sampleModel(): ApiModel {
     },
   };
 
-  return buildApiModel(
+  return defineApiModel(
     {
       meta: {
         version: 1,

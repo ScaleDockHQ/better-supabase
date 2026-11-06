@@ -650,90 +650,9 @@ export const COMMANDS: readonly CommandSpec[] = [
     effects: [FILES],
     subcommands: [
       {
-        name: "0.4",
-        description: "Renames from 0.3 to 0.4",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.5",
-        description: "Renames from 0.4 to 0.5",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.6",
-        description: "Changes from 0.5 to 0.6: kits become blocks and modules",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.9",
+        name: "naming",
         description:
-          "Changes from 0.8 to 0.9: sql.modules becomes blocks, and CLI calls use the new subcommands and flags",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.11",
-        description:
-          "Changes from 0.10 to 0.11: adopted outgoing webhooks get an explicit defaultFormat",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.15",
-        description:
-          "Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, renamed blocks take their 0.15 names, and CLI calls use the new commands",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.29",
-        description:
-          "Changes from 0.28 to 0.29: records is renamed back to subjects in the config, and record tags in the schema files become subject tags",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.32",
-        description:
-          "Changes from 0.31 to 0.32: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.35",
-        description:
-          "The 0.36 part of the 0.35 to 0.37 changes, as 0.36.0 shipped it: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone. Prefer codemod 0.37",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.37",
-        description:
-          "Changes from 0.35 to 0.37: the proxy refreshes on every request, session cookies go through @supabase/ssr, the cookie codec and prefetch predicates are gone, and stock quantities are numeric",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.46",
-        description:
-          "Changes from 0.45 to 0.46: permission keys use the block name as their area and the read, write and manage verbs",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.47",
-        description:
-          "Changes from 0.46 to 0.47: entity keys equal the entity's singular, hint codes start with the entity's new name, the work_item, engagement and policy subject types become task, activity and compliance_policy, event types are named <entity>.<past verb>, and saved events split into created and updated",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.53",
-        description:
-          "Changes from 0.52 to 0.53: blockConfig is imported from blocks.config.ts, so client components stop importing every installed block client",
+          "Applies the renames in api/naming.json: exports, types, environment variables and, for installed blocks, renamed SQL objects",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },

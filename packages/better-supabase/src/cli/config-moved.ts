@@ -21,7 +21,7 @@ const TABLES_REMOVED =
 const MOVED_SQL_KEYS: readonly (readonly [string, string])[] = [
   [
     "modules",
-    "moved to the top-level `blocks` key in 0.9; run `better-supabase codemod 0.9`",
+    "moved to the top-level `blocks` key in 0.9; upgrade to 0.53 with that release first",
   ],
   [
     "naming",
@@ -58,7 +58,7 @@ const SCAFFOLD_REMOVED =
 const REMOVED_KEYS: ReadonlyMap<string, string> = new Map([
   [
     "plugins",
-    "removed in 0.15: the updated-at, created-by, trash and memberships blocks carry these columns now; run `better-supabase codemod 0.15`",
+    "removed in 0.15: the updated-at, created-by, trash and memberships blocks carry these columns now; upgrade to 0.53 with that release first",
   ],
   ["scaffold", SCAFFOLD_REMOVED],
   ["tables", TABLES_REMOVED],
@@ -70,7 +70,7 @@ const REMOVED_KEYS: ReadonlyMap<string, string> = new Map([
 ]);
 
 const RECORD_TYPES_MOVED =
-  "renamed to `gen.recordTypes` in 0.15; run `better-supabase codemod 0.15`";
+  "renamed to `gen.recordTypes` in 0.15; upgrade to 0.53 with that release first";
 
 /** Keys of the flat 0.14 config in one config block. */
 function movedGroupIssues(prefix: string, block: unknown): string[] {
@@ -115,7 +115,7 @@ function movedGroupIssues(prefix: string, block: unknown): string[] {
     return moved === undefined
       ? []
       : [
-          `${prefix}${key}: moved to \`${moved}\` in 0.15; run \`better-supabase codemod 0.15\``,
+          `${prefix}${key}: moved to \`${moved}\` in 0.15; upgrade to 0.53 with that release first`,
         ];
   });
 }

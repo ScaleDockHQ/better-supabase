@@ -838,23 +838,6 @@ export {
 
 export type BlockEventType<M extends EventMap = EventMap> = keyof M & string;
 
-/**
- * Event types that changed name in 0.6, old to new, for sinks and consumers
- * that still receive the old ones (`BLOCK_EVENT_RENAMES[type] ?? type`).
- * `better-supabase codemod 0.6` rewrites the string literals.
- */
-export const BLOCK_EVENT_RENAMES: Readonly<Record<string, string>> = {
-  "org.created": "organization.created",
-  "org.updated": "organization.updated",
-  "org.deleted": "organization.deleted",
-  "org.member_added": "organization.member_added",
-  "org.member_removed": "organization.member_removed",
-  "org.member_left": "organization.member_left",
-  "org.role_changed": "organization.role_changed",
-  "org.ownership_transferred": "organization.ownership_transferred",
-  "org.switched": "organization.switched",
-};
-
 /** Where an event came from, beyond its data. */
 export interface BlockEventMeta {
   /** E.g. `organizations/<id>`; becomes the CloudEvents `subject`. */

@@ -224,7 +224,6 @@ describe("ai-chat module", () => {
 
 describe("ai-chat tool approvals with the provider's approver templates", () => {
   const withProvider = (
-    distinctApprover?: boolean,
     isApprover?: string,
     model: "provider" | "roles" = "provider",
   ) =>
@@ -237,19 +236,13 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
         functions: {
           idsWith: "authz.ids_with({permission}, {scope})",
           isPlatform: "authz.is_platform({permission})",
-          // oxlint-disable-next-line typescript/no-deprecated -- the deprecated template still works.
-          canApprove: "authz.can_approve({tool}, {tenant})",
           ...(isApprover === undefined ? {} : { isApprover }),
         },
-        ...(distinctApprover === undefined
-          ? {}
-          : { approvals: { distinctApprover } }),
       },
     })!;
 
   it("asks isApprover with kind ai-tool and the tool name, never the requester", () => {
     const sql = withProvider(
-      false,
       "authz.is_approver({kind}, {subject}, {tenant}, '{scope}')",
     );
 
@@ -264,7 +257,6 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
 
   it("ignores the provider outside the provider access model", () => {
     const sql = withProvider(
-      true,
       "authz.is_approver({kind}, {subject}, {tenant})",
       "roles",
     );
@@ -273,20 +265,11 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
     expect(sql).not.toContain("can_approve");
   });
 
-  it("lets the owner decide without canApprove", () => {
+  it("lets the owner decide without isApprover", () => {
     const sql = body();
     const decide = sql.slice(sql.indexOf("decide_ai_tool_approval"));
     expect(decide).toContain("= (select auth.uid())");
     expect(decide).not.toContain("can_approve");
-  });
-
-  it("asks canApprove, and keeps the requester out with distinctApprover", () => {
-    const shared = withProvider();
-    expect(shared).toMatch(/coalesce\(\(authz\.can_approve\(v_row\."tool"/);
-    expect(shared).not.toContain("is distinct from (select auth.uid())");
-    expect(withProvider(true)).toMatch(
-      /is distinct from \(select auth\.uid\(\)\) and coalesce\(\(authz\.can_approve/,
-    );
   });
 
   it("records token usage on the usage block's meters", () => {
