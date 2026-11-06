@@ -1,5 +1,17 @@
 # better-supabase
 
+## 0.55.0
+
+### Minor Changes
+
+- [#727](https://github.com/ScaleDockHQ/better-supabase/pull/727) [`5d9812b`](https://github.com/ScaleDockHQ/better-supabase/commit/5d9812b58cde797be6cd44d27f8e68053f35a162) Thanks [@martijn00](https://github.com/martijn00)! - Record templates live in the same tables as the records they create. A template is still a row in `templates`. Its content is a versioned body, or rows whose `template_id` is set. Tasks, quotes, invoices, orders and purchase orders opt in with `options.templates`. An app table opts in with the `@bsb template` tag.
+  
+  While `template_id` is set, numbering, search, pipelines, the state machine and domain events skip the row. Audit still records the edit. `clone_task`, `clone_quote` and `clone_invoice` copy a row and its children. `instantiate_template` creates a record from a published template and writes `template_applications`. `pack_template` and `unpack_template` move a rows template through its version body.
+
+### Patch Changes
+
+- [#731](https://github.com/ScaleDockHQ/better-supabase/pull/731) [`101f4ea`](https://github.com/ScaleDockHQ/better-supabase/commit/101f4ea0721afe538db4ef9a92654eb3a90e73a1) Thanks [@mick340](https://github.com/mick340)! - The PowerSync upload routes replay with `{ override: true }`, so a row written offline keeps the `created_at`, `updated_at`, actor and trash values its device stamped. Before, the timestamps plugin refused them and every offline insert on a table with timestamps was discarded.
+
 ## 0.54.0
 
 ### Minor Changes

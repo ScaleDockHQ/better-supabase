@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.55.0 (2026-11-06)
+
+- Record templates live in the same tables as the records they create. A template is still a row in `templates`. Its content is a versioned body, or rows whose `template_id` is set. Tasks, quotes, invoices, orders and purchase orders opt in with `options.templates`. An app table opts in with the `@bsb template` tag.
+
+  While `template_id` is set, numbering, search, pipelines, the state machine and domain events skip the row. Audit still records the edit. `clone_task`, `clone_quote` and `clone_invoice` copy a row and its children. `instantiate_template` creates a record from a published template and writes `template_applications`. `pack_template` and `unpack_template` move a rows template through its version body.
+- The PowerSync upload routes replay with `{ override: true }`, so a row written offline keeps the `created_at`, `updated_at`, actor and trash values its device stamped. Before, the timestamps plugin refused them and every offline insert on a table with timestamps was discarded.
+
 ## 0.54.0 (2026-11-06)
 
 - Document templates take app-defined types: `options.documentTypes` names a type, the app function that builds its variables and its variable contract. Templates, text blocks, snapshots, `render_document` and `freeze_document` accept the new type, and `validateDocumentTemplate` takes the app contracts as an optional argument. The built-in contract is unchanged.
