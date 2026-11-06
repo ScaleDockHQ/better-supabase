@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:42d68d54bbfbfcb54c9c461f584f8db601be5e09db9176d3ad66952ae558e876
+-- @bsb-hash sha256:8d87c9bfd1bc783e1ed5d68bf6397c9dba2efd8bf56908f611f3f62e5fb3d4a0
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2119,7 +2119,7 @@ begin
     where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "better_supabase"."accounting_entries" y
@@ -2171,7 +2171,7 @@ begin
     v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "better_supabase"."accounting_opening_balances" y
   where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';

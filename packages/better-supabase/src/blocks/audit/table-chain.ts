@@ -254,7 +254,7 @@ export function createChain(options: ChainOptions): Chain {
       if (!signer) {
         return AsyncResult.err(
           dbError("invalid_request", "checkpoint() needs a signer", {
-            hint: "CHAIN_SIGNER",
+            hint: "AUDIT_CHAIN_SIGNER",
           }),
         );
       }

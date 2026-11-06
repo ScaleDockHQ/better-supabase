@@ -380,7 +380,7 @@ describe.skipIf(!live)("accounting", () => {
         await books
           .closeFiscalYear({ organizationId: org, fiscalYear: 2026 })
           .then(hint),
-      ).toBe("FISCAL_YEAR_CLOSED");
+      ).toBe("PERIOD_CLOSED");
 
       const after = await books
         .periods({ organizationId: org, fiscalYear: 2026 })

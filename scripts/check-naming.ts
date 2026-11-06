@@ -15,8 +15,11 @@ interface Rename {
   readonly kind:
     | "column"
     | "env"
+    | "event"
     | "function"
+    | "hint"
     | "policy"
+    | "sqlFunction"
     | "subpath"
     | "table"
     | "type";
@@ -94,6 +97,7 @@ const ROOTS = [
 ];
 
 const HISTORY = [
+  "supabase/migrations/",
   NAMING_FILE,
   "packages/better-supabase/api/exports.json",
   "CHANGELOG.md",

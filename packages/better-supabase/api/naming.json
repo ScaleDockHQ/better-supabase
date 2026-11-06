@@ -482,6 +482,48 @@
       "to": "TableValues",
       "kind": "type",
       "since": "0.54"
+    },
+    {
+      "from": "CHAIN_SIGNER",
+      "to": "AUDIT_CHAIN_SIGNER",
+      "kind": "hint",
+      "since": "0.54"
+    },
+    {
+      "from": "APPEND_ONLY",
+      "to": "TABLE_APPEND_ONLY",
+      "kind": "hint",
+      "since": "0.54"
+    },
+    {
+      "from": "FISCAL_YEAR_CLOSED",
+      "to": "PERIOD_CLOSED",
+      "kind": "hint",
+      "since": "0.54"
+    },
+    {
+      "from": "bsb.uid()",
+      "to": "better_supabase.uid()",
+      "kind": "sqlFunction",
+      "since": "0.54"
+    },
+    {
+      "from": "bsb.owns(uuid)",
+      "to": "better_supabase.owns(uuid)",
+      "kind": "sqlFunction",
+      "since": "0.54"
+    },
+    {
+      "from": "bsb.is_member(uuid)",
+      "to": "better_supabase.is_member(uuid)",
+      "kind": "sqlFunction",
+      "since": "0.54"
+    },
+    {
+      "from": "bsb.can(uuid, text)",
+      "to": "better_supabase.can(uuid, text)",
+      "kind": "sqlFunction",
+      "since": "0.54"
     }
   ],
   "allowlist": {

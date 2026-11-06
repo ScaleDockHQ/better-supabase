@@ -23,7 +23,7 @@ set search_path = ''
 as $$
 begin
   raise exception '% is append-only', tg_table_name
-    using errcode = '42501', hint = 'APPEND_ONLY';
+    using errcode = '42501', hint = 'TABLE_APPEND_ONLY';
 end;
 $$;
 ${triggerGrant("better_supabase.append_only_guard()")}

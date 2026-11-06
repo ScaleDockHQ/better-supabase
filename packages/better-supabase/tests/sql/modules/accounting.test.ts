@@ -84,7 +84,7 @@ describe("accounting module", () => {
     const sql = sqlOf();
 
     expect(sql).toContain("pg_advisory_xact_lock");
-    expect(sql).toContain("FISCAL_YEAR_CLOSED");
+    expect(sql).toContain("PERIOD_CLOSED");
     expect(sql).toContain("ACCOUNTING_ENTRY_UNBALANCED");
   });
 

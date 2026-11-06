@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:9107c3ff6d2f5acd6b70c0271b990dabbac230e19167df7854cae80a7f1a4bcb
+-- @bsb-hash sha256:7f1460083c54673401baf0541325b598694b3a927c3411cb2f5d8739f5c40c08
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2114,7 +2114,7 @@ begin
     where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "better_supabase"."accounting_entries" y
@@ -2166,7 +2166,7 @@ begin
     v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "better_supabase"."accounting_opening_balances" y
   where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';
@@ -3759,7 +3759,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:2dedfdacc75f824c731ed12bdedf1d1a2c07d92d0a35419f23c4d6a4938c3d56
+-- @bsb-hash sha256:1b1a671472984afc6877ae80fe22eb8568fa8ca3e0d5e10d36c7396d670810ac
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6006,7 +6006,7 @@ begin
     where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "better_supabase"."accounting_entries" y
@@ -6058,7 +6058,7 @@ begin
     v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "better_supabase"."accounting_opening_balances" y
   where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';
@@ -7703,7 +7703,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:2be78a7298c34221ec480a7c75ed64efcf815604ef5c3b20b5d97628999b2fc2
+-- @bsb-hash sha256:258318d732428caea21c5b3ce0b242096c99cd1343c259c1931bba1eec356b09
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9821,7 +9821,7 @@ begin
     where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "app_private"."accounting_entries" y
@@ -9873,7 +9873,7 @@ begin
     v_entry := "app_private"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "app_private"."accounting_opening_balances" y
   where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';
@@ -11466,7 +11466,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:17479689ea04480fd23f0e9aca75126665fd6a0d72d4580ad1010ba7ca4f582a
+-- @bsb-hash sha256:48392bdf275adde6d6885f7f26c9dd693c79e3811414b3bade1dd8dcc748c860
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13579,7 +13579,7 @@ begin
     where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "better_supabase"."accounting_entries" y
@@ -13631,7 +13631,7 @@ begin
     v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "better_supabase"."accounting_opening_balances" y
   where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';
@@ -15727,7 +15727,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:60b7828a81017b25c1e3eaa40baa3e42327641907b97d96673f5625a3a2221d2
+-- @bsb-hash sha256:8363056eb57891d1444517a6c4227aa630f1f58e7feaa1ec1db7e7f4d2ad83b5
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17791,7 +17791,7 @@ begin
     where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "better_supabase"."accounting_entries" y
@@ -17843,7 +17843,7 @@ begin
     v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "better_supabase"."accounting_opening_balances" y
   where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';
@@ -19423,7 +19423,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:e31ed8f00fe8e24eb6bd1ce69b35103c49f4fee17f98cfe762e50d57e3617608
+-- @bsb-hash sha256:ace2f091b0a0e2234c179a7998705170015af55ba957dd39d5ffd5ffbb19819e
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21536,7 +21536,7 @@ begin
     where y."org_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "better_supabase"."accounting_entries" y
@@ -21588,7 +21588,7 @@ begin
     v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "better_supabase"."accounting_opening_balances" y
   where y."org_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';

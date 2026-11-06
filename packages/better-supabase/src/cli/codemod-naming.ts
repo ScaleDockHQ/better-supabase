@@ -13,8 +13,11 @@ import naming from "../../api/naming.json" with { type: "json" };
 export type RenameKind =
   | "column"
   | "env"
+  | "event"
   | "function"
+  | "hint"
   | "policy"
+  | "sqlFunction"
   | "subpath"
   | "table"
   | "type";
@@ -57,6 +60,32 @@ export function renameEnvNames(
       result = result.replaceAll(
         new RegExp(`(?<![A-Za-z0-9_])${rename.from}(?![A-Za-z0-9_])`, "g"),
         rename.to,
+      );
+    }
+  }
+
+  return result;
+}
+
+/**
+ * `text` with each quoted hint code and event name in `renames` replaced. Only
+ * a whole string literal matches, so `"OLD_CODE"` changes and
+ * `"LEDGER_OLD_CODE"` does not.
+ */
+export function renameQuotedNames(
+  text: string,
+  renames: readonly NamingRename[],
+): string {
+  let result = text;
+
+  for (const rename of renames) {
+    if (rename.kind === "hint" || rename.kind === "event") {
+      result = result.replaceAll(
+        new RegExp(
+          `(["'\`])${rename.from.replaceAll(".", String.raw`\.`)}\\1`,
+          "g",
+        ),
+        `$1${rename.to}$1`,
       );
     }
   }
@@ -110,8 +139,18 @@ export function renameMigrationSql(
         ];
       }
 
+      case "sqlFunction": {
+        const toSchema = rename.to.slice(0, rename.to.indexOf("."));
+
+        return [
+          `if to_regprocedure(${literal(rename.from)}) is not null then\n    alter function ${rename.from} set schema ${quote(toSchema)};\n  end if;`,
+        ];
+      }
+
       case "env":
+      case "event":
       case "function":
+      case "hint":
       case "subpath":
       case "type": {
         return [];
@@ -142,7 +181,10 @@ export function namingCodemod(
       "Applies the renames in api/naming.json: exports, types, subpaths, environment variables and installed SQL objects",
     imports: mapOf(renames, (kind) => IDENTIFIER_KINDS.has(kind)),
     subpaths: mapOf(renames, (kind) => kind === "subpath"),
-    source: (text) => ({ text: renameEnvNames(text, renames), review: [] }),
+    source: (text) => ({
+      text: renameQuotedNames(renameEnvNames(text, renames), renames),
+      review: [],
+    }),
     migration: () => renameMigrationSql(renames),
   };
 }

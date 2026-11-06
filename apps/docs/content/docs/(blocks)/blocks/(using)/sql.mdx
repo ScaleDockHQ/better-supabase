@@ -1963,7 +1963,7 @@ renderPolicy(
     name: "notes_read",
     command: "select",
     roles: ["authenticated"],
-    using: "bsb.is_member(tenant_id)",
+    using: "better_supabase.is_member(tenant_id)",
   }),
   { drop: true },
 );
@@ -1973,13 +1973,13 @@ renderPolicy(
 
 A `Rule` is a small tree: `public`, `owner`, `member`, `can`, `compare`,
 `null`, `and`, `or` and `not`. `rulePolicy()` renders it into a policy that
-calls only `bsb.is_member`, `bsb.can`, `bsb.owns` and `bsb.uid`, and
+calls only `better_supabase.is_member`, `better_supabase.can`, `better_supabase.owns` and `better_supabase.uid`, and
 `renderRulePolicy()` puts the tree in a `-- @bsb rule` comment above the
 statement. `readRulePolicies()` recovers the tree and reports `inSync: false`
 once someone edits the SQL by hand, so a UI knows to show the SQL instead of
 the tree.
 
-`policyFunctionsSql()` returns the `bsb` schema with the four functions.
+`policyFunctionsSql()` returns the `better_supabase` schema functions `uid`, `owns`, `is_member` and `can`.
 `uid()` and `owns()` are fixed. `is_member()` and `can()` delegate to the
 functions you name, so your own tables or an authorization library answer
 them. A hand written policy is kept as it is; `disallowedPolicyCalls()` lists

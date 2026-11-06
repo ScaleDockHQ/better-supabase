@@ -5,6 +5,7 @@ import {
   namingCodemod,
   renameEnvNames,
   renameMigrationSql,
+  renameQuotedNames,
 } from "../../src/cli/codemod-naming.ts";
 import { applyCodemod } from "../../src/cli/codemod.ts";
 import { NAMING_RENAME_RULES } from "../../src/cli/doctor/naming-renames.ts";
@@ -94,9 +95,61 @@ describe("renameEnvNames", () => {
   });
 });
 
+describe("renameQuotedNames", () => {
+  const renames = [
+    { from: "OLD_CODE", to: "NEW_CODE", kind: "hint", since: "0.54" },
+    {
+      from: "thing.saved",
+      to: "thing.published",
+      kind: "event",
+      since: "0.54",
+    },
+  ] as const;
+
+  it("renames whole string literals of hints and events only", () => {
+    expect(
+      renameQuotedNames(
+        `a("OLD_CODE") b('OLD_CODE') c("LEDGER_OLD_CODE") d(\`thing.saved\`) e("thing.savedx")`,
+        renames,
+      ),
+    ).toBe(
+      `a("NEW_CODE") b('NEW_CODE') c("LEDGER_OLD_CODE") d(\`thing.published\`) e("thing.savedx")`,
+    );
+  });
+
+  it("is applied by the codemod to source files", () => {
+    const { text } = applyCodemod(
+      namingCodemod(renames),
+      'if (error.hint === "OLD_CODE") {}\n',
+    );
+
+    expect(text).toBe('if (error.hint === "NEW_CODE") {}\n');
+  });
+});
+
 describe("renameMigrationSql", () => {
   it("writes nothing for renames that touch no SQL", () => {
-    expect(renameMigrationSql(NAMING_RENAMES)).toBeUndefined();
+    expect(
+      renameMigrationSql(
+        NAMING_RENAMES.filter((rename) => rename.kind !== "sqlFunction"),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("moves renamed SQL functions to their new schema behind an existence check", () => {
+    const sql = renameMigrationSql([
+      {
+        from: "bsb.owns(uuid)",
+        to: "better_supabase.owns(uuid)",
+        kind: "sqlFunction",
+        since: "0.54",
+      },
+    ]);
+
+    expect(sql).toContain("to_regprocedure('bsb.owns(uuid)') is not null");
+    expect(sql).toContain(
+      'alter function bsb.owns(uuid) set schema "better_supabase"',
+    );
   });
 
   it("renames tables, columns and policies behind existence checks", () => {

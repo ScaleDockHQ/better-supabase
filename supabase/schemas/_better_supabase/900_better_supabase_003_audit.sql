@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:e31938efc066f5e906ca04288200bd127f7ae468a8cd3c2871f25c8b5fd8baf8
+-- @bsb-hash sha256:769f0cb4beae2c8eb46f81163a15c95e369f2387204d5b2778e229cf20550e1f
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1320,7 +1320,7 @@ set search_path = ''
 as $$
 begin
   raise exception '% is append-only', tg_table_name
-    using errcode = '42501', hint = 'APPEND_ONLY';
+    using errcode = '42501', hint = 'TABLE_APPEND_ONLY';
 end;
 $$;
 revoke execute on function better_supabase.append_only_guard() from public, anon, authenticated;
