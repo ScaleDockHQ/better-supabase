@@ -60,6 +60,75 @@ create index if not exists n_idx on "public"."notes" (id);`,
     expect(sql).not.toContain("drop policy");
   });
 
+  it("drops a named check the create table already holds inline", () => {
+    const sql = staticDdl(`create table "b"."q" (
+  "period" text check ("period" in ('day', 'week')),
+  "kind" text
+);
+alter table "b"."q" drop constraint if exists q_period_check;
+alter table "b"."q" add constraint q_period_check check ("period" in ('day', 'week'));
+alter table "b"."q" add constraint q_kind_check check ("kind" in ('a'));`);
+
+    expect(sql).not.toContain("q_period_check");
+    expect(sql).toContain("q_kind_check");
+  });
+
+  it("folds a named check that replaces an inline one into the create table", () => {
+    const sql = staticDdl(`create table "b"."t" (
+  "scope" text not null default 'a' check ("scope" in ('a', 'b')),
+  "x" int,
+  check (("scope" = 'a') = ("x" is null))
+);
+alter table "b"."t" add constraint "t_scope_check" check ("scope" in ('a', 'b', 'c'));
+alter table "b"."t" add constraint "t_check" check (("scope" = 'a') = ("x" is not null));
+alter table "b"."t" add constraint "t_other_check" check ("x" > 0);`);
+
+    expect(sql).toContain(`check ("scope" in ('a', 'b', 'c'))`);
+    expect(sql).toContain(`check (("scope" = 'a') = ("x" is not null))`);
+    expect(sql).not.toContain("t_scope_check");
+    expect(sql).not.toContain("t_check");
+    expect(sql).toContain("t_other_check");
+    expect(sql).not.toContain(";;");
+  });
+
+  it("folds a named check over an inline constraint of the same name", () => {
+    const sql = staticDdl(`create table "b"."t" (
+  "scope" text,
+  constraint t_system_check check ("scope" = 'a')
+);
+alter table "b"."t" add constraint t_system_check check (case "scope"::text
+  when 'a' then true
+  else false end);`);
+
+    expect(sql).toContain("constraint t_system_check check (case");
+    expect(sql).not.toContain("add constraint");
+  });
+
+  it("moves a check that reads a later column out of the create table", () => {
+    const sql = staticDdl(`create table "b"."t" (
+  "scope" text check ("scope" in ('a')),
+  "x" int,
+  constraint t_system_check check ("scope" = 'a')
+);
+alter table "b"."t" add column if not exists "brand" text;
+alter table "b"."t" add constraint t_system_check check ("brand" is null or "scope" = 'a');
+alter table "b"."t" add constraint t_scope_check check ("brand" is null);`);
+
+    expect(sql).not.toContain(
+      "constraint t_system_check check (\"scope\" = 'a')",
+    );
+    expect(sql).toContain(
+      'add constraint t_system_check check ("brand" is null or',
+    );
+    expect(sql).toContain('add column "brand" text;');
+    expect(sql.indexOf('add column "brand"')).toBeLessThan(
+      sql.indexOf("add constraint t_system_check"),
+    );
+    expect(sql).toContain('"scope" text,');
+    expect(sql).toMatch(/"x" int\n\);/);
+    expect(sql).not.toContain("check (\"scope\" in ('a'))");
+  });
+
   it("leaves statements inside a function body alone", () => {
     const sql = `create function f() returns void language plpgsql as $$
 begin

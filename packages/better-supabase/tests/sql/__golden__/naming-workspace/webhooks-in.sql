@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:e0f6a1a754d2d6bf7c16c1ba04706f55d184358ad238e428d77aae2252db2a96
+-- @bsb-hash sha256:d7147d875869f981a44e9bba3344eef41eaa786641f316d67868725015bf2325
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -34,7 +34,6 @@ create table "better_supabase"."incoming_webhooks" (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table "better_supabase"."incoming_webhooks" add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));
 create index incoming_webhooks_tenant_idx on "better_supabase"."incoming_webhooks" (tenant);
 create index incoming_webhooks_subject_idx on "better_supabase"."incoming_webhooks" (tenant, subject_type, subject_id);
 create index incoming_webhooks_created_by_idx on "better_supabase"."incoming_webhooks" (created_by) where created_by is not null;

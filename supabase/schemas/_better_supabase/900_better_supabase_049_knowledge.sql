@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:43a3ef6841646524c64e2ed6e4e8b9c813d36b4c2c6eb880b3d22d4de7742b76
+-- @bsb-hash sha256:bbdb35ed152bf230567c43ad4a79396dd61faf69b856ce700a146f3573765da6
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -252,7 +252,7 @@ create table "better_supabase"."knowledge_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "scope" text not null default 'user' check ("scope" in ('organization', 'agent', 'project', 'chat', 'user')),
+  "scope" text not null default 'user' check ("scope" in ('organization', 'agent', 'project', 'chat', 'user', 'subject')),
   "scope_id" uuid,
   "file_id" uuid references "better_supabase"."ai_files" ("id") on delete cascade,
   "title" text not null check (length("title") >= 1 and length("title") <= 500),
@@ -264,14 +264,12 @@ create table "better_supabase"."knowledge_documents" (
   "embedding_model" text,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("scope" = 'organization') = ("scope_id" is null)),
+  check (("scope" in ('organization', 'subject')) = ("scope_id" is null)),
   constraint knowledge_documents_system_check check ("organization_id" is not null or ("scope" = 'organization' and "owner_id" is null))
 );
 alter table "better_supabase"."knowledge_documents" add column "collection_id" uuid references "better_supabase"."knowledge_collections" ("id") on delete set null;
 alter table "better_supabase"."knowledge_documents" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
 alter table "better_supabase"."knowledge_documents" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."knowledge_documents" add constraint "knowledge_documents_scope_check" check ("scope" in ('organization', 'agent', 'project', 'chat', 'user', 'subject'));
-alter table "better_supabase"."knowledge_documents" add constraint "knowledge_documents_check" check (("scope" in ('organization', 'subject')) = ("scope_id" is null));
 alter table "better_supabase"."knowledge_documents" add constraint knowledge_documents_subject_check check (("scope" = 'subject') = ("subject_type" is not null and "subject_id" is not null));
 create index knowledge_documents_subject_idx on "better_supabase"."knowledge_documents" ("subject_type", "subject_id") where "subject_type" is not null;
 create index knowledge_documents_tenant_idx on "better_supabase"."knowledge_documents" ("organization_id", "scope", "scope_id");

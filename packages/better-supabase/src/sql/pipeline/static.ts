@@ -1,5 +1,5 @@
 import { maskComments, statementSpans } from "../over-app-tables.ts";
-import { NAME, qualified } from "../schema-scan.ts";
+import { closingParen, NAME, qualified } from "../schema-scan.ts";
 
 const TABLE_NAME = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
 
@@ -39,9 +39,14 @@ const CONSTRAINT_WORD =
 
 const COLUMN = new RegExp(String.raw`^(${NAME})`);
 
-/** `text` split at the commas outside parentheses, quotes and dollar quotes. */
-function splitTopLevel(text: string): string[] {
-  const parts: string[] = [];
+const ADD_CHECK = new RegExp(
+  String.raw`^alter\s+table\s+(?:only\s+)?(${TABLE_NAME})\s+add\s+constraint\s+(${NAME})\s+check\s*\(([\s\S]*)\)$`,
+  "i",
+);
+
+/** The ranges of `text` between the commas outside parentheses and quotes. */
+function splitRanges(text: string): [number, number][] {
+  const ranges: [number, number][] = [];
   let depth = 0;
   let start = 0;
   let quote = "";
@@ -60,24 +65,39 @@ function splitTopLevel(text: string): string[] {
     } else if (char === ")") {
       depth -= 1;
     } else if (char === "," && depth === 0) {
-      parts.push(text.slice(start, at));
+      ranges.push([start, at]);
       start = at + 1;
     }
   }
 
-  return [...parts, text.slice(start)];
+  return [...ranges, [start, text.length]];
 }
+
+/** `text` split at the commas outside parentheses and quotes. */
+const splitTopLevel = (text: string): string[] =>
+  splitRanges(text).map(([from, to]) => text.slice(from, to));
 
 const unquoted = (name: string): string =>
   name.startsWith('"') ? name.slice(1, -1).replaceAll('""', '"') : name;
 
-/** The columns a `create table` statement declares, by table. */
-function createdColumns(
-  statements: readonly string[],
-): Map<string, Set<string>> {
-  const tables = new Map<string, Set<string>>();
+/** One `create table` statement of the file. */
+interface CreatedTable {
+  /** The statement's index among the file's statements. */
+  readonly index: number;
+  readonly columns: Set<string>;
+  /** The body with its whitespace collapsed. */
+  readonly body: string;
+  /** Offsets of the opening and closing parenthesis in the statement. */
+  readonly open: number;
+  readonly close: number;
+}
 
-  for (const statement of statements) {
+function createdTables(
+  statements: readonly string[],
+): Map<string, CreatedTable> {
+  const tables = new Map<string, CreatedTable>();
+
+  for (const [index, statement] of statements.entries()) {
     const head = CREATE_TABLE_BODY.exec(statement);
 
     if (head === null) {
@@ -85,21 +105,7 @@ function createdColumns(
     }
 
     const open = head[0].length - 1;
-    let depth = 0;
-    let close = -1;
-
-    for (let at = open; at < statement.length; at += 1) {
-      if (statement[at] === "(") {
-        depth += 1;
-      } else if (statement[at] === ")") {
-        depth -= 1;
-
-        if (depth === 0) {
-          close = at;
-          break;
-        }
-      }
-    }
+    const close = closingParen(statement, open);
 
     if (close === -1) {
       continue;
@@ -119,10 +125,145 @@ function createdColumns(
       }
     }
 
-    tables.set(qualified(head[1]!), columns);
+    tables.set(qualified(head[1]!), {
+      index,
+      columns,
+      body: statement.slice(open + 1, close).replaceAll(/\s+/g, " "),
+      open,
+      close,
+    });
   }
 
   return tables;
+}
+
+const NAMED_CONSTRAINT = new RegExp(String.raw`^constraint\s+(${NAME})\b`, "i");
+
+/**
+ * What an item of a `create table` body is called for a replacement: a column
+ * by its name, a named constraint as `constraint:<name>`, the table's unnamed
+ * check as `""`.
+ */
+function itemKey(item: string): string | undefined {
+  const trimmed = item.trim();
+  const named = NAMED_CONSTRAINT.exec(trimmed)?.[1];
+
+  if (named !== undefined) {
+    return `constraint:${unquoted(named)}`;
+  }
+
+  if (CONSTRAINT_WORD.test(trimmed)) {
+    return /^check\b/i.test(trimmed) ? "" : undefined;
+  }
+
+  return unquoted(COLUMN.exec(trimmed)?.[1] ?? "");
+}
+
+/** Whether every quoted identifier of `expression` names one of `columns`. */
+function readsOnly(expression: string, columns: ReadonlySet<string>): boolean {
+  const outside = expression.replaceAll(/'(?:[^']|'')*'/g, "''");
+
+  return [...outside.matchAll(/"((?:[^"]|"")+)"/g)].every((match) =>
+    columns.has(match[1]!.replaceAll('""', '"')),
+  );
+}
+
+/** Whether the column `key` (or, for `""`, the table) has an inline check. */
+function hasInlineCheck(
+  statement: string,
+  table: CreatedTable,
+  key: string,
+): boolean {
+  const body = statement.slice(table.open + 1, table.close);
+
+  return splitTopLevel(body).some(
+    (item) => itemKey(item) === key && /\bcheck\s*\(/i.test(item),
+  );
+}
+
+/**
+ * `statement` (a `create table`, with `lead` characters of comments before it
+ * in `original`) with the inline check of a column, or the table's own unnamed
+ * check, replaced by the expression a later `add constraint` of the auto name
+ * would have written. A schema diff holds one check per name, so the file
+ * declares the one that wins.
+ */
+function withInlineChecks(
+  original: string,
+  masked: string,
+  table: CreatedTable,
+  lead: number,
+  overrides: ReadonlyMap<string, string | null>,
+): string {
+  const bodyMasked = masked.slice(table.open + 1, table.close);
+  const start = lead + table.open + 1;
+  let out = original;
+  const ranges = splitRanges(bodyMasked);
+
+  for (const [at, [from, to]] of ranges.entries().toArray().toReversed()) {
+    const item = bodyMasked.slice(from, to);
+    const key = itemKey(item);
+    const expression = key === undefined ? undefined : overrides.get(key);
+
+    if (expression === undefined) {
+      continue;
+    }
+
+    if (expression === null) {
+      // The check reads a column a later statement adds, so the `create table`
+      // drops it and the `add constraint` stays after that column.
+      const own = key === "" || key?.startsWith("constraint:") === true;
+
+      if (own) {
+        const last = at === ranges.length - 1;
+
+        const trailing = item.length - item.trimEnd().length;
+
+        const [cutFrom, cutTo] = last
+          ? at > 0
+            ? [ranges[at - 1]![1], to - trailing]
+            : [from, to - trailing]
+          : [from, to + 1];
+
+        out = `${out.slice(0, start + cutFrom)}${out.slice(start + cutTo)}`;
+      } else {
+        const opens = [...item.matchAll(/\bcheck\s*\(/gi)];
+        const final = opens.at(-1);
+
+        if (final !== undefined) {
+          const open = final.index + final[0].length - 1;
+          const close = closingParen(item, open);
+
+          if (close !== -1) {
+            const before = item.slice(0, final.index);
+            const keep = before.length - before.trimEnd().length;
+
+            out = `${out.slice(0, start + from + final.index - keep)}${out.slice(start + from + close + 1)}`;
+          }
+        }
+      }
+
+      continue;
+    }
+
+    const opens = [...item.matchAll(/\bcheck\s*\(/gi)];
+    const last = opens.at(-1);
+
+    if (last === undefined) {
+      continue;
+    }
+
+    const open = last.index + last[0].length - 1;
+    const close = closingParen(item, open);
+
+    if (close === -1) {
+      continue;
+    }
+
+    out = `${out.slice(0, start + from + open + 1)}${expression}${out.slice(start + from + close)}`;
+  }
+
+  return out;
 }
 
 const ADD_COLUMN = new RegExp(
@@ -138,7 +279,7 @@ const ADD_COLUMN = new RegExp(
  */
 function staticAlter(
   statement: string,
-  created: ReadonlyMap<string, ReadonlySet<string>>,
+  created: ReadonlyMap<string, CreatedTable>,
   appTables: ReadonlySet<string>,
   keepIfNotExists: boolean,
 ): string | undefined {
@@ -159,7 +300,7 @@ function staticAlter(
   const kept = clauses.flatMap((clause) => {
     const name = unquoted(ADD_COLUMN.exec(clause)![1]!);
 
-    if (!app && created.get(table)?.has(name) === true) {
+    if (!app && created.get(table)?.columns.has(name) === true) {
       return [];
     }
 
@@ -202,7 +343,69 @@ export function staticDdl(
     return { lead, text: masked.slice(lead).replace(/;$/, "").trim() };
   });
 
-  const created = createdColumns(texts.map((entry) => entry.text));
+  const created = createdTables(texts.map((entry) => entry.text));
+
+  // A check added by name to a table the same file creates replaces the inline
+  // check of that name (a column's `<table>_<column>_check` or the table's
+  // `<table>_check`), so the `create table` holds the expression that wins and
+  // the statement goes.
+  const overrides = new Map<string, Map<string, string | null>>();
+  const redundant = new Set<number>();
+
+  for (const [index, { text }] of texts.entries()) {
+    const check = ADD_CHECK.exec(text);
+
+    if (check === null) {
+      continue;
+    }
+
+    const table = qualified(check[1]!);
+    const made = created.get(table);
+
+    if (made === undefined) {
+      continue;
+    }
+
+    const expression = check[3]!.replaceAll(/\s+/g, " ").trim();
+
+    if (made.body.includes(`check (${expression})`)) {
+      redundant.add(index);
+
+      continue;
+    }
+
+    const name = unquoted(check[2]!);
+    const base = table.slice(table.lastIndexOf(".") + 1);
+
+    const inline = texts[made.index]!.text;
+    const named = `constraint:${name}`;
+
+    const key = hasInlineCheck(inline, made, named)
+      ? named
+      : name === `${base}_check`
+        ? ""
+        : [...made.columns].find(
+            (column) => name === `${base}_${column}_check`,
+          );
+
+    if (
+      key === undefined ||
+      !hasInlineCheck(texts[made.index]!.text, made, key)
+    ) {
+      continue;
+    }
+
+    const held = overrides.get(table) ?? new Map<string, string | null>();
+
+    if (readsOnly(check[3]!, made.columns)) {
+      held.set(key, check[3]!.trim());
+      redundant.add(index);
+    } else {
+      held.set(key, null);
+    }
+
+    overrides.set(table, held);
+  }
 
   return spans
     .map(([from, to], index) => {
@@ -217,6 +420,20 @@ export function staticDdl(
 
       const body = original.slice(lead).replace(/;$/, "");
 
+      const head = CREATE_TABLE_BODY.exec(text);
+
+      const made = head === null ? undefined : created.get(qualified(head[1]!));
+
+      const held =
+        head === null ? undefined : overrides.get(qualified(head[1]!));
+
+      const replaced =
+        made !== undefined && held !== undefined && made.index === index
+          ? withInlineChecks(original, text, made, lead, held)
+              .slice(lead)
+              .replace(/;$/, "")
+          : body;
+
       const table = CREATE_TABLE.exec(text);
 
       if (
@@ -224,7 +441,11 @@ export function staticDdl(
         options.keepIfNotExists !== true &&
         !appTables.has(qualified(table[2]!))
       ) {
-        return `${prefix}${body.replace(/^(create\s+(?:unlogged\s+)?table\s+)if\s+not\s+exists\s+/i, "$1")}${semicolon}`;
+        return `${prefix}${replaced.replace(/^(create\s+(?:unlogged\s+)?table\s+)if\s+not\s+exists\s+/i, "$1")}${semicolon}`;
+      }
+
+      if (replaced !== body) {
+        return `${prefix}${replaced.replace(/;$/, "")}${semicolon}`;
       }
 
       const indexed = CREATE_INDEX.exec(text);
@@ -235,6 +456,10 @@ export function staticDdl(
         !appTables.has(qualified(indexed[3]!))
       ) {
         return `${prefix}${body.replace(/^(create\s+(?:unique\s+)?index\s+)(?:concurrently\s+)?if\s+not\s+exists\s+/i, "$1")}${semicolon}`;
+      }
+
+      if (redundant.has(index)) {
+        return prefix.trim() === "" ? "" : prefix.replace(/\s+$/, "\n");
       }
 
       const altered = staticAlter(

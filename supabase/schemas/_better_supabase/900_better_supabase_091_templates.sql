@@ -1,6 +1,6 @@
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:0bd8dc18e180d1d870b9ccc4a363b629812ea547592125eeffca8b248ba2aa4d
+-- @bsb-hash sha256:298a14443f489df5c8585a9bcafc439c7f6f9dc5f2399bde465fae62bf31e4d1
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,7 +13,7 @@ create extension if not exists pgcrypto with schema extensions;
 create table "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
+  "scope" text not null default 'tenant' check ("scope" in ('tenant', 'brand', 'system')),
   "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
   "type" text not null check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -25,14 +25,12 @@ create table "better_supabase"."templates" (
   "forked_from_version" integer check ("forked_from_version" > 0),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now(),
-  constraint templates_system_check check (("scope" = 'system') = ("tenant_id" is null))
+  "updated_at" timestamptz not null default now()
 );
 -- Brand starters (options.brand): no tenant, a brand, read by every tenant
 -- whose "public"."organizations"."brand" matches. The key and default indexes
 -- count the brand, so each brand keeps its own keys and defaults.
 alter table "better_supabase"."templates" add column "brand" text check (length("brand") >= 1 and length("brand") <= 100);
-alter table "better_supabase"."templates" add constraint "templates_scope_check" check ("scope" in ('tenant', 'brand', 'system'));
 alter table "better_supabase"."templates" add constraint templates_system_check check (case "scope"::text
   when 'tenant' then "tenant_id" is not null and "brand" is null
   when 'brand' then "tenant_id" is null and "brand" is not null

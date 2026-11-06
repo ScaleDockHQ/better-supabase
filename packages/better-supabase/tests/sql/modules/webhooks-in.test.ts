@@ -168,8 +168,9 @@ describe("webhooks-in module", () => {
   it("accepts a shared secret header mode with its own default header", () => {
     const sql = moduleBody("webhooks-in")!;
     expect(sql).toContain(
-      "add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));",
+      "check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'))",
     );
+    expect(sql).not.toContain("add constraint incoming_webhooks_verify_check");
     expect(sql).toContain(
       "when 'shared-secret' then coalesce(signature_header, null, 'x-webhook-secret')",
     );

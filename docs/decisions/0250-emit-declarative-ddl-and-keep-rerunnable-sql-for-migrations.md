@@ -26,6 +26,13 @@ file's `create table` declares is not added again. A table the app owns keeps
 them. The app tables file keeps `if not exists` everywhere, since its tables may
 exist in files the block can't see, and loses only the drops.
 
+A check that a later `add constraint` replaces by name (a column's
+`<table>_<column>_check`, the table's `<table>_check` or a named inline
+constraint) goes into the `create table` with its final expression, and the
+`add constraint` goes, because a schema diff holds one constraint per name. A
+replacement that reads a column a later statement adds leaves the `create
+table` and stays as the `add constraint` after that column.
+
 `rerunnableDdl` does the reverse for a layout with `rerunnable: true`: a `drop
 policy if exists` before each `create policy`, a `drop trigger if exists` before
 each `create trigger`, a `drop constraint if exists` before each `add
@@ -40,6 +47,12 @@ rerunnable, and `migrationBetween` renders both designs that way.
 add constraint` instead of a `do` block, `ownRowPolicies`, `lockTable`,
 `updatedAt` and `recordTrigger` use the builders, and the tenant scope no longer
 opens each file with a `do` block that drops its policies.
+
+The result loads into Postgres through pg-delta: `supabase db schema
+declarative sync --strict-coverage` reads the repository's module files into a
+shadow database and reports no schema changes after the migration that removes
+the `api` wrappers of the prelude helpers and the constraint hash comments,
+and `pnpm supabase:test` passes all 172 pgTAP files.
 
 ## Alternatives considered
 

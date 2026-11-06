@@ -1,6 +1,6 @@
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:09e3c20b55ce9ec272df1e5691e539e65f909b8333e4e0353dfa059fc562d916
+-- @bsb-hash sha256:5124be75c0d6e378ca6825f98e4c78aec5a297b1f24d43ca3fcca99babc9f233
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -80,7 +80,6 @@ create table "better_supabase"."usage_quotas" (
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
 alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
-alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
