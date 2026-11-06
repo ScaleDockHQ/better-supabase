@@ -10,6 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { Codemod } from "../../../src/cli/codemod.ts";
+
 import { CODEMODS } from "../../../src/cli/codemod.ts";
 import {
   codemodCommand,
@@ -92,6 +94,34 @@ describe("runCodemod", () => {
     expect((await codemod(["naming", "missing"])).output).toBe(
       "Nothing to change in 0 files.",
     );
+  });
+
+  it("writes the SQL a codemod returns as one new migration", async () => {
+    // SAFETY: CODEMODS is a plain object; the test adds one entry and removes it.
+    const registry = CODEMODS as Record<string, Codemod>;
+
+    registry["with-sql"] = {
+      name: "with-sql",
+      description: "test",
+      migration: () => "select 1;\n",
+    };
+
+    try {
+      await runCodemod(
+        resolveConfig({}, root),
+        parseCommandArgs(codemodCommand("naming"), ["with-sql"]),
+      );
+    } finally {
+      delete registry["with-sql"];
+    }
+
+    const names = await readdir(join(root, "supabase/migrations"));
+
+    expect(names).toHaveLength(1);
+    expect(names[0]).toMatch(/^\d{14}_better_supabase_with-sql\.sql$/u);
+    expect(
+      await readFile(join(root, "supabase/migrations", names[0]!), "utf-8"),
+    ).toBe("select 1;\n");
   });
 
   it("writes no SQL migration while the table has no SQL renames", async () => {

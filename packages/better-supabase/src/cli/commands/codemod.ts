@@ -7,9 +7,7 @@ import type { FilePlan, PlannedFile } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 
-import { CLI_CALL_FILE, SHELL_FILE } from "../codemod-calls.ts";
-import { DESIGN_FILE_NAME } from "../codemod-design-file.ts";
-import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
+import { applyCodemod, CODEMODS } from "../codemod.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import {
@@ -68,14 +66,12 @@ const SKIPPED_DIRS: ReadonlySet<string> = new Set([
 /** `.env*` files and `turbo.json`, where environment variable names live. */
 const ENV_FILE = /^(?:\.env(?:\.[\w.-]+)?|turbo\.jsonc?)$/;
 
-const SCHEMA_SQL = /(?:^|[\\/])supabase[\\/]schemas[\\/].*\.sql$/;
-
 /**
- * Source, config and script files under `path`, skipping dependencies, build
- * output and `.d.ts` files. With `sql`, the `.sql` files under
- * `supabase/schemas` too; migrations stay as they are.
+ * Source and env files under `path`, skipping dependencies, build output and
+ * `.d.ts` files. SQL stays as it is: a rename of installed objects is one new
+ * migration.
  */
-async function sourceFiles(path: string, sql: boolean): Promise<string[]> {
+async function sourceFiles(path: string): Promise<string[]> {
   const info = await stat(path).catch(() => undefined);
 
   if (!info) {
@@ -83,7 +79,7 @@ async function sourceFiles(path: string, sql: boolean): Promise<string[]> {
   }
 
   if (info.isFile()) {
-    return path.endsWith(".sql") && !sql ? [] : [path];
+    return [path];
   }
 
   const files: string[] = [];
@@ -93,17 +89,12 @@ async function sourceFiles(path: string, sql: boolean): Promise<string[]> {
 
     if (entry.isDirectory()) {
       if (!SKIPPED_DIRS.has(entry.name)) {
-        files.push(...(await sourceFiles(full, sql)));
+        files.push(...(await sourceFiles(full)));
       }
     } else if (
       (SOURCE_EXTENSIONS.has(extname(entry.name)) &&
         !entry.name.endsWith(".d.ts")) ||
-      CONFIG_FILE.test(entry.name) ||
-      ENV_FILE.test(entry.name) ||
-      DESIGN_FILE_NAME.test(entry.name) ||
-      CLI_CALL_FILE.test(full) ||
-      SHELL_FILE.test(entry.name) ||
-      (sql && SCHEMA_SQL.test(full))
+      ENV_FILE.test(entry.name)
     ) {
       files.push(full);
     }
@@ -142,11 +133,7 @@ export async function runCodemod(
 
   const files = [
     ...new Set(
-      (
-        await Promise.all(
-          roots.map((root) => sourceFiles(root, codemod.sqlFile !== undefined)),
-        )
-      ).flat(),
+      (await Promise.all(roots.map((root) => sourceFiles(root)))).flat(),
     ),
   ];
 
@@ -156,7 +143,7 @@ export async function runCodemod(
 
   for (const file of files) {
     const source = await readFile(file, "utf-8");
-    const result = applyCodemod(codemod, source, file);
+    const result = applyCodemod(codemod, source);
     const path = relative(config.root, file);
     review.push(...result.review.map((hint) => ({ file: path, ...hint })));
 

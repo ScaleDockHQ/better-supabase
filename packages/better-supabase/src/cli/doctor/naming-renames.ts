@@ -6,45 +6,24 @@ import { lineOf } from "./shared.ts";
 const escaped = (text: string): string =>
   text.replaceAll(/[.*+?^${}()|[\]\\/]/g, String.raw`\$&`);
 
-const OLD_NAMES = NAMING_RENAMES.flatMap((rename) => {
-  switch (rename.kind) {
-    case "env":
-    case "function":
-    case "type": {
-      return [
-        {
-          rename,
-          pattern: new RegExp(
-            `(?<![A-Za-z0-9_])${escaped(rename.from)}(?![A-Za-z0-9_])`,
-          ),
-        },
-      ];
-    }
+/** The kinds that name something in source code; SQL object renames don't. */
+const SOURCE_KINDS: ReadonlySet<string> = new Set([
+  "env",
+  "function",
+  "subpath",
+  "type",
+]);
 
-    case "subpath": {
-      return [
-        {
-          rename,
-          pattern: new RegExp(
-            `better-supabase/${escaped(rename.from)}(?![\\w-])`,
-          ),
-        },
-      ];
-    }
-
-    case "column":
-    case "policy":
-    case "table": {
-      return [];
-    }
-
-    default: {
-      const unknown: never = rename.kind;
-
-      return unknown;
-    }
-  }
-});
+const OLD_NAMES = NAMING_RENAMES.filter((rename) =>
+  SOURCE_KINDS.has(rename.kind),
+).map((rename) => ({
+  rename,
+  pattern: new RegExp(
+    rename.kind === "subpath"
+      ? `better-supabase/${escaped(rename.from)}(?![\\w-])`
+      : `(?<![A-Za-z0-9_])${escaped(rename.from)}(?![A-Za-z0-9_])`,
+  ),
+}));
 
 /** BS260: a source file that still uses a name `api/naming.json` renamed. */
 export const NAMING_RENAME_RULES: readonly Rule[] = [

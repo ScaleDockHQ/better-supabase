@@ -139,6 +139,17 @@ describe("BS260", () => {
     } as never);
 
     expect(findings).toHaveLength(2);
+
+    const subpath = await rule.check({
+      sources: [
+        {
+          path: "d.ts",
+          text: 'import "better-supabase/ai-sdk/workflow/react";\n',
+        },
+      ],
+    } as never);
+
+    expect(subpath).toHaveLength(1);
     expect(findings[0]).toMatchObject({
       target: "a.ts",
       location: { file: "a.ts", line: 1 },
