@@ -25,7 +25,7 @@
     "security-definer-functions": 24
   },
   "ai-chat": {
-    "security-definer-functions": 384
+    "security-definer-functions": 380
   },
   "ai-evals": {
     "security-definer-functions": 72
@@ -187,7 +187,7 @@
     "row-triggers": 4
   },
   "drive": {
-    "security-definer-functions": 229,
+    "security-definer-functions": 223,
     "row-triggers": 12
   },
   "e-prescribing": {

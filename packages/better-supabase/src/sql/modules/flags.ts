@@ -385,7 +385,6 @@ create table if not exists ${overrides} (
   ${constraints.target},
   ${constraints.unique}
 );
-${upgradeContexts(ctx)}
 ${
   ctx.owns("overrides")
     ? ""
@@ -1054,7 +1053,7 @@ export const FLAGS: BlockSqlDefinition = {
       from: 2,
       description:
         "Custom contexts: rules and overrides can target a context value such as a brand, read from the tenant through options.contexts. Flags gain an archived state that serves the default variant.",
-      sql: () => "",
+      sql: upgradeContexts,
     },
     {
       from: 3,

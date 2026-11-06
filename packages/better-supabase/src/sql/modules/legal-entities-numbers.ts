@@ -336,6 +336,9 @@ begin
     execute format('create unique index %I on ${target} (%s)', v_key.index_name, v_key.cols);
   end loop;
 end $$;
-drop trigger if exists ${sqlIdent(name)} on ${target};
-drop function if exists ${fn}();`;
+do $$
+begin
+  drop trigger if exists ${sqlIdent(name)} on ${target};
+  drop function if exists ${fn}();
+end $$;`;
 }

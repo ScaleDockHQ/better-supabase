@@ -2,7 +2,6 @@ import type { Declaration } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import {
-  BLOCK_OVERLAPS,
   buildModel,
   conflicts,
   ownerOf,
@@ -95,50 +94,44 @@ export const OWNERSHIP_RULES: readonly Rule[] = [
       const files = schemaFiles(context);
       const model = buildModel(files);
 
-      return conflicts(model).flatMap(
-        ({ key, declarations }): FindingInput[] => {
-          const first = declarations[0];
+      return conflicts(model).flatMap(({ declarations }): FindingInput[] => {
+        const first = declarations[0];
 
-          if (
-            first === undefined ||
-            first.kind === "extension" ||
-            first.kind === "schema" ||
-            new Set(declarations.map((each) => each.file)).size < 2
-          ) {
-            return [];
-          }
+        if (
+          first === undefined ||
+          first.kind === "extension" ||
+          first.kind === "schema" ||
+          new Set(declarations.map((each) => each.file)).size < 2
+        ) {
+          return [];
+        }
 
-          const shared = SHARED_KINDS.has(first.kind);
+        const shared = SHARED_KINDS.has(first.kind);
 
-          if (
-            (shared &&
-              declarations.some((each) => each.owner.kind === "module") &&
-              declarations.some((each) => each.owner.kind === "app")) ||
-            (declarations.every((each) => each.owner.kind === "module") &&
-              BLOCK_OVERLAPS.has(key))
-          ) {
-            return [];
-          }
+        if (
+          shared &&
+          declarations.some((each) => each.owner.kind === "module") &&
+          declarations.some((each) => each.owner.kind === "app")
+        ) {
+          return [];
+        }
 
-          const prelude =
-            first.kind === "function" &&
-            PRELUDE_FUNCTIONS.has(
-              first.name
-                .slice(first.name.indexOf(".") + 1)
-                .replace(/\/\d+$/, ""),
-            );
+        const prelude =
+          first.kind === "function" &&
+          PRELUDE_FUNCTIONS.has(
+            first.name.slice(first.name.indexOf(".") + 1).replace(/\/\d+$/, ""),
+          );
 
-          return declarations
-            .slice(1)
-            .map((each) => ({
-              message: prelude
-                ? `${each.file}: the function ${first.name.replace(/\/\d+$/, "")} belongs to the prelude file (${first.file}). Delete this copy, or run \`better-supabase upgrade\` if the file is a block module.`
-                : `${each.file}: the ${each.kind} ${each.name} is also declared in ${first.file}. Declare it once.`,
-              target: each.file,
-              location: { file: each.file, line: each.line },
-            }));
-        },
-      );
+        return declarations
+          .slice(1)
+          .map((each) => ({
+            message: prelude
+              ? `${each.file}: the function ${first.name.replace(/\/\d+$/, "")} belongs to the prelude file (${first.file}). Delete this copy, or run \`better-supabase upgrade\` if the file is a block module.`
+              : `${each.file}: the ${each.kind} ${each.name} is also declared in ${first.file}. Declare it once.`,
+            target: each.file,
+            location: { file: each.file, line: each.line },
+          }));
+      });
     },
   },
   {

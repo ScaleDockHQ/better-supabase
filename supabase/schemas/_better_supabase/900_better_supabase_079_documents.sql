@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:ae592610b02f4d72907cfcf275592d654ca3722534c12ca299d186b594286393
+-- @bsb-hash sha256:1c3f9505595c5738f8de92bffc37272cb3b0c07dedb2fbb6dc7823cdb0b0c798
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2292,20 +2292,14 @@ grant execute on function "better_supabase"."name_document_version"(uuid, uuid, 
 
 -- Readers join documents:{document} and track presence; editors broadcast
 -- updates on it.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_documents_receive on realtime.messages
+create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        create policy bsb_documents_send on realtime.messages
+create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$do$;
 
 -- on with cascade: deleting a subject row deletes its documents rows.
 create or replace function "better_supabase"."documents_subject_deleted"()

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:eb43af0323db32290749114a75ce80d5053a8fd6f877afb8bebeb33dd20a1e8d
+-- @bsb-hash sha256:e75c52adab63935577508a45d71927ac4d3061190976278b2d35a931f6a1e57b
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -492,20 +492,14 @@ grant execute on function "better_supabase"."documents_to_compact"(integer, inte
 
 -- Readers join documents:{document} and track presence; editors broadcast
 -- updates on it.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_documents_receive on realtime.messages
+create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        create policy bsb_documents_send on realtime.messages
+create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -544,7 +538,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:21ceacd755fc58f245a6a7b5bf2df9a4929d02c676bf3508a944c3f4099675c2
+-- @bsb-hash sha256:e0418ba298aa80571ea28b0c969156378c59feffcb5a7c161e39c2caea72ac28
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1180,20 +1174,14 @@ grant execute on function "better_supabase"."name_document_version"(uuid, uuid, 
 
 -- Readers join documents:{document} and track presence; editors broadcast
 -- updates on it.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_documents_receive on realtime.messages
+create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        create policy bsb_documents_send on realtime.messages
+create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1240,7 +1228,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:497285eb91da10c22f0e77aa8803b5760854fd9619c8195c5ec28f0b75933b6f
+-- @bsb-hash sha256:2f35784a959277ba7dff8fa497200fe103ecbff19e5e757fd40a3a69030e616d
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1736,20 +1724,14 @@ grant execute on function "app_private"."documents_to_compact"(integer, integer)
 
 -- Readers join documents:{document} and track presence; editors broadcast
 -- updates on it.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_documents_receive on realtime.messages
+create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "app_private"."document_topic_access"((select realtime.topic()), false));
-        create policy bsb_documents_send on realtime.messages
+create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "app_private"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "app_private"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1788,7 +1770,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:8a44acb59e466c536e1073cefea85b5bb9b992b6c6314735e8a9c61b2e09f07a
+-- @bsb-hash sha256:babb15c4a79282d49a23fae90375c02161872433e08968e8b005edb1fc565460
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2279,20 +2261,14 @@ grant execute on function "better_supabase"."documents_to_compact"(integer, inte
 
 -- Readers join documents:{document} and track presence; editors broadcast
 -- updates on it.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_documents_receive on realtime.messages
+create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        create policy bsb_documents_send on realtime.messages
+create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2430,7 +2406,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:24302692266e879a993e0a733f138ab9ef7d13c7b3e408067f677c2e9cf8d720
+-- @bsb-hash sha256:022431eabccf55d559d080133f1ce5fa463b231025c5a60b6e4c4f0bfaeb1fbb
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2914,20 +2890,14 @@ grant execute on function "better_supabase"."documents_to_compact"(integer, inte
 
 -- Readers join documents:{document} and track presence; editors broadcast
 -- updates on it.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_documents_receive on realtime.messages
+create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        create policy bsb_documents_send on realtime.messages
+create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2966,7 +2936,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:62f89498c42b4b25ae3dcc5fe647a649eb2f3ad1b97b3d6bdf2fdf29fe3cbbe4
+-- @bsb-hash sha256:97df5c12a3bc833feb7df4218d0dbf9f1e69ac6f8a44bae72c2483ba8556b45a
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3457,20 +3427,14 @@ grant execute on function "better_supabase"."documents_to_compact"(integer, inte
 
 -- Readers join documents:{document} and track presence; editors broadcast
 -- updates on it.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_documents_receive on realtime.messages
+create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        create policy bsb_documents_send on realtime.messages
+create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

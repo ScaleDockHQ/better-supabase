@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:c42603a14ce5b6bae29a59bec2d52df9759b3b8f3c278ecce524f278c27d84a7
+-- @bsb-hash sha256:f8c795a0f20b6553fff9ae72bd0163e2971d35a112c1d1cfde98bfbbb54512f8
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1443,22 +1443,16 @@ revoke execute on function "better_supabase"."messaging_message_broadcast"() fro
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_messaging_receive on realtime.messages
+create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        create policy bsb_messaging_broadcast on realtime.messages
+create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

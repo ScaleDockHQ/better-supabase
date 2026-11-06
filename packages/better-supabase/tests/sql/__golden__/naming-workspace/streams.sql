@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:8b0b28757807c80d6351494fc44bdd6b459ec3f79c4587d4dabdd27a57def518
+-- @bsb-hash sha256:34f018a22aeab9ce48c60225071e7e50068443f68d2d6d568886adbaa6ffe8bd
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -356,10 +356,7 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 
 -- The owner may join the stream's private topic to hear the payload-free
 -- pings; the chunks themselves are read through RLS.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_streams_receive on realtime.messages
+create policy bsb_streams_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -368,9 +365,6 @@ begin
           where st."id" = substr((select realtime.topic()), 8)
             and st."owner_id" = (select auth.uid())
         ));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

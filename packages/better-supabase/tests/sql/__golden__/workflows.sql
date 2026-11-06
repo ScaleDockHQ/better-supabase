@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:cfa3cb28795dffe586461365c1666e67195f787767878ddb7174a684693d430d
+-- @bsb-hash sha256:58cd99b37e894302baccdbd684d0db0f16fc04919e7ddd2a56a064c608887283
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -960,10 +960,7 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_workflow_runs_receive on realtime.messages
+create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -981,9 +978,6 @@ begin
             )
           )
         ));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1039,7 +1033,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:0f461aa98b622689621503b67671aa2965be136ea0e058ff425ced56ebd45601
+-- @bsb-hash sha256:b781372dfb5ecba6d42ea775ac901e62c09246526f37b6a84f1b4a0bdcb2e69f
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2012,10 +2006,7 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_workflow_runs_receive on realtime.messages
+create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -2033,9 +2024,6 @@ begin
             )
           )
         ));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2091,7 +2079,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:e59ec2c5eae7d062fad1efd476d8bf19511f5976dd7adf14979201dbbc7fa295
+-- @bsb-hash sha256:caecdaf603328be3ab2b8084779084150f3d333f41a4f44c371ccb2149e08a1e
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3055,10 +3043,7 @@ grant execute on function "app_private"."mark_workflow_start_request"(uuid, text
 
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_workflow_runs_receive on realtime.messages
+create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -3076,9 +3061,6 @@ begin
             )
           )
         ));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -3134,7 +3116,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:ef111ac8fd2e3e747568df228ef901d3dd3c40f1a1a5ac0527790f65b9ed76ed
+-- @bsb-hash sha256:997dd8f3770cd065da67db2254042d8eee6d6e0ffaf4c25b6e6666aa566a7d36
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4093,10 +4075,7 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_workflow_runs_receive on realtime.messages
+create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -4114,9 +4093,6 @@ begin
             )
           )
         ));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -4351,7 +4327,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:3703f8e3c891ca9873d6879bf992da8318bd6205ec475fe7ee37ec472e13721c
+-- @bsb-hash sha256:c9874ab3384ccf03c964d40b3d55c0f90c6a1d8bcf30f74906561f8254d7f1cc
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5299,10 +5275,7 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_workflow_runs_receive on realtime.messages
+create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -5320,9 +5293,6 @@ begin
             )
           )
         ));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -5378,7 +5348,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:1618c63716ba97acde8211d08d4113027e9b1019914ddeef1542a494bae08253
+-- @bsb-hash sha256:b5315ca1bca0ee376a934283dbb50eab687a7e299a28c634ebce50b3b6370b3e
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6337,10 +6307,7 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_workflow_runs_receive on realtime.messages
+create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -6358,9 +6325,6 @@ begin
             )
           )
         ));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

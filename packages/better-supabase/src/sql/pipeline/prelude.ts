@@ -33,19 +33,6 @@ export const PRELUDE_FUNCTIONS: ReadonlySet<string> = new Set([
   "value_unsupported",
 ]);
 
-/**
- * Objects two block modules both still declare, where the later file replaces
- * the earlier one. One definition each is the goal; doctor ignores these and
- * `tests/sql/pipeline/overlaps.test.ts` fails when a module adds another.
- */
-export const BLOCK_OVERLAPS: ReadonlySet<string> = new Set([
-  "function:better_supabase.drive_node_json/1",
-  "function:better_supabase.get_shared_ai_chat/1",
-  "function:better_supabase.list_ai_chat_shares/1",
-  "function:better_supabase.revoke_ai_chat_share/1",
-  "function:better_supabase.share_ai_chat/2",
-]);
-
 /** The version in the `@bsb-block` line of the prelude file. */
 const PRELUDE_VERSION = 1;
 

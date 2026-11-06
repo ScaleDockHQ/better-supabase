@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:8e638ad91a09365441c182f1e9e1e1a35d4d2535088a4d1bf992237af89f39ff
+-- @bsb-hash sha256:5d4a7669c778449b1faa631338a1d06c7fafd552f47584b73e983e2b4f195a8e
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,26 +49,6 @@ create table "better_supabase"."flag_overrides" (
   constraint flag_overrides_target check (num_nonnulls("workspace_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
   constraint flag_overrides_unique unique nulls not distinct ("flag_key", "workspace_id", "user_id", "context", "context_key")
 );
-do $$
-declare
-  v_name name;
-begin
-  for v_name in
-    select c.conname from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."flag_overrides"'::regclass and c.contype in ('c', 'u')
-      and cardinality(c.conkey) > 1
-      and c.conname not in ('flag_overrides_target', 'flag_overrides_unique')
-  loop
-    execute format('alter table %s drop constraint %I', '"better_supabase"."flag_overrides"', v_name);
-  end loop;
-  if not exists (select 1 from pg_catalog.pg_constraint c where c.conrelid = '"better_supabase"."flag_overrides"'::regclass and c.conname = 'flag_overrides_target') then
-    alter table "better_supabase"."flag_overrides" add constraint flag_overrides_target check (num_nonnulls("workspace_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null));
-  end if;
-  if not exists (select 1 from pg_catalog.pg_constraint c where c.conrelid = '"better_supabase"."flag_overrides"'::regclass and c.conname = 'flag_overrides_unique') then
-    alter table "better_supabase"."flag_overrides" add constraint flag_overrides_unique unique nulls not distinct ("flag_key", "workspace_id", "user_id", "context", "context_key");
-  end if;
-end;
-$$;
 create index flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
 revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { rerunnableDdl, staticDdl } from "../../../src/sql/pipeline/static.ts";
+import {
+  rerunnableDdl,
+  staticDdl,
+  unwrapGuards,
+} from "../../../src/sql/pipeline/static.ts";
 
 const FILE = `-- the table
 create table if not exists "b"."t" (
@@ -167,5 +171,47 @@ create index i on "b"."t" (id);`);
     const sql = rerunnableDdl(staticDdl(FILE));
 
     expect(sql).toContain('drop policy if exists p on "b"."t";');
+  });
+});
+
+describe("unwrapGuards", () => {
+  const guarded = `do $$
+begin
+  if to_regclass('realtime.messages') is not null then
+        create policy p on realtime.messages
+  for select to authenticated
+  using (true);
+    drop policy if exists "q" on realtime.messages;
+  end if;
+end;
+$$;
+do $tag$ begin
+  create type workflow.status as enum ('a', 'b');
+exception when duplicate_object then null;
+end $tag$;
+do $$ begin if to_regclass('public.x') is not null then create table y (); end if; end $$;
+select 1;`;
+
+  it("writes a policy on a platform table as a plain statement", () => {
+    const out = unwrapGuards(guarded);
+
+    expect(out).toContain(
+      "create policy p on realtime.messages\n  for select to authenticated\n  using (true);\ndrop policy",
+    );
+    expect(out).not.toContain("to_regclass('realtime.messages')");
+  });
+
+  it("writes a create type that swallows duplicate_object as one statement", () => {
+    expect(unwrapGuards(guarded)).toContain(
+      "create type workflow.status as enum ('a', 'b');",
+    );
+  });
+
+  it("leaves any other do block alone", () => {
+    expect(unwrapGuards(guarded)).toContain("to_regclass('public.x')");
+  });
+
+  it("feeds staticDdl, which drops the guarded drops too", () => {
+    expect(staticDdl(guarded)).not.toContain("drop policy");
   });
 });

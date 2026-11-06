@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:5b0a335665885e58c8763d166e44a310c00e2b3b25d4fe18f4984b71fc336ac5
+-- @bsb-hash sha256:5bf8c2b06310be6c7cd08348b9da6af97557dd79344ae908cd79b409e7ad7740
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -236,15 +236,9 @@ $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_announcements_receive on realtime.messages
+create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
-  end if;
-end;
-$$;
 
 revoke execute on function "better_supabase"."active_announcements"(uuid) from public, anon;
 revoke execute on function "better_supabase"."dismiss_announcement"(uuid) from public, anon;
@@ -274,7 +268,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:41a0225c2b14fe8b6c7d9eb68a413398f738e6f1a51d4e9b80cd63e91d23db3d
+-- @bsb-hash sha256:31449e44e006b24c488b49234aedf2ae94abf63f72875721dc6930f96e4a65c0
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -530,15 +524,9 @@ $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_announcements_receive on realtime.messages
+create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
-  end if;
-end;
-$$;
 
 revoke execute on function "better_supabase"."active_announcements"(uuid) from public, anon;
 revoke execute on function "better_supabase"."dismiss_announcement"(uuid) from public, anon;
@@ -575,7 +563,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:497ca8f270a71a7f1855a890552edaa6e127ce86b15c51591bc8485c39fb57c9
+-- @bsb-hash sha256:97b29c7f672d0fcf8f2efe1fcd393b08c4499e1c7955c9f10fd519bf855e84e8
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -815,15 +803,9 @@ $$;
 revoke execute on function "app_private"."broadcast_announcement"() from public, anon, authenticated;
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "app_private"."announcements"
   for each row execute function "app_private"."broadcast_announcement"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_announcements_receive on realtime.messages
+create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
-  end if;
-end;
-$$;
 
 revoke execute on function "app_private"."active_announcements"(uuid) from public, anon;
 revoke execute on function "app_private"."dismiss_announcement"(uuid) from public, anon;
@@ -853,7 +835,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:278f1364d0db58f2ac5a38a5166a8b513babf3a6fb2a5f57e3919e748de236d1
+-- @bsb-hash sha256:365c6452ea240ac89260a8a4f8c11cba71a50961d31db8d3d2299cb99e9d8301
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1088,15 +1070,9 @@ $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_announcements_receive on realtime.messages
+create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
-  end if;
-end;
-$$;
 
 revoke execute on function "better_supabase"."active_announcements"(uuid) from public, anon;
 revoke execute on function "better_supabase"."dismiss_announcement"(uuid) from public, anon;
@@ -1177,7 +1153,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:a746854668fd301cc609b980b9f4c74da18455e5958061f65ef5c535afa339f6
+-- @bsb-hash sha256:3af6462a01f230f4631c9241966051397d15a1a5fa6b88765dee168e119c6068
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1404,15 +1380,9 @@ $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_announcements_receive on realtime.messages
+create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
-  end if;
-end;
-$$;
 
 revoke execute on function "better_supabase"."active_announcements"(uuid) from public, anon;
 revoke execute on function "better_supabase"."dismiss_announcement"(uuid) from public, anon;

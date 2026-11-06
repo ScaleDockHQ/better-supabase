@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:7648432c68707d8ae42110ebe51e0b39e03da339e99a5d6630c32ebb15fb00be
+-- @bsb-hash sha256:a2b7856717def7387b743997d13fb6648f9a489b3c31d73202e11295af81de0b
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2695,22 +2695,16 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_ai_chat_receive on realtime.messages
+create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        create policy bsb_ai_chats_receive on realtime.messages
+create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2783,7 +2777,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:1b1da763d4abfc17fa5d4327eebb2707aa79aff50a57e4ea64598b59348dffe6
+-- @bsb-hash sha256:d5a397c94b80b6ab7629e3ff5590f794be145675a88f14c466fd8087136a186e
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4692,149 +4686,6 @@ $$;
 revoke execute on function "better_supabase"."rate_ai_message"(uuid, text, integer, text, text) from public, anon;
 grant execute on function "better_supabase"."rate_ai_message"(uuid, text, integer, text, text) to authenticated, service_role;
 
--- Creates a read-only link to the branch ending at leaf (default: the one
--- the chat shows); the owner with 'ai_chat.share'. The token is returned once
--- and only its SHA-256 is stored.
-create or replace function "better_supabase"."share_ai_chat"(chat uuid, leaf text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_chat "better_supabase"."ai_chats";
-  v_leaf text;
-  v_token text := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
-  v_id uuid;
-  v_created timestamptz;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_chat from "better_supabase"."ai_chats" x where x."id" = share_ai_chat.chat;
-  if not found or v_chat."owner_id" is distinct from auth.uid() then
-    raise exception 'No chat %', share_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
-  end if;
-  if not coalesce(better_supabase.can('tenant', v_chat."organization_id", 'ai_chat.share'), false) then
-    raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
-  end if;
-  v_leaf := coalesce(share_ai_chat.leaf, v_chat."current_leaf_id");
-  if v_leaf is null or not exists (select 1 from "better_supabase"."ai_messages" x where x."chat_id" = v_chat."id" and x."id" = v_leaf) then
-    raise exception 'Nothing to share yet' using errcode = 'P0002', hint = 'AI_MESSAGE_NOT_FOUND';
-  end if;
-  insert into "better_supabase"."ai_chat_shares" ("chat_id", "token_hash", "leaf_id", "created_by")
-  values (v_chat."id", encode(sha256(convert_to(v_token, 'UTF8')), 'hex'), v_leaf, auth.uid())
-  returning "id", "created_at" into v_id, v_created;
-  perform "better_supabase".emit_event('ai_chat.shared', jsonb_build_object('chatId', v_chat."id", 'shareId', v_id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id", 'leafId', v_leaf), 'ai-chats/' || v_chat."id"::text, (v_chat."organization_id")::text, 'ai_chat.shared:' || v_id::text, 'better-supabase/ai-chat');
-  perform better_supabase.audit_event(
-    event_type => 'ai_chat.shared',
-    category => 'ai',
-    target_type => 'ai_chat_share',
-    record_id => v_id::text,
-    tenant => (v_chat."organization_id")::uuid,
-    metadata => jsonb_build_object('chatId', v_chat."id", 'shareId', v_id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id", 'leafId', v_leaf),
-    idempotency_key => 'ai_chat.shared:' || v_id::text
-  );
-  return jsonb_build_object('id', v_id, 'token', v_token, 'leaf_id', v_leaf, 'created_at', v_created);
-end;
-$$;
-revoke execute on function "better_supabase"."share_ai_chat"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."share_ai_chat"(uuid, text) to authenticated, service_role;
-
--- Revokes a link; whoever made it, the chat's owner or the service role.
-create or replace function "better_supabase"."revoke_ai_chat_share"(id uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_chat_id uuid;
-  v_chat "better_supabase"."ai_chats";
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  update "better_supabase"."ai_chat_shares" x set "revoked_at" = now()
-  where x."id" = revoke_ai_chat_share.id
-    and x."revoked_at" is null
-    and (
-      coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-      or x."created_by" = (select auth.uid())
-      or exists (select 1 from "better_supabase"."ai_chats" c where c."id" = x."chat_id" and c."owner_id" = (select auth.uid()))
-    )
-  returning x."chat_id" into v_chat_id;
-  if v_chat_id is null then
-    return false;
-  end if;
-  select * into v_chat from "better_supabase"."ai_chats" c where c."id" = v_chat_id;
-  perform "better_supabase".emit_event('ai_chat.share_revoked', jsonb_build_object('chatId', v_chat."id", 'shareId', revoke_ai_chat_share.id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id"), 'ai-chats/' || v_chat."id"::text, (v_chat."organization_id")::text, null, 'better-supabase/ai-chat');
-  perform better_supabase.audit_event(
-    event_type => 'ai_chat.share_revoked',
-    category => 'ai',
-    target_type => 'ai_chat_share',
-    record_id => revoke_ai_chat_share.id::text,
-    tenant => (v_chat."organization_id")::uuid,
-    metadata => jsonb_build_object('chatId', v_chat."id", 'shareId', revoke_ai_chat_share.id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id")
-  );
-  return true;
-end;
-$$;
-revoke execute on function "better_supabase"."revoke_ai_chat_share"(uuid) from public, anon;
-grant execute on function "better_supabase"."revoke_ai_chat_share"(uuid) to authenticated, service_role;
-
--- A chat's links, newest first, without their tokens.
-create or replace function "better_supabase"."list_ai_chat_shares"(chat uuid)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'id', x."id", 'leaf_id', x."leaf_id", 'created_by', x."created_by",
-    'created_at', x."created_at", 'revoked_at', x."revoked_at"
-  ) order by x."created_at" desc), '[]'::jsonb)
-  from "better_supabase"."ai_chat_shares" x
-  join "better_supabase"."ai_chats" c on c."id" = x."chat_id"
-  where x."chat_id" = list_ai_chat_shares.chat
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or c."owner_id" = (select auth.uid()));
-$$;
-revoke execute on function "better_supabase"."list_ai_chat_shares"(uuid) from public, anon;
-grant execute on function "better_supabase"."list_ai_chat_shares"(uuid) to authenticated, service_role;
-
--- The shared branch for a link token, for anyone holding it: { chat,
--- leaf_id, messages }, or null when the link is unknown or revoked.
-create or replace function "better_supabase"."get_shared_ai_chat"(token text)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_share "better_supabase"."ai_chat_shares";
-  v_chat "better_supabase"."ai_chats";
-begin
-  if get_shared_ai_chat.token is null or get_shared_ai_chat.token !~ '^[0-9a-f]{64}$' then
-    return null;
-  end if;
-  select * into v_share from "better_supabase"."ai_chat_shares" x
-  where x."token_hash" = encode(sha256(convert_to(get_shared_ai_chat.token, 'UTF8')), 'hex') and x."revoked_at" is null;
-  if not found then
-    return null;
-  end if;
-  select * into v_chat from "better_supabase"."ai_chats" x where x."id" = v_share."chat_id";
-  return jsonb_build_object(
-    'chat', jsonb_build_object('id', v_chat."id", 'title', v_chat."title", 'model', v_chat."model", 'created_at', v_chat."created_at"),
-    'leaf_id', v_share."leaf_id",
-    'messages', "better_supabase"."ai_message_path_of"(v_chat."id", v_share."leaf_id", false)
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."get_shared_ai_chat"(text) from public;
-grant execute on function "better_supabase"."get_shared_ai_chat"(text) to anon, authenticated, service_role;
-
 -- Upserts models from the gateway (the service role only): models is an
 -- array, or an object whose models key holds one. Each element holds id, and optionally provider, name, pricing, capabilities, plans and
 -- enabled. prune deletes the models missing from the list.
@@ -5550,22 +5401,16 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_ai_chat_receive on realtime.messages
+create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        create policy bsb_ai_chats_receive on realtime.messages
+create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -5646,7 +5491,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:a613e9fbaee44162af926f0860479557b1188ae57e334d5a567835e8728b2db2
+-- @bsb-hash sha256:d35680cd3d34d0f2b65f7013b1ffa32c6c0e7b38239b9e26daf9024372d86cb3
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8345,22 +8190,16 @@ grant execute on function "app_private"."unlock_ai_harness_session"(uuid, text, 
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_ai_chat_receive on realtime.messages
+create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "app_private"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        create policy bsb_ai_chats_receive on realtime.messages
+create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -8433,7 +8272,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:f6c65fc24264173c2243ea652d7d01c8d9cce820a0eb1e53e2fd4a3ae5602aed
+-- @bsb-hash sha256:2f7dbe5eb1906c9eb3b75f7702b314bb01311199aae93f4fa7347c09690ff957
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11127,22 +10966,16 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_ai_chat_receive on realtime.messages
+create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        create policy bsb_ai_chats_receive on realtime.messages
+create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -11790,7 +11623,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:4f861a8083ba733b92aebaa13af5953dbf0b052ce97fd2a3b7603228926153f6
+-- @bsb-hash sha256:48a23921151dafa2bb150fa47e90f3be02640088be66e4a7417d71088f34af22
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14439,22 +14272,16 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_ai_chat_receive on realtime.messages
+create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        create policy bsb_ai_chats_receive on realtime.messages
+create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -14527,7 +14354,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:cd08971087a5d4b16020b3e866cba0effb0ac48461bcd72e8bfc6b8dc834db42
+-- @bsb-hash sha256:5148e9d452986063220d606bdc7a8916cb03224575192e56d23ea9da1702e595
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17221,22 +17048,16 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_ai_chat_receive on realtime.messages
+create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        create policy bsb_ai_chats_receive on realtime.messages
+create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

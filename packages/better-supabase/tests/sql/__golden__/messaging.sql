@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:c9eb486c6b52a51b58f9c0aa543a2be5654b568382e7fd52c2c4adb920ec5ad9
+-- @bsb-hash sha256:15e0b9d733b7a6fd8d6f67a4789df4b86a80f7c570fae912ee69b51b1b73a27e
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1443,22 +1443,16 @@ revoke execute on function "better_supabase"."messaging_message_broadcast"() fro
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_messaging_receive on realtime.messages
+create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        create policy bsb_messaging_broadcast on realtime.messages
+create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1601,7 +1595,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:be474a522ab7bd196abe8802e7d4b075ea5bfaa38382da16d84fcc9e09cc9c84
+-- @bsb-hash sha256:59c0cb52ef40becec51ea65d511d1afdf606dde24ea5f09b495a1402326d0e1d
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3278,22 +3272,16 @@ revoke execute on function "better_supabase"."messaging_message_broadcast"() fro
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_messaging_receive on realtime.messages
+create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        create policy bsb_messaging_broadcast on realtime.messages
+create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$$;
 
 
 -- The inbox's conversations and message details belong to core rows.
@@ -3482,7 +3470,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:57ec28c7c0cd689957bf775b1568abc2684e93a235a9eef4bda9add8a49cce11
+-- @bsb-hash sha256:1559932bd80b544780b7e7153ec1b32660a10334376f760c249a06234f5b3b58
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4929,22 +4917,16 @@ revoke execute on function "app_private"."messaging_message_broadcast"() from pu
 create trigger "bsb_messaging_message_broadcast" after insert or update on "app_private"."messages"
   for each row execute function "app_private"."messaging_message_broadcast"();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_messaging_receive on realtime.messages
+create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "app_private"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        create policy bsb_messaging_broadcast on realtime.messages
+create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "app_private"."conversation_topic_allowed"(substr((select realtime.topic()), 10))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -5087,7 +5069,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:252995baf0f20e6c6c5be70018daca4d84e742804d53fcf4f30e3532f906cebe
+-- @bsb-hash sha256:8475161196a262bdd2390146aa1274bd74ae0306a5773b567303e243fa962da8
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6529,22 +6511,16 @@ revoke execute on function "better_supabase"."messaging_message_broadcast"() fro
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_messaging_receive on realtime.messages
+create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        create policy bsb_messaging_broadcast on realtime.messages
+create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -6950,7 +6926,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:0aa267be5e3d0955af655e51728606732f6f3b5604adc0656eb6f8542a3286ec
+-- @bsb-hash sha256:6c38621b61c1db4cc5dd24f32241a01762058b199e83bc99906fc6ea8e31f426
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8375,22 +8351,16 @@ revoke execute on function "better_supabase"."messaging_message_broadcast"() fro
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_messaging_receive on realtime.messages
+create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        create policy bsb_messaging_broadcast on realtime.messages
+create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -8533,7 +8503,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:9a01a4ca9f479e964245565c30bdcf7766b30315239944314db22e35ed0b9895
+-- @bsb-hash sha256:e05559ab9d221556234cac8d40a074d5d604a69d862e0509cbbbae1c7ba6d2bc
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9975,22 +9945,16 @@ revoke execute on function "better_supabase"."messaging_message_broadcast"() fro
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_messaging_receive on realtime.messages
+create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        create policy bsb_messaging_broadcast on realtime.messages
+create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

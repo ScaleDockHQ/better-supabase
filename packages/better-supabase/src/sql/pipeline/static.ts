@@ -322,6 +322,54 @@ function staticAlter(
     : `${match[1]}${match[2]}${match[3]}${kept.join(",\n  ")}`;
 }
 
+/** The Supabase-owned tables a block writes policies on; they always exist. */
+const PLATFORM_TABLES = "realtime\\.messages|storage\\.objects";
+
+const GUARDED_PLATFORM_DO = new RegExp(
+  String.raw`^do\s+(\$\w*\$)\s*begin\s+if\s+to_regclass\('(?:${PLATFORM_TABLES})'\)\s+is\s+not\s+null\s+then([\s\S]*?)end\s+if;\s*end;?\s*\1$`,
+  "i",
+);
+
+const DUPLICATE_OBJECT_DO =
+  /^do\s+(\$\w*\$)\s*begin\s+(create\s+type\s[\s\S]*?;)\s*exception\s+when\s+duplicate_object\s+then\s+null;\s*end\s*;?\s*\1$/i;
+
+/**
+ * `sql` with the `do` blocks that only guard one statement written out: a
+ * policy on a Supabase-owned table (`realtime.messages`, `storage.objects`,
+ * which every project has) and a `create type` that swallows
+ * `duplicate_object`. The choice the block made at run time is made here.
+ */
+export function unwrapGuards(sql: string): string {
+  return statementSpans(sql)
+    .map(([from, to]) => {
+      const original = sql.slice(from, to);
+      const masked = maskComments(original);
+      const lead = /^\s*/.exec(masked)![0].length;
+      const text = masked.slice(lead).replace(/;$/, "").trim();
+      const head = original.slice(0, lead);
+      const guarded = GUARDED_PLATFORM_DO.exec(text);
+
+      if (guarded !== null) {
+        const body = guarded[2]!
+          .trim()
+          .split("\n")
+          .map((line) =>
+            /^\s+(?:create|drop|alter|grant|revoke)\s/i.test(line)
+              ? line.trim()
+              : line,
+          )
+          .join("\n");
+
+        return `${head}${body}`;
+      }
+
+      const created = DUPLICATE_OBJECT_DO.exec(text);
+
+      return created === null ? original : `${head}${created[2]!.trim()}`;
+    })
+    .join("");
+}
+
 /**
  * `sql` as declarative DDL, which a schema diff reads: no `drop ... if exists`
  * of a policy, trigger, function, index or constraint, and no `if not exists`
@@ -330,10 +378,11 @@ function staticAlter(
  * `appTables` keeps its `if not exists`, because an app file may declare it.
  */
 export function staticDdl(
-  sql: string,
+  source: string,
   appTables: ReadonlySet<string> = new Set(),
   options: { readonly keepIfNotExists?: boolean } = {},
 ): string {
+  const sql = unwrapGuards(source);
   const spans = statementSpans(sql);
 
   const texts = spans.map(([from, to]) => {

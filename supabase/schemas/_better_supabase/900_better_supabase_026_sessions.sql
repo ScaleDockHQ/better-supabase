@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:fbf62c573f6b99d981437d8449f927b279a135344c7ed4792903f9668873fffa
+-- @bsb-hash sha256:e3ed60e9984ab4a540b2ead6739df8e185e0ca29b88a23ecfa295a0ee2c4917d
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -349,15 +349,9 @@ create trigger bsb_authz_versions_broadcast
   after insert or update on better_supabase.user_authz_versions
   for each row execute function better_supabase.broadcast_authz_version();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-    create policy bsb_authz_versions_receive on realtime.messages
+create policy bsb_authz_versions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'authz:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- The caller's own authorization version, null without a signed-in user.
 -- Clients compare it with the token's authz_ver to catch up on a broadcast

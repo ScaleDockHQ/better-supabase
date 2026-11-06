@@ -97,15 +97,9 @@ create trigger bsb_authz_versions_broadcast
   after insert or update on better_supabase.user_authz_versions
   for each row execute function better_supabase.broadcast_authz_version();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-    create policy bsb_authz_versions_receive on realtime.messages
+create policy bsb_authz_versions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'authz:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- The caller's own authorization version, null without a signed-in user.
 -- Clients compare it with the token's authz_ver to catch up on a broadcast

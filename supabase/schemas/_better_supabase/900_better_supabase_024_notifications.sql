@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:94b74313cd2e31d9f17dbabc068bb8344aed8b5ccc733e88f033db6a5d230831
+-- @bsb-hash sha256:d39976e73789364e5950e596fc1d9ef6b22735b9c38e3b9097e29bd4745d56ce
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1507,15 +1507,9 @@ create trigger "bsb_notification_broadcast" after insert on "better_supabase"."n
 create trigger "bsb_notification_broadcast_update" after update of "read_at", "dismissed_at", "resolved_at" on "better_supabase"."notification_recipients"
   for each row when (old."read_at" is distinct from new."read_at" or old."dismissed_at" is distinct from new."dismissed_at" or old."resolved_at" is distinct from new."resolved_at")
   execute function "better_supabase"."broadcast_notification"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_notifications_receive on realtime.messages
+create policy bsb_notifications_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
-  end if;
-end;
-$$;
 
 -- on with cascade: deleting a subject row deletes its notifications rows.
 create or replace function "better_supabase"."notifications_subject_deleted"()

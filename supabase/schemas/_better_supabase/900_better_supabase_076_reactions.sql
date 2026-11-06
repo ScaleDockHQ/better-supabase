@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:8308b033e8cb699bfc245613a21342166b59d8bd9dc4bdc19fd5a4be1dac4e2b
+-- @bsb-hash sha256:e79bf617712d94bf24112200915ca57e500db46817f2172b6a5f3189fb6e7c5b
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -516,17 +516,11 @@ revoke execute on function "better_supabase"."list_custom_emoji"(uuid) from publ
 grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authenticated, service_role;
 
 -- Members join reactions:{tenant}; payloads name the subject that changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_reactions_receive on realtime.messages
+create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
         and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
-  end if;
-end;
-$do$;
 
 -- on with cascade: deleting a subject row deletes its reactions rows.
 create or replace function "better_supabase"."reactions_subject_deleted"()

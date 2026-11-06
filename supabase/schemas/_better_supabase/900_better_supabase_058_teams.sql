@@ -1,6 +1,6 @@
 -- better-supabase module: teams
--- @bsb-block teams@2 managed
--- @bsb-hash sha256:2d1066c246a198c85ee96f8dfd23eb256d86af7c68c362230e34ffa709073474
+-- @bsb-block teams@3 managed
+-- @bsb-hash sha256:dffba9e38156cc8277a8eaccfc03a28f13e1dd60ceae8012dbc6d4d5440e3f3b
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,34 +48,6 @@ alter table "better_supabase"."team_members"
   references "public"."memberships" ("organization_id", "user_id")
   on delete cascade;
 
-do $shared_teams$
-declare
-  legacy record;
-begin
-  if to_regclass('better_supabase.inbox_teams') is null then
-    return;
-  end if;
-  insert into "better_supabase"."teams" ("id", "tenant_id", "name", "slug")
-  select "id", "tenant_id", "name",
-    trim(both '-' from regexp_replace(lower("name"), '[^a-z0-9]+', '-', 'g'))
-  from "better_supabase"."inbox_teams"
-  on conflict do nothing;
-  insert into "better_supabase"."team_members" ("team_id", "user_id", "tenant_id")
-  select m."team_id", m."user_id", t."tenant_id"
-  from "better_supabase"."inbox_team_members" m
-  join "better_supabase"."inbox_teams" t on t."id" = m."team_id"
-  on conflict do nothing;
-  for legacy in
-    select con.conname as name, con.conrelid::regclass as rel
-    from pg_catalog.pg_constraint con
-    where con.confrelid = 'better_supabase.inbox_teams'::regclass
-  loop
-    execute format('alter table %s drop constraint %I', legacy.rel, legacy.name);
-  end loop;
-  drop table "better_supabase"."inbox_team_members";
-  drop table "better_supabase"."inbox_teams";
-end
-$shared_teams$;
 alter table "better_supabase"."inbox_conversations"
   add constraint conversations_team_fkey
   foreign key ("team_id") references "better_supabase"."teams" ("id") on delete set null;

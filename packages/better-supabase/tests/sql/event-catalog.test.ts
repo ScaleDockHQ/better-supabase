@@ -57,8 +57,13 @@ const RECORDED = (() => {
   return byModule;
 })();
 
-/** Events only a module option turns on. */
+/**
+ * Events only a module option turns on, and the chat share events, which the
+ * share-links file records once that block is installed.
+ */
 const OPTIONAL = new Set([
+  "ai_chat.shared",
+  "ai_chat.share_revoked",
   "field_value.viewed",
   "subject.accessed",
   "field_value.deleted",

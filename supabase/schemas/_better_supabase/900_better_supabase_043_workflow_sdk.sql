@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:eb072e444fc2a8beee03323f4edbf597cc495871f3f819ecba80458166aa9ea8
+-- @bsb-hash sha256:ba8dbd069021c8b6221f471845d0e7dd1e7017a8fc18f758d297b35fe7379447
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,20 +10,11 @@
 -- the workflows module.
 create schema if not exists workflow;
 
-do $$ begin
-  create type workflow.status as enum ('pending', 'running', 'completed', 'failed', 'cancelled');
-exception when duplicate_object then null;
-end $$;
+create type workflow.status as enum ('pending', 'running', 'completed', 'failed', 'cancelled');
 
-do $$ begin
-  create type workflow.step_status as enum ('pending', 'running', 'completed', 'failed', 'cancelled');
-exception when duplicate_object then null;
-end $$;
+create type workflow.step_status as enum ('pending', 'running', 'completed', 'failed', 'cancelled');
 
-do $$ begin
-  create type workflow.wait_status as enum ('waiting', 'completed');
-exception when duplicate_object then null;
-end $$;
+create type workflow.wait_status as enum ('waiting', 'completed');
 
 create table workflow.workflow_event_slots (
   "run_id" character varying not null,
@@ -195,19 +186,6 @@ create table workflow.workflow_waits (
 
 create index workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
 
--- world-postgres 5.1 stores timestamptz; 5.0 tables hold UTC timestamps.
-do $$
-declare
-  c record;
-begin
-  for c in select table_name, column_name from information_schema.columns
-    where table_schema = 'workflow' and data_type = 'timestamp without time zone'
-  loop
-    execute format('alter table workflow.%I alter column %I type timestamptz using %I at time zone ''UTC''', c.table_name, c.column_name, c.column_name);
-  end loop;
-end
-$$;
-
 -- One row per start idempotency key: startFor claims the key before it starts
 -- a run, so two concurrent starts with one key start one run. run_id is null
 -- while the start that claimed it is still running.
@@ -219,20 +197,39 @@ create table workflow.workflow_run_keys (
 create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
-do $$
-declare
-  t record;
-begin
-  for t in select c.relname from pg_catalog.pg_class c
-    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'workflow' and c.relkind = 'r'
-  loop
-    execute format('alter table workflow.%I enable row level security', t.relname);
-    execute format('revoke all on workflow.%I from public, anon, authenticated', t.relname);
-    execute format('grant all on workflow.%I to service_role', t.relname);
-  end loop;
-end;
-$$;
+alter table workflow.workflow_event_slots enable row level security;
+revoke all on workflow.workflow_event_slots from public, anon, authenticated;
+grant all on workflow.workflow_event_slots to service_role;
+alter table workflow.workflow_events enable row level security;
+revoke all on workflow.workflow_events from public, anon, authenticated;
+grant all on workflow.workflow_events to service_role;
+alter table workflow.workflow_hooks enable row level security;
+revoke all on workflow.workflow_hooks from public, anon, authenticated;
+grant all on workflow.workflow_hooks to service_role;
+alter table workflow.workflow_invocations enable row level security;
+revoke all on workflow.workflow_invocations from public, anon, authenticated;
+grant all on workflow.workflow_invocations to service_role;
+alter table workflow.workflow_run_keys enable row level security;
+revoke all on workflow.workflow_run_keys from public, anon, authenticated;
+grant all on workflow.workflow_run_keys to service_role;
+alter table workflow.workflow_runs enable row level security;
+revoke all on workflow.workflow_runs from public, anon, authenticated;
+grant all on workflow.workflow_runs to service_role;
+alter table workflow.workflow_snapshots enable row level security;
+revoke all on workflow.workflow_snapshots from public, anon, authenticated;
+grant all on workflow.workflow_snapshots to service_role;
+alter table workflow.workflow_start_hook_admissions enable row level security;
+revoke all on workflow.workflow_start_hook_admissions from public, anon, authenticated;
+grant all on workflow.workflow_start_hook_admissions to service_role;
+alter table workflow.workflow_steps enable row level security;
+revoke all on workflow.workflow_steps from public, anon, authenticated;
+grant all on workflow.workflow_steps to service_role;
+alter table workflow.workflow_stream_chunks enable row level security;
+revoke all on workflow.workflow_stream_chunks from public, anon, authenticated;
+grant all on workflow.workflow_stream_chunks to service_role;
+alter table workflow.workflow_waits enable row level security;
+revoke all on workflow.workflow_waits from public, anon, authenticated;
+grant all on workflow.workflow_waits to service_role;
 grant usage, select on all sequences in schema workflow to service_role;
 create index workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
 

@@ -84,12 +84,74 @@ export async function loadLite(): Promise<LiteRuntime | undefined> {
   };
 }
 
+/**
+ * The Supabase tables block policies are written on, which a Supabase project
+ * always has and Lite does not: Realtime's `messages` with `topic()`, and
+ * Storage's `objects`. Module files create their policies on them without a
+ * guard.
+ */
+export const LITE_PLATFORM_SQL: Readonly<
+  Record<"realtime" | "storage", string>
+> = {
+  realtime: `create schema if not exists realtime;
+create table if not exists realtime.messages (
+  id bigint generated always as identity primary key,
+  topic text not null default '',
+  extension text not null default 'broadcast',
+  payload jsonb,
+  private boolean default false,
+  inserted_at timestamp not null default now()
+);
+alter table realtime.messages enable row level security;
+create or replace function realtime.topic() returns text
+language sql stable
+as $$ select nullif(current_setting('realtime.topic', true), '') $$;`,
+  storage: `create schema if not exists storage;
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text,
+  name text,
+  owner uuid,
+  metadata jsonb
+);
+alter table storage.objects enable row level security;`,
+};
+
+/** The table of each schema a shim creates. */
+const SHIM_TABLES = {
+  realtime: "realtime.messages",
+  storage: "storage.objects",
+} as const;
+
+/** The shims `parts` need: a platform table it uses and does not create itself. */
+function platformShims(parts: readonly string[]): string[] {
+  return (["realtime", "storage"] as const)
+    .filter(
+      (schema) =>
+        parts.some((part) => new RegExp(`\\b${schema}\\.`, "u").test(part)) &&
+        !parts.some((part) =>
+          new RegExp(
+            `create table (?:if not exists )?${SHIM_TABLES[schema].replace(".", "\\.")}\\b`,
+            "iu",
+          ).test(part),
+        ),
+    )
+    .map((schema) => LITE_PLATFORM_SQL[schema]);
+}
+
+const isPglite = (connection: LiteConnection): boolean =>
+  "driver" in connection;
+
 /** Applies migrations, then declarative schemas, with Lite's migrator. */
 export async function migrateLite(
   connection: LiteConnection,
   sql: readonly string[],
 ): Promise<void> {
-  const ddl = sql.filter((part) => part.trim() !== "").join("\n;\n");
+  const parts = sql.filter((part) => part.trim() !== "");
+
+  const ddl = (
+    isPglite(connection) ? [...platformShims(parts), ...parts] : parts
+  ).join("\n;\n");
 
   if (ddl !== "") {
     await connection.createMigrator(ddl).migrate();

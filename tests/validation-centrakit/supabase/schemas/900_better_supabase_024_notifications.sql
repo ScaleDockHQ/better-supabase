@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:3ca3a0a34cf2bd3128e16ee7ad427ba15a215a766d463df532093dfe46cf4396
+-- @bsb-hash sha256:3316e87c20333405985bd8983235ab58b8ac706732061024145e43c246c742ac
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1399,15 +1399,9 @@ create trigger "bsb_notification_broadcast" after insert on "centrakit"."notific
 create trigger "bsb_notification_broadcast_update" after update of "read_at", "dismissed_at", "resolved_at" on "centrakit"."notification_recipients"
   for each row when (old."read_at" is distinct from new."read_at" or old."dismissed_at" is distinct from new."dismissed_at" or old."resolved_at" is distinct from new."resolved_at")
   execute function "better_supabase"."broadcast_notification"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_notifications_receive on realtime.messages
+create policy bsb_notifications_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'organization:' || '[^:]+' || ':notifications:' || (select auth.uid())::text || '$'));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

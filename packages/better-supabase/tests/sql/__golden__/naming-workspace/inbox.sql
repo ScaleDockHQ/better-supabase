@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:82102b61b93ea81781a37e80d4cf474ec284b29debae0abe88fd4e7414a51acf
+-- @bsb-hash sha256:fe7340abfb72e9fa3fb306a3f328d2684d4366e7729a9cca8e38d75e28a97d1d
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2182,18 +2182,11 @@ create trigger "inbox_message_deliveries_broadcast" after insert or update of "s
 
 -- Staff join inbox:org:<tenant>. A conversation's own topic, with typing
 -- and presence, is the messaging core's.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_inbox_receive on realtime.messages
+create policy bsb_inbox_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'inbox:org:%'
         and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x));
-    drop policy if exists "bsb_inbox_broadcast" on realtime.messages;
-  end if;
-end;
-$$;
 
 create or replace function "better_supabase"."inbox_file_allowed"(bucket text, object_name text)
 returns boolean
@@ -2218,16 +2211,9 @@ $$;
 revoke execute on function "better_supabase"."inbox_file_allowed"(text, text) from public, anon;
 grant execute on function "better_supabase"."inbox_file_allowed"(text, text) to authenticated, service_role;
 
-do $$
-begin
-  if to_regclass('storage.objects') is not null then
-        create policy bsb_inbox_files_read on storage.objects
+create policy bsb_inbox_files_read on storage.objects
   for select to authenticated
   using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
-    drop policy if exists "bsb_inbox_files_write" on storage.objects;
-  end if;
-end;
-$$;
 -- Seeds the rows every organization starts with for inbox. Safe to run
 -- again: a row whose key exists is kept. It is not an entry point.
 create or replace function "better_supabase"."seed_inbox_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')

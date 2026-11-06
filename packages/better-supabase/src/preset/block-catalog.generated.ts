@@ -1129,13 +1129,13 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "streams"
       ],
       "integrates": [
+        "share-links",
         "entitlements",
         "ai-keys",
         "approvals",
         "data-lifecycle",
         "teams",
-        "usage",
-        "share-links"
+        "usage"
       ],
       "modes": [
         "managed",

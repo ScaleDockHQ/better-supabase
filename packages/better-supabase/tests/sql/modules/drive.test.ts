@@ -797,7 +797,14 @@ describe("drive module", () => {
       withOptions({ extraColumns: { project_id: "uuid" } }),
     );
 
-    expect(core).toContain(`'fields'`);
+    // With attachments installed, drive-files declares the node JSON.
+    expect(
+      sqlOf(
+        ["drive"],
+        "drive-files",
+        withOptions({ extraColumns: { project_id: "uuid" } }),
+      ),
+    ).toContain(`'fields'`);
     expect(core).toContain(
       `coalesce(v_fields."project_id", v_parent."project_id")`,
     );

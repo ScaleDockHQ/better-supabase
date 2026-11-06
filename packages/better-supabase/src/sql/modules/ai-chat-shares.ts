@@ -53,6 +53,33 @@ function aiChatShareSql(ctx: BlockSqlContext, own: BlockSqlContext): string {
   const links = ctx.table("links");
   const c = chatsRef(own, ctx);
 
+  const shared = own.record({
+    type: "ai_chat.shared",
+    payload:
+      "jsonb_build_object('chatId', share_ai_chat.chat, 'shareId', v_id, 'organizationId', v_tenant::text, 'ownerId', v_owner, 'leafId', v_leaf)",
+    subject: "'ai-chats/' || share_ai_chat.chat::text",
+    tenant: "v_tenant",
+    key: "'ai_chat.shared:' || v_id::text",
+    audit: {
+      category: "ai",
+      targetType: "ai_chat_share",
+      recordId: "v_id::text",
+    },
+  });
+
+  const revoked = own.record({
+    type: "ai_chat.share_revoked",
+    payload:
+      "jsonb_build_object('chatId', v_chat, 'shareId', revoke_ai_chat_share.id, 'organizationId', v_tenant::text, 'ownerId', v_owner)",
+    subject: "'ai-chats/' || v_chat",
+    tenant: "v_tenant",
+    audit: {
+      category: "ai",
+      targetType: "ai_chat_share",
+      recordId: "revoke_ai_chat_share.id::text",
+    },
+  });
+
   return `
 -- ai-chat sharing is this block. The old functions stay callable and write
 -- share_links instead of ai_chat_shares.
@@ -90,6 +117,7 @@ begin
   insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "createdBy")}${ctx.has("links", "leaf") ? `, ${ctx.col("links", "leaf")}` : ""})
   values (v_tenant, 'ai-chat', share_ai_chat.chat::text, ${sha256HexSql("convert_to(v_token, 'utf8')")}, 'view', auth.uid()${ctx.has("links", "leaf") ? ", v_leaf" : ""})
   returning ${ctx.col("links", "id")} into v_id;
+  ${shared}
   return jsonb_build_object('id', v_id, 'token', v_token, 'leaf_id', v_leaf);
 end;
 $$;
@@ -97,15 +125,29 @@ ${userGrant(`${ctx.fn("share_ai_chat")}(uuid, text)`)}
 create or replace function ${ctx.fn("revoke_ai_chat_share")}(id uuid)
 returns boolean
 language plpgsql security definer set search_path = '' as $$
+declare
+  v_chat text;
+  v_tenant ${ctx.idType};
+  v_owner uuid;
+  v_ok boolean;
 begin
-  return ${ctx.fn("revoke_share_link")}(revoke_ai_chat_share.id);
+  select ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tenant")} into v_chat, v_tenant
+  from ${links} where ${ctx.col("links", "id")} = revoke_ai_chat_share.id and ${ctx.col("links", "subjectType")} = 'ai-chat';
+  v_ok := ${ctx.fn("revoke_share_link")}(revoke_ai_chat_share.id);
+  if v_ok and v_chat is not null then
+    select ${c.owner} into v_owner from ${c.table} where ${c.id}::text = v_chat;
+    ${revoked}
+  end if;
+  return v_ok;
 end;
 $$;
+${userGrant(`${ctx.fn("revoke_ai_chat_share")}(uuid)`)}
 create or replace function ${ctx.fn("list_ai_chat_shares")}(chat uuid)
 returns jsonb
 language sql stable security definer set search_path = '' as $$
   select ${ctx.fn("list_share_links")}('ai-chat', list_ai_chat_shares.chat::text)
 $$;
+${userGrant(`${ctx.fn("list_ai_chat_shares")}(uuid)`)}
 create or replace function ${ctx.fn("get_shared_ai_chat")}(token text)
 returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
@@ -137,6 +179,8 @@ begin
   );
 end;
 $$;
+revoke execute on function ${ctx.fn("get_shared_ai_chat")}(text) from public;
+grant execute on function ${ctx.fn("get_shared_ai_chat")}(text) to anon, authenticated, service_role;
 `;
 }
 

@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:e1be28c95ab24adc71ceabf3ce65ecc2a1e00434cf0360830114feee5c0898ff
+-- @bsb-hash sha256:41ffb992bcfba5bf38244aba7685fdd04a81922d1dc4fd9a33936ce2ba86b98a
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1751,22 +1751,16 @@ revoke execute on function "better_supabase"."messaging_message_broadcast"() fro
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_messaging_receive on realtime.messages
+create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        create policy bsb_messaging_broadcast on realtime.messages
+create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$$;
 
 
 -- The inbox's conversations and message details belong to core rows.

@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:af271f9cbe03a9c5eb8eb20b20cd7585afa1fabd0527420d030bef010392598b
+-- @bsb-hash sha256:f98250d80c03c3b2e015b9de78717f9d11a9a5e9a7e3acca52c9f1268f1c6da1
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -896,22 +896,16 @@ $$;
 revoke execute on function "better_supabase"."subject_presence_allowed"(text) from public, anon;
 grant execute on function "better_supabase"."subject_presence_allowed"(text) to authenticated, service_role;
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_subject_presence_receive on realtime.messages
+create policy bsb_subject_presence_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
         and "better_supabase"."subject_presence_allowed"((select realtime.topic())));
-        create policy bsb_subject_presence_send on realtime.messages
+create policy bsb_subject_presence_send on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
         and "better_supabase"."subject_presence_allowed"((select realtime.topic()))) and (select centrakit.authz_actor_may_write()));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

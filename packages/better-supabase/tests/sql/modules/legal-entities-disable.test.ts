@@ -32,11 +32,14 @@ const options = (on: readonly string[]) => ({
   rerunnable: true,
 });
 
-/** The legal-entities schema file with legal entities off for every kind. */
+/**
+ * The legal-entities data file with legal entities off for every kind: the
+ * restore runs there.
+ */
 function turnedOff(): string {
   const file = renderBlocks([...MODULES], options([])).find(
     (candidate) =>
-      candidate.module === "legal-entities" && candidate.kind === "schema",
+      candidate.module === "legal-entities" && candidate.kind === "data",
   );
 
   expect(file).toBeDefined();

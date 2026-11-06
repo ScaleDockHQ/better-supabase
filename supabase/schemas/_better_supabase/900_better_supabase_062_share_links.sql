@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:dda275d220acd5c2b512be30f37aa10a20d9d312d826c8a8eaec28918a278a9d
+-- @bsb-hash sha256:0fe74bd51ac575ca15e4adbea20e5acdd72fc65602c73ea3cf81cdbeca94d230
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -395,6 +395,16 @@ begin
   insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "created_by", "leaf_id")
   values (v_tenant, 'ai-chat', share_ai_chat.chat::text, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), 'view', auth.uid(), v_leaf)
   returning "id" into v_id;
+  perform "better_supabase".emit_event('ai_chat.shared', jsonb_build_object('chatId', share_ai_chat.chat, 'shareId', v_id, 'organizationId', v_tenant::text, 'ownerId', v_owner, 'leafId', v_leaf), 'ai-chats/' || share_ai_chat.chat::text, (v_tenant)::text, 'ai_chat.shared:' || v_id::text, 'better-supabase/ai-chat');
+  perform better_supabase.audit_event(
+    event_type => 'ai_chat.shared',
+    category => 'ai',
+    target_type => 'ai_chat_share',
+    record_id => v_id::text,
+    tenant => (v_tenant)::uuid,
+    metadata => jsonb_build_object('chatId', share_ai_chat.chat, 'shareId', v_id, 'organizationId', v_tenant::text, 'ownerId', v_owner, 'leafId', v_leaf),
+    idempotency_key => 'ai_chat.shared:' || v_id::text
+  );
   return jsonb_build_object('id', v_id, 'token', v_token, 'leaf_id', v_leaf);
 end;
 $$;
@@ -403,15 +413,39 @@ grant execute on function "better_supabase"."share_ai_chat"(uuid, text) to authe
 create or replace function "better_supabase"."revoke_ai_chat_share"(id uuid)
 returns boolean
 language plpgsql security definer set search_path = '' as $$
+declare
+  v_chat text;
+  v_tenant uuid;
+  v_owner uuid;
+  v_ok boolean;
 begin
-  return "better_supabase"."revoke_share_link"(revoke_ai_chat_share.id);
+  select "subject_id", "tenant_id" into v_chat, v_tenant
+  from "better_supabase"."share_links" where "id" = revoke_ai_chat_share.id and "subject_type" = 'ai-chat';
+  v_ok := "better_supabase"."revoke_share_link"(revoke_ai_chat_share.id);
+  if v_ok and v_chat is not null then
+    select owner_id into v_owner from "better_supabase".ai_chats where id::text = v_chat;
+    perform "better_supabase".emit_event('ai_chat.share_revoked', jsonb_build_object('chatId', v_chat, 'shareId', revoke_ai_chat_share.id, 'organizationId', v_tenant::text, 'ownerId', v_owner), 'ai-chats/' || v_chat, (v_tenant)::text, null, 'better-supabase/ai-chat');
+  perform better_supabase.audit_event(
+    event_type => 'ai_chat.share_revoked',
+    category => 'ai',
+    target_type => 'ai_chat_share',
+    record_id => revoke_ai_chat_share.id::text,
+    tenant => (v_tenant)::uuid,
+    metadata => jsonb_build_object('chatId', v_chat, 'shareId', revoke_ai_chat_share.id, 'organizationId', v_tenant::text, 'ownerId', v_owner)
+  );
+  end if;
+  return v_ok;
 end;
 $$;
+revoke execute on function "better_supabase"."revoke_ai_chat_share"(uuid) from public, anon;
+grant execute on function "better_supabase"."revoke_ai_chat_share"(uuid) to authenticated, service_role;
 create or replace function "better_supabase"."list_ai_chat_shares"(chat uuid)
 returns jsonb
 language sql stable security definer set search_path = '' as $$
   select "better_supabase"."list_share_links"('ai-chat', list_ai_chat_shares.chat::text)
 $$;
+revoke execute on function "better_supabase"."list_ai_chat_shares"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_ai_chat_shares"(uuid) to authenticated, service_role;
 create or replace function "better_supabase"."get_shared_ai_chat"(token text)
 returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
@@ -448,6 +482,8 @@ begin
   );
 end;
 $$;
+revoke execute on function "better_supabase"."get_shared_ai_chat"(text) from public;
+grant execute on function "better_supabase"."get_shared_ai_chat"(text) to anon, authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -540,3 +576,30 @@ set search_path = ''
 as $$ select "better_supabase"."share_ai_chat"($1, $2) $$;
 revoke execute on function "api"."share_ai_chat"(uuid, text) from public, anon;
 grant execute on function "api"."share_ai_chat"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."revoke_ai_chat_share"(id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."revoke_ai_chat_share"($1) $$;
+revoke execute on function "api"."revoke_ai_chat_share"(uuid) from public, anon;
+grant execute on function "api"."revoke_ai_chat_share"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_ai_chat_shares"(chat uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_ai_chat_shares"($1) $$;
+revoke execute on function "api"."list_ai_chat_shares"(uuid) from public, anon;
+grant execute on function "api"."list_ai_chat_shares"(uuid) to authenticated, service_role;
+
+create or replace function "api"."get_shared_ai_chat"(token text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_shared_ai_chat"($1) $$;
+revoke execute on function "api"."get_shared_ai_chat"(text) from public;
+grant execute on function "api"."get_shared_ai_chat"(text) to anon, authenticated, service_role;

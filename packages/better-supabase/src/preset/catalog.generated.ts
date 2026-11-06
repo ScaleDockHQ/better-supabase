@@ -1277,13 +1277,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "streams"
       ],
       "integrates": [
+        "share-links",
         "entitlements",
         "ai-keys",
         "approvals",
         "data-lifecycle",
         "teams",
-        "usage",
-        "share-links"
+        "usage"
       ],
       "manifest": "ai-chat",
       "scopes": [

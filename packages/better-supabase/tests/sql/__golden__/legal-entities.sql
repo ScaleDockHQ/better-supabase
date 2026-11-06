@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:4bd2b7822ddc48ddfb85dbb224925fa3eb87fc3d50abe239bb98fdfe97b429fe
+-- @bsb-hash sha256:b03a8e5da577089884b624b0cff2b1cd4fa5a0c9b575495c231142a779c8b19a
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -66,7 +66,6 @@ grant all on "better_supabase"."legal_entity_settings" to service_role;
 create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
-
 
 
 
@@ -542,7 +541,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:ae1c72d796dee344cee37665a6f351f79089d4c9d3f6bf83f7c701823a31b2c2
+-- @bsb-hash sha256:898e2d769c8ff9b5ef0b69a5041243edada235ab886d90020049c63edbecb917
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -609,137 +608,9 @@ create policy legal_entity_settings_read on "better_supabase"."legal_entity_sett
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
 
-
--- options.on no longer names invoices: numbers are unique per organization
--- again. The keys go back only when no number is used by two legal entities.
-do $$
-declare
-  v_key record;
-  v_taken text;
-begin
-  if to_regclass('"better_supabase"."invoices"') is null or not exists (
-    select 1 from pg_attribute where attrelid = '"better_supabase"."invoices"'::regclass and attname = 'legal_entity_id' and not attisdropped
-  ) then
-    return;
-  end if;
-  for v_key in
-    select ic.relname as index_name, i.indexrelid::regclass::text as index_ref, c.conname,
-      (select string_agg(quote_ident(a.attname), ', ' order by k.ord)
-       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
-       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as cols,
-      (select string_agg(quote_ident(a.attname) || ' is not null', ' and ' order by k.ord)
-       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
-       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as present
-    from pg_index i
-    join pg_class ic on ic.oid = i.indexrelid
-    left join pg_constraint c on c.conindid = i.indexrelid and c.contype = 'u'
-    where i.indrelid = '"better_supabase"."invoices"'::regclass and i.indisunique and not i.indisprimary and i.indpred is null
-      and pg_get_expr(i.indexprs, i.indrelid) like '%legal_entity_id%'
-      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
-        && array['number', 'identifier']
-  loop
-    execute format('select row(%s)::text from "better_supabase"."invoices" where %s group by %s having count(*) > 1 limit 1', v_key.cols, v_key.present, v_key.cols) into v_taken;
-    if v_taken is not null then
-      raise exception 'can not turn legal entities off for invoices: numbers are held by more than one legal entity (for example %). List them with legal_entities_disable_check while the option is on, renumber one of each pair, then turn the option off', v_taken
-        using errcode = '23505', hint = 'LEGAL_ENTITIES_DISABLE_COLLISION';
-    end if;
-    execute format('drop index %s', v_key.index_ref);
-    execute format('create unique index %I on "better_supabase"."invoices" (%s)', v_key.index_name, v_key.cols);
-  end loop;
-end $$;
-
--- options.on no longer names quotes: numbers are unique per organization
--- again. The keys go back only when no number is used by two legal entities.
-do $$
-declare
-  v_key record;
-  v_taken text;
-begin
-  if to_regclass('"better_supabase"."quotes"') is null or not exists (
-    select 1 from pg_attribute where attrelid = '"better_supabase"."quotes"'::regclass and attname = 'legal_entity_id' and not attisdropped
-  ) then
-    return;
-  end if;
-  for v_key in
-    select ic.relname as index_name, i.indexrelid::regclass::text as index_ref, c.conname,
-      (select string_agg(quote_ident(a.attname), ', ' order by k.ord)
-       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
-       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as cols,
-      (select string_agg(quote_ident(a.attname) || ' is not null', ' and ' order by k.ord)
-       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
-       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as present
-    from pg_index i
-    join pg_class ic on ic.oid = i.indexrelid
-    left join pg_constraint c on c.conindid = i.indexrelid and c.contype = 'u'
-    where i.indrelid = '"better_supabase"."quotes"'::regclass and i.indisunique and not i.indisprimary and i.indpred is null
-      and pg_get_expr(i.indexprs, i.indrelid) like '%legal_entity_id%'
-      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
-        && array['number']
-  loop
-    execute format('select row(%s)::text from "better_supabase"."quotes" where %s group by %s having count(*) > 1 limit 1', v_key.cols, v_key.present, v_key.cols) into v_taken;
-    if v_taken is not null then
-      raise exception 'can not turn legal entities off for quotes: numbers are held by more than one legal entity (for example %). List them with legal_entities_disable_check while the option is on, renumber one of each pair, then turn the option off', v_taken
-        using errcode = '23505', hint = 'LEGAL_ENTITIES_DISABLE_COLLISION';
-    end if;
-    execute format('drop index %s', v_key.index_ref);
-    execute format('create unique index %I on "better_supabase"."quotes" (%s)', v_key.index_name, v_key.cols);
-  end loop;
-end $$;
-
--- options.on no longer names orders: numbers are unique per organization
--- again. The keys go back only when no number is used by two legal entities.
-do $$
-declare
-  v_key record;
-  v_taken text;
-begin
-  if to_regclass('"better_supabase"."orders"') is null or not exists (
-    select 1 from pg_attribute where attrelid = '"better_supabase"."orders"'::regclass and attname = 'legal_entity_id' and not attisdropped
-  ) then
-    return;
-  end if;
-  for v_key in
-    select ic.relname as index_name, i.indexrelid::regclass::text as index_ref, c.conname,
-      (select string_agg(quote_ident(a.attname), ', ' order by k.ord)
-       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
-       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as cols,
-      (select string_agg(quote_ident(a.attname) || ' is not null', ' and ' order by k.ord)
-       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
-       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as present
-    from pg_index i
-    join pg_class ic on ic.oid = i.indexrelid
-    left join pg_constraint c on c.conindid = i.indexrelid and c.contype = 'u'
-    where i.indrelid = '"better_supabase"."orders"'::regclass and i.indisunique and not i.indisprimary and i.indpred is null
-      and pg_get_expr(i.indexprs, i.indrelid) like '%legal_entity_id%'
-      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
-        && array['number', 'invoice_number']
-  loop
-    execute format('select row(%s)::text from "better_supabase"."orders" where %s group by %s having count(*) > 1 limit 1', v_key.cols, v_key.present, v_key.cols) into v_taken;
-    if v_taken is not null then
-      raise exception 'can not turn legal entities off for orders: numbers are held by more than one legal entity (for example %). List them with legal_entities_disable_check while the option is on, renumber one of each pair, then turn the option off', v_taken
-        using errcode = '23505', hint = 'LEGAL_ENTITIES_DISABLE_COLLISION';
-    end if;
-    execute format('drop index %s', v_key.index_ref);
-    execute format('create unique index %I on "better_supabase"."orders" (%s)', v_key.index_name, v_key.cols);
-  end loop;
-end $$;
 alter table "better_supabase"."field_values" add column legal_entity_id uuid;
 alter table "better_supabase"."field_values" add constraint "bsb_field_values_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
 create index "bsb_field_values_legal_entity_idx" on "better_supabase"."field_values" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
-do $$
-declare
-  v_constraint name;
-begin
-  for v_constraint in
-    select c.conname from pg_constraint c
-    where c.conrelid = '"better_supabase"."field_values"'::regclass and c.contype = 'u'
-      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = c.conrelid and a.attnum = any (c.conkey))
-        @> array['tenant_id', 'subject_type', 'subject_id', 'definition_id']
-      and cardinality(c.conkey) = 4
-  loop
-    execute format('alter table "better_supabase"."field_values" drop constraint %I', v_constraint);
-  end loop;
-end $$;
 create unique index "bsb_field_values_entity_key_idx" on "better_supabase"."field_values" ("tenant_id", "subject_type", "subject_id", "definition_id", coalesce(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 
@@ -1244,11 +1115,157 @@ $$;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block-data legal-entities
--- @bsb-hash sha256:2f562e0fc37b73534d82eec86c0b9b2fbd8131c55be9ab68dee46882609313a6
+-- @bsb-hash sha256:773f444cb0e1d9ea5c00dca78917f80da680b89eca39f1567506cf56d1199705
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- options.on no longer names invoices: numbers are unique per organization
+-- again. The keys go back only when no number is used by two legal entities.
+do $$
+declare
+  v_key record;
+  v_taken text;
+begin
+  if to_regclass('"better_supabase"."invoices"') is null or not exists (
+    select 1 from pg_attribute where attrelid = '"better_supabase"."invoices"'::regclass and attname = 'legal_entity_id' and not attisdropped
+  ) then
+    return;
+  end if;
+  for v_key in
+    select ic.relname as index_name, i.indexrelid::regclass::text as index_ref, c.conname,
+      (select string_agg(quote_ident(a.attname), ', ' order by k.ord)
+       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as cols,
+      (select string_agg(quote_ident(a.attname) || ' is not null', ' and ' order by k.ord)
+       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as present
+    from pg_index i
+    join pg_class ic on ic.oid = i.indexrelid
+    left join pg_constraint c on c.conindid = i.indexrelid and c.contype = 'u'
+    where i.indrelid = '"better_supabase"."invoices"'::regclass and i.indisunique and not i.indisprimary and i.indpred is null
+      and pg_get_expr(i.indexprs, i.indrelid) like '%legal_entity_id%'
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        && array['number', 'identifier']
+  loop
+    execute format('select row(%s)::text from "better_supabase"."invoices" where %s group by %s having count(*) > 1 limit 1', v_key.cols, v_key.present, v_key.cols) into v_taken;
+    if v_taken is not null then
+      raise exception 'can not turn legal entities off for invoices: numbers are held by more than one legal entity (for example %). List them with legal_entities_disable_check while the option is on, renumber one of each pair, then turn the option off', v_taken
+        using errcode = '23505', hint = 'LEGAL_ENTITIES_DISABLE_COLLISION';
+    end if;
+    execute format('drop index %s', v_key.index_ref);
+    execute format('create unique index %I on "better_supabase"."invoices" (%s)', v_key.index_name, v_key.cols);
+  end loop;
+end $$;
+do $$
+begin
+  drop trigger if exists "bsb_invoices_entity_numbers" on "better_supabase"."invoices";
+  drop function if exists "better_supabase"."bsb_invoices_entity_numbers"();
+end $$;
+
+-- options.on no longer names quotes: numbers are unique per organization
+-- again. The keys go back only when no number is used by two legal entities.
+do $$
+declare
+  v_key record;
+  v_taken text;
+begin
+  if to_regclass('"better_supabase"."quotes"') is null or not exists (
+    select 1 from pg_attribute where attrelid = '"better_supabase"."quotes"'::regclass and attname = 'legal_entity_id' and not attisdropped
+  ) then
+    return;
+  end if;
+  for v_key in
+    select ic.relname as index_name, i.indexrelid::regclass::text as index_ref, c.conname,
+      (select string_agg(quote_ident(a.attname), ', ' order by k.ord)
+       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as cols,
+      (select string_agg(quote_ident(a.attname) || ' is not null', ' and ' order by k.ord)
+       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as present
+    from pg_index i
+    join pg_class ic on ic.oid = i.indexrelid
+    left join pg_constraint c on c.conindid = i.indexrelid and c.contype = 'u'
+    where i.indrelid = '"better_supabase"."quotes"'::regclass and i.indisunique and not i.indisprimary and i.indpred is null
+      and pg_get_expr(i.indexprs, i.indrelid) like '%legal_entity_id%'
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        && array['number']
+  loop
+    execute format('select row(%s)::text from "better_supabase"."quotes" where %s group by %s having count(*) > 1 limit 1', v_key.cols, v_key.present, v_key.cols) into v_taken;
+    if v_taken is not null then
+      raise exception 'can not turn legal entities off for quotes: numbers are held by more than one legal entity (for example %). List them with legal_entities_disable_check while the option is on, renumber one of each pair, then turn the option off', v_taken
+        using errcode = '23505', hint = 'LEGAL_ENTITIES_DISABLE_COLLISION';
+    end if;
+    execute format('drop index %s', v_key.index_ref);
+    execute format('create unique index %I on "better_supabase"."quotes" (%s)', v_key.index_name, v_key.cols);
+  end loop;
+end $$;
+do $$
+begin
+  drop trigger if exists "bsb_quotes_entity_numbers" on "better_supabase"."quotes";
+  drop function if exists "better_supabase"."bsb_quotes_entity_numbers"();
+end $$;
+
+-- options.on no longer names orders: numbers are unique per organization
+-- again. The keys go back only when no number is used by two legal entities.
+do $$
+declare
+  v_key record;
+  v_taken text;
+begin
+  if to_regclass('"better_supabase"."orders"') is null or not exists (
+    select 1 from pg_attribute where attrelid = '"better_supabase"."orders"'::regclass and attname = 'legal_entity_id' and not attisdropped
+  ) then
+    return;
+  end if;
+  for v_key in
+    select ic.relname as index_name, i.indexrelid::regclass::text as index_ref, c.conname,
+      (select string_agg(quote_ident(a.attname), ', ' order by k.ord)
+       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as cols,
+      (select string_agg(quote_ident(a.attname) || ' is not null', ' and ' order by k.ord)
+       from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where k.attnum > 0) as present
+    from pg_index i
+    join pg_class ic on ic.oid = i.indexrelid
+    left join pg_constraint c on c.conindid = i.indexrelid and c.contype = 'u'
+    where i.indrelid = '"better_supabase"."orders"'::regclass and i.indisunique and not i.indisprimary and i.indpred is null
+      and pg_get_expr(i.indexprs, i.indrelid) like '%legal_entity_id%'
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[]))
+        && array['number', 'invoice_number']
+  loop
+    execute format('select row(%s)::text from "better_supabase"."orders" where %s group by %s having count(*) > 1 limit 1', v_key.cols, v_key.present, v_key.cols) into v_taken;
+    if v_taken is not null then
+      raise exception 'can not turn legal entities off for orders: numbers are held by more than one legal entity (for example %). List them with legal_entities_disable_check while the option is on, renumber one of each pair, then turn the option off', v_taken
+        using errcode = '23505', hint = 'LEGAL_ENTITIES_DISABLE_COLLISION';
+    end if;
+    execute format('drop index %s', v_key.index_ref);
+    execute format('create unique index %I on "better_supabase"."orders" (%s)', v_key.index_name, v_key.cols);
+  end loop;
+end $$;
+do $$
+begin
+  drop trigger if exists "bsb_orders_entity_numbers" on "better_supabase"."orders";
+  drop function if exists "better_supabase"."bsb_orders_entity_numbers"();
+end $$;
+do $$
+declare
+  v_constraint name;
+begin
+  if to_regclass('"better_supabase"."field_values"') is null then
+    return;
+  end if;
+  for v_constraint in
+    select c.conname from pg_constraint c
+    where c.conrelid = '"better_supabase"."field_values"'::regclass and c.contype = 'u'
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = c.conrelid and a.attnum = any (c.conkey))
+        @> array['tenant_id', 'subject_type', 'subject_id', 'definition_id']
+      and cardinality(c.conkey) = 4
+  loop
+    execute format('alter table "better_supabase"."field_values" drop constraint %I', v_constraint);
+  end loop;
+end $$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('legal-entities', 1, 'managed')
@@ -1258,7 +1275,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:4614ca314f5041d6fd6252a9b251c65255d0bf2ec506f79c3161c6ddfaf4af4e
+-- @bsb-hash sha256:6d51976568c70c3a87f935f8d391985ac98cc02a8fa668d4e7af0842a0f2666d
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1328,7 +1345,6 @@ grant all on "app_private"."legal_entity_settings" to service_role;
 create policy legal_entity_settings_read on "app_private"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
-
 
 
 
@@ -1804,7 +1820,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:69bf37da915154ff132392a54092b19c72b87e610d6306f13276be6cd1cab7c5
+-- @bsb-hash sha256:ff7615f50170310a259871d8b8b8e7ff70db24c31f7fba2a8e28512212f0a24a
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1869,7 +1885,6 @@ grant all on "better_supabase"."legal_entity_settings" to service_role;
 create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
-
 
 
 
@@ -2453,7 +2468,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:3d5f1d1a1b5fb35104cc0636d0af8a6fa98983678f6be1ac8a72196bffbe1b88
+-- @bsb-hash sha256:a0de6b329e5c225f81899335df17597d6ee575226914385653e40d6c17dc28b5
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2509,7 +2524,6 @@ grant all on "better_supabase"."legal_entity_settings" to service_role;
 create policy bsb_legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
-
 
 
 
@@ -2985,7 +2999,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:352ef232209a11da08bb07d67452b1bcd950d288ae2ae8d29028c23d259db3da
+-- @bsb-hash sha256:159d3ffe405e64b8f6682d24c19c56fc3a6e832cd7d5d61dba2fe403bc5a7e53
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3050,7 +3064,6 @@ grant all on "better_supabase"."legal_entity_settings" to service_role;
 create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
-
 
 
 

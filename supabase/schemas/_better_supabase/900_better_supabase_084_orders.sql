@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:4c34c9806eff8b392c9d653763d82ed286dc35e258e7ddb509a5a271b982d3a9
+-- @bsb-hash sha256:4918a3d6ba0f1782ffbe13f2c884db0be26ccd4697091fb3ab55d3f28af1b958
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2533,10 +2533,7 @@ $$;
 revoke execute on function "better_supabase"."order_line_preparations_changed"() from public, anon, authenticated;
 create trigger "bsb_order_line_preparations_broadcast" after insert or update on "better_supabase"."order_line_preparations"
   for each row execute function "better_supabase"."order_line_preparations_changed"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_kitchen_receive on realtime.messages
+create policy bsb_kitchen_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'kitchen:%'
@@ -2545,9 +2542,6 @@ begin
           union all
           select t::text from better_supabase.tenant_ids_with('orders.prepare') t
         ));
-  end if;
-end;
-$$;
 
 -- Creates or changes a station. attrs: key, name, position, default, active
 -- and productIds, which replaces the products routed to it.

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:b4aab7fb2dff7a5ec114b1be8a0442934c89a3f303e2082ef0343ef878912c91
+-- @bsb-hash sha256:cc313cddd6c6fe94d5f1fc09dcb9f9b78d4291f55968afb375f364b21aa7407d
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -428,17 +428,11 @@ create trigger "bsb_attachments_changed"
   for each row execute function "better_supabase"."attachments_changed"();
 
 -- Members join attachments:{tenant}; payloads name the subject whose files changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_attachments_receive on realtime.messages
+create policy bsb_attachments_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'attachments:%'
         and substr((select realtime.topic()), 13) in (select x::text from better_supabase.tenant_ids_with('attachments.read') x));
-  end if;
-end;
-$do$;
 
 -- The earlier versions of each file, written by replace_attachment() and
 -- restore_attachment_version(). A reader of the file reads its versions; the
@@ -1145,7 +1139,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:2b625468630e021b0488e7cf326411e5ca32c7bf37f53f50585f59d026d0a5c7
+-- @bsb-hash sha256:16b26d611bc36cdc1d3327dc71c8067d0df279d3f259fec6b0f9bf631a4ec10a
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1582,17 +1576,11 @@ create trigger "bsb_attachments_changed"
   for each row execute function "better_supabase"."attachments_changed"();
 
 -- Members join attachments:{tenant}; payloads name the subject whose files changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_attachments_receive on realtime.messages
+create policy bsb_attachments_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'attachments:%'
         and substr((select realtime.topic()), 13) in (select x::text from better_supabase.tenant_ids_with('attachments.read') x));
-  end if;
-end;
-$do$;
 
 -- The earlier versions of each file, written by replace_attachment() and
 -- restore_attachment_version(). A reader of the file reads its versions; the
@@ -2438,7 +2426,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:c774f8bd6cfcdbbb75e0ade3d06c5c5dae7f44bc3f16b476515a5ddba1f8adf6
+-- @bsb-hash sha256:d1de1d6fc960173cf2f81c4808d570135078981c4017375c041d76d10ba09373
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2870,17 +2858,11 @@ create trigger "bsb_attachments_changed"
   for each row execute function "app_private"."attachments_changed"();
 
 -- Members join attachments:{tenant}; payloads name the subject whose files changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_attachments_receive on realtime.messages
+create policy bsb_attachments_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'attachments:%'
         and substr((select realtime.topic()), 13) in (select x::text from better_supabase.tenant_ids_with('attachments.read') x));
-  end if;
-end;
-$do$;
 
 -- The earlier versions of each file, written by replace_attachment() and
 -- restore_attachment_version(). A reader of the file reads its versions; the
@@ -3587,7 +3569,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:c7b2a305da4fe272daed3ff669ddfa9b72dae1b9f9d8b4e009a10ccade13d148
+-- @bsb-hash sha256:ee834e2b2e4048c74ae1b74650ef52a1a3ee1e93ac53b7f2796cf98657ed18fc
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4014,17 +3996,11 @@ create trigger "bsb_attachments_changed"
   for each row execute function "better_supabase"."attachments_changed"();
 
 -- Members join attachments:{tenant}; payloads name the subject whose files changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_attachments_receive on realtime.messages
+create policy bsb_attachments_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'attachments:%'
         and substr((select realtime.topic()), 13) in (select x::text from better_supabase.tenant_ids_with('attachments.read') x));
-  end if;
-end;
-$do$;
 
 -- The earlier versions of each file, written by replace_attachment() and
 -- restore_attachment_version(). A reader of the file reads its versions; the
@@ -4916,7 +4892,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:9d42a157477a9b02ad88ed496260d6aee8648df1db0fa48b22a6e393b2eed11e
+-- @bsb-hash sha256:e547e1ca9825364a04025194f2a593c936143e74736b34fdaeb50aeafa82beb4
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5250,17 +5226,11 @@ create trigger "bsb_attachments_changed"
   for each row execute function "better_supabase"."attachments_changed"();
 
 -- Members join attachments:{tenant}; payloads name the subject whose files changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_attachments_receive on realtime.messages
+create policy bsb_attachments_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'attachments:%'
         and substr((select realtime.topic()), 13) in (select x::text from better_supabase.tenant_ids_with('attachments.read') x));
-  end if;
-end;
-$do$;
 
 -- The earlier versions of each file, written by replace_attachment() and
 -- restore_attachment_version(). A reader of the file reads its versions; the
@@ -5852,7 +5822,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:1dc5375951691f85bfb73071c1e733dc4e2a3bc76e3b2b286de0474eb377173a
+-- @bsb-hash sha256:69ab44717180447cb4739bfd9b7564338a8e3b9509143fe5f18b2e8a3d7405c2
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6279,17 +6249,11 @@ create trigger "bsb_attachments_changed"
   for each row execute function "better_supabase"."attachments_changed"();
 
 -- Members join attachments:{tenant}; payloads name the subject whose files changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_attachments_receive on realtime.messages
+create policy bsb_attachments_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'attachments:%'
         and substr((select realtime.topic()), 13) in (select x::text from better_supabase.tenant_ids_with('attachments.read') x));
-  end if;
-end;
-$do$;
 
 -- The earlier versions of each file, written by replace_attachment() and
 -- restore_attachment_version(). A reader of the file reads its versions; the

@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
--- @bsb-block teams@2 managed
+-- @bsb-block teams@3 managed
 -- @bsb-hash sha256:a7760567c0c50fadc6262546edbd03ada15fe31b18fb45d9dcffc1018e8f9a5d
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -333,21 +333,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."team_members" as res
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block-data teams
--- @bsb-hash sha256:73dfb8a9526ca418c3217dfe9e93bcf5b07006c37b0a318922295a314a8ee6c9
+-- @bsb-hash sha256:343c6d189b386e49106859fc04e329bcaaa000b06471bf85ee6b94cd5f5c4867
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('teams', 2, 'managed')
+values ('teams', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
--- @bsb-block teams@2 managed
--- @bsb-hash sha256:f71f16a2fae7fee102cd8a964718b6a2fa306242775098a8eb9918f60d31c365
+-- @bsb-block teams@3 managed
+-- @bsb-hash sha256:490415b3b8547eca9aa67d318922c1897094888036c250c3a93c0d8002c4f122
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -395,34 +395,6 @@ alter table "better_supabase"."team_members"
   references "better_supabase"."memberships" ("organization_id", "user_id")
   on delete cascade;
 
-do $shared_teams$
-declare
-  legacy record;
-begin
-  if to_regclass('better_supabase.inbox_teams') is null then
-    return;
-  end if;
-  insert into "better_supabase"."teams" ("id", "tenant_id", "name", "slug")
-  select "id", "tenant_id", "name",
-    trim(both '-' from regexp_replace(lower("name"), '[^a-z0-9]+', '-', 'g'))
-  from "better_supabase"."inbox_teams"
-  on conflict do nothing;
-  insert into "better_supabase"."team_members" ("team_id", "user_id", "tenant_id")
-  select m."team_id", m."user_id", t."tenant_id"
-  from "better_supabase"."inbox_team_members" m
-  join "better_supabase"."inbox_teams" t on t."id" = m."team_id"
-  on conflict do nothing;
-  for legacy in
-    select con.conname as name, con.conrelid::regclass as rel
-    from pg_catalog.pg_constraint con
-    where con.confrelid = 'better_supabase.inbox_teams'::regclass
-  loop
-    execute format('alter table %s drop constraint %I', legacy.rel, legacy.name);
-  end loop;
-  drop table "better_supabase"."inbox_team_members";
-  drop table "better_supabase"."inbox_teams";
-end
-$shared_teams$;
 alter table "better_supabase"."inbox_conversations"
   add constraint conversations_team_fkey
   foreign key ("team_id") references "better_supabase"."teams" ("id") on delete set null;
@@ -764,20 +736,20 @@ $$;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block-data teams
--- @bsb-hash sha256:73dfb8a9526ca418c3217dfe9e93bcf5b07006c37b0a318922295a314a8ee6c9
+-- @bsb-hash sha256:343c6d189b386e49106859fc04e329bcaaa000b06471bf85ee6b94cd5f5c4867
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('teams', 2, 'managed')
+values ('teams', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
--- @bsb-block teams@2 managed
+-- @bsb-block teams@3 managed
 -- @bsb-hash sha256:4f10e4cf29381dfec52294afe059847e49ef7f66658ef84a860c96493b7cd03a
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1115,20 +1087,20 @@ create policy bsb_tenant_scope_delete on "app_private"."team_members" as restric
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block-data teams
--- @bsb-hash sha256:73dfb8a9526ca418c3217dfe9e93bcf5b07006c37b0a318922295a314a8ee6c9
+-- @bsb-hash sha256:343c6d189b386e49106859fc04e329bcaaa000b06471bf85ee6b94cd5f5c4867
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('teams', 2, 'managed')
+values ('teams', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
--- @bsb-block teams@2 managed
+-- @bsb-block teams@3 managed
 -- @bsb-hash sha256:8c0ff27eb70154de039aaec89b94206de40ceec1fca132d4cbd47b1b0f16685d
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1539,20 +1511,20 @@ grant execute on function "api"."list_teams"(uuid) to authenticated, service_rol
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block-data teams
--- @bsb-hash sha256:73dfb8a9526ca418c3217dfe9e93bcf5b07006c37b0a318922295a314a8ee6c9
+-- @bsb-hash sha256:343c6d189b386e49106859fc04e329bcaaa000b06471bf85ee6b94cd5f5c4867
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('teams', 2, 'managed')
+values ('teams', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
--- @bsb-block teams@2 managed
+-- @bsb-block teams@3 managed
 -- @bsb-hash sha256:5d488fc92edcc1c312798231b48267337c5c97da62b9907aefc2674bf1c1b966
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1874,20 +1846,20 @@ create policy bsb_tenant_scope_delete on "better_supabase"."team_members" as res
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block-data teams
--- @bsb-hash sha256:73dfb8a9526ca418c3217dfe9e93bcf5b07006c37b0a318922295a314a8ee6c9
+-- @bsb-hash sha256:343c6d189b386e49106859fc04e329bcaaa000b06471bf85ee6b94cd5f5c4867
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('teams', 2, 'managed')
+values ('teams', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
--- @bsb-block teams@2 managed
+-- @bsb-block teams@3 managed
 -- @bsb-hash sha256:4d48efe2a7807111a6431f249614ac6e253f4015c6ab680a13cb681393f6e793
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2220,13 +2192,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."team_members" as res
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block-data teams
--- @bsb-hash sha256:73dfb8a9526ca418c3217dfe9e93bcf5b07006c37b0a318922295a314a8ee6c9
+-- @bsb-hash sha256:343c6d189b386e49106859fc04e329bcaaa000b06471bf85ee6b94cd5f5c4867
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('teams', 2, 'managed')
+values ('teams', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

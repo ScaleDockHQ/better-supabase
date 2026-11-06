@@ -1,5 +1,5 @@
 -- better-supabase module: teams
--- @bsb-block teams@2 managed
+-- @bsb-block teams@3 managed
 -- @bsb-hash sha256:7c90fc931f11ac25e9c78b987df4226c1ddd23e63c936364b08a304d3f471edc
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.

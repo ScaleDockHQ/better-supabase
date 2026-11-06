@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:46bdb44a0d899b6e23f865062fca3b88ae111a2ab18c5888c231ebc4b2a987fe
+-- @bsb-hash sha256:0e52b676b544dd04fa45ddf62de66b32aafeea0f19c6e8e1e7c82120def2633a
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1426,15 +1426,9 @@ create trigger "bsb_notification_broadcast" after insert on "better_supabase"."n
 create trigger "bsb_notification_broadcast_update" after update of "read_at", "dismissed_at", "resolved_at" on "better_supabase"."notification_recipients"
   for each row when (old."read_at" is distinct from new."read_at" or old."dismissed_at" is distinct from new."dismissed_at" or old."resolved_at" is distinct from new."resolved_at")
   execute function "better_supabase"."broadcast_notification"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_notifications_receive on realtime.messages
+create policy bsb_notifications_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
-  end if;
-end;
-$$;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications

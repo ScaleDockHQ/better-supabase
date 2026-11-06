@@ -63,11 +63,7 @@ export {
   appTablesFiles,
 } from "./modules/app-tables.ts";
 
-export {
-  BLOCK_OVERLAPS,
-  PRELUDE_FUNCTIONS,
-  PRELUDE_MODULE,
-} from "./pipeline/prelude.ts";
+export { PRELUDE_FUNCTIONS, PRELUDE_MODULE } from "./pipeline/prelude.ts";
 
 export { resolveBlock } from "../config/blocks.ts";
 

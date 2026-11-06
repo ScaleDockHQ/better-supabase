@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:b784a29955a62750a549ba1bbbf3f0b73cd166bdeb6ae8d59eb061388cf0408f
+-- @bsb-hash sha256:828cac38db97dbfe557b6c2406daeb196e70c0400743e1a9af1f808924066fba
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2695,22 +2695,16 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_ai_chat_receive on realtime.messages
+create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        create policy bsb_ai_chats_receive on realtime.messages
+create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

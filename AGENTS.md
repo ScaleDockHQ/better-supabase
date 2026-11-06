@@ -361,6 +361,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0248: Split the generator into stages and cache renders.
 - 0249: Define shared helpers once in a prelude file.
 - 0250: Emit declarative DDL and keep rerunnable SQL for the migrations workflow.
+- 0251: Resolve the remaining do blocks and block overlaps at generation time.
 
 ## Pre-release pins
 

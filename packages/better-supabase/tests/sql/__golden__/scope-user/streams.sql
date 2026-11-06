@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:e476a42cbf5fc4f114b5c87c1ae6f1fd2d8bb4858b47477f6df9b6e461cd7bbf
+-- @bsb-hash sha256:007417d8c51ac02ff8ef3a5f9f5f451ce53e6dc8137a5f572ef803e3c9b1caaa
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -356,10 +356,7 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 
 -- The owner may join the stream's private topic to hear the payload-free
 -- pings; the chunks themselves are read through RLS.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_streams_receive on realtime.messages
+create policy bsb_streams_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -368,9 +365,6 @@ begin
           where st."id" = substr((select realtime.topic()), 8)
             and st."owner_id" = (select auth.uid())
         ));
-  end if;
-end;
-$$;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_040_streams.sql
 -- better-supabase module: streams

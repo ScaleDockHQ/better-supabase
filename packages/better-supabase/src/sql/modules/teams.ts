@@ -199,7 +199,7 @@ ${membershipFk(ctx, members, memberTenant, memberUser)}
   return `${schemaPreamble(ctx)}
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.
 ${tables}
-${inboxMove(ctx, teams, members, id, tenant, name, slug)}
+${inboxTeamKey(ctx, teams, id)}
 -- A signed-in caller may only read their own teams; the service role and
 -- direct database sessions (no request role) may read anyone's.
 create or replace function ${fn("team_ids_of")}(member uuid)
@@ -513,20 +513,36 @@ function membershipCheck(
   end if;`;
 }
 
-function inboxMove(
-  ctx: BlockSqlContext,
-  teams: string,
-  members: string,
-  id: string,
-  tenant: string,
-  name: string,
-  slug: string,
-): string {
+/** Inbox conversations point at the shared teams table. */
+function inboxTeamKey(ctx: BlockSqlContext, teams: string, id: string): string {
   if (!ctx.installed("inbox") || !ctx.owns("teams")) {
     return "";
   }
 
   const inbox = ctx.of("inbox");
+
+  return `alter table ${inbox.table("conversations")}
+  add constraint conversations_team_fkey
+  foreign key (${inbox.col("conversations", "team")}) references ${teams} (${id}) on delete set null;`;
+}
+
+/**
+ * Moves the inbox's own team rows into the shared tables and drops the old
+ * tables. Rows only an installed database holds, so it runs as an upgrade step
+ * before the module file adds the new foreign key.
+ */
+function inboxMove(ctx: BlockSqlContext): string {
+  if (!ctx.installed("inbox") || !ctx.owns("teams")) {
+    return "";
+  }
+
+  const inbox = ctx.of("inbox");
+  const teams = ctx.table("teams");
+  const members = ctx.table("members");
+  const id = ctx.col("teams", "id");
+  const tenant = ctx.col("teams", "tenant");
+  const name = ctx.col("teams", "name");
+  const slug = ctx.col("teams", "slug");
   const oldTeams = inbox.table("teams");
   const oldMembers = inbox.table("teamMembers");
   const conversations = inbox.table("conversations");
@@ -535,7 +551,6 @@ function inboxMove(
   const oldName = inbox.col("teams", "name");
   const oldTeam = inbox.col("teamMembers", "team");
   const oldUser = inbox.col("teamMembers", "user");
-  const conversationTeam = inbox.col("conversations", "team");
   const memberTeam = ctx.col("members", "team");
   const memberUser = ctx.col("members", "user");
   const memberTenant = ctx.col("members", "tenant");
@@ -569,10 +584,7 @@ begin
 end
 $shared_teams$;
 alter table ${conversations}
-  drop constraint if exists conversations_team_fkey;
-alter table ${conversations}
-  add constraint conversations_team_fkey
-  foreign key (${conversationTeam}) references ${teams} (${id}) on delete set null;`;
+  drop constraint if exists conversations_team_fkey;`;
 }
 
 function record(
@@ -652,13 +664,19 @@ export const TEAMS: BlockSqlDefinition = {
   integrates: ["inbox", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "team_ids_of(member) refuses a signed-in caller that names another user; the service role and direct database sessions still read anyone's teams.",
       sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "The inbox's own team tables move into teams and team_members, and inbox conversations point at teams.",
+      sql: inboxMove,
     },
   ],
   names: NAMES,

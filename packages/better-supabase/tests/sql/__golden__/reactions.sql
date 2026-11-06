@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:4c300e746e25af62208afe07877527daaa5d047b9f3cb94d796a8bb19cd2460e
+-- @bsb-hash sha256:39cee481094d880a4765b08c5239133db94e918f7b32fbbae23ec85c0277b542
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -457,17 +457,11 @@ revoke execute on function "better_supabase"."list_custom_emoji"(uuid) from publ
 grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authenticated, service_role;
 
 -- Members join reactions:{tenant}; payloads name the subject that changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_reactions_receive on realtime.messages
+create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
         and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -547,7 +541,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:af13be769386c242d4dfdeb367131094c22507651dcee3edb062ac51064d451f
+-- @bsb-hash sha256:2a227f92f0d72471b298276ef054e08627024fa309d6a4fe33db8b7d3f9fd31c
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1003,17 +997,11 @@ revoke execute on function "better_supabase"."list_custom_emoji"(uuid) from publ
 grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authenticated, service_role;
 
 -- Members join reactions:{tenant}; payloads name the subject that changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_reactions_receive on realtime.messages
+create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
         and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1100,7 +1088,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:40214968d1c96d7c28ff9f0190747f34f53f3a04c1f8227dccf878fcf428ce8b
+-- @bsb-hash sha256:34a66f6f540329c4ca91ec2599213d321b1ee8dbe140d5f0becabe31eab214f2
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1561,17 +1549,11 @@ revoke execute on function "app_private"."list_custom_emoji"(uuid) from public, 
 grant execute on function "app_private"."list_custom_emoji"(uuid) to authenticated, service_role;
 
 -- Members join reactions:{tenant}; payloads name the subject that changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_reactions_receive on realtime.messages
+create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
         and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1651,7 +1633,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:72d8caf81efaf3b681710ec3fbb7ae534db7877a3a272f08ad81aec03574f6fa
+-- @bsb-hash sha256:246db441b268525b476def616d3e8f2587cadf80ae5bf149485cfa59200e898c
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2107,17 +2089,11 @@ revoke execute on function "better_supabase"."list_custom_emoji"(uuid) from publ
 grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authenticated, service_role;
 
 -- Members join reactions:{tenant}; payloads name the subject that changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_reactions_receive on realtime.messages
+create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
         and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2290,7 +2266,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:7cb5953bea4be66f9019755475535d9fb093135771937b3359d0cdd9dc8a189f
+-- @bsb-hash sha256:d066a9d68a5bc1735c75b1ac453274c8367e2c5a36e9590cb52a6fb39e549b08
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2737,17 +2713,11 @@ revoke execute on function "better_supabase"."list_custom_emoji"(uuid) from publ
 grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authenticated, service_role;
 
 -- Members join reactions:{tenant}; payloads name the subject that changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_reactions_receive on realtime.messages
+create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
         and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2827,7 +2797,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:2da94c5a00c7a677c2db51c168c12b2b86a6f5c613627179c05fa3d875f332f5
+-- @bsb-hash sha256:861f57c633572dcd8c2636e59556f5c8f5f196bd598be317f5c79b38a299a218
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3283,17 +3253,11 @@ revoke execute on function "better_supabase"."list_custom_emoji"(uuid) from publ
 grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authenticated, service_role;
 
 -- Members join reactions:{tenant}; payloads name the subject that changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        create policy bsb_reactions_receive on realtime.messages
+create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
         and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
-  end if;
-end;
-$do$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

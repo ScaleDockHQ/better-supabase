@@ -152,7 +152,7 @@ create or replace function better_supabase.actor_may_write() returns boolean lan
     ).toStrictEqual([]);
   });
 
-  it("accepts the overlaps two block modules still share", () => {
+  it("reports an object two block modules declare", () => {
     const share = (name: string) =>
       `-- @bsb-block ${name}@1 managed\n\ncreate or replace function better_supabase.drive_node_json(node uuid) returns jsonb language sql as 'select 1';`;
 
@@ -161,7 +161,7 @@ create or replace function better_supabase.actor_may_write() returns boolean lan
         { path: "supabase/schemas/a.sql", text: share("drive-core") },
         { path: "supabase/schemas/b.sql", text: share("drive-files") },
       ]).filter((finding) => finding.code === "BS371"),
-    ).toStrictEqual([]);
+    ).toMatchObject([{ code: "BS371" }]);
   });
 });
 
