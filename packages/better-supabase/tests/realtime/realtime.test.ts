@@ -4,13 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RealtimeClient } from "../../src/realtime/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException } from "../../src/core/errors.ts";
 import { defineTopic, rowChange, rowKeys } from "../../src/realtime/index.ts";
 import { LOOKUP_WARNING } from "../../src/realtime/topic-trigger.ts";
 import { schema, topics } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const SQL = {
   idsWith: "authz.ids_{scope}({permission})",

@@ -4,12 +4,12 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { OrderByOf } from "../fixtures/generated-camel.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { schema as camel } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
 declare const flag: boolean;
-const db = defineSupabase(camel).connect(client);
+const db = createSupabase(camel).connect(client);
 
 describe("input built conditionally", () => {
   it("accepts a mutable insert and patch", () => {

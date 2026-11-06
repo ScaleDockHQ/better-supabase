@@ -7,7 +7,7 @@ import { buildModel } from "../../../src/cli/gen/model.ts";
 import { introspect } from "../../../src/cli/introspect/index.ts";
 import { pgSource } from "../../../src/cli/introspect/source.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import {
   createPostgres,
   postgresExecutor,
@@ -78,7 +78,7 @@ describe.skipIf(!source)("$rpc on an overloaded function", () => {
       "Args: Record<PropertyKey, never>;",
     );
 
-    const sb = defineSupabase(defineSchema(model.meta)).connect(
+    const sb = createSupabase(defineSchema(model.meta)).connect(
       postgresExecutor(postgres.admin),
     );
 

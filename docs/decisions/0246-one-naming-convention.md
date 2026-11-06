@@ -45,8 +45,18 @@ drive the codemod.
 
 ## Consequences
 
-What is left is in the allowlist (56 exported `*Args`, `*Settings` and
-`*Failure` types) and in the plan's later stages: the `define*` and `create*`
-function renames, config keys, generated file names, SQL object names and
-their rename migrations, hint codes, event verbs, CLI flags and the remaining
-subpath moves.
+`Args`, `Settings` and `Failure` types are renamed except 15 whose `Options`
+or `Error` name another type already holds: `ActionArgs`, `BlockActionArgs`,
+`CliArgs`, `CursorPageArgs`, `DoctorArgs`, `HookArgs`, `ListArgs`,
+`ReactRouterArgs`, `RequestArgs`, `RpcArgs`, `SearchArgs`, `TableArgs`,
+`AuthFailure`, `Args` and `Settings`. They stay in the allowlist until each
+gets a name from its noun. `defineSupabase` is `createSupabase` and the Svelte
+`getBetterSupabase` is `betterSupabase`.
+
+Still open, and owned by the later stages: the config keys (`tenant`,
+`recordTypes`, `adapters`, `dir`, `file`, `entry`, `key: false`), the generated
+file names (they move with the Part 6 layout), hint codes, event verbs, the CLI
+flags (they move with the Part 8 grammar), the remaining subpaths and block
+names, and the SQL object names with their rename migrations and the pgTAP
+catalog test. The SQL renames need the TypeScript clients that still use
+`WorkItem`, `Engagement` and `Rule` renamed first (ADR 0245).

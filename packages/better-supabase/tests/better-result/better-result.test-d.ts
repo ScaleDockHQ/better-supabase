@@ -9,7 +9,7 @@ import type { Repository } from "../../src/core/repository-types.ts";
 import type { Models } from "../fixtures/generated-camel.ts";
 
 import { withBetterResult } from "../../src/better-result/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineBetterResultErrors } from "../../src/core/result.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
@@ -25,7 +25,7 @@ class DbFailure extends TaggedError("DbFailure")<{
   error: DbError;
 }> {}
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const plain = betterSupabase.connect(capturingClient().client);
 
 const db = withBetterResult(

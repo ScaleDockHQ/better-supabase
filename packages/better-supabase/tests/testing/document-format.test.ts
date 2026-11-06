@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { DocumentFormat } from "../../src/spec/format.ts";
 import type { ApiModel } from "../../src/spec/model.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { openapiFormat } from "../../src/openapi/format.ts";
 import { defineApi } from "../../src/spec/api.ts";
 import { defineDocumentFormat } from "../../src/spec/format.ts";
@@ -51,7 +51,7 @@ describe("testDocumentFormat", () => {
   });
 
   it("passes openapiFormat on a model built from tables", async () => {
-    const { model } = defineApi(defineSupabase(schema), {
+    const { model } = defineApi(createSupabase(schema), {
       info: { title: "CRM", version: "1.0.0" },
       resources: { customers: true, notes: { operations: ["list", "get"] } },
     });

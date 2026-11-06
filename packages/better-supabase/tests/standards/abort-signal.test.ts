@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
@@ -10,7 +10,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 // DOM AbortSignal semantics: an aborted signal stops work before it starts,
 // an abort during a request rejects the fetch, and either way the caller
 // gets a value (an `aborted` DbError), not a thrown AbortError.
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 /** A fetch that never answers until its signal aborts, as a slow network would. */
 function hangingClient() {

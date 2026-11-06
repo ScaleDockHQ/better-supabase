@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { TopicMessage } from "../../src/realtime/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { defineTopic, rowKeys } from "../../src/realtime/index.ts";
 import { realtimeTopicAccess } from "../../src/server/realtime-relay.ts";
@@ -53,7 +53,7 @@ const title: StandardSchemaV1<unknown, { title: string }> = {
   },
 };
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const customers = defineTopic("organization:{organizationId}:customers");
 
 const notifications = defineTopic(

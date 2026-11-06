@@ -1,6 +1,6 @@
 ---
 title: Monorepos
-description: One runtime package owns defineSupabase and the request context; domain packages type their repositories from its db and never import the generated client.
+description: One runtime package owns createSupabase and the request context; domain packages type their repositories from its db and never import the generated client.
 ---
 
 In a monorepo, keep one package that owns the Supabase definition and the
@@ -10,7 +10,7 @@ file, and domain code works the same in a route handler, a job or a test.
 
 ```text
 packages/
-  runtime/   defineSupabase, the generated client, the server, the context types
+  runtime/   createSupabase, the generated client, the server, the context types
   crm/       customers repositories: import type { Db } from '@acme/runtime'
   commerce/  shipping repositories: import type { Db } from '@acme/runtime'
 apps/
@@ -20,7 +20,7 @@ apps/
 ## The runtime package
 
 ```ts title="packages/runtime/src/index.ts"
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { createEdge, type EdgeOptions } from "better-supabase/edge";
 import {
   type AuthSession,
@@ -30,7 +30,7 @@ import {
 
 import { type Functions, type Models, schema } from "./generated.ts";
 
-export const betterSupabase = defineSupabase(schema);
+export const betterSupabase = createSupabase(schema);
 
 export type AppContext = ServerContext<Models, Functions, unknown>;
 export type Db = AppContext["db"];

@@ -7,7 +7,7 @@ import {
   previewImport,
   runImport,
 } from "../../../src/blocks/imports/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { capturingClient } from "../../fixtures/client.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
 
@@ -55,7 +55,7 @@ function setup(update?: "fill" | "overwrite") {
     body: request.method === "GET" ? EXISTING : [],
   }));
 
-  const db = defineSupabase(schema).connect(captured.client);
+  const db = createSupabase(schema).connect(captured.client);
 
   const definition = appTableImport({
     table: "customers",
@@ -111,7 +111,7 @@ describe("appTableImport", () => {
 
   it("refuses a key that is not a unique set", () => {
     const { client } = capturingClient();
-    const db = defineSupabase(schema).connect(client);
+    const db = createSupabase(schema).connect(client);
 
     expect(() =>
       appTableImport({

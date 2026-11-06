@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:2307ac6f51f3f01e9f9da2121135f1403ca7934be722f59746deb764651c8aa1
+-- @bsb-hash sha256:b32491ea4ad572b23d6564cae670d072cdd57ec333b1e6f758eac9c994c86293
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -180,7 +180,6 @@ as $$
     when 'agents.moderate' then 'agents.moderate'
     when 'agents.publish' then 'agents.publish'
     when 'agents.read' then 'agents.read'
-    when 'ai-chat.admin' then 'ai_chat.manage'
     when 'ai-chat.create' then 'ai_chat.create'
     when 'ai-chat.manage' then 'ai_chat.manage'
     when 'ai-chat.moderate' then 'ai_chat.moderate'
@@ -213,10 +212,6 @@ as $$
     when 'audit.read' then 'audit.read'
     when 'audit.readAll' then 'audit.read'
     when 'audit.revert' then 'audit.revert'
-    when 'audit.view' then 'audit.read'
-    when 'audit.viewAll' then 'audit.read'
-    when 'automations.admin' then 'automations.manage'
-    when 'automations.edit' then 'automations.write'
     when 'automations.manage' then 'automations.manage'
     when 'automations.publish' then 'automations.publish'
     when 'automations.read' then 'automations.read'
@@ -315,7 +310,6 @@ as $$
     when 'e-prescribing.write' then 'e_prescribing.write'
     when 'employees.read' then 'employees.read'
     when 'employees.readSensitive' then 'employees.read_sensitive'
-    when 'employees.viewSensitive' then 'employees.read_sensitive'
     when 'employees.write' then 'employees.write'
     when 'enrichment.read' then 'enrichment.read'
     when 'enrichment.run' then 'enrichment.run'
@@ -366,7 +360,6 @@ as $$
     when 'invitations.invitePlatform' then 'platform.invite'
     when 'invitations.read' then 'members.invite'
     when 'invitations.revoke' then 'members.invite'
-    when 'invitations.view' then 'members.invite'
     when 'invoices.approve' then 'invoices.approve'
     when 'invoices.collect' then 'invoices.collect'
     when 'invoices.manage' then 'invoices.manage'
@@ -484,7 +477,6 @@ as $$
     when 'scores.manage' then 'scores.manage'
     when 'scores.read' then 'scores.read'
     when 'search.read' then 'search.read'
-    when 'segments.edit' then 'segments.write'
     when 'segments.read' then 'segments.read'
     when 'segments.write' then 'segments.write'
     when 'sequences.enroll' then 'sequences.enroll'
@@ -548,15 +540,11 @@ as $$
     when 'warehouse.read' then 'warehouse.read'
     when 'webhooks-out.manage' then 'webhooks.manage'
     when 'webhooks-out.read' then 'webhooks.read'
-    when 'webhooks-out.view' then 'webhooks.read'
-    when 'workflow-editor.admin' then 'workflow_editor.manage'
-    when 'workflow-editor.edit' then 'workflow_editor.write'
     when 'workflow-editor.manage' then 'workflow_editor.manage'
     when 'workflow-editor.publish' then 'workflow_editor.publish'
     when 'workflow-editor.read' then 'workflow_editor.read'
     when 'workflow-editor.run' then 'workflow_editor.run'
     when 'workflow-editor.write' then 'workflow_editor.write'
-    when 'workflows.admin' then 'workflows.manage'
     when 'workflows.manage' then 'workflows.manage'
     when 'workflows.read' then 'workflows.read'
     when 'workflows.run' then 'workflows.run'

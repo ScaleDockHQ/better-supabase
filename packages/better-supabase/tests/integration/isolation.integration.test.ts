@@ -4,7 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { LocalStack } from "../../src/testing/as-user.ts";
 
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { ConformanceError } from "../../src/testing/conformance.ts";
 import { expectTenantIsolation } from "../../src/testing/isolation.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -30,7 +30,7 @@ const LEAKY = `00000000-0000-4000-8000-${String(RUN).slice(-12).padStart(12, "0"
 const USER = "00000000-0000-4000-8000-0000000000ff";
 
 const source = await openPg(dbUrl);
-const betterSupabase = defineSupabase(schema).use(membershipsExtension());
+const betterSupabase = createSupabase(schema).use(membershipsExtension());
 
 const tags = {
   row: (owner: { id: string }, n: 0 | 1) => ({
@@ -45,7 +45,7 @@ describe.skipIf(!source)(
   () => {
     const db = source!;
 
-    const admin = defineSupabase(schema).connect(
+    const admin = createSupabase(schema).connect(
       createClient(stack.url!, stack.secretKey!, {
         auth: { persistSession: false, autoRefreshToken: false },
       }),

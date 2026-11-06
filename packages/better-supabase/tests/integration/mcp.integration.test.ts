@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
 import { createMcp } from "../../src/mcp/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
@@ -43,7 +43,7 @@ interface ToolResult {
 }
 
 describe.skipIf(!live)("MCP tools against the local stack", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const mcp = createMcp(betterSupabase, {
     env: parseEnv({

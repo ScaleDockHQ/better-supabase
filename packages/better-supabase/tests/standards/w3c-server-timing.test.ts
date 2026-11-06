@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { createNext } from "../../src/next/index.ts";
 import { serverTimingValue } from "../../src/next/proxy.ts";
@@ -40,7 +40,7 @@ function metrics(header: string): Map<string, number> {
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const signer = await createTestSigner();
 
-const bsb = createNext(defineSupabase(schema), {
+const bsb = createNext(createSupabase(schema), {
   env: {
     url: PROJECT_URL,
     publishableKey: "sb_publishable_test",

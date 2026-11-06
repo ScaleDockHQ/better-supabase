@@ -392,6 +392,18 @@
       "to": "IdempotencyOptions",
       "kind": "type",
       "since": "0.54"
+    },
+    {
+      "from": "defineSupabase",
+      "to": "createSupabase",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "getBetterSupabase",
+      "to": "betterSupabase",
+      "kind": "function",
+      "since": "0.54"
     }
   ],
   "allowlist": {

@@ -129,11 +129,11 @@ const SHARED = "supabase/functions/_shared/supabase.ts";
 function shared(context: TemplateContext): TemplateFile {
   return {
     path: SHARED,
-    contents: `import { defineSupabase } from 'better-supabase';
+    contents: `import { createSupabase } from 'better-supabase';
 
 import { schema } from '${importFrom(context, SHARED, context.generated, true)}';
 
-export const betterSupabase = defineSupabase(schema);
+export const betterSupabase = createSupabase(schema);
 `,
   };
 }
@@ -262,13 +262,13 @@ export default defineConfig({${
     config,
     {
       path,
-      contents: `import { defineSupabase } from 'better-supabase';
+      contents: `import { createSupabase } from 'better-supabase';
 ${expo ? "import { Temporal } from 'temporal-polyfill';\n" : ""}
 import { schema } from '${generated}';
 
 export type { Functions, Models } from '${generated}';
 
-export const betterSupabase = defineSupabase(schema${expo ? ", { temporal: Temporal }" : ""});
+export const betterSupabase = createSupabase(schema${expo ? ", { temporal: Temporal }" : ""});
 `,
     },
   ];

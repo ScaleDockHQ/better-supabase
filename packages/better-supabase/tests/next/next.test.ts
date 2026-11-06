@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { Executor } from "../../src/core/executor.ts";
 
 import { writeSession } from "../../src/auth/session.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { AsyncResult, ok } from "../../src/core/result.ts";
@@ -134,7 +134,7 @@ describe("shouldCheckSession", () => {
 
 describe("createNext", () => {
   const fresh = vi.fn<typeof fetch>();
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const bsb = createNext(betterSupabase, {
     env,
@@ -564,7 +564,7 @@ describe("createNext", () => {
   });
 
   it("forwards the client IP on refresh with a secret key", async () => {
-    const withSecret = createNext(defineSupabase(schema), {
+    const withSecret = createNext(createSupabase(schema), {
       env: { ...env, secretKey: "sb_secret_test" },
       auth: { jwks: signer.jwks, fetch: fresh },
     });
@@ -1102,7 +1102,7 @@ describe("createNext", () => {
     });
 
     const hub = defineReadSet(
-      defineSupabase(schema),
+      createSupabase(schema),
       "tag_hub",
       {},
       (specs) => ({ customers: specs.customers.count() }),
@@ -1351,7 +1351,7 @@ describe("createNext", () => {
       .mockImplementation(async () => Response.json([]));
 
     try {
-      const debugged = createNext(defineSupabase(schema), {
+      const debugged = createNext(createSupabase(schema), {
         env,
         cacheTags: false,
         auth: { jwks: signer.jwks, fetch: fresh },
@@ -1420,7 +1420,7 @@ describe("createNext", () => {
 
     try {
       const debugged = createNext(
-        defineSupabase(schema, {
+        createSupabase(schema, {
           logger: { debug() {}, info, warn() {}, error() {} },
         }),
         {
@@ -1581,7 +1581,7 @@ describe("createNext", () => {
 
 describe("next.route conformance", () => {
   it("passes testAdapter", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     await testAdapter("next", {
       betterSupabase,
       serve: (server, run, { allow, waitUntil }) => {
@@ -1603,7 +1603,7 @@ describe("next.route conformance", () => {
 });
 
 describe("next.liveCount", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const bsb = createNext(betterSupabase, { env, auth: { jwks: signer.jwks } });
 
@@ -1648,7 +1648,7 @@ describe("read replicas", () => {
 
     const token = await signer.sign({ sub: USER });
 
-    const bsb = createNext(defineSupabase(schema), {
+    const bsb = createNext(createSupabase(schema), {
       env: { ...env, readUrl: READ_URL },
       auth: { jwks: signer.jwks },
       cacheTags: false,
@@ -1719,7 +1719,7 @@ describe("read replicas", () => {
       .mockImplementation(async () => Response.json([{ id: "c1" }]));
 
     const token = await signer.sign({ sub: USER });
-    const definition = defineSupabase(schema);
+    const definition = createSupabase(schema);
 
     const bsb = createNext(definition, {
       env: { ...env, readUrl: READ_URL },

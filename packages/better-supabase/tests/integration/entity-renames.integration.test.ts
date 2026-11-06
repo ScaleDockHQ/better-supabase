@@ -16,7 +16,7 @@ import { blockConfigEntries } from "../../src/cli/gen/blocks.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { EventHub } from "../../src/core/events.ts";
 import { createNext } from "../../src/next/index.ts";
 import {
@@ -369,7 +369,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
     const signer = await createTestSigner();
     const projectUrl = "https://abcdefghijklmnopqrst.supabase.co";
 
-    const next = createNext(defineSupabase(schema), {
+    const next = createNext(createSupabase(schema), {
       env: {
         url: projectUrl,
         publishableKey: "sb_publishable_test",

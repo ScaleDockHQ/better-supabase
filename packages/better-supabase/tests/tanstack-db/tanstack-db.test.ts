@@ -1,7 +1,7 @@
 import { QueryClient, skipToken } from "@tanstack/query-core";
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException } from "../../src/core/errors.ts";
 import { createQueries } from "../../src/query/index.ts";
 import {
@@ -11,7 +11,7 @@ import {
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 /** Partial fixture rows stand in for the full rows TanStack DB passes. */
 function mutations(

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RemoteCacheKey } from "../../src/next/index.ts";
 
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineSchema } from "../../src/index.ts";
 import { createNext, sessionTag } from "../../src/next/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -97,7 +97,7 @@ beforeEach(() => {
 });
 
 describe("bsb.remote()", () => {
-  const bsb = createNext(defineSupabase(schema), {
+  const bsb = createNext(createSupabase(schema), {
     env,
     cacheTags: false,
     auth: { jwks: signer.jwks },
@@ -177,7 +177,7 @@ describe("bsb.remote()", () => {
 });
 
 describe("bsb.sessionHandle()", () => {
-  const bsb = createNext(defineSupabase(schema), {
+  const bsb = createNext(createSupabase(schema), {
     env,
     cacheTags: false,
     auth: { jwks: signer.jwks },
@@ -232,7 +232,7 @@ describe("bsb.bootstrap()", () => {
   const seed = vi.fn<(userId: string, version: number) => void>();
   const evicted = vi.fn<(userId: string) => void>();
 
-  const bsb = createNext(defineSupabase(schema), {
+  const bsb = createNext(createSupabase(schema), {
     env,
     cacheTags: false,
     auth: { jwks: signer.jwks },
@@ -416,14 +416,14 @@ describe("bsb.bootstrap()", () => {
 
   it("calls the schema gen recorded for the sessions block, unless told otherwise", async () => {
     const recorded = createNext(
-      defineSupabase(
+      createSupabase(
         defineSchema({ ...schema.meta, bootstrap: { schema: "api" } }),
       ),
       { env, cacheTags: false, auth: { jwks: signer.jwks } },
     );
 
     const overridden = createNext(
-      defineSupabase(
+      createSupabase(
         defineSchema({ ...schema.meta, bootstrap: { schema: "api" } }),
       ),
       {
@@ -466,7 +466,7 @@ describe("bsb.getAccess()", () => {
         : { outcome: "denied" },
   });
 
-  const bsb = createNext(defineSupabase(schema), {
+  const bsb = createNext(createSupabase(schema), {
     env,
     cacheTags: false,
     auth: { jwks: signer.jwks },
@@ -512,7 +512,7 @@ describe("bsb.getAccess()", () => {
 
 describe("root params", () => {
   it("reads locale, brand and tenant, and falls back to the tenant root param", async () => {
-    const bsb = createNext(defineSupabase(schema), {
+    const bsb = createNext(createSupabase(schema), {
       env,
       cacheTags: false,
       auth: { jwks: signer.jwks },
@@ -532,7 +532,7 @@ describe("root params", () => {
   });
 
   it("reads nothing without them", async () => {
-    const bsb = createNext(defineSupabase(schema), { env, cacheTags: false });
+    const bsb = createNext(createSupabase(schema), { env, cacheTags: false });
     expect(await bsb.locale()).toBeUndefined();
   });
 });
@@ -540,7 +540,7 @@ describe("root params", () => {
 describe("bsb.bootstrap() tables", () => {
   const withTables = (tables?: Record<string, readonly string[]>) =>
     createNext(
-      defineSupabase(
+      createSupabase(
         defineSchema({
           ...schema.meta,
           bootstrap: {

@@ -18,12 +18,12 @@ import type {
 import type { CustomersStatus } from "../fixtures/generated-camel.ts";
 
 import { trashExtension } from "../../src/blocks/trash/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createQueries } from "../../src/query/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
-const betterSupabase = defineSupabase(schema).use(trashExtension());
+const betterSupabase = createSupabase(schema).use(trashExtension());
 const q = createQueries(betterSupabase, betterSupabase.connect(client));
 
 describe("query option types", () => {

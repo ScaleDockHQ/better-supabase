@@ -5,13 +5,13 @@ import { describe, expect, it } from "vitest";
 import type { Executor } from "../../src/core/executor.ts";
 
 import { createDataList, dataTarget } from "../../src/bindings/data-hooks.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { liteDatabase, sqliteEngine } from "../../src/sqlite/index.ts";
 import { testExecutor } from "../../src/testing/kits/executor.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { createSqlite } from "../fixtures/sqlite.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const ORG = "00000000-0000-4000-8000-000000000001";
 
 const server: Executor = {

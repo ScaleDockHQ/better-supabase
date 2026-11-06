@@ -4,7 +4,7 @@ import { describe, expectTypeOf, it } from "vitest";
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { BucketClient } from "../../src/storage/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createEdge } from "../../src/edge/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -15,7 +15,7 @@ type Claims = v.InferOutput<typeof Claims>;
 
 describe("betterSupabase.claims(schema) in Edge", () => {
   it("types the claims in the handler context", () => {
-    const bsb = createEdge(defineSupabase(schema).claims(Claims));
+    const bsb = createEdge(createSupabase(schema).claims(Claims));
     bsb.handler((_request, ctx) => {
       expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims>>();
 
@@ -28,7 +28,7 @@ describe("betterSupabase.claims(schema) in Edge", () => {
   });
 
   it("keeps untyped claims for untyped definitions", () => {
-    const bsb = createEdge(defineSupabase(schema));
+    const bsb = createEdge(createSupabase(schema));
     bsb.handler((_request, ctx) => {
       expectTypeOf(ctx.auth).toEqualTypeOf<AuthState>();
 
@@ -39,7 +39,7 @@ describe("betterSupabase.claims(schema) in Edge", () => {
 
 describe("bsb.routes params", () => {
   it("types ctx.params from each route key", () => {
-    const bsb = createEdge(defineSupabase(schema));
+    const bsb = createEdge(createSupabase(schema));
     bsb.routes({
       "GET /orgs/:org/customers/:id": (_request, { params }) => {
         expectTypeOf(params).toEqualTypeOf<{
@@ -69,7 +69,7 @@ describe("bsb.routes params", () => {
 describe("betterSupabase.buckets() in Edge", () => {
   it("types db.$buckets in handlers and routes", () => {
     const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
-    const bsb = createEdge(defineSupabase(schema).buckets({ logos }));
+    const bsb = createEdge(createSupabase(schema).buckets({ logos }));
 
     type Logos = BucketClient<"{userId}/logo.webp", "logos">;
 

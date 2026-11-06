@@ -7,13 +7,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { uiPath } from "../../../src/cli/commands/spec.ts";
 import { run } from "../../../src/cli/core/run.ts";
 import { fails, formatDiagnostics } from "../../../src/cli/spec/diagnostics.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { defineTopic } from "../../../src/realtime/topic.ts";
 import { defineApi } from "../../../src/spec/api.ts";
 import { topicsFrom } from "../../../src/spec/events.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
 
-const api = defineApi(defineSupabase(schema), {
+const api = defineApi(createSupabase(schema), {
   info: { title: "CRM", version: "1.0.0" },
   resources: { customers: true, notes: { operations: ["list", "get"] } },
 });
@@ -334,7 +334,7 @@ describe("spec arguments", () => {
     const room = defineTopic("room:{roomId}");
     const board = defineTopic("board:{boardId}");
     globalThis.specTopicsFixture = { room, board };
-    globalThis.specApiFixture = defineApi(defineSupabase(schema), {
+    globalThis.specApiFixture = defineApi(createSupabase(schema), {
       info: { title: "CRM", version: "1.0.0" },
       events: { tables: false, topics: topicsFrom({ room }) },
     });

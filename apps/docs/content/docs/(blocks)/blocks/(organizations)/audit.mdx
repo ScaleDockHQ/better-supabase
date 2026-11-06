@@ -461,7 +461,7 @@ const { state, actions } = useBlockController(createAuditLogController, {
 ```svelte title="AuditLog.svelte"
 <script lang="ts">
   import {
-    getBetterSupabase,
+    betterSupabase,
     useBlockController,
   } from "better-supabase/svelte";
   import {
@@ -471,7 +471,7 @@ const { state, actions } = useBlockController(createAuditLogController, {
   } from "better-supabase/blocks/audit";
 
   let { organizationId }: { organizationId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const audit = useBlockController(createAuditLogController, {
     client: createAudit({ transport: rpcTransport(supabase), schema: "api" }),
     organizationId,

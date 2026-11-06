@@ -173,7 +173,7 @@ export const Claims = v.looseObject({
   ),
 });
 
-export const betterSupabase = defineSupabase(schema)
+export const betterSupabase = createSupabase(schema)
   .claims(Claims)
   .use(tenant<v.InferOutput<typeof Claims>>());
 ```
@@ -244,7 +244,7 @@ export const Profile = v.object({
   avatar_url: v.optional(v.pipe(v.string(), v.url())),
 });
 
-export const betterSupabase = defineSupabase(schema)
+export const betterSupabase = createSupabase(schema)
   .claims(Claims)
   .userMetadata(Profile);
 ```
@@ -265,7 +265,7 @@ policy come from the verified claims, never from `profile` or
 
 - The schema runs after the claims schema, on the `user_metadata` claim of the
   verified token. Metadata that fails it leaves `profile` undefined and logs
-  one warning per schema through the `logger` of `defineSupabase` with the
+  one warning per schema through the `logger` of `createSupabase` with the
   failing paths, never the values. The request still resolves as the user.
 - `session.userMetadata` is typed `Profile | undefined` in `ctx.auth`,
   `bsb.claims()` and the `useSession` from `createHooks<typeof bsb>()`.

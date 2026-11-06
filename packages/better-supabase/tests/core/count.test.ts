@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { compileSql } from "../../src/compile/sql.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { IrBuilder } from "../../src/ir/build.ts";
 import { decodeRows } from "../../src/ir/codec.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 describe("_count includes", () => {
   it("renders a count embed and folds it into row._count", async () => {

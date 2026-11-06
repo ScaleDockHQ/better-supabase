@@ -11,7 +11,7 @@ import { AsyncResult } from "../../src/core/result.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
 import {
   createBetterSvelte,
-  getBetterSupabase,
+  betterSupabase,
   setBetterSupabase,
   setSession,
   useAction,
@@ -98,7 +98,7 @@ describe("setBetterSupabase", () => {
     const bound = inComponent(() => {
       setBetterSupabase(browser, { queryClient });
 
-      return { bsb: getBetterSupabase(), auth: useAuth() };
+      return { bsb: betterSupabase(), auth: useAuth() };
     });
 
     expect(bound.bsb.db).toBe(browser.db);
@@ -114,7 +114,7 @@ describe("setBetterSupabase", () => {
   });
 
   it("explains a missing binding and a missing session", () => {
-    expect(() => inComponent(() => getBetterSupabase())).toThrow(
+    expect(() => inComponent(() => betterSupabase())).toThrow(
       /setBetterSupabase\(bsb\)/,
     );
     expect(() => inComponent(() => useSession())).toThrow(/setSession/);

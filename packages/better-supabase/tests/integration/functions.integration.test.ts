@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { ContractOf } from "../../src/edge/index.ts";
 
 import { functions } from "../../src/client/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createEdge, defineFunction } from "../../src/edge/index.ts";
 import { parseEnv } from "../../src/env/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
@@ -42,7 +42,7 @@ async function reachable(): Promise<boolean> {
 const live = await reachable();
 
 describe.skipIf(!live)("typed Edge Functions against the local stack", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const env = parseEnv({
     SUPABASE_URL: url,

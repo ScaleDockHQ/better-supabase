@@ -390,7 +390,7 @@ controller is disposed with the component.
 ```svelte title="Component.svelte"
 <script lang="ts">
   import {
-    getBetterSupabase,
+    betterSupabase,
     useBlockController,
   } from "better-supabase/svelte";
   import {
@@ -400,7 +400,7 @@ controller is disposed with the component.
   import { rpcTransport } from "better-supabase/blocks";
 
   let { serviceId }: { serviceId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const slots = useBlockController(createAvailableSlotsController, {
     client: createBookings({ transport: rpcTransport(supabase) }),
     serviceId,

@@ -24,11 +24,11 @@ const src = resolve(import.meta.dirname, "../../../src");
 const fixtures = resolve(import.meta.dirname, "../../fixtures");
 const snapshot = await parseSnapshot(fixture);
 
-const READ_SETS = `import { defineSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
+const READ_SETS = `import { createSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
 import { defineReadSet } from ${JSON.stringify(join(src, "core/read-set.ts"))};
 import { schema } from ${JSON.stringify(join(fixtures, "generated-camel.ts"))};
 
-export const chrome = defineReadSet(defineSupabase(schema), "chrome", { params: { organizationId: "uuid" } }, (s, p) => ({
+export const chrome = defineReadSet(createSupabase(schema), "chrome", { params: { organizationId: "uuid" } }, (s, p) => ({
   customers: s.customers.count({ where: { organizationId: p.organizationId } }),
 }));
 `;

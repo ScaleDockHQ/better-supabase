@@ -602,10 +602,10 @@ export function setBetterSupabase<B extends ClientLike>(
 }
 
 /**
- * The client `setBetterSupabase` bound, typed with `getBetterSupabase<typeof
+ * The client `setBetterSupabase` bound, typed with `betterSupabase<typeof
  * bsb>()`.
  */
-export function getBetterSupabase<
+export function betterSupabase<
   B extends ClientLike = ClientLike,
 >(): BetterSvelte<B> {
   const bound = getContext<BetterSvelte<B> | undefined>(CLIENT);
@@ -621,7 +621,7 @@ export function getBetterSupabase<
 
 /** The session state for UI. Call during component setup. */
 export function useAuth(): Current<AuthSnapshot> {
-  return getBetterSupabase().auth;
+  return betterSupabase().auth;
 }
 
 /** Subscribes to a topic while read. Call during component setup. */
@@ -631,7 +631,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   handlers?: TopicHandlers<E>,
   options?: BroadcastOptions,
 ): Current<SubscriptionStatus> {
-  return getBetterSupabase().broadcast(topic, values, handlers, options);
+  return betterSupabase().broadcast(topic, values, handlers, options);
 }
 
 /**
@@ -648,7 +648,7 @@ export function useLiveQuery(
   spec: () => QuerySpec | null | undefined,
   options?: LiveQueryHookOptions,
 ): Current<SubscriptionStatus> {
-  return getBetterSupabase().liveQuery(spec, options);
+  return betterSupabase().liveQuery(spec, options);
 }
 
 /** A count that stays current while read. Call during component setup. */
@@ -656,7 +656,7 @@ export function useLiveCount(
   source: () => LiveCountSource,
   options?: LiveCountHookOptions,
 ): LiveCount {
-  return getBetterSupabase().liveCount(source, options);
+  return betterSupabase().liveCount(source, options);
 }
 
 /** Joins a presence topic while read. Call during component setup. */
@@ -665,7 +665,7 @@ export function usePresence<P extends string, I, O>(
   values: () => TemplateValues<P> | null | undefined,
   options?: SveltePresenceOptions<I>,
 ): Presence<I, O> {
-  return getBetterSupabase().presence(topic, values, options);
+  return betterSupabase().presence(topic, values, options);
 }
 
 /** Tracks the runs of a server action or form action. */
@@ -673,7 +673,7 @@ export function useAction<I, T>(
   action: (input: I) => Promise<ActionResultOf<T>>,
   options?: UseActionOptions<ActionInputOf<I>, T>,
 ): ActionHandle<ActionInputOf<I>, T> {
-  return getBetterSupabase().action(action, options);
+  return betterSupabase().action(action, options);
 }
 
 /**

@@ -6,7 +6,7 @@ import type { TableMeta } from "../../src/schema/types.ts";
 
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { trashExtension } from "../../src/blocks/trash/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineListQuery, UNSET } from "../../src/list/index.ts";
 import { createPostgres, postgresExecutor } from "../../src/postgres/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
@@ -47,7 +47,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
 
   const claims = { sub: USER, role: "authenticated", tenant_id: ACME };
 
-  const betterSupabase = defineSupabase(schema)
+  const betterSupabase = createSupabase(schema)
     .use(trashExtension())
     .use(membershipsExtension());
 
@@ -575,7 +575,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
   it("casts codec columns of $rpc results to text over both executors", async () => {
     const counts = schema.meta.functions["customer_note_counts"]!;
 
-    const coded = defineSupabase(
+    const coded = createSupabase(
       defineSchema({
         ...schema.meta,
         functions: {

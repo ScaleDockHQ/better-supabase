@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { DbError } from "../../src/core/errors.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import {
   DbException,
   dbError,
@@ -62,7 +62,7 @@ const conflict = () =>
 
 describe("betterSupabase.mapError", () => {
   it("makes .orThrow() throw the mapped error; results keep the DbError", async () => {
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .mapError(toAppError)
       .connect(conflict().client);
 
@@ -84,7 +84,7 @@ describe("betterSupabase.mapError", () => {
   });
 
   it("survives map, mapError and andThen, and a factory still wins", async () => {
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .mapError(toAppError)
       .connect(conflict().client);
 
@@ -103,7 +103,7 @@ describe("betterSupabase.mapError", () => {
   });
 
   it("keeps the DbError reachable through cause for adapters and guards", async () => {
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .mapError(toAppError)
       .connect(conflict().client);
 
@@ -123,7 +123,7 @@ describe("betterSupabase.mapError", () => {
   });
 
   it("throws a DbException without a mapper", async () => {
-    const db = defineSupabase(schema).connect(conflict().client);
+    const db = createSupabase(schema).connect(conflict().client);
     await expect(
       db.customers.create({ name: "Acme", organizationId: "o1" }).orThrow(),
     ).rejects.toBeInstanceOf(DbException);
@@ -146,7 +146,7 @@ describe("toBetterResult", () => {
   });
 
   it("awaits an AsyncResult and uses the mapper of betterSupabase.mapError", async () => {
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .mapError(toAppError)
       .connect(conflict().client);
 

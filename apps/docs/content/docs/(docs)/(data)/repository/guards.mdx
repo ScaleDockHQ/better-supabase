@@ -13,7 +13,7 @@ the editor.
 ```ts
 import { guards, recommendedGuards } from "better-supabase/lint";
 
-export const betterSupabase = defineSupabase(schema).use(
+export const betterSupabase = createSupabase(schema).use(
   guards({ rules: recommendedGuards() }),
 );
 ```

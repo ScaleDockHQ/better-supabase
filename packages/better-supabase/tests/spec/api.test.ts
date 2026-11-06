@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { openapiFormat } from "../../src/openapi/format.ts";
 import { defineApi } from "../../src/spec/api.ts";
 import { defineDocumentFormat } from "../../src/spec/format.ts";
@@ -8,7 +8,7 @@ import { serializeDocument } from "../../src/spec/serialize.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { deepFreeze } from "./helpers.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const options = {
   info: { title: "CRM", version: "1.0.0" },

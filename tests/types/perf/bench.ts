@@ -352,11 +352,11 @@ function consumer(profile: Profile, database = "./database.types.ts"): string {
     ...(profile.composite
       ? [`import type { Database } from '${database}';`]
       : []),
-    "import { defineSupabase } from 'better-supabase';",
+    "import { createSupabase } from 'better-supabase';",
     "import { membershipsExtension } from 'better-supabase/blocks/memberships';",
     "import { schema } from './generated.ts';",
     "declare const client: SupabaseClient;",
-    "const db = defineSupabase(schema).use(membershipsExtension()).connect(client);",
+    "const db = createSupabase(schema).use(membershipsExtension()).connect(client);",
     "export async function run(): Promise<void> {",
   ];
 

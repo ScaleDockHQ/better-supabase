@@ -13,7 +13,7 @@ import type { SpecTarget } from "../../../src/cli/spec/targets.ts";
 import { formatRegistry } from "../../../src/cli/spec/formats.ts";
 import { renderTarget } from "../../../src/cli/spec/render.ts";
 import { resolveTargets } from "../../../src/cli/spec/targets.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { defineApi } from "../../../src/spec/api.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
 
@@ -22,7 +22,7 @@ const RUNS = 200;
 /** Generous on purpose: the gate catches work that scales wrongly, not noise. */
 const MAX_RATIO = 6;
 
-const api = defineApi(defineSupabase(schema), {
+const api = defineApi(createSupabase(schema), {
   info: { title: "CRM", version: "1.0.0" },
   resources: Object.fromEntries(
     Object.keys(schema.meta.tables).map((table) => [table, true]),

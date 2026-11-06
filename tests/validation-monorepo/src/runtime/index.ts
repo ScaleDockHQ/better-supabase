@@ -1,7 +1,7 @@
 import type { EdgeOptions } from "better-supabase/edge";
 import type { AuthSession, ServerContext } from "better-supabase/server";
 
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { createEdge } from "better-supabase/edge";
 import { toSession } from "better-supabase/server";
 
@@ -10,10 +10,10 @@ import type { Functions, Models } from "./generated.ts";
 import { schema } from "./generated.ts";
 
 /**
- * The one `defineSupabase` in the monorepo. Domain packages never import
+ * The one `createSupabase` in the monorepo. Domain packages never import
  * `./generated.ts`.
  */
-export const betterSupabase = defineSupabase(schema);
+export const betterSupabase = createSupabase(schema);
 
 /** The request context every domain package receives. */
 export type AppContext = ServerContext<Models, Functions, unknown>;

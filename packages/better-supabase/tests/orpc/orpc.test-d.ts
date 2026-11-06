@@ -9,7 +9,7 @@ import type { AuthState } from "../../src/auth/resolve.ts";
 import type { OrpcRequestContext } from "../../src/orpc/index.ts";
 import type { BucketClient } from "../../src/storage/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { createOrpc } from "../../src/orpc/index.ts";
@@ -17,7 +17,7 @@ import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const bsb = createOrpc(betterSupabase);
 const db = betterSupabase.connect(client);
 
@@ -92,7 +92,7 @@ describe("betterSupabase.claims(schema) in oRPC", () => {
 describe("betterSupabase.buckets() in oRPC", () => {
   it("types db.$buckets on the server and the procedure context", () => {
     const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
-    const withBuckets = createOrpc(defineSupabase(schema).buckets({ logos }));
+    const withBuckets = createOrpc(createSupabase(schema).buckets({ logos }));
 
     type Logos = BucketClient<"{userId}/logo.webp", "logos">;
 

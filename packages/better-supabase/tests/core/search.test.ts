@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { compileSql } from "../../src/compile/sql.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import { vectorLiteral } from "../../src/core/search.ts";
 import { IrBuilder } from "../../src/ir/build.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 describe("db.$search", () => {
   it("POSTs to search_<table> and filters and renames the rows", async () => {

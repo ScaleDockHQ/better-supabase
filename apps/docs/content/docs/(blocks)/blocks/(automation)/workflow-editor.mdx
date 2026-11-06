@@ -640,7 +640,7 @@ work starts on mount, and the controller is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import {
     createWorkflowEditor,
     createWorkflowEditorController,
@@ -648,7 +648,7 @@ work starts on mount, and the controller is disposed with the component.
   } from "better-supabase/blocks/workflow-editor";
 
   let { organizationId }: { organizationId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const builder = useBlockController(createWorkflowEditorController, {
     client: createWorkflowEditor({ transport: rpcTransport(supabase) }),
     tenant: organizationId,

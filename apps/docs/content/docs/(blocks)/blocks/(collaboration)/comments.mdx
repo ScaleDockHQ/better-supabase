@@ -478,7 +478,7 @@ const { state, actions } = useBlockController(createCommentsController, {
 ```svelte title="CommentCount.svelte"
 <script lang="ts">
   import {
-    getBetterSupabase,
+    betterSupabase,
     useBlockController,
   } from "better-supabase/svelte";
   import {
@@ -488,7 +488,7 @@ const { state, actions } = useBlockController(createCommentsController, {
   } from "better-supabase/blocks/comments";
 
   let { organizationId, projectId }: { organizationId: string; projectId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const thread = useBlockController(createCommentsController, {
     client: createComments({
       transport: rpcTransport(supabase),

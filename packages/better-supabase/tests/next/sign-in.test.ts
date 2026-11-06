@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { readSession } from "../../src/auth/session.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createNext, postAuthPath } from "../../src/next/index.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -126,7 +126,7 @@ function setup(
   } = {},
 ) {
   const fetch = vi.fn<Fetch>(async (input) => handler(String(input)));
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
   const options = { env, auth: { jwks: signer.jwks, fetch } };
   const server = createServer(betterSupabase, options);
 
@@ -304,7 +304,7 @@ describe("auth flows", () => {
         }),
     );
 
-    const slow = createNext(defineSupabase(schema), {
+    const slow = createNext(createSupabase(schema), {
       env,
       auth: { jwks: signer.jwks, fetch, refreshTimeoutMs: 1 },
     });
@@ -336,7 +336,7 @@ describe("auth flows", () => {
     const token = await signer.sign({ sub: USER });
     const fetch = vi.fn<Fetch>(async () => tokens(token));
 
-    const bsb = createNext(defineSupabase(schema), {
+    const bsb = createNext(createSupabase(schema), {
       env: { ...env, secretKey: "sb_secret_test" },
       auth: { jwks: signer.jwks, fetch, clientIp: () => "203.0.113.9" },
     });

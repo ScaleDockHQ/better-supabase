@@ -133,7 +133,7 @@ const subject = computed(() => state.value.subjects?.[subjectKey(ref)]);
 
 ```svelte title="SubjectTitle.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import { rpcTransport } from "better-supabase/blocks";
   import {
     batchSubjects,
@@ -143,7 +143,7 @@ const subject = computed(() => state.value.subjects?.[subjectKey(ref)]);
   } from "better-supabase/blocks/subjects";
 
   let { type, id }: { type: string; id: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const subjects = useBlockController(createSubjectsController, {
     client: batchSubjects(createSubjects({ transport: rpcTransport(supabase), schema: "api" })),
     refs: [{ type, id }],

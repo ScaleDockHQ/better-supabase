@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineSchema } from "../../src/index.ts";
 import { defineApi } from "../../src/spec/api.ts";
 import { defineApiModel } from "../../src/spec/build.ts";
 import meta from "../fixtures/generated-camel.meta.js";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const info = { title: "CRM", version: "1.0.0" };
 const supabaseUrl = "https://abc.supabase.co/";
 
@@ -203,7 +203,7 @@ describe("defineApiModel: dataApi", () => {
   });
 
   it("maps Postgres types the way PostgREST writes them", () => {
-    const typed = defineSupabase(
+    const typed = createSupabase(
       defineSchema({
         ...meta,
         functions: {

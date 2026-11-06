@@ -6,13 +6,13 @@ import type { AsyncResult } from "../../src/core/result.ts";
 import type { RecordSummaryRead } from "../../src/core/spec.ts";
 
 import { blockRead } from "../../src/core/block-reads.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const db = betterSupabase.connect(client);
 
 const chrome = defineReadSet(

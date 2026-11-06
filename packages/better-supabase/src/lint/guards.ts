@@ -478,7 +478,7 @@ function defaultReport(violation: GuardViolation): void {
  * Runtime query guards, checked before each request is built:
  *
  * ```ts
- * defineSupabase(schema).use(guards({ rules: recommendedGuards() }));
+ * createSupabase(schema).use(guards({ rules: recommendedGuards() }));
  * ```
  *
  * Runs first (`enforce: 'first'`) so it sees the query as written, before

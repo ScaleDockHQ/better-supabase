@@ -7,7 +7,7 @@ import type { DbError, DbErrorKind } from "../../src/core/errors.ts";
 import type { HonoEnv } from "../../src/hono/index.ts";
 import type { Functions, Models } from "../fixtures/generated-camel.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError, statusOf } from "../../src/core/errors.ts";
 import {
   fromProblem,
@@ -80,7 +80,7 @@ const env = {
 };
 
 const signer = await createTestSigner();
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 describe("RFC 9457 Problem Details", () => {
   it.each(KINDS)(

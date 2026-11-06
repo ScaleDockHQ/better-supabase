@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { bootstrapWith, mapBootstrapMemo } from "../../src/server/bootstrap.ts";
 import { createServer } from "../../src/server/server.ts";
@@ -22,7 +22,7 @@ const signer = await createTestSigner();
 const seed = vi.fn<(userId: string, version: number) => void>();
 const evicted = vi.fn<(userId: string) => void>();
 
-const definition = defineSupabase(schema);
+const definition = createSupabase(schema);
 
 const hub = defineReadSet(definition, "hub", {}, (s) => ({
   customers: s.customers.count(),

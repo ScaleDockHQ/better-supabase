@@ -637,7 +637,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
 
   if (extended) {
     lines.push(
-      "/** The installed blocks' repository extensions; `defineSupabase` installs them. */",
+      "/** The installed blocks' repository extensions; `createSupabase` installs them. */",
       `type Extensions = readonly [${calls.map(({ fn }) => `ReturnType<typeof ${fn}>`).join(", ")}];`,
       `const extensions: Extensions = [${calls.map(({ call }) => call).join(", ")}];`,
       "",

@@ -9,7 +9,7 @@ import {
   setAuditRetention,
   toOcsf,
 } from "../../../src/blocks/audit/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { SPEC_PINS } from "../../../src/core/spec-pins.ts";
 import { defineSchema } from "../../../src/schema/define.ts";
 import { fakeSql, pgError } from "../../fixtures/fake-sql.ts";
@@ -299,7 +299,7 @@ describe("auditListQuery", () => {
     hasDefault: false,
   });
 
-  const betterSupabase = defineSupabase(
+  const betterSupabase = createSupabase(
     defineSchema<AnyModels>({
       version: 1,
       casing: "camel",

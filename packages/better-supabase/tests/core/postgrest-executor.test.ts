@@ -4,7 +4,7 @@ import type { Executor } from "../../src/core/executor.ts";
 import type { PostgrestClientLike } from "../../src/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { resolveUrlLengthLimit } from "../../src/core/postgrest-executor.ts";
 import { ok } from "../../src/core/result.ts";
 import { postgrestExecutor } from "../../src/index.ts";
@@ -169,7 +169,7 @@ describe("postgrestExecutor rpc", () => {
 });
 
 describe("postgrestExecutor request options", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   it("sends maxAffected as a strict Prefer on updateMany and deleteMany", async () => {
     const { client, requests } = capturingClient(() => ({
@@ -234,7 +234,7 @@ describe("postgrestExecutor request options", () => {
 
   it("refuses maxAffected before PostgREST 13 without a request", async () => {
     const { client, requests } = capturingClient();
-    const old = defineSupabase(schema, { postgrestVersion: "12.2" });
+    const old = createSupabase(schema, { postgrestVersion: "12.2" });
 
     const result = await old
       .connect(client)
@@ -431,7 +431,7 @@ describe("resolveUrlLengthLimit", () => {
     const { client, requests } = capturingClient();
     const ids = Array.from({ length: 40 }, (_, index) => `tag-${index}`);
 
-    const result = await defineSupabase(schema, { urlLengthLimit: 200 })
+    const result = await createSupabase(schema, { urlLengthLimit: 200 })
       .connect(client)
       .tags.list({ where: { id: { in: ids } } });
 
@@ -452,7 +452,7 @@ async function captureSelect(): Promise<Operation> {
     },
   };
 
-  await defineSupabase(schema).connect(capture).tags.list({ limit: 1 });
+  await createSupabase(schema).connect(capture).tags.list({ limit: 1 });
   const [op] = ops;
 
   if (!op) {

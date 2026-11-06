@@ -14,7 +14,7 @@ import { it } from "vitest";
 
 it("conforms", () =>
   testExecutor(kyselyExecutor(db), {
-    betterSupabase: defineSupabase(schema),
+    betterSupabase: createSupabase(schema),
     table: "tags",
     create: { organizationId: ORG, name: "conformance" },
   }));

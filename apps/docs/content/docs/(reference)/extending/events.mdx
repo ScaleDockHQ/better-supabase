@@ -40,7 +40,7 @@ the primary key, so writes that return nothing (soft deletes,
 `returning: false`) still invalidate the right rows. `tenant` is
 `context.tenant` or the tenant the memberships extension resolved from the claims.
 
-Listeners are per runtime: register them once, next to `defineSupabase`, not
+Listeners are per runtime: register them once, next to `createSupabase`, not
 per request. Cache invalidation (`betterSupabase.cache`), CloudEvents
 (`forwardMutations`) and OpenTelemetry metrics are built on these events.
 
@@ -52,7 +52,7 @@ per request. Cache invalidation (`betterSupabase.cache`), CloudEvents
 [diagnostic logging capability](https://github.com/supabase/sdk/blob/capability-matrix/v1.14.0/packages/capability-matrix/specs/client/observability/diagnostic_logging.md):
 
 ```ts
-const betterSupabase = defineSupabase(schema, {
+const betterSupabase = createSupabase(schema, {
   diagnostics: process.env.NODE_ENV !== "production",
   logger: pino(),
 });

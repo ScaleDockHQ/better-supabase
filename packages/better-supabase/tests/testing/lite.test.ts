@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";
 import { signTestJwt } from "../../src/testing/jwt.ts";
 import { liteStack } from "../../src/testing/lite.ts";
@@ -38,7 +38,7 @@ insert into public.contacts (organization_id, email) values
   ('${BOB}', 'b1@globex.test');
 `;
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 /** Booting Lite on PGlite takes seconds, more under coverage. */
 const BOOT = { timeout: 30_000 };

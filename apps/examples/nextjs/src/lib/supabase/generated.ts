@@ -967,7 +967,7 @@ export const buckets = {
   }
 } as const;
 
-/** The installed blocks' repository extensions; `defineSupabase` installs them. */
+/** The installed blocks' repository extensions; `createSupabase` installs them. */
 type Extensions = readonly [ReturnType<typeof updatedAtExtension>, ReturnType<typeof membershipsExtension>, ReturnType<typeof trashExtension>];
 const extensions: Extensions = [updatedAtExtension(), membershipsExtension(), trashExtension()];
 

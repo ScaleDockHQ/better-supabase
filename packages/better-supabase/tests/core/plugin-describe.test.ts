@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { defineApi } from "../../src/spec/api.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const info = { title: "CRM", version: "1.0.0" };
-const base = defineSupabase(schema);
+const base = createSupabase(schema);
 
 const property = (
   schemas: Readonly<Record<string, unknown>>,

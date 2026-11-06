@@ -90,7 +90,7 @@ export const faq: readonly {
   {
     question: "Does Row Level Security still apply?",
     answer:
-      "Yes. defineSupabase holds no secrets and no connection. You call connect() per request with the client for the current user, so every query runs under their RLS policies.",
+      "Yes. createSupabase holds no secrets and no connection. You call connect() per request with the client for the current user, so every query runs under their RLS policies.",
   },
   {
     question: "Do I need a direct Postgres connection?",

@@ -7,7 +7,7 @@
  */
 import { clearKeyCaches } from "../../src/auth/resolve.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -34,7 +34,7 @@ const token = await signer.sign({
   org_id: "00000000-0000-4000-8000-000000000001",
 });
 
-const betterSupabase = defineSupabase(schema).use(
+const betterSupabase = createSupabase(schema).use(
   membershipsExtension({ claim: "org_id" }),
 );
 

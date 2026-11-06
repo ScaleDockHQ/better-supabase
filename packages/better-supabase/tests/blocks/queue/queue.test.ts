@@ -23,7 +23,7 @@ import {
   sqlTransport,
 } from "../../../src/blocks/queue/index.ts";
 import { signWebhook } from "../../../src/blocks/webhooks/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { spansAllTenants } from "../../../src/core/plugin.ts";
 import { ok } from "../../../src/core/result.ts";
 import { provideTemporal } from "../../../src/core/temporal.ts";
@@ -592,7 +592,7 @@ describe("job context", () => {
   it("records the tenant tenant() resolved from a custom claim path", async () => {
     const { client, sent } = memoryQueue();
 
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(membershipsExtension({ claim: "app_metadata.organization" }))
       .connect(echoExecutor, {
         claims: { tenant_id: "o1", app_metadata: { organization: "o9" } },

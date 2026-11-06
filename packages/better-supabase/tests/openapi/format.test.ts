@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ApiModel, ModelOperation } from "../../src/spec/model.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { openapiFormat } from "../../src/openapi/format.ts";
 import { defineApi } from "../../src/spec/api.ts";
@@ -11,7 +11,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 import { refsIn, standard } from "../spec/helpers.ts";
 import { problems, validatorFor } from "../standards/validator.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const api = defineApi(betterSupabase, {
   info: {

@@ -4,7 +4,7 @@ import type { ExecuteResult, Executor } from "../../src/core/executor.ts";
 import type { Result } from "../../src/core/result.ts";
 import type { Operation } from "../../src/ir/types.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
@@ -13,7 +13,7 @@ import { provideTemporal } from "../../src/core/temporal.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 function answer(op: Operation): Result<ExecuteResult> {
   return ok({
@@ -47,7 +47,7 @@ describe("definition clock", () => {
       },
     });
 
-    await defineSupabase(schema, { temporal: injected })
+    await createSupabase(schema, { temporal: injected })
       .use(clock)
       .connect({ name: "fake", execute: async (op) => answer(op) })
       .tags.count();
@@ -59,7 +59,7 @@ describe("use() with a schema extension", () => {
   it("replaces only the extension of the same name and keeps other plugins", () => {
     const keep = definePlugin({ name: "keep" });
     const other = definePlugin({ name: "other" });
-    const first = defineSupabase(schema).use(keep).use(other);
+    const first = createSupabase(schema).use(keep).use(other);
 
     expect(first.plugins.map((plugin) => plugin.name)).toEqual(
       expect.arrayContaining(["keep", "other"]),
@@ -255,7 +255,7 @@ describe("cache adapters", () => {
   it("logs a synchronous failure and a rejected promise, never throws", async () => {
     const error = vi.fn();
     const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error };
-    const definition = defineSupabase(schema, { logger });
+    const definition = createSupabase(schema, { logger });
 
     const stopSync = definition.cache({
       name: "sync",

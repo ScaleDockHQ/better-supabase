@@ -3,7 +3,7 @@ import type { Hono } from "hono";
 import { withSupabase } from "@supabase/server";
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createHono, toHono } from "../../src/hono/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -29,7 +29,7 @@ const supabaseEnv = {
 };
 
 describe("better-supabase/hono after @supabase/server's withSupabase through toHono", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const alone = createHono(betterSupabase, {
     env,

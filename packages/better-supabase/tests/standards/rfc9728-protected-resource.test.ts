@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createMcp } from "../../src/mcp/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const signer = await createTestSigner();
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const env = {
   url: PROJECT_URL,

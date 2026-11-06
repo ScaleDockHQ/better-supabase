@@ -126,12 +126,12 @@ const { state, actions } = useBlockController(createTagInputController, {
 
 ```svelte title="CustomerTags.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import { rpcTransport } from "better-supabase/blocks";
   import { createTagInputController, createTags } from "better-supabase/blocks/tags";
 
   let { organizationId, customerId }: { organizationId: string; customerId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const tags = useBlockController(createTagInputController, {
     client: createTags({
       transport: rpcTransport(supabase),

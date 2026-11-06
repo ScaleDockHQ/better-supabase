@@ -7,7 +7,7 @@ import type { RecordRef } from "../../src/schema/types.ts";
 import { createChannels } from "../../src/blocks/channels/index.ts";
 import { createScores } from "../../src/blocks/scores/index.ts";
 import { createTags } from "../../src/blocks/tags/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -52,7 +52,7 @@ function repository() {
     execute: () => Promise.resolve(ok({ rows: [], count: 0 })),
   };
 
-  return defineSupabase(schema).connect(executor).customers;
+  return createSupabase(schema).connect(executor).customers;
 }
 
 describe("the data contract", () => {

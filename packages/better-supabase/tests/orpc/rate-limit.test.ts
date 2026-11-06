@@ -11,7 +11,7 @@ import type {
   RouteRateLimitHit,
 } from "../../src/orpc/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import { createOrpc } from "../../src/orpc/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -41,7 +41,7 @@ describe("createOrpc().rateLimit", () => {
     },
   };
 
-  const bsb = createOrpc(defineSupabase(schema), { env });
+  const bsb = createOrpc(createSupabase(schema), { env });
 
   const base = os
     .$context<OrpcRequestContext>()
@@ -125,7 +125,7 @@ describe("createOrpc().rateLimit with hits", () => {
     },
   };
 
-  const bsb = createOrpc(defineSupabase(schema), { env });
+  const bsb = createOrpc(createSupabase(schema), { env });
 
   const limited = os
     .$context<OrpcRequestContext & { resHeaders?: Headers }>()

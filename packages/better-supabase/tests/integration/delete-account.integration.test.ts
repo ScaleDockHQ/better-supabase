@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { MutationNotice } from "../../src/core/events.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { createServer } from "../../src/server/server.ts";
 import { defineBucket } from "../../src/storage/index.ts";
@@ -61,7 +61,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
 
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   const table = `bsb_del_${RUN}`;
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const server = createServer(betterSupabase, {
     env: {

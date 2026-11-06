@@ -206,7 +206,7 @@ function titledBlocks(text: string): CodeBlock[] {
 }
 
 /**
- * The Naming page's file layout: the definition from `defineSupabase` lives in
+ * The Naming page's file layout: the definition from `createSupabase` lives in
  * `lib/supabase/index.ts`, never in the `server.ts` or `client.ts` that create
  * `bsb`, and a Next.js `server.ts` starts with `import "server-only"`.
  */
@@ -223,7 +223,7 @@ function naming(): string[] {
 
       if (
         /lib\/supabase\/(?:server|client)\.ts$/u.test(block.title) &&
-        block.body.includes("defineSupabase(")
+        block.body.includes("createSupabase(")
       ) {
         problems.push(
           `${where} defines betterSupabase in ${block.title}; it belongs in src/lib/supabase/index.ts (concepts/naming.mdx)`,

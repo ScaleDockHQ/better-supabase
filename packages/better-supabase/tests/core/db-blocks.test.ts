@@ -8,7 +8,7 @@ import type { StorageApi } from "../../src/storage/storage-api.ts";
 import { attachmentsBlock } from "../../src/blocks/attachments/index.ts";
 import { dataLifecycleBlock } from "../../src/blocks/data-lifecycle/index.ts";
 import { defineBlock, defineBlocks } from "../../src/blocks/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { instanceProperty } from "../../src/core/instance-property.ts";
 import { err, ok } from "../../src/core/result.ts";
@@ -41,7 +41,7 @@ const executor = {
   rpc,
 };
 
-const betterSupabase = defineSupabase(schema).blocks(blockSet);
+const betterSupabase = createSupabase(schema).blocks(blockSet);
 
 type Rows = { readonly rows: readonly unknown[] };
 
@@ -169,7 +169,7 @@ describe("block instances on db", () => {
       category: "work",
     });
 
-    const db = defineSupabase(schema, { temporal })
+    const db = createSupabase(schema, { temporal })
       .blocks(
         defineBlocks(
           {
@@ -191,7 +191,7 @@ describe("block instances on db", () => {
   });
 
   it("leaves a table its property and keeps the instance under $blocks", () => {
-    const clash = defineSupabase(schema).blocks(
+    const clash = createSupabase(schema).blocks(
       defineBlocks(
         {
           customers: { block: "probe", schema: "better_supabase", options: {} },
@@ -223,7 +223,7 @@ describe("block instances on db", () => {
       AsyncResult<unknown>
     >();
     // @ts-expect-error a definition without blocks has no $api
-    void defineSupabase(schema).connect(executor, {}).$api;
+    void createSupabase(schema).connect(executor, {}).$api;
   });
 });
 
@@ -298,7 +298,7 @@ describe("block instances and the Db's storage", () => {
     },
   );
 
-  const withFiles = defineSupabase(schema).blocks(fileBlocks);
+  const withFiles = createSupabase(schema).blocks(fileBlocks);
 
   it("signs attachment downloads through db.$storage", async () => {
     signed.length = 0;
@@ -340,7 +340,7 @@ describe("block instances and the Db's storage", () => {
       other,
     );
 
-    const pinned = defineSupabase(schema)
+    const pinned = createSupabase(schema)
       .blocks(
         defineBlocks(
           { probe: { schema: "better_supabase", options: {} } },
@@ -353,7 +353,7 @@ describe("block instances and the Db's storage", () => {
   });
 
   it("gives using creators the Db's storage", () => {
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .blocks(
         defineBlocks(
           { probe: { schema: "better_supabase", options: {} } },

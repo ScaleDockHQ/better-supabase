@@ -128,7 +128,7 @@ interface Lowered {
 }
 
 /**
- * The API model for a `defineSupabase()` result, and the documents it renders.
+ * The API model for a `createSupabase()` result, and the documents it renders.
  * The model is built once per options object; each format and version is
  * lowered once and copied for every render.
  *

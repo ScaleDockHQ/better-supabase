@@ -6,7 +6,7 @@ import type { CloudEvent } from "../../src/events/index.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import {
   forwardMutations,
@@ -105,7 +105,7 @@ describe("CloudEvents", () => {
   });
 
   it("forwards mutations to a sink", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const sent: CloudEvent[][] = [];
 
     const stop = forwardMutations(
@@ -136,7 +136,7 @@ describe("CloudEvents", () => {
   });
 
   it("tracks sends in flight until they settle, failed ones too", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     let release: () => void = () => undefined;
 
     const late = new Promise<void>((resolve) => {
@@ -189,7 +189,7 @@ describe("CloudEvents", () => {
   });
 
   it("reports soft deletes by key with the resolved tenant", async () => {
-    const betterSupabase = defineSupabase(schema)
+    const betterSupabase = createSupabase(schema)
       .use(trashExtension())
       .use(membershipsExtension());
 
@@ -250,7 +250,7 @@ describe("CloudEvents", () => {
       });
 
     const intents = async (plugin: ReturnType<typeof archiving>) => {
-      const betterSupabase = defineSupabase(schema).use(plugin);
+      const betterSupabase = createSupabase(schema).use(plugin);
       const notices: MutationNotice[] = [];
       betterSupabase.events.on("mutation", (notice) => notices.push(notice));
 
@@ -278,7 +278,7 @@ describe("CloudEvents", () => {
       },
     });
 
-    const betterSupabase = defineSupabase(schema).use(tamper);
+    const betterSupabase = createSupabase(schema).use(tamper);
     betterSupabase.events.on("mutation", (notice) => {
       (notice.rows[0] as Record<string, unknown>)["id"] = "other";
     });
@@ -297,7 +297,7 @@ describe("CloudEvents", () => {
   });
 
   it("reports sink failures without failing the mutation", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const onError = vi.fn();
     forwardMutations(
       betterSupabase,

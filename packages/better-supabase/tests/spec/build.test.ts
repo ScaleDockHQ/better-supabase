@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import { defineApiModel } from "../../src/spec/build.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { opaque, standard } from "./helpers.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const info = { title: "CRM", version: "1.0.0" };
 
 const operation = (

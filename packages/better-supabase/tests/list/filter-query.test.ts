@@ -7,7 +7,7 @@ import type { TableMeta } from "../../src/schema/types.ts";
 import { compilePostgrest } from "../../src/compile/postgrest.ts";
 import { compileSql } from "../../src/compile/sql.ts";
 import { compileSqlite } from "../../src/compile/sqlite.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { builderFor } from "../../src/ir/build.ts";
 import {
   checkFilterQuery,
@@ -23,7 +23,7 @@ import {
 import { schema } from "../fixtures/generated-camel.ts";
 import reui from "./fixtures/reui-operators.json" with { type: "json" };
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 function table(key: string): TableMeta {
   const found = schema.meta.tables[key];

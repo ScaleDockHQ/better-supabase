@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createPostgres } from "../../src/postgres/index.ts";
 import { asUser } from "../../src/testing/as-user.ts";
 import {
@@ -39,7 +39,7 @@ describe.skipIf(!live)("scopedSeed and withRollback", () => {
 
   afterAll(() => postgres.end());
 
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const organization = {
     table: "organizations",

@@ -9,7 +9,7 @@ import type {
 
 import { unwrap, withContext } from "../../src/blocks/queue/envelope.ts";
 import { defineAuthorizationHooks } from "../../src/core/contracts/authorization-hooks.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createServer } from "../../src/server/server.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
@@ -50,7 +50,7 @@ function fakePostgres() {
 describe("forContext delegation", () => {
   it("runs a delegated job with the client's scope and act chain", async () => {
     const { postgres, claims } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
     const act = { sub: "agent-1", act: { sub: "client-1" } };
 
     const stored = withContext(null, {
@@ -83,7 +83,7 @@ describe("forContext delegation", () => {
   it("never lets claimsFor widen a delegated token", async () => {
     const { postgres, claims } = fakePostgres();
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       postgres,
       claimsFor: () => ({ scope: "admin", client_id: "x", user_role: "r" }),
@@ -101,7 +101,7 @@ describe("forContext delegation", () => {
     const { postgres, claims } = fakePostgres();
     const claimsFor = vi.fn(() => ({}));
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       postgres,
       claimsFor,
@@ -127,7 +127,7 @@ describe("forContext delegation", () => {
       scopes.includes("posts:read") ? ["posts.read", "posts.list"] : [],
     );
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       postgres,
       authorization: defineAuthorizationHooks({
@@ -165,7 +165,7 @@ describe("forContext delegation", () => {
   it("grants a delegated context nothing when the delegation hook throws", async () => {
     const { postgres, claims } = fakePostgres();
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       postgres,
       authorization: defineAuthorizationHooks({
@@ -195,7 +195,7 @@ describe("forContext tickets", () => {
       tenant: "t2",
     }));
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       postgres,
       authorization: defineAuthorizationHooks({
@@ -220,7 +220,7 @@ describe("forContext tickets", () => {
     const { postgres, claims } = fakePostgres();
     const hook = vi.fn<TicketSubject>(() => null);
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       postgres,
       authorization: {
@@ -242,7 +242,7 @@ describe("forContext tickets", () => {
 
   it("fails with forbidden for a refused, thrown, missing or malformed ticket", async () => {
     const { postgres, claims } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
 
     const cases: [
       Record<string, unknown>,

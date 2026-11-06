@@ -94,10 +94,10 @@ const { state, actions } = useBlockController(createOAuthConsentController, {
 
 ```svelte title="Grants.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import { createOAuthGrantsController } from "better-supabase/blocks/sessions";
 
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const grants = useBlockController(createOAuthGrantsController, {
     oauth: supabase.auth.oauth,
   });

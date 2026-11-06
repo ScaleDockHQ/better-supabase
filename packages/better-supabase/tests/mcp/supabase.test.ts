@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SupabaseMcpModule } from "../../src/core/supabase-mcp.ts";
 import type { CredentialProvider } from "../../src/credentials/provider.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import {
@@ -31,7 +31,7 @@ const MEMBER = "22222222-2222-4222-8222-222222222222";
 const ENDPOINT = "https://ops.test/mcp";
 const signer = await createTestSigner();
 
-const auth = createMcpAuth(defineSupabase(schema), {
+const auth = createMcpAuth(createSupabase(schema), {
   env,
   auth: { jwks: signer.jwks },
   resource: ENDPOINT,

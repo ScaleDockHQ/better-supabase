@@ -914,7 +914,7 @@ export type WritableColumnOf<T extends TableName> = WritableColumns<Models, T>;
 /** Columns of `T` the database fills (generated columns): in `Row`, never writable. */
 export type GeneratedColumnOf<T extends TableName> = GeneratedColumns<Models, T>;
 
-/** The installed blocks' repository extensions; `defineSupabase` installs them. */
+/** The installed blocks' repository extensions; `createSupabase` installs them. */
 type Extensions = readonly [ReturnType<typeof membershipsExtension>];
 const extensions: Extensions = [membershipsExtension()];
 

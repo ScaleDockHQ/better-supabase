@@ -47,28 +47,28 @@ const WORK = resolve(import.meta.dirname, "tmp");
  */
 const CONSUMERS = {
   "next + client": `
-import { defineSchema, defineSupabase } from "better-supabase";
+import { defineSchema, createSupabase } from "better-supabase";
 import { createClient } from "better-supabase/client";
 import { createNext } from "better-supabase/next";
 import meta from "./generated.meta.js";
-const betterSupabase = defineSupabase(defineSchema(meta));
+const betterSupabase = createSupabase(defineSchema(meta));
 export const next = createNext(betterSupabase);
 export const customers = () =>
   createClient(betterSupabase).db.customers.list({ where: { name: "Acme" } });
 `,
   hono: `
-import { defineSchema, defineSupabase } from "better-supabase";
+import { defineSchema, createSupabase } from "better-supabase";
 import { createHono } from "better-supabase/hono";
 import meta from "./generated.meta.js";
-export const hono = createHono(defineSupabase(defineSchema(meta)));
+export const hono = createHono(createSupabase(defineSchema(meta)));
 `,
   "react + query": `
-import { defineSchema, defineSupabase } from "better-supabase";
+import { defineSchema, createSupabase } from "better-supabase";
 import { createClient } from "better-supabase/client";
 import { createQueries, invalidateOnMutation } from "better-supabase/query";
 import { BetterSupabaseProvider, createHooks } from "better-supabase/react";
 import meta from "./generated.meta.js";
-const betterSupabase = defineSupabase(defineSchema(meta));
+const betterSupabase = createSupabase(defineSchema(meta));
 const client = createClient(betterSupabase);
 export const hooks = createHooks();
 export const queries = createQueries(betterSupabase, client.db);
@@ -77,7 +77,7 @@ export { BetterSupabaseProvider, invalidateOnMutation };
   // An app that wires blocks into the browser client, as the generated
   // `client.ts` does: every manifest it names ships (ADR 0232).
   "saas client with blocks": `
-import { defineSchema, defineSupabase } from "better-supabase";
+import { defineSchema, createSupabase } from "better-supabase";
 import { defineBlocks } from "better-supabase/blocks";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { metricsBlock } from "better-supabase/blocks/metrics";
@@ -87,7 +87,7 @@ import { settingsBlock } from "better-supabase/blocks/settings";
 import { trashBlock } from "better-supabase/blocks/trash";
 import { createClient } from "better-supabase/client";
 import meta from "./generated.meta.js";
-const betterSupabase = defineSupabase(defineSchema(meta));
+const betterSupabase = createSupabase(defineSchema(meta));
 const blocks = defineBlocks({}, {
   comments: commentsBlock,
   metrics: metricsBlock,

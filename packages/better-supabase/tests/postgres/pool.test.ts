@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { fakePgPool } from "../fixtures/fake-pg-pool.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -159,7 +159,7 @@ describe("createPostgres", () => {
       },
     };
 
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const seen: unknown[] = [];
     betterSupabase.on("error", (event) => {
       seen.push(event.error);
@@ -227,7 +227,7 @@ describe("createPostgres", () => {
     const pg = createPostgres({ pool: fake.pool });
     const executor = pg.executorFor({ sub: "u1" });
     expect(executor.name).toBe("postgres");
-    await defineSupabase(schema).connect(executor).customers.list();
+    await createSupabase(schema).connect(executor).customers.list();
     expect(fake.log[1]).toBe(USER_SQL);
   });
 

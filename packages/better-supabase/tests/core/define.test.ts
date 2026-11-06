@@ -11,14 +11,14 @@ import type { Result } from "../../src/core/result.ts";
 import type { StandardSchemaV1 } from "../../src/core/standard.ts";
 import type { Operation } from "../../src/ir/types.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const timeout = dbError("timeout", "slow");
 
 interface Fake extends Executor {
@@ -96,7 +96,7 @@ describe("use", () => {
     const installed: AnyPlugin = { apiVersion: 1, name: "trash" };
     const replacement: AnyPlugin = { apiVersion: 1, name: "trash" };
 
-    const extended = defineSupabase(defineSchema(schema.meta, [installed]));
+    const extended = createSupabase(defineSchema(schema.meta, [installed]));
 
     expect(extended.plugins).toEqual([installed]);
     expect(extended.use(replacement).plugins).toEqual([replacement]);
@@ -137,7 +137,7 @@ describe("connect", () => {
     };
 
     const executor = fake();
-    await defineSupabase(schema, { now: () => now })
+    await createSupabase(schema, { now: () => now })
       .use(plugin)
       .connect(executor)
       .tags.count();
@@ -686,7 +686,7 @@ describe("$search", () => {
   });
 
   it("reads scores with the connection's timeout and reports their errors", async () => {
-    const definition = defineSupabase(schema);
+    const definition = createSupabase(schema);
     const errors: unknown[] = [];
     definition.on("error", (event) => errors.push(event));
 
@@ -718,7 +718,7 @@ describe("$search", () => {
 
 describe("$rpc", () => {
   it("reports failed calls as error events", async () => {
-    const definition = defineSupabase(schema);
+    const definition = createSupabase(schema);
     const errors: unknown[] = [];
     definition.on("error", (event) => errors.push(event));
 
@@ -912,7 +912,7 @@ describe("$rpc result decoding", () => {
   });
 
   it("applies codecs and reports values they can't hold", async () => {
-    const coded = defineSupabase(
+    const coded = createSupabase(
       defineSchema({
         ...schema.meta,
         functions: {

@@ -1,4 +1,4 @@
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
 
 import { toAppError } from "../app-error.ts";
@@ -17,7 +17,7 @@ export type { Functions, Models } from "./generated.ts";
  * matches `[api] max_rows` in `supabase/config.toml`. Node 24 and Safari have
  * no `Temporal`, which the blocks return times as.
  */
-export const app = defineSupabase(schema, { maxRows: 1000, temporal: Temporal })
+export const app = createSupabase(schema, { maxRows: 1000, temporal: Temporal })
   .claims(Claims)
   .userMetadata(Profile)
   .mapError(toAppError)

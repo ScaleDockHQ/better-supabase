@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { asyncapiFormat } from "../../src/asyncapi/format.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { defineApi } from "../../src/spec/api.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { problems, validatorFor } from "./validator.ts";
 
-const events = defineApi(defineSupabase(schema), {
+const events = defineApi(createSupabase(schema), {
   info: { title: "CRM events", version: "1.0.0" },
   realtimeUrl: "wss://abc.supabase.co/realtime/v1/websocket",
   resources: { customers: {} },

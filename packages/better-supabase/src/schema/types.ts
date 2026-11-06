@@ -380,7 +380,7 @@ export interface Schema<
   readonly meta: SchemaMeta;
   /**
    * The repository extensions of the installed blocks (`trashExtension()`,
-   * ...). `defineSupabase(schema)` installs them first.
+   * ...). `createSupabase(schema)` installs them first.
    */
   readonly extensions?: readonly AnyPlugin[];
   /** Phantom. Never present at runtime. */

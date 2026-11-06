@@ -16,14 +16,14 @@ import {
   parseSetCookie,
   toNextRoute,
 } from "../../src/bridges/next.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { unexpectedResponse } from "../../src/server/adapter.ts";
 import { withBetterSupabase } from "../../src/server/index.ts";
 import { respond } from "../../src/server/respond.ts";
 import { testAdapter } from "../../src/testing/adapter.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 type Bs = Parameters<AdapterRun>[0];
 

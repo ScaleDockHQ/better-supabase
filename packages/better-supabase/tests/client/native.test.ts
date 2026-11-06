@@ -5,7 +5,7 @@ import {
   createNativeClient,
   secureStorage,
 } from "../../src/client/native/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -35,7 +35,7 @@ function memoryStore() {
 describe("better-supabase/client/native", () => {
   it("binds repositories to a client the app created", async () => {
     const { client } = capturingClient(() => ({ body: [] }));
-    const bsb = createNativeClient(defineSupabase(schema), client);
+    const bsb = createNativeClient(createSupabase(schema), client);
     expect(bsb.supabase).toBe(client);
     expect(bsb.auth.current().status).toBe("loading");
     expect(await bsb.db.tags.list({ select: ["id"] })).toMatchObject({

@@ -1,7 +1,7 @@
 import { Temporal as Polyfill } from "temporal-polyfill";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import {
   isInstant,
   isPlainDate,
@@ -56,19 +56,19 @@ describe("temporal", () => {
   });
 });
 
-describe("defineSupabase({ temporal })", () => {
+describe("createSupabase({ temporal })", () => {
   it("uses the injected namespace when the runtime has none", () => {
     withoutTemporal();
     onTestFinished(() => {
       provideTemporal(undefined);
     });
-    const betterSupabase = defineSupabase(schema, { temporal: Polyfill });
+    const betterSupabase = createSupabase(schema, { temporal: Polyfill });
     expect(betterSupabase.temporal).toBe(Polyfill);
     expect(optionalTemporal()).toBe(Polyfill);
   });
 
   it("falls back to the global", () => {
-    expect(defineSupabase(schema).temporal).toBe(globalThis.Temporal);
+    expect(createSupabase(schema).temporal).toBe(globalThis.Temporal);
   });
 });
 

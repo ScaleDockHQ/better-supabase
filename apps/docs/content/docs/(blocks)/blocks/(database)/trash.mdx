@@ -85,7 +85,7 @@ The [subject registry](/docs/blocks/sql#subject-registry) functions (`can_subjec
 `gen` installs the block's repository extension in the generated schema, so repository reads hide trashed rows and `delete()` sets the column:
 
 ```ts
-const db = defineSupabase(schema).connect(supabase);
+const db = createSupabase(schema).connect(supabase);
 
 await db.customers.delete(id); // sets deleted_at
 await db.customers.get(id); // not_found
@@ -136,7 +136,7 @@ Doctor's [BS218](/docs/cli/doctor#bs218) points at tables with the column and wi
 
 ### Deletes and RLS
 
-A soft delete is an `UPDATE ... SET deleted_at = now()` without `RETURNING`. The time comes from `defineSupabase(schema, { now })`, or from the system clock in a runtime without Temporal. That matters: a common policy hides trashed rows from `SELECT`, and PostgREST checks returned rows against it, so an update that returns the row fails with `forbidden`. The extension never asks for the row back. `better-supabase doctor` flags tables where this would bite.
+A soft delete is an `UPDATE ... SET deleted_at = now()` without `RETURNING`. The time comes from `createSupabase(schema, { now })`, or from the system clock in a runtime without Temporal. That matters: a common policy hides trashed rows from `SELECT`, and PostgREST checks returned rows against it, so an update that returns the row fails with `forbidden`. The extension never asks for the row back. `better-supabase doctor` flags tables where this would bite.
 
 Deleting a row that is already trashed returns `not_found`. `{ hard: true }` deletes regardless of the column.
 

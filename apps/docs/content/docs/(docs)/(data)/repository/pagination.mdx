@@ -90,7 +90,7 @@ projects, `[api] max_rows` in `config.toml`) and drops the rest without an
 error. A `list` without `limit` can therefore look complete when it isn't.
 
 ```ts
-export const betterSupabase = defineSupabase(schema, { maxRows: 1000 });
+export const betterSupabase = createSupabase(schema, { maxRows: 1000 });
 
 betterSupabase.on("query", ({ table, truncated }) => {
   if (truncated) metrics.increment(`db.${table}.truncated`);

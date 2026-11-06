@@ -7,7 +7,7 @@ import {
   activitySink,
   createTimeline,
 } from "../../../src/blocks/timeline/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { defineSchema } from "../../../src/schema/define.ts";
 
 const ADA = "8c5a3d3e-0000-4000-8000-000000000001";
@@ -368,7 +368,7 @@ describe("activityListQuery", () => {
     const name = (snake: string, camel: string) =>
       casing === "camel" ? camel : snake;
 
-    return defineSupabase(
+    return createSupabase(
       defineSchema<AnyModels>({
         version: 1,
         casing,

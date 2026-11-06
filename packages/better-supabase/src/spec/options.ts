@@ -30,7 +30,7 @@ import type {
 } from "./resource.ts";
 import type { StandardLike } from "./schemas.ts";
 
-/** What `defineApi` reads from a `defineSupabase()` result. */
+/** What `defineApi` reads from a `createSupabase()` result. */
 export interface ApiSource {
   readonly meta: SchemaMeta;
   readonly plugins?: readonly AnyPlugin[];

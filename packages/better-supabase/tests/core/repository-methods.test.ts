@@ -22,7 +22,7 @@ import {
   encodeCursor,
   sortKey,
 } from "../../src/core/cursor.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { defineSchema } from "../../src/schema/define.ts";
@@ -73,7 +73,7 @@ function scripted(answer: Answer = () => rowsOf([])) {
 
 function connect(answer?: Answer, plugins: AnyPlugin[] = []) {
   const fake = scripted(answer);
-  let betterSupabase = defineSupabase(schema);
+  let betterSupabase = createSupabase(schema);
 
   for (const plugin of plugins) {
     betterSupabase = betterSupabase.use(plugin);
@@ -223,7 +223,7 @@ describe("single-row reads", () => {
     };
 
     const fake = scripted();
-    await defineSupabase(keyless)
+    await createSupabase(keyless)
       .connect(fake.executor)
       .tags.list({ select: ["id"] });
     expect(fake.select().orderBy).toEqual([]);
@@ -1232,7 +1232,7 @@ describe("cursor pagination", () => {
       ]),
     );
 
-    const db = defineSupabase(defineSchema(meta)).connect(
+    const db = createSupabase(defineSchema(meta)).connect(
       fake.executor,
     ) as never as {
       ledger: {
@@ -1312,7 +1312,7 @@ describe("plugins and options", () => {
 
     const fake = scripted(() => rowsOf([], 1));
 
-    const db = defineSupabase(schema, { logger })
+    const db = createSupabase(schema, { logger })
       .use(plugin)
       .connect(fake.executor);
 
@@ -1342,7 +1342,7 @@ describe("plugins and options", () => {
     };
 
     const fake = scripted(() => rowsOf([{ id: "c1" }]));
-    const betterSupabase = defineSupabase(schema).use(plugin);
+    const betterSupabase = createSupabase(schema).use(plugin);
     const kinds: string[] = [];
     betterSupabase.on("mutation", (event) => kinds.push(event.kind));
     await betterSupabase
@@ -1449,7 +1449,7 @@ describe("write bounds and request options", () => {
 
   it("passes retry to the executor, the call's over the connection's", async () => {
     const fake = scripted();
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     await betterSupabase.connect(fake.executor).tags.list({ retry: false });
     await betterSupabase
       .connect(fake.executor, {}, { retry: false })
@@ -1478,7 +1478,7 @@ describe("write bounds and request options", () => {
         }),
     };
 
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const byConnection = await betterSupabase
       .connect(slow, {}, { timeout: 5 })
@@ -1534,7 +1534,7 @@ describe("write bounds and request options", () => {
       },
     };
 
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const db = betterSupabase.connect(executor, {}, { retry: false });
     expect(await db.$rpc("rs_workspace_summary", { p: null })).toEqual(ok(1));
     expect(contexts[0]?.retry).toBe(false);

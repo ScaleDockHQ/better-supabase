@@ -29,7 +29,7 @@ import {
 import { createVercelMarketplace } from "../../src/blocks/vercel-marketplace/index.ts";
 import { signWebhook } from "../../src/blocks/webhooks/index.ts";
 import { rpcTransport, sqlTransport } from "../../src/core/block-transport.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { mapDbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
@@ -689,7 +689,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const plain = `bsb_block_plain_${RUN}`;
     const uuid = { type: "uuid", nullable: true, hasDefault: false } as const;
 
-    const stamped = defineSupabase(
+    const stamped = createSupabase(
       defineSchema<PlainModels>({
         version: 1,
         casing: "camel",
@@ -4989,7 +4989,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("asUser runs PostgREST and SQL as the same user", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const alice = await asUser(
       betterSupabase,
@@ -5012,7 +5012,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("read sets run as one GET and one transaction, under RLS", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const chrome = defineReadSet(
       betterSupabase,
@@ -5114,7 +5114,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("read sets count the caller's own rows through auth.uid", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const mine = defineReadSet(
       betterSupabase,
@@ -5174,7 +5174,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("db.$many batches ad-hoc specs in one SQL transaction", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const alice = await asUser(
       betterSupabase,
@@ -5298,7 +5298,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       flags: {},
     });
 
-    const betterSupabase = defineSupabase(
+    const betterSupabase = createSupabase(
       defineSchema<AnyModels>({
         version: 1,
         casing: "camel",
@@ -5413,7 +5413,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       hasDefault: false,
     });
 
-    const betterSupabase = defineSupabase(
+    const betterSupabase = createSupabase(
       defineSchema<AnyModels>({
         version: 1,
         casing: "camel",

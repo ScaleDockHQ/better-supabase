@@ -3,7 +3,7 @@ import type { PostgresApi } from "@supabase/server/middleware/postgres";
 import { defineMiddleware, pipeline } from "@supabase/middleware";
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { withBetterSupabase } from "../../../src/server/composite.ts";
 import { withBlock } from "../../../src/server/entries/block.ts";
 import { createServer } from "../../../src/server/server.ts";
@@ -14,7 +14,7 @@ import { schema } from "../../fixtures/generated-camel.ts";
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const signer = await createTestSigner();
 
-const server = createServer(defineSupabase(schema), {
+const server = createServer(createSupabase(schema), {
   env: {
     url: PROJECT_URL,
     publishableKey: "sb_publishable_test",

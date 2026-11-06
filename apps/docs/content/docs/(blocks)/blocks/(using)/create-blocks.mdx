@@ -59,7 +59,7 @@ each instance under its key in camel case: `db.comments`, `db.leadScoring`.
 instance's manifest, so you list only the blocks that take app definitions:
 
 ```ts title="src/lib/supabase/index.ts"
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { defineBlocks } from "better-supabase/blocks";
 import { createNotifications } from "better-supabase/blocks/notifications";
 
@@ -73,7 +73,7 @@ const blockSet = defineBlocks(blockConfig, {
   ),
 });
 
-export const betterSupabase = defineSupabase(schema).blocks(blockSet);
+export const betterSupabase = createSupabase(schema).blocks(blockSet);
 ```
 
 ```ts title="src/features/notes/notes-actions.ts"
@@ -114,7 +114,7 @@ const quotes = await db
 
 `blockSet.call(db, fn, args)` does the same outside a `Db` with blocks on it
 and also returns a `Result`.
-`defineSupabase(schema, { temporal })` passes its `temporal` to every
+`createSupabase(schema, { temporal })` passes its `temporal` to every
 instance `.blocks()` builds, so a runtime without a global `Temporal` needs it
 only there.
 

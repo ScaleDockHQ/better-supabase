@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
 import { compileSql } from "../../src/compile/sql.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { mapDbError } from "../../src/core/errors.ts";
 import { IrBuilder } from "../../src/ir/build.ts";
 import { decodeRows } from "../../src/ir/codec.ts";
@@ -11,7 +11,7 @@ import { defineSchema } from "../../src/schema/define.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const ledgerMeta: SchemaMeta = {
   version: 1,
@@ -221,7 +221,7 @@ describe("db.x.aggregate()", () => {
       ],
     }));
 
-    const db = defineSupabase(defineSchema(ledgerMeta)).connect(
+    const db = createSupabase(defineSchema(ledgerMeta)).connect(
       client,
     ) as never as {
       ledger: { aggregate(args: object): PromiseLike<{ data: unknown }> };

@@ -960,7 +960,7 @@ export const topics = {
   "customers": "organization:{organizationId}:customers"
 } as const;
 
-/** The installed blocks' repository extensions; `defineSupabase` installs them. */
+/** The installed blocks' repository extensions; `createSupabase` installs them. */
 type Extensions = readonly [ReturnType<typeof updatedAtExtension>, ReturnType<typeof createdByExtension>, ReturnType<typeof trashExtension>, ReturnType<typeof membershipsExtension>];
 const extensions: Extensions = [updatedAtExtension(), createdByExtension(), trashExtension(), membershipsExtension()];
 

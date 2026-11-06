@@ -4,7 +4,7 @@ import { withSupabase } from "@supabase/server";
 import { Hono } from "hono";
 import { describe, expectTypeOf, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { toEdge } from "../../src/edge/index.ts";
 import { toHono } from "../../src/hono/index.ts";
 import { toReactRouter } from "../../src/react-router/index.ts";
@@ -13,7 +13,7 @@ import { createServer } from "../../src/server/server.ts";
 import { toSvelteKit } from "../../src/sveltekit/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const server = createServer(defineSupabase(schema));
+const server = createServer(createSupabase(schema));
 const entry = withBetterSupabase(server);
 
 type Keys = Contributions<readonly [typeof entry]>;

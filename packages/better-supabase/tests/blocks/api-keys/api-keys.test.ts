@@ -20,7 +20,7 @@ import {
   parseApiKey,
 } from "../../../src/blocks/api-keys/index.ts";
 import { sha256Hex } from "../../../src/core/block-helpers.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { ok } from "../../../src/core/result.ts";
 import { createHono } from "../../../src/hono/index.ts";
 import { postgresExecutor } from "../../../src/postgres/executor.ts";
@@ -495,7 +495,7 @@ describe("API keys in a server", () => {
       transport: fakeTransport(() => ({ status: "ok", key: row() })).transport,
     });
 
-    const bsb = createHono(defineSupabase(schema), {
+    const bsb = createHono(createSupabase(schema), {
       env,
       postgres,
       auth: { resolvers: [apiKeyResolver({ keys })] },

@@ -279,7 +279,7 @@ const templateContext: TemplateContext = {
 };
 
 const LEGACY_INSTANCE =
-  /\b(?:const|let)\s+(sb|next|browser|server|mcp)\s*=\s*(?:defineSupabase|create[A-Z]\w*)\(/;
+  /\b(?:const|let)\s+(sb|next|browser|server|mcp)\s*=\s*(?:createSupabase|create[A-Z]\w*)\(/;
 
 const LEGACY_PATH = /supabase\.(?:browser|server|client)(?:\.tsx?)?["'`]/;
 

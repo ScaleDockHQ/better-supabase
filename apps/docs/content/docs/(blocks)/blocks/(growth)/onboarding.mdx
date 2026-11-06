@@ -202,7 +202,7 @@ work starts on mount, and the controller is disposed with the component.
 ```svelte title="Component.svelte"
 <script lang="ts">
   import {
-    getBetterSupabase,
+    betterSupabase,
     useBlockController,
   } from "better-supabase/svelte";
   import {
@@ -213,7 +213,7 @@ work starts on mount, and the controller is disposed with the component.
   import { gettingStarted } from "@/onboarding";
 
   let { organizationId }: { organizationId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const onboarding = useBlockController(createOnboardingController, {
     client: createOnboarding({ transport: rpcTransport(supabase) }),
     checklist: gettingStarted,

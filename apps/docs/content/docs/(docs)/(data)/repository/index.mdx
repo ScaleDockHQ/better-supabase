@@ -4,7 +4,7 @@ description: A typed repository per table, compiled to one PostgREST request.
 ---
 
 ```ts
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const db = betterSupabase.connect(supabase); // any SupabaseClient, or an Executor
 ```
 

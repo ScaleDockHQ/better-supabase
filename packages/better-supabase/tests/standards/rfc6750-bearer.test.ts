@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { HonoEnv } from "../../src/hono/index.ts";
 import type { Functions, Models } from "../fixtures/generated-camel.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { problemResponse } from "../../src/core/problem.ts";
 import { createHono } from "../../src/hono/index.ts";
@@ -92,7 +92,7 @@ describe("RFC 6750 Bearer token challenges", () => {
   });
 
   it("reads the token from the Authorization header with the Bearer scheme (section 2.1)", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const bsb = createHono(betterSupabase, {
       env: {

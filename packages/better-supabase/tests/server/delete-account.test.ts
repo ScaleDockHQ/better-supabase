@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { MutationNotice } from "../../src/core/events.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import {
   deleteAccount,
@@ -61,7 +61,7 @@ function setup(
     auth: { admin: { deleteUser } },
   } as unknown as SupabaseClient;
 
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
   const notices: MutationNotice[] = [];
   betterSupabase.on("mutation", (notice) => notices.push(notice));
 

@@ -157,7 +157,7 @@ Register it in `tools/index.ts` next to `registerWhoamiTool`. Repository
 methods return a `Result` instead of throwing, so the tool turns a `DbError`
 into an MCP error result the model can read; the block's
 `runtimeErrorResult` stays the helper for code that throws.
-`_shared/supabase.ts` exports `betterSupabase = defineSupabase(schema)` from
+`_shared/supabase.ts` exports `betterSupabase = createSupabase(schema)` from
 the client [`better-supabase gen`](/docs/cli/gen) writes.
 
 `withBetterSupabase` from `better-supabase/server` is a pipeline entry that

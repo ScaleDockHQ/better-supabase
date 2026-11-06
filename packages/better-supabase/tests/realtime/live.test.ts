@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { RealtimeClient } from "../../src/realtime/index.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
 import {
@@ -20,8 +20,8 @@ const meta: SchemaMeta = {
   realtime: { customers: { tenant: "organizationId" }, notes: {} },
 };
 
-const betterSupabase = defineSupabase(defineSchema(meta));
-const typed = defineSupabase(schema);
+const betterSupabase = createSupabase(defineSchema(meta));
+const typed = createSupabase(schema);
 
 function fakeClient(
   first: (topic: string) => readonly [string, unknown?] = () => ["SUBSCRIBED"],

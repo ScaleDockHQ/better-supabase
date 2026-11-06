@@ -14,7 +14,7 @@ import {
   createClient,
   memoryEngine,
 } from "../../src/client/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import { currentTenant } from "../../src/core/tenant-source.ts";
 import { EnvValidationError } from "../../src/env/index.ts";
@@ -36,7 +36,7 @@ vi.mock("@supabase/ssr", async (importOriginal) => {
   };
 });
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const URL_BASE = "https://abcdefghijklmnopqrst.supabase.co";
 
 const ANON = {

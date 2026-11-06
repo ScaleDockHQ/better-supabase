@@ -165,7 +165,7 @@ export class BetterSupabase<
 
       if (previous !== undefined && previous !== temporal) {
         events.logger.warn(
-          "defineSupabase got a different `temporal` namespace than the one already provided; decoded rows, jobs and webhooks in this process now use the newer one. Pass the same namespace to every definition.",
+          "createSupabase got a different `temporal` namespace than the one already provided; decoded rows, jobs and webhooks in this process now use the newer one. Pass the same namespace to every definition.",
         );
       }
 
@@ -221,7 +221,7 @@ export class BetterSupabase<
    * }`.
    *
    * ```ts
-   * const betterSupabase = defineSupabase(schema).claims(
+   * const betterSupabase = createSupabase(schema).claims(
    *   z.object({ tenant_id: z.uuid() }),
    * );
    * ```
@@ -246,7 +246,7 @@ export class BetterSupabase<
    * claims, never from `profile`.
    *
    * ```ts
-   * const betterSupabase = defineSupabase(schema).userMetadata(
+   * const betterSupabase = createSupabase(schema).userMetadata(
    *   z.object({ display_name: z.string() }),
    * );
    * ```
@@ -268,7 +268,7 @@ export class BetterSupabase<
    * Results themselves keep their `DbError`.
    *
    * ```ts
-   * const betterSupabase = defineSupabase(schema).mapError(
+   * const betterSupabase = createSupabase(schema).mapError(
    *   (error) => new AppError(error),
    * );
    * ```
@@ -289,7 +289,7 @@ export class BetterSupabase<
    * connected to `db.$storage` so Storage runs as the same caller.
    *
    * ```ts
-   * const betterSupabase = defineSupabase(schema).buckets({ logos, avatars });
+   * const betterSupabase = createSupabase(schema).buckets({ logos, avatars });
    * betterSupabase.connect(client).$buckets.logos.signedUrl({ ... });
    * ```
    */
@@ -311,7 +311,7 @@ export class BetterSupabase<
    * code passes neither a transport nor an organization.
    *
    * ```ts
-   * export const betterSupabase = defineSupabase(schema).blocks(
+   * export const betterSupabase = createSupabase(schema).blocks(
    *   defineBlocks(blockConfig, blocks),
    * );
    * const db = await bsb.db();
@@ -1321,10 +1321,10 @@ function rpc(
  * `created_by` and `updated_at` stamps, write validation) already in place.
  *
  * ```ts
- * export const betterSupabase = defineSupabase(schema).use(guards());
+ * export const betterSupabase = createSupabase(schema).use(guards());
  * ```
  */
-export function defineSupabase<
+export function createSupabase<
   M extends AnyModels,
   D,
   F extends AnyFunctions,

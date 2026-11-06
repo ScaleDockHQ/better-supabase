@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -11,9 +11,9 @@ const executor = {
   },
 };
 
-const db = defineSupabase(schema).connect(executor);
+const db = createSupabase(schema).connect(executor);
 
-const coded = defineSupabase(
+const coded = createSupabase(
   defineSchema({
     ...schema.meta,
     tables: {

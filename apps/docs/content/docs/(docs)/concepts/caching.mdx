@@ -40,7 +40,7 @@ invalidationTargets(betterSupabase.meta, "customers");
 Database functions don't say what they change. Declare it once:
 
 ```ts
-export const betterSupabase = defineSupabase(schema).defineRpc(
+export const betterSupabase = createSupabase(schema).defineRpc(
   "archive_customer",
   { invalidates: ["customers", "notes"] },
 );

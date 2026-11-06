@@ -15,7 +15,7 @@ better-supabase add created-by
 the generated schema. The actor comes from the connection:
 
 ```ts
-const db = defineSupabase(schema).connect(supabase, {
+const db = createSupabase(schema).connect(supabase, {
   actor: { id: user.id, kind: "user" },
 });
 ```
@@ -53,7 +53,7 @@ To read the id from somewhere else, install the extension yourself with a
 ```ts
 import { createdByExtension } from "better-supabase/blocks/created-by";
 
-defineSupabase(schema).use(
+createSupabase(schema).use(
   createdByExtension({ resolve: (context) => context.actor?.id }),
 );
 ```

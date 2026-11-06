@@ -3,7 +3,7 @@ import type * as ServerCore from "@supabase/server/core";
 import * as v from "valibot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { cachedLife } from "../../src/next/cache.ts";
 import { createNext, sessionTag } from "../../src/next/index.ts";
@@ -76,7 +76,7 @@ const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
 describe("private-cache scopes", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const bsb = createNext(betterSupabase, {
     env,
@@ -224,7 +224,7 @@ describe("private-cache scopes", () => {
 });
 
 describe("suspending accounts", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   it("drops the cached session after ending sessions or suspending", async () => {
     const calls: string[] = [];
@@ -276,7 +276,7 @@ describe("explicit tenants", () => {
     return request.headers.get("x-organization") ?? undefined;
   });
 
-  const bsb = createNext(defineSupabase(schema), {
+  const bsb = createNext(createSupabase(schema), {
     env,
     cacheTags: false,
     auth: { jwks: signer.jwks },
@@ -499,7 +499,7 @@ describe("cachedLife", () => {
 });
 
 describe("authorization provider session tags", () => {
-  const bsb = createNext(defineSupabase(schema), {
+  const bsb = createNext(createSupabase(schema), {
     env,
     cacheTags: false,
     auth: { jwks: signer.jwks },

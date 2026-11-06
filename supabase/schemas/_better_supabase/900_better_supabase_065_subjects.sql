@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:d691098a07031d1925d64b1673e65d262fa9935e25d0fe84f457657bd329f1b9
+-- @bsb-hash sha256:faef6d3b11047121575c7ba4902c07130a94d0b8a12b6577d8f8dce2f313ffc8
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -179,7 +179,7 @@ begin
       return (select s."title"::text from "better_supabase"."courses" s where s."id" = (subject_title.subject_id)::uuid);
     when 'post' then
       return (select s."title"::text from "better_supabase"."posts" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'activity', 'engagement' then
+    when 'activity' then
       return (select s."title"::text from "better_supabase"."activities" s where s."id" = (subject_title.subject_id)::uuid);
     when 'quote' then
       return (select s."title"::text from "better_supabase"."quotes" s where s."id" = (subject_title.subject_id)::uuid);
@@ -225,7 +225,7 @@ begin
       return (select s."title"::text from "better_supabase"."contracts" s where s."id" = (subject_title.subject_id)::uuid);
     when 'control' then
       return (select s."title"::text from "better_supabase"."controls" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'compliance_policy', 'policy' then
+    when 'compliance_policy' then
       return (select s."title"::text from "better_supabase"."compliance_policies" s where s."id" = (subject_title.subject_id)::uuid);
     when 'qualification_type' then
       return (select s."name"::text from "better_supabase"."qualification_types" s where s."id" = (subject_title.subject_id)::uuid);
@@ -801,7 +801,7 @@ begin
           else true
         end)
       );
-    when 'activity', 'engagement' then
+    when 'activity' then
       return exists (
         select 1 from "better_supabase"."activities" s
         where s."id" = (can_subject.subject_id)::uuid
@@ -1032,7 +1032,7 @@ begin
           else true
         end)
       );
-    when 'compliance_policy', 'policy' then
+    when 'compliance_policy' then
       return exists (
         select 1 from "better_supabase"."compliance_policies" s
         where s."id" = (can_subject.subject_id)::uuid
@@ -1464,7 +1464,7 @@ begin
           else false
         end
       );
-    when 'activity', 'engagement' then
+    when 'activity' then
       return exists (
         select 1 from "better_supabase"."activities" s
         where s."id" = (can_subject_for.subject_id)::uuid
@@ -1695,7 +1695,7 @@ begin
           else false
         end
       );
-    when 'compliance_policy', 'policy' then
+    when 'compliance_policy' then
       return exists (
         select 1 from "better_supabase"."compliance_policies" s
         where s."id" = (can_subject_for.subject_id)::uuid

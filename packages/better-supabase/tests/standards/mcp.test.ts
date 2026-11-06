@@ -2,7 +2,7 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import {
@@ -18,7 +18,7 @@ const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const ENDPOINT = "https://tools.test/mcp";
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const mcp = createMcp(betterSupabase, {
   env: {

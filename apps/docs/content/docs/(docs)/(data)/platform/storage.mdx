@@ -335,10 +335,10 @@ keeps the tenant guard, and is created on first read and reused for that
 `Db`. The paths stay typed by each bucket's templates.
 
 ```ts
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { avatars, logos } from "./buckets";
 
-export const betterSupabase = defineSupabase(schema).buckets({
+export const betterSupabase = createSupabase(schema).buckets({
   logos,
   avatars,
 });

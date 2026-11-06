@@ -13,3 +13,4 @@ The renames of `api/naming.json` ship without aliases. Run `better-supabase code
 | `BSB_STACK`, `BSB_CLOUD_URL`                                                                                                        | `BETTER_SUPABASE_STACK`, `BETTER_SUPABASE_CLOUD_URL`                             |
 | `AUTH_HOOK_SECRET`, `BEFORE_USER_CREATED_SECRET`                                                                                    | `BETTER_SUPABASE_AUTH_HOOK_SECRET`, `BETTER_SUPABASE_BEFORE_USER_CREATED_SECRET` |
 | `better-supabase/ai-sdk/workflow/react`                                                                                             | `better-supabase/ai-sdk/workflow-react`                                          |
+| `defineSupabase`, `getBetterSupabase` (Svelte)                                                                                      | `createSupabase`, `betterSupabase`                                               |

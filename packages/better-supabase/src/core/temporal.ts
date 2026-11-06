@@ -6,13 +6,13 @@
 /** The polyfill for runtimes without Temporal (Node 24, Safari, Hermes). */
 export const TEMPORAL_POLYFILL = "temporal-polyfill/global";
 
-export const TEMPORAL_MISSING: string = `Temporal is not available in this runtime. Pass it to defineSupabase(schema, { temporal }) (import { Temporal } from "temporal-polyfill"), or import "${TEMPORAL_POLYFILL}" once at startup.`;
+export const TEMPORAL_MISSING: string = `Temporal is not available in this runtime. Pass it to createSupabase(schema, { temporal }) (import { Temporal } from "temporal-polyfill"), or import "${TEMPORAL_POLYFILL}" once at startup.`;
 
 let provided: typeof Temporal | undefined;
 
 /**
  * Uses `namespace` wherever better-supabase needs Temporal, without touching
- * `globalThis`. `defineSupabase(schema, { temporal })` calls it; call it
+ * `globalThis`. `createSupabase(schema, { temporal })` calls it; call it
  * yourself when you use a standalone helper (webhook verification, jobs)
  * without a definition. `undefined` goes back to the global.
  */

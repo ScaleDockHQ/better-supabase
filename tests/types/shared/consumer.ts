@@ -16,7 +16,7 @@ import type { StoragePath } from "better-supabase/storage";
 import { QueryClient } from "@tanstack/react-query";
 import {
   defineRepository,
-  defineSupabase,
+  createSupabase,
   fromBetterResult,
   memoryCache,
   ok,
@@ -81,7 +81,7 @@ createQueue({ client: typedClient, queues: {} });
 const logger: Logger = silentLogger;
 
 // The schema installs the blocks' extensions; `use()` replaces one by name.
-const base = defineSupabase(schema, { logger })
+const base = createSupabase(schema, { logger })
   .use(membershipsExtension({ onMissing: "error" }))
   .use(otel());
 

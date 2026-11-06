@@ -3,7 +3,7 @@ import type { Attributes, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { EventHub } from "../../src/core/events.ts";
 import { err, ok } from "../../src/core/result.ts";
@@ -83,7 +83,7 @@ describe("otel operation names", () => {
   it("names upsert, update, delete and count operations", async () => {
     const { tracer, spans } = memoryTracer();
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       otel({ tracer, metrics: false, attributes: { team: "crm" } }),
     );
 
@@ -109,7 +109,7 @@ describe("otel operation names", () => {
   it("does not record the row count on a span that is not recording", async () => {
     const { tracer, spans } = memoryTracer(false);
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       otel({ tracer, metrics: false }),
     );
 
@@ -135,7 +135,7 @@ describe("otel failures", () => {
   it("records a thrown error on the span", async () => {
     const { tracer, spans } = memoryTracer();
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       otel({ tracer, metrics: false }),
     );
 
@@ -162,7 +162,7 @@ describe("otel failures", () => {
   it("wraps a thrown non-error value", async () => {
     const { tracer, spans } = memoryTracer();
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       otel({ tracer, metrics: false }),
     );
 
@@ -181,7 +181,7 @@ describe("otel failures", () => {
   it("omits the status code for an error without a code", async () => {
     const { tracer, spans } = memoryTracer();
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       otel({ tracer, metrics: false }),
     );
 
@@ -199,7 +199,7 @@ describe("otel batches", () => {
   it("names a mixed batch and drops the table when tables differ", async () => {
     const { tracer, spans } = memoryTracer();
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       otel({ tracer, metrics: false, database: "crm" }),
     );
 
@@ -288,7 +288,7 @@ describe("tracedFetch inputs", () => {
 describe("otel on a non-postgres executor", () => {
   it("uses the schema alone for function calls and batches, with the global meter", async () => {
     const { tracer, spans } = memoryTracer();
-    const betterSupabase = defineSupabase(schema).use(otel({ tracer }));
+    const betterSupabase = createSupabase(schema).use(otel({ tracer }));
 
     const db = betterSupabase.connect({
       name: "custom",
@@ -323,7 +323,7 @@ describe("otel on a non-postgres executor", () => {
   it("sums returned rows over a batch of reads", async () => {
     const { tracer, spans } = memoryTracer();
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       otel({ tracer, metrics: false }),
     );
 

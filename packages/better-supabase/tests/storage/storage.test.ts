@@ -11,7 +11,7 @@ import type {
 } from "../../src/storage/index.ts";
 
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError, DbException } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { provideTemporal } from "../../src/core/temporal.ts";
@@ -1976,7 +1976,7 @@ describe("tenant-scoped buckets", () => {
   it("uses the tenant tenant() resolved from a custom claim path", async () => {
     const { client } = fakeStorage();
 
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(membershipsExtension({ claim: "app_metadata.organization" }))
       .connect(
         {

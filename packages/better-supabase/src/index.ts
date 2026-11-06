@@ -1,4 +1,4 @@
-export { BetterSupabase, defineSupabase } from "./core/define.ts";
+export { BetterSupabase, createSupabase } from "./core/define.ts";
 
 export type {
   ConnectOptions,

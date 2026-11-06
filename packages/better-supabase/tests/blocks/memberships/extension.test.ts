@@ -5,7 +5,7 @@ import type { InsertOp, Operation, SelectOp } from "../../../src/ir/types.ts";
 import type { SchemaMeta } from "../../../src/schema/types.ts";
 
 import { membershipsExtension } from "../../../src/blocks/memberships/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { ok } from "../../../src/core/result.ts";
 import { defineSchema } from "../../../src/schema/define.ts";
 
@@ -61,7 +61,7 @@ function connect() {
   };
 
   // SAFETY: the meta above declares `clientRows` with these methods.
-  const db = defineSupabase(defineSchema(meta))
+  const db = createSupabase(defineSchema(meta))
     .use(membershipsExtension())
     .connect(executor, { claims: { tenant_id: "org-1" } }) as unknown as {
     clientRows: ClientRows;

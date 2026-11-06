@@ -343,7 +343,7 @@ const { state, actions } = useBlockController(createOrganizationsController, {
 ```svelte title="ActiveOrganization.svelte"
 <script lang="ts">
   import {
-    getBetterSupabase,
+    betterSupabase,
     useBlockController,
   } from "better-supabase/svelte";
   import {
@@ -352,7 +352,7 @@ const { state, actions } = useBlockController(createOrganizationsController, {
     rpcTransport,
   } from "better-supabase/blocks/organizations";
 
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const client = createOrganizations({ transport: rpcTransport(supabase) });
   const organizations = useBlockController(createOrganizationsController, {
     client,

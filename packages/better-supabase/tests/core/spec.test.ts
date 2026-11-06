@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { Executor } from "../../src/core/executor.ts";
 
 import { memoryCache } from "../../src/core/cache.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import { invalidationTargets } from "../../src/ir/tables.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 describe("QuerySpec", () => {
   it("is plain JSON that round-trips", () => {

@@ -4,13 +4,13 @@ import type { SyncStatusLike } from "../../src/powersync/index.ts";
 
 import { createDataList, dataTarget } from "../../src/bindings/data-hooks.ts";
 import { createNativeClient } from "../../src/client/native/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { powersyncEngine } from "../../src/powersync/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { createSqlite } from "../fixtures/sqlite.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const ORG = "00000000-0000-4000-8000-000000000001";
 
 const tick = (): Promise<void> =>

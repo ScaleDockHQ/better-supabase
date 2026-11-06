@@ -11,7 +11,7 @@ import {
   sessionCookieName,
   writeSession,
 } from "../../../src/auth/session.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { postgresExecutor } from "../../../src/postgres/executor.ts";
 import { withBetterSupabase } from "../../../src/server/composite.ts";
 import { serverCore } from "../../../src/server/entries/core.ts";
@@ -31,7 +31,7 @@ const env = {
 
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const server = createServer(betterSupabase, {
   env,

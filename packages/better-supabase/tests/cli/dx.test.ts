@@ -722,11 +722,11 @@ describe("keys in a monorepo package", () => {
 });
 
 describe("read sets", () => {
-  const readSetModule = `import { defineSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
+  const readSetModule = `import { createSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
 import { defineReadSet } from ${JSON.stringify(join(src, "core/read-set.ts"))};
 import { schema } from ${JSON.stringify(join(packageRoot, "tests/fixtures/generated-camel.ts"))};
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organizationId: 'uuid' } }, (s, p) => ({
   customers: s.customers.count({ where: { organizationId: p.organizationId, status: 'active' } }),
@@ -769,11 +769,11 @@ describe("seed", () => {
       {},
       {
         "supabase/config.toml": '[db.seed]\nsql_paths = ["./seed.sql"]\n',
-        "supabase/seed.ts": `import { defineSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
+        "supabase/seed.ts": `import { createSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
 import { schema } from ${JSON.stringify(join(packageRoot, "tests/fixtures/generated-camel.ts"))};
 import { defineSeed } from ${JSON.stringify(join(src, "testing/seed.ts"))};
 
-export const seed = defineSeed(defineSupabase(schema), {
+export const seed = defineSeed(createSupabase(schema), {
   customers: { acme: { id: 'c1', organizationId: 'o1', name: "Acme's" } },
   organizations: { one: { id: 'o1', name: 'One', slug: 'one' } },
 });

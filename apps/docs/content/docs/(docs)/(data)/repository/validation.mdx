@@ -21,7 +21,7 @@ import { validation } from "better-supabase";
 
 import { validators } from "./generated.zod.ts";
 
-const betterSupabase = defineSupabase(schema).use(
+const betterSupabase = createSupabase(schema).use(
   validation({
     schemas: {
       ...validators,

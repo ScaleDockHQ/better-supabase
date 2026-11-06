@@ -10,7 +10,7 @@ import type {
   Models,
 } from "../fixtures/generated-camel.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { schema as camel } from "../fixtures/generated-camel.ts";
 
 /** The shape `better-supabase gen` emits for overloaded functions. */
@@ -34,7 +34,7 @@ declare const client: SupabaseClient;
 
 // SAFETY: the extra overloads exist only in types; these tests never run a call.
 const schema = camel as unknown as Schema<Models, Database, Functions>;
-const db = defineSupabase(schema).connect(client);
+const db = createSupabase(schema).connect(client);
 
 describe("$rpc overloads", () => {
   it("returns the type of the overload the argument names pick", async () => {

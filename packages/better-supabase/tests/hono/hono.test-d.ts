@@ -7,7 +7,7 @@ import type { HonoEnv } from "../../src/hono/index.ts";
 import type { BucketClient } from "../../src/storage/index.ts";
 import type { Functions, Models } from "../fixtures/generated-camel.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createHono } from "../../src/hono/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -17,7 +17,7 @@ const Claims = v.object({ tenant_id: v.string(), user_role: v.string() });
 type Claims = v.InferOutput<typeof Claims>;
 
 describe("betterSupabase.claims(schema) in Hono", () => {
-  const bsb = createHono(defineSupabase(schema).claims(Claims));
+  const bsb = createHono(createSupabase(schema).claims(Claims));
 
   it("types the claims in c.var and the handler context", () => {
     new Hono<HonoEnv<Models, Functions, unknown, Claims>>()
@@ -38,7 +38,7 @@ describe("betterSupabase.claims(schema) in Hono", () => {
   });
 
   it("keeps untyped claims for untyped definitions", () => {
-    const untyped = createHono(defineSupabase(schema));
+    const untyped = createHono(createSupabase(schema));
     untyped.handler((_c, ctx) => {
       expectTypeOf(ctx.auth).toEqualTypeOf<AuthState>();
 
@@ -51,7 +51,7 @@ describe("bsb.Env and bsb.app()", () => {
   const Profile = v.object({ display_name: v.string() });
 
   const bsb = createHono(
-    defineSupabase(schema).claims(Claims).userMetadata(Profile),
+    createSupabase(schema).claims(Claims).userMetadata(Profile),
   );
 
   type Env = typeof bsb.Env;
@@ -83,7 +83,7 @@ describe("bsb.Env and bsb.app()", () => {
 
 describe("betterSupabase.buckets() in Hono", () => {
   const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
-  const bsb = createHono(defineSupabase(schema).buckets({ logos }));
+  const bsb = createHono(createSupabase(schema).buckets({ logos }));
 
   type Logos = BucketClient<"{userId}/logo.webp", "logos">;
 

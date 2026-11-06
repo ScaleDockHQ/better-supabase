@@ -5,7 +5,7 @@ description: Query and write Supabase data with better-supabase's typed reposito
 
 # better-supabase
 
-The data layer is `betterSupabase = defineSupabase(schema)` in `src/lib/supabase/index.ts`.
+The data layer is `betterSupabase = createSupabase(schema)` in `src/lib/supabase/index.ts`.
 `schema` comes from the generated module (`config.output`, usually
 `src/lib/supabase/generated.ts`). Never edit generated files.
 
@@ -210,7 +210,7 @@ const customers = result.data;
 
 - With `codecs: { timestamptz: 'instant' }` in the config, `timestamptz` columns decode to `Temporal.Instant` and `timestamp` columns to `Temporal.PlainDateTime`, with microseconds. Without the codec they stay ISO strings.
 - `now` options, job and webhook timestamps and `bucket.sweep({ olderThan })` take `Temporal` values. Auth's `now` stays in epoch milliseconds.
-- On Node 24, Safari, Hermes and other runtimes without `Temporal`, add `temporal-polyfill` and pass its namespace: `defineSupabase(schema, { temporal: Temporal })` (block creators take the same `temporal` option). `import "temporal-polyfill/global"` once at startup also works. Without either, calls that need `Temporal` return an `unexpected` `DbError` that names both.
+- On Node 24, Safari, Hermes and other runtimes without `Temporal`, add `temporal-polyfill` and pass its namespace: `createSupabase(schema, { temporal: Temporal })` (block creators take the same `temporal` option). `import "temporal-polyfill/global"` once at startup also works. Without either, calls that need `Temporal` return an `unexpected` `DbError` that names both.
 - Use TypeScript 6 or 7; 5.9 has no Temporal lib.
 
 ## CLI in scripts and CI

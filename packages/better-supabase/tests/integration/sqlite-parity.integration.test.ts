@@ -6,7 +6,7 @@ import type { Result } from "../../src/core/result.ts";
 import type { Functions, Models } from "../fixtures/generated-camel.ts";
 
 import { sqliteValue } from "../../src/compile/sqlite.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import { powersyncExecutor } from "../../src/powersync/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -69,7 +69,7 @@ const CUSTOMERS = [
 ] as const;
 
 describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const admin = createClient(url, secretKey, {
     auth: { persistSession: false },

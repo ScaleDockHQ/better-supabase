@@ -152,10 +152,10 @@ const { state, actions } = useBlockController(createMfaController, {
 
 ```svelte title="StepUp.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import { createStepUpController } from "better-supabase/blocks/mfa";
 
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const stepUp = useBlockController(createStepUpController, {
     mfa: supabase.auth.mfa,
   });
@@ -224,7 +224,7 @@ With SAML SSO, the first `amr` entry of an SSO session is
 in through its own identity provider, scope reads by the provider:
 
 ```ts title="src/lib/supabase/index.ts"
-export const betterSupabase = defineSupabase(schema).use(
+export const betterSupabase = createSupabase(schema).use(
   tenant({ claim: ["tenant_id", "amr.0.provider"] }),
 );
 ```

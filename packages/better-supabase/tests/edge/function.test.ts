@@ -1,7 +1,7 @@
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { createEdge, defineFunction } from "../../src/edge/index.ts";
@@ -19,7 +19,7 @@ const env = {
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
-const bsb = createEdge(defineSupabase(schema), {
+const bsb = createEdge(createSupabase(schema), {
   env,
   auth: { jwks: signer.jwks },
 });

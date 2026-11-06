@@ -18,7 +18,7 @@ import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
 import { jsonSchema, resolveConfig } from "../../src/config/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { err, ok } from "../../src/core/result.ts";
@@ -46,7 +46,7 @@ import { validators } from "../fixtures/generated-camel.zod.ts";
 import { memorySupportStore } from "../fixtures/support-store.ts";
 
 const ACME = "00000000-0000-4000-8000-000000000001";
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 async function failures(pending: Promise<unknown>): Promise<string[]> {
   const error = await pending.then(

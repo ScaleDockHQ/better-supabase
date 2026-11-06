@@ -429,7 +429,7 @@ disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import {
     createAiChat,
     createAiChatsController,
@@ -437,7 +437,7 @@ disposed with the component.
   } from "better-supabase/blocks/ai-chat";
 
   let { organizationId }: { organizationId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const chats = useBlockController(createAiChatsController, {
     client: createAiChat({ transport: rpcTransport(supabase) }),
     query: { organizationId },

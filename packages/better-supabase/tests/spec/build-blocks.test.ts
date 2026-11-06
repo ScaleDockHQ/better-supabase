@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { BlockContext } from "../../src/blocks/index.ts";
 
 import { defineBlock, defineBlocks } from "../../src/blocks/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import { defineApi } from "../../src/spec/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -34,7 +34,7 @@ const blocks = defineBlocks(
   { invoicing, "invoicing-eu": invoicing },
 );
 
-const betterSupabase = defineSupabase(schema).blocks(blocks);
+const betterSupabase = createSupabase(schema).blocks(blocks);
 
 const ids = (api: { model: { operations: readonly { id: string }[] } }) =>
   api.model.operations.map((operation) => operation.id);

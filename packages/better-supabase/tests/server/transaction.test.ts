@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BetterPostgres, SqlClaims } from "../../src/postgres/pool.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
@@ -51,7 +51,7 @@ function fakePostgres() {
 describe("server.transaction", () => {
   it("runs fn as the user and commits what it returns", async () => {
     const { postgres, claims, rolledBack } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
 
     const result = await server.transaction(USER, () =>
       Promise.resolve(ok("done")),
@@ -64,7 +64,7 @@ describe("server.transaction", () => {
 
   it("rolls back on a Result that is not ok and still returns it", async () => {
     const { postgres, rolledBack } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
     const failure = err(dbError("conflict", "taken"));
 
     const result = await server.transaction(USER, () =>
@@ -77,7 +77,7 @@ describe("server.transaction", () => {
 
   it("rolls back on a throw", async () => {
     const { postgres, rolledBack } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
 
     await expect(
       server.transaction(USER, () => Promise.reject(new Error("boom"))),
@@ -86,7 +86,7 @@ describe("server.transaction", () => {
   });
 
   it("needs a postgres that can run transactions", async () => {
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
 
     await expect(
       server.transaction(USER, () => Promise.resolve(1)),

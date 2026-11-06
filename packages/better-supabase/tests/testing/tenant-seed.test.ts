@@ -3,13 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { OrganizationsEvents } from "../../src/blocks/organizations/events.ts";
 
 import { emitBlockEvent } from "../../src/core/block-events.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineTenantSeed, isTenantSeed } from "../../src/testing/seed.ts";
 import { seedTenantOnCreate } from "../../src/testing/tenant-seed.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const seed = defineTenantSeed(betterSupabase, (tenant) => ({
   customers: {

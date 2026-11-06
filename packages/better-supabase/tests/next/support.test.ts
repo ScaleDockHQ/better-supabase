@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BetterPostgres, SqlClaims } from "../../src/postgres/pool.ts";
 
 import { supportOf } from "../../src/auth/support-view.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import {
   createNext,
   sessionTag,
@@ -79,7 +79,7 @@ function setup() {
 
   const store = memorySupportStore();
 
-  const bsb = createNext(defineSupabase(schema), {
+  const bsb = createNext(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     postgres,
