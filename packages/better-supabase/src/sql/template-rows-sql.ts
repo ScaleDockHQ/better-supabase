@@ -43,6 +43,22 @@ export function isLiveRow(alias: string, column: string): string {
   return `${alias}.${sqlIdent(column)} is null`;
 }
 
+/**
+ * An early return for a template row, or "" when the subject has no template
+ * column. The block ends in a newline so the next statement keeps its indent.
+ */
+export function templateTriggerReturn(
+  column: string | undefined,
+  value: "new" | "null",
+): string {
+  return column === undefined
+    ? ""
+    : `  if new.${sqlIdent(column)} is not null then
+    return ${value};
+  end if;
+`;
+}
+
 /** ` and alias.template is null` when the subject holds template rows. */
 export function excludeTemplates(
   config: Pick<SubjectConfig, "template">,
