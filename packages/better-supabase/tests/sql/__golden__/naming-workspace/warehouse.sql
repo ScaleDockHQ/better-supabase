@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:dec095e5504a79d02af4f997b4ebd1dc643f93d35652d41132489a307f34df2a
+-- @bsb-hash sha256:d7aea7c70a8d03f40a950bcf051b09d04291e812ba99e5c7a8f5592cb2add8dd
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -114,7 +114,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."pick_waves" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "status" text not null default 'draft' check ("status" in ('draft', 'released', 'completed', 'cancelled')),
   "released_at" timestamptz,
@@ -141,7 +141,7 @@ create table if not exists "better_supabase"."pick_lists" (
   "wave_id" uuid,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "document_type" text not null check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "document_id" text not null check (length("document_id") between 1 and 200),
+  "document_id" text not null check (length("document_id") >= 1 and length("document_id") <= 200),
   "status" text not null default 'open' check ("status" in ('open', 'picked', 'cancelled')),
   "assignee_id" uuid,
   -- The tasks block's work item for the picker, when it is installed.
@@ -205,9 +205,9 @@ create policy pick_lines_read on "better_supabase"."pick_lines"
 create table if not exists "better_supabase"."count_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "every_days" integer not null check ("every_days" between 1 and 3660),
+  "every_days" integer not null check ("every_days" >= 1 and "every_days" <= 3660),
   "variant_ids" uuid[],
   "variance_limit_pct" numeric(6, 2) not null default 5 check ("variance_limit_pct" >= 0),
   "next_run_on" date not null default current_date,
@@ -236,7 +236,7 @@ create table if not exists "better_supabase"."putaway_rules" (
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "bin_id" uuid not null references "better_supabase"."stock_bins" ("id") on delete cascade,
   "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade,
-  "priority" integer not null default 100 check ("priority" between 0 and 10000),
+  "priority" integer not null default 100 check ("priority" >= 0 and "priority" <= 10000),
   "max_quantity" numeric(20, 6) check ("max_quantity" > 0),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -261,7 +261,7 @@ create table if not exists "better_supabase"."bin_slots" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "bin_id" uuid not null unique references "better_supabase"."stock_bins" ("id") on delete cascade,
-  "walk_rank" integer not null default 0 check ("walk_rank" between 0 and 100000),
+  "walk_rank" integer not null default 0 check ("walk_rank" >= 0 and "walk_rank" <= 100000),
   "capacity" numeric(20, 6) check ("capacity" > 0),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")

@@ -1,6 +1,6 @@
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:7df02800bf1f7183f8c67bab32de2000f304c5722be3add57c0555822a4da7c4
+-- @bsb-hash sha256:d48544a26fa40ba13ffc19620b5ba4d4b69c5ead7f68a97c8b947693ae6c13e8
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,7 +69,7 @@ create table if not exists "better_supabase"."post_boards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   -- forum: discussion threads; feedback: ideas members vote on, with a status.
   "kind" text not null default 'forum' check ("kind" in ('forum', 'feedback')),
@@ -85,7 +85,7 @@ create table if not exists "better_supabase"."posts" (
   "tenant_id" uuid not null,
   "board_id" uuid not null references "better_supabase"."post_boards" ("id") on delete cascade,
   "author_id" uuid references auth.users (id) on delete set null,
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "body" text not null default '' check (length("body") <= 20000),
   "status" text not null default 'open' check ("status" in ('open', 'under_review', 'planned', 'in_progress', 'done', 'closed')),
   -- The moderation item's status, kept in step by a trigger.

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:5e138ab8040bc8ccf0b09b7e4ee7478262422b293e3ea45d5e9ce94232c37d6a
+-- @bsb-hash sha256:8220e06febd999f4683f400c6f12c569a880948b21c7eb0b2915b763706cf307
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,7 +77,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."assignment_queues" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "strategy" text not null default 'round_robin' check ("strategy" in ('round_robin', 'weighted')),
   "conditions" jsonb check ("conditions" is null or jsonb_typeof("conditions") = 'object'),
@@ -96,7 +96,7 @@ create table if not exists "better_supabase"."assignment_queue_members" (
   "queue_id" uuid not null references "better_supabase"."assignment_queues" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "weight" integer not null default 1 check ("weight" between 1 and 100),
+  "weight" integer not null default 1 check ("weight" >= 1 and "weight" <= 100),
   "active" boolean not null default true,
   "credit" bigint not null default 0,
   "assigned_count" integer not null default 0,
@@ -528,7 +528,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:ed3b0f03d74c881f80cb1ae76aa32c567f5b28a20957840b30275bb187ea9950
+-- @bsb-hash sha256:efee1a0ec48adb00a3b156279f964f051ef83567472b35a03b56c7cb678aceda
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -604,7 +604,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."assignment_queues" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "strategy" text not null default 'round_robin' check ("strategy" in ('round_robin', 'weighted')),
   "conditions" jsonb check ("conditions" is null or jsonb_typeof("conditions") = 'object'),
@@ -623,7 +623,7 @@ create table if not exists "better_supabase"."assignment_queue_members" (
   "queue_id" uuid not null references "better_supabase"."assignment_queues" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "weight" integer not null default 1 check ("weight" between 1 and 100),
+  "weight" integer not null default 1 check ("weight" >= 1 and "weight" <= 100),
   "active" boolean not null default true,
   "credit" bigint not null default 0,
   "assigned_count" integer not null default 0,
@@ -1062,7 +1062,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:b637502b4690f0477947b0b20970525eea1b3b0ab120d117c3da9d4edeeadd95
+-- @bsb-hash sha256:a94f338876e9c207731c7c5cd3b6ef6200322d455b4280a9c13d91489e11199b
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1143,7 +1143,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."assignment_queues" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "strategy" text not null default 'round_robin' check ("strategy" in ('round_robin', 'weighted')),
   "conditions" jsonb check ("conditions" is null or jsonb_typeof("conditions") = 'object'),
@@ -1162,7 +1162,7 @@ create table if not exists "app_private"."assignment_queue_members" (
   "queue_id" uuid not null references "app_private"."assignment_queues" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "weight" integer not null default 1 check ("weight" between 1 and 100),
+  "weight" integer not null default 1 check ("weight" >= 1 and "weight" <= 100),
   "active" boolean not null default true,
   "credit" bigint not null default 0,
   "assigned_count" integer not null default 0,
@@ -1594,7 +1594,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:97bc0c20e929f5088e1d13f3d323af4d6e857015c33f6e764d9b8a3424a8cf22
+-- @bsb-hash sha256:c0d50f4bd94693f80e37c5709e66d46d87e57c97ef80338d285b7bf0c5ae4bd8
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1670,7 +1670,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."assignment_queues" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "strategy" text not null default 'round_robin' check ("strategy" in ('round_robin', 'weighted')),
   "conditions" jsonb check ("conditions" is null or jsonb_typeof("conditions") = 'object'),
@@ -1689,7 +1689,7 @@ create table if not exists "better_supabase"."assignment_queue_members" (
   "queue_id" uuid not null references "better_supabase"."assignment_queues" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "weight" integer not null default 1 check ("weight" between 1 and 100),
+  "weight" integer not null default 1 check ("weight" >= 1 and "weight" <= 100),
   "active" boolean not null default true,
   "credit" bigint not null default 0,
   "assigned_count" integer not null default 0,
@@ -2200,7 +2200,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:341ddeb8d3db6565708110e3ef123e3b9ac83c3dc53b0ca9a20d938e6b8e7216
+-- @bsb-hash sha256:7a1c1cc3c41a64de51ad6fbd2fce1244b2908daac243d308a71efb7152606865
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2292,7 +2292,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.assignment_queues is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."assignment_queues" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."assignment_queues" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."assignment_queues" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."assignment_queues" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."assignment_queues" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."assignment_queues" add column if not exists "strategy" text not null default 'round_robin' check ("strategy" in ('round_robin', 'weighted'));
 alter table "better_supabase"."assignment_queues" add column if not exists "conditions" jsonb check ("conditions" is null or jsonb_typeof("conditions") = 'object');
@@ -2308,7 +2308,7 @@ grant all on "better_supabase"."assignment_queues" to service_role;
 alter table "better_supabase"."assignment_queue_members" add column if not exists "queue_id" uuid references "better_supabase"."assignment_queues" ("id") on delete cascade;
 alter table "better_supabase"."assignment_queue_members" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."assignment_queue_members" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."assignment_queue_members" add column if not exists "weight" integer not null default 1 check ("weight" between 1 and 100);
+alter table "better_supabase"."assignment_queue_members" add column if not exists "weight" integer not null default 1 check ("weight" >= 1 and "weight" <= 100);
 alter table "better_supabase"."assignment_queue_members" add column if not exists "active" boolean not null default true;
 alter table "better_supabase"."assignment_queue_members" add column if not exists "credit" bigint not null default 0;
 alter table "better_supabase"."assignment_queue_members" add column if not exists "assigned_count" integer not null default 0;
@@ -2736,7 +2736,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:62b7caf626cb3274d296152db86838b28dafbb31823ff4747d3c2ed3fc01aed1
+-- @bsb-hash sha256:67a9480815963cc404cb72d81973791ef973c335b9a2b6073ed98deabea1cc87
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2812,7 +2812,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."assignment_queues" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "strategy" text not null default 'round_robin' check ("strategy" in ('round_robin', 'weighted')),
   "conditions" jsonb check ("conditions" is null or jsonb_typeof("conditions") = 'object'),
@@ -2831,7 +2831,7 @@ create table if not exists "better_supabase"."assignment_queue_members" (
   "queue_id" uuid not null references "better_supabase"."assignment_queues" ("id") on delete cascade,
   "org_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "weight" integer not null default 1 check ("weight" between 1 and 100),
+  "weight" integer not null default 1 check ("weight" >= 1 and "weight" <= 100),
   "active" boolean not null default true,
   "credit" bigint not null default 0,
   "assigned_count" integer not null default 0,

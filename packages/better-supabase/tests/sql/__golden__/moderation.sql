@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:eb108612408f99106204df7eaaf4fdd107c658ccfb3d7c6b9778d32f882235dc
+-- @bsb-hash sha256:f580654aed6015f018e706deb39e06b4c00261c18c5a1b0a83224daec616577d
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -116,7 +116,7 @@ create table if not exists "better_supabase"."moderation_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete set null,
   "status" text not null default 'visible' check ("status" in ('pending', 'visible', 'hidden', 'removed')),
   "open_reports" integer not null default 0 check ("open_reports" >= 0),
@@ -181,7 +181,7 @@ create table if not exists "better_supabase"."moderation_statements" (
   "tenant_id" uuid not null,
   "item_id" uuid not null references "better_supabase"."moderation_items" ("id") on delete cascade,
   "restriction" text not null check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination')),
-  "facts" text not null check (length("facts") between 1 and 5000),
+  "facts" text not null check (length("facts") >= 1 and length("facts") <= 5000),
   "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000),
   "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000),
   "automated_detection" boolean not null default false,
@@ -200,8 +200,8 @@ create table if not exists "better_supabase"."moderation_notices" (
   "tenant_id" uuid not null,
   "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete set null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "explanation" text not null check (length("explanation") between 1 and 5000),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "explanation" text not null check (length("explanation") >= 1 and length("explanation") <= 5000),
   "url" text check ("url" is null or length("url") <= 2000),
   "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200),
   "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320),
@@ -223,7 +223,7 @@ create table if not exists "better_supabase"."moderation_flaggers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200),
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -238,7 +238,7 @@ create table if not exists "better_supabase"."moderation_appeals" (
   "statement_id" uuid references "better_supabase"."moderation_statements" ("id") on delete cascade,
   "notice_id" uuid references "better_supabase"."moderation_notices" ("id") on delete cascade,
   "appellant_id" uuid references auth.users (id) on delete set null,
-  "reasons" text not null check (length("reasons") between 1 and 5000),
+  "reasons" text not null check (length("reasons") >= 1 and length("reasons") <= 5000),
   "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed')),
   "outcome" text check ("outcome" is null or length("outcome") <= 2000),
   "decided_by" uuid,
@@ -1375,7 +1375,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:353fc1314cebc657828ccfdfd2ce4481a1a5ce8db8bfe7d71bc14acf15891623
+-- @bsb-hash sha256:1f6604083226895506ae54d1280b00d14161ea187b1e4e95ffd95fd997862eae
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1490,7 +1490,7 @@ create table if not exists "better_supabase"."moderation_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete set null,
   "status" text not null default 'visible' check ("status" in ('pending', 'visible', 'hidden', 'removed')),
   "open_reports" integer not null default 0 check ("open_reports" >= 0),
@@ -1555,7 +1555,7 @@ create table if not exists "better_supabase"."moderation_statements" (
   "tenant_id" uuid not null,
   "item_id" uuid not null references "better_supabase"."moderation_items" ("id") on delete cascade,
   "restriction" text not null check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination')),
-  "facts" text not null check (length("facts") between 1 and 5000),
+  "facts" text not null check (length("facts") >= 1 and length("facts") <= 5000),
   "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000),
   "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000),
   "automated_detection" boolean not null default false,
@@ -1574,8 +1574,8 @@ create table if not exists "better_supabase"."moderation_notices" (
   "tenant_id" uuid not null,
   "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete set null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "explanation" text not null check (length("explanation") between 1 and 5000),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "explanation" text not null check (length("explanation") >= 1 and length("explanation") <= 5000),
   "url" text check ("url" is null or length("url") <= 2000),
   "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200),
   "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320),
@@ -1597,7 +1597,7 @@ create table if not exists "better_supabase"."moderation_flaggers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200),
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -1612,7 +1612,7 @@ create table if not exists "better_supabase"."moderation_appeals" (
   "statement_id" uuid references "better_supabase"."moderation_statements" ("id") on delete cascade,
   "notice_id" uuid references "better_supabase"."moderation_notices" ("id") on delete cascade,
   "appellant_id" uuid references auth.users (id) on delete set null,
-  "reasons" text not null check (length("reasons") between 1 and 5000),
+  "reasons" text not null check (length("reasons") >= 1 and length("reasons") <= 5000),
   "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed')),
   "outcome" text check ("outcome" is null or length("outcome") <= 2000),
   "decided_by" uuid,
@@ -2853,7 +2853,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:d5c58e17d55d589a845185cc77609d2663805f96790ddca9907df4b0942dba55
+-- @bsb-hash sha256:7a111a75353d649188a061f8fd2f490530e8fbbb7514105f319d85c2a2db1744
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2973,7 +2973,7 @@ create table if not exists "app_private"."moderation_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete set null,
   "status" text not null default 'visible' check ("status" in ('pending', 'visible', 'hidden', 'removed')),
   "open_reports" integer not null default 0 check ("open_reports" >= 0),
@@ -3038,7 +3038,7 @@ create table if not exists "app_private"."moderation_statements" (
   "tenant_id" uuid not null,
   "item_id" uuid not null references "app_private"."moderation_items" ("id") on delete cascade,
   "restriction" text not null check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination')),
-  "facts" text not null check (length("facts") between 1 and 5000),
+  "facts" text not null check (length("facts") >= 1 and length("facts") <= 5000),
   "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000),
   "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000),
   "automated_detection" boolean not null default false,
@@ -3057,8 +3057,8 @@ create table if not exists "app_private"."moderation_notices" (
   "tenant_id" uuid not null,
   "item_id" uuid references "app_private"."moderation_items" ("id") on delete set null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "explanation" text not null check (length("explanation") between 1 and 5000),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "explanation" text not null check (length("explanation") >= 1 and length("explanation") <= 5000),
   "url" text check ("url" is null or length("url") <= 2000),
   "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200),
   "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320),
@@ -3080,7 +3080,7 @@ create table if not exists "app_private"."moderation_flaggers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200),
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -3095,7 +3095,7 @@ create table if not exists "app_private"."moderation_appeals" (
   "statement_id" uuid references "app_private"."moderation_statements" ("id") on delete cascade,
   "notice_id" uuid references "app_private"."moderation_notices" ("id") on delete cascade,
   "appellant_id" uuid references auth.users (id) on delete set null,
-  "reasons" text not null check (length("reasons") between 1 and 5000),
+  "reasons" text not null check (length("reasons") >= 1 and length("reasons") <= 5000),
   "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed')),
   "outcome" text check ("outcome" is null or length("outcome") <= 2000),
   "decided_by" uuid,
@@ -4232,7 +4232,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:88a3644edf915a63e8e3175088c0e5c9e18aa6848dc745674f7db8f68b2731ba
+-- @bsb-hash sha256:ab875e4044ba572bdf958288576cc2a0d8b914378a1e0d16057ba8e305d0f0a5
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4347,7 +4347,7 @@ create table if not exists "better_supabase"."moderation_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete set null,
   "status" text not null default 'visible' check ("status" in ('pending', 'visible', 'hidden', 'removed')),
   "open_reports" integer not null default 0 check ("open_reports" >= 0),
@@ -4412,7 +4412,7 @@ create table if not exists "better_supabase"."moderation_statements" (
   "tenant_id" uuid not null,
   "item_id" uuid not null references "better_supabase"."moderation_items" ("id") on delete cascade,
   "restriction" text not null check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination')),
-  "facts" text not null check (length("facts") between 1 and 5000),
+  "facts" text not null check (length("facts") >= 1 and length("facts") <= 5000),
   "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000),
   "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000),
   "automated_detection" boolean not null default false,
@@ -4431,8 +4431,8 @@ create table if not exists "better_supabase"."moderation_notices" (
   "tenant_id" uuid not null,
   "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete set null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "explanation" text not null check (length("explanation") between 1 and 5000),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "explanation" text not null check (length("explanation") >= 1 and length("explanation") <= 5000),
   "url" text check ("url" is null or length("url") <= 2000),
   "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200),
   "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320),
@@ -4454,7 +4454,7 @@ create table if not exists "better_supabase"."moderation_flaggers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200),
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -4469,7 +4469,7 @@ create table if not exists "better_supabase"."moderation_appeals" (
   "statement_id" uuid references "better_supabase"."moderation_statements" ("id") on delete cascade,
   "notice_id" uuid references "better_supabase"."moderation_notices" ("id") on delete cascade,
   "appellant_id" uuid references auth.users (id) on delete set null,
-  "reasons" text not null check (length("reasons") between 1 and 5000),
+  "reasons" text not null check (length("reasons") >= 1 and length("reasons") <= 5000),
   "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed')),
   "outcome" text check ("outcome" is null or length("outcome") <= 2000),
   "decided_by" uuid,
@@ -5789,7 +5789,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:471f281af2fc2bcdca60c1b66cd4e1f0f0c5e0da5197022dc58709c93b7c1c62
+-- @bsb-hash sha256:47e0b2b2455864c7ce1afa7020aba40516a6095371a99b8068b085bce1140e7c
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5920,7 +5920,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."moderation_items" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."moderation_items" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."moderation_items" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."moderation_items" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."moderation_items" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."moderation_items" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."moderation_items" add column if not exists "status" text not null default 'visible' check ("status" in ('pending', 'visible', 'hidden', 'removed'));
 alter table "better_supabase"."moderation_items" add column if not exists "open_reports" integer not null default 0 check ("open_reports" >= 0);
@@ -5981,7 +5981,7 @@ alter table "better_supabase"."moderation_statements" add column if not exists "
 alter table "better_supabase"."moderation_statements" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."moderation_statements" add column if not exists "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete cascade;
 alter table "better_supabase"."moderation_statements" add column if not exists "restriction" text check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination'));
-alter table "better_supabase"."moderation_statements" add column if not exists "facts" text check (length("facts") between 1 and 5000);
+alter table "better_supabase"."moderation_statements" add column if not exists "facts" text check (length("facts") >= 1 and length("facts") <= 5000);
 alter table "better_supabase"."moderation_statements" add column if not exists "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000);
 alter table "better_supabase"."moderation_statements" add column if not exists "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000);
 alter table "better_supabase"."moderation_statements" add column if not exists "automated_detection" boolean not null default false;
@@ -5998,8 +5998,8 @@ alter table "better_supabase"."moderation_notices" add column if not exists "id"
 alter table "better_supabase"."moderation_notices" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."moderation_notices" add column if not exists "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete set null;
 alter table "better_supabase"."moderation_notices" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."moderation_notices" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
-alter table "better_supabase"."moderation_notices" add column if not exists "explanation" text check (length("explanation") between 1 and 5000);
+alter table "better_supabase"."moderation_notices" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."moderation_notices" add column if not exists "explanation" text check (length("explanation") >= 1 and length("explanation") <= 5000);
 alter table "better_supabase"."moderation_notices" add column if not exists "url" text check ("url" is null or length("url") <= 2000);
 alter table "better_supabase"."moderation_notices" add column if not exists "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200);
 alter table "better_supabase"."moderation_notices" add column if not exists "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320);
@@ -6020,7 +6020,7 @@ create index if not exists "moderation_notices_item_idx" on "better_supabase"."m
 alter table "better_supabase"."moderation_flaggers" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."moderation_flaggers" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."moderation_flaggers" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."moderation_flaggers" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."moderation_flaggers" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."moderation_flaggers" add column if not exists "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200);
 alter table "better_supabase"."moderation_flaggers" add column if not exists "revoked_at" timestamptz;
 alter table "better_supabase"."moderation_flaggers" add column if not exists "created_at" timestamptz not null default now();
@@ -6034,7 +6034,7 @@ alter table "better_supabase"."moderation_appeals" add column if not exists "ten
 alter table "better_supabase"."moderation_appeals" add column if not exists "statement_id" uuid references "better_supabase"."moderation_statements" ("id") on delete cascade;
 alter table "better_supabase"."moderation_appeals" add column if not exists "notice_id" uuid references "better_supabase"."moderation_notices" ("id") on delete cascade;
 alter table "better_supabase"."moderation_appeals" add column if not exists "appellant_id" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."moderation_appeals" add column if not exists "reasons" text check (length("reasons") between 1 and 5000);
+alter table "better_supabase"."moderation_appeals" add column if not exists "reasons" text check (length("reasons") >= 1 and length("reasons") <= 5000);
 alter table "better_supabase"."moderation_appeals" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed'));
 alter table "better_supabase"."moderation_appeals" add column if not exists "outcome" text check ("outcome" is null or length("outcome") <= 2000);
 alter table "better_supabase"."moderation_appeals" add column if not exists "decided_by" uuid;
@@ -7161,7 +7161,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:ac3ec89ffb020d8f028f467d175cff9b9dfe590bd88a09cf565cd88492e5df07
+-- @bsb-hash sha256:44548ec6cb15d42310c76235f879a131616f50742528f9c344a148eb6198b2b5
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7276,7 +7276,7 @@ create table if not exists "better_supabase"."moderation_items" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete set null,
   "status" text not null default 'visible' check ("status" in ('pending', 'visible', 'hidden', 'removed')),
   "open_reports" integer not null default 0 check ("open_reports" >= 0),
@@ -7341,7 +7341,7 @@ create table if not exists "better_supabase"."moderation_statements" (
   "org_id" uuid not null,
   "item_id" uuid not null references "better_supabase"."moderation_items" ("id") on delete cascade,
   "restriction" text not null check ("restriction" in ('removal', 'disabled_access', 'demotion', 'visibility_suspension', 'monetary_suspension', 'service_suspension', 'service_termination', 'account_suspension', 'account_termination')),
-  "facts" text not null check (length("facts") between 1 and 5000),
+  "facts" text not null check (length("facts") >= 1 and length("facts") <= 5000),
   "legal_ground" text check ("legal_ground" is null or length("legal_ground") <= 2000),
   "terms_ground" text check ("terms_ground" is null or length("terms_ground") <= 2000),
   "automated_detection" boolean not null default false,
@@ -7360,8 +7360,8 @@ create table if not exists "better_supabase"."moderation_notices" (
   "org_id" uuid not null,
   "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete set null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "explanation" text not null check (length("explanation") between 1 and 5000),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "explanation" text not null check (length("explanation") >= 1 and length("explanation") <= 5000),
   "url" text check ("url" is null or length("url") <= 2000),
   "notifier_name" text check ("notifier_name" is null or length("notifier_name") <= 200),
   "notifier_email" text check ("notifier_email" is null or length("notifier_email") <= 320),
@@ -7383,7 +7383,7 @@ create table if not exists "better_supabase"."moderation_flaggers" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "awarded_by" text check ("awarded_by" is null or length("awarded_by") <= 200),
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -7398,7 +7398,7 @@ create table if not exists "better_supabase"."moderation_appeals" (
   "statement_id" uuid references "better_supabase"."moderation_statements" ("id") on delete cascade,
   "notice_id" uuid references "better_supabase"."moderation_notices" ("id") on delete cascade,
   "appellant_id" uuid references auth.users (id) on delete set null,
-  "reasons" text not null check (length("reasons") between 1 and 5000),
+  "reasons" text not null check (length("reasons") >= 1 and length("reasons") <= 5000),
   "status" text not null default 'open' check ("status" in ('open', 'upheld', 'reversed')),
   "outcome" text check ("outcome" is null or length("outcome") <= 2000),
   "decided_by" uuid,

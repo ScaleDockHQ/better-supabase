@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:3ee2f6e17034700c340fb6c1eed7c33ffbd00c9ee9fbdfd3e00a0fa63be01a88
+-- @bsb-hash sha256:2bda28b856fb916313cf4cfe4c895a754e9ef56b8170be3306595e13a15b7191
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,7 +112,7 @@ create table if not exists "better_supabase"."control_frameworks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract')),
   "version" text check ("version" is null or length("version") <= 50),
   "description" text check ("description" is null or length("description") <= 4000),
@@ -135,22 +135,22 @@ create table if not exists "better_supabase"."controls" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "framework_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "title" text not null check (length("title") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 10000),
   "owner_id" uuid,
   -- A control out of scope (excluded in the statement of applicability).
   "applicable" boolean not null default true,
-  "source" text check ("source" is null or length("source") between 1 and 200),
-  "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200),
+  "source" text check ("source" is null or length("source") >= 1 and length("source") <= 200),
+  "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") >= 1 and length("jurisdiction") <= 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("framework_id", "code"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "framework_id") references "better_supabase"."control_frameworks" ("tenant_id", "id") on delete cascade
 );
-alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);
-alter table "better_supabase"."controls" add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);
+alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") >= 1 and length("source") <= 200);
+alter table "better_supabase"."controls" add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") >= 1 and length("jurisdiction") <= 200);
 create index if not exists "controls_tenant_idx" on "better_supabase"."controls" ("tenant_id", "framework_id");
 create index if not exists "controls_owner_idx" on "better_supabase"."controls" ("tenant_id", "owner_id") where "owner_id" is not null;
 alter table "better_supabase"."controls" enable row level security;
@@ -166,10 +166,10 @@ create table if not exists "better_supabase"."evidence_tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "control_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "assignee_id" uuid,
   -- Collecting evidence moves due_on this many days past the collection.
-  "interval_days" integer not null check ("interval_days" between 1 and 3650),
+  "interval_days" integer not null check ("interval_days" >= 1 and "interval_days" <= 3650),
   "due_on" date not null,
   "last_collected_at" timestamptz,
   -- The due date notify_overdue_evidence_tasks last reported, so each lapse notifies once.
@@ -222,7 +222,7 @@ create table if not exists "better_supabase"."compliance_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "owner_id" uuid,
   "requires_acknowledgement" boolean not null default true,
   -- The published version (versions block), frozen.

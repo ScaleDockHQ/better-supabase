@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:5f64d13b21184cf10e675ef78dd27ef298b1673fa00065f54a3c5be295ecea3a
+-- @bsb-hash sha256:8bdfbf1d308d40abb5c4a0473b2ceee323a7337adc6db85afb37bdd26de782ce
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,7 +88,7 @@ create table if not exists "better_supabase"."donation_funds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'fund' check ("kind" in ('fund', 'campaign')),
   "goal" bigint check ("goal" is null or "goal" > 0),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
@@ -1109,7 +1109,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:f53f6ada5e51d845f2c29a948dcceda98ae368f1a7aa222ba65a9fc07090ec41
+-- @bsb-hash sha256:ce958cf5e8f6a994a5572a9afdcd99f394476ae33cc0e7a64fb2d2e115822802
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1213,7 +1213,7 @@ create table if not exists "better_supabase"."donation_funds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'fund' check ("kind" in ('fund', 'campaign')),
   "goal" bigint check ("goal" is null or "goal" > 0),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
@@ -2343,7 +2343,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:b50406112629055679b61e02ecdc4c85bf2c5b67256f8428e61b0c00d2973872
+-- @bsb-hash sha256:125b19568e7ed3dba71ee139fc977670457c6ddc67fda00f9f107b8f211112f2
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2435,7 +2435,7 @@ create table if not exists "app_private"."donation_funds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'fund' check ("kind" in ('fund', 'campaign')),
   "goal" bigint check ("goal" is null or "goal" > 0),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
@@ -3456,7 +3456,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:553e38efb0bca16cb618c92dbd2c1aad37a377e19fa9b06c9138044dd3e7bfad
+-- @bsb-hash sha256:c04eb9a4dfcf58cedf70db5e35494df847217c43accbe77b87c1058d6d2db267
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3543,7 +3543,7 @@ create table if not exists "better_supabase"."donation_funds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'fund' check ("kind" in ('fund', 'campaign')),
   "goal" bigint check ("goal" is null or "goal" > 0),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
@@ -4750,7 +4750,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:ab174b6ea2043327799041db43219e22d24d6602ca377530e43552c2d03b4626
+-- @bsb-hash sha256:f2f0214af3a00643e279ba80ca2f4e954d5dfb7e341356d959bbe4afcbf4f4da
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4853,7 +4853,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."donation_funds" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."donation_funds" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."donation_funds" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."donation_funds" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."donation_funds" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."donation_funds" add column if not exists "kind" text not null default 'fund' check ("kind" in ('fund', 'campaign'));
 alter table "better_supabase"."donation_funds" add column if not exists "goal" bigint check ("goal" is null or "goal" > 0);
 alter table "better_supabase"."donation_funds" add column if not exists "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$');
@@ -5859,7 +5859,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:5373ce379ff82b7c6631d7958a99476f916b8c3210b7064b58cf8858b0dcbba1
+-- @bsb-hash sha256:c2347a436ea7302588fbf8a61fc6adc270be8fe44b38e5f0e70abdd96b6038c3
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5946,7 +5946,7 @@ create table if not exists "better_supabase"."donation_funds" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'fund' check ("kind" in ('fund', 'campaign')),
   "goal" bigint check ("goal" is null or "goal" > 0),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),

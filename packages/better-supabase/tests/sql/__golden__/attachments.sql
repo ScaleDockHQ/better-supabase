@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:0f7bac7dc37359d9e4489045bc0b84b69b27c997f6cfcc1d7089366f68e6a512
+-- @bsb-hash sha256:ca5e10a72afecd86d1cdb78ccc8d7746024417374c283402beae3043e90edaec
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -286,10 +286,10 @@ create table if not exists "better_supabase"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check (length("subject_id") between 1 and 200),
+  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "bucket" text not null default 'attachments',
   "object_path" text,
-  "name" text not null check (length("name") between 1 and 255),
+  "name" text not null check (length("name") >= 1 and length("name") <= 255),
   "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
   "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
@@ -316,10 +316,10 @@ alter table "better_supabase"."attachments" add column if not exists "metadata" 
 -- the upload: stored once uploaded_at is set, pending_upload until then, and
 -- missing for a record whose file never arrived.
 alter table "better_supabase"."attachments" add column if not exists "document_type_id" uuid references "better_supabase"."attachment_document_types" ("id") on delete restrict;
-alter table "better_supabase"."attachments" add column if not exists "source" text check (length("source") between 1 and 200);
-alter table "better_supabase"."attachments" add column if not exists "external_id" text check (length("external_id") between 1 and 500);
+alter table "better_supabase"."attachments" add column if not exists "source" text check (length("source") >= 1 and length("source") <= 200);
+alter table "better_supabase"."attachments" add column if not exists "external_id" text check (length("external_id") >= 1 and length("external_id") <= 500);
 alter table "better_supabase"."attachments" add column if not exists "storage_status" text not null default 'pending_upload' check ("storage_status" in ('stored', 'pending_upload', 'missing'));
-alter table "better_supabase"."attachments" add column if not exists "source_path" text check (length("source_path") between 1 and 2000);
+alter table "better_supabase"."attachments" add column if not exists "source_path" text check (length("source_path") >= 1 and length("source_path") <= 2000);
 do $$
 begin
   if coalesce(obj_description((
@@ -407,7 +407,7 @@ begin
     where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bsb_attachments_size'
   ), 'pg_constraint'), '') <> 'better-supabase check 65b1c9ef' then
     alter table "better_supabase"."attachments" drop constraint if exists "bsb_attachments_size";
-    alter table "better_supabase"."attachments" add constraint "bsb_attachments_size" check ("size" between 0 and 52428800);
+    alter table "better_supabase"."attachments" add constraint "bsb_attachments_size" check ("size" >= 0 and "size" <= 52428800);
     comment on constraint "bsb_attachments_size" on "better_supabase"."attachments" is 'better-supabase check 65b1c9ef';
   end if;
 end;
@@ -1306,7 +1306,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:258e1d2459088e479205c2acaba1b76dd7a10f2b7e8842b58ecd30ea53290fc4
+-- @bsb-hash sha256:c52b0dc73a2fe2e50d1c0bec3d23d2c9c3c57df4a43da1b587933c25d7630102
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1591,10 +1591,10 @@ create table if not exists "better_supabase"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check (length("subject_id") between 1 and 200),
+  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "bucket" text not null default 'attachments',
   "object_path" text,
-  "name" text not null check (length("name") between 1 and 255),
+  "name" text not null check (length("name") >= 1 and length("name") <= 255),
   "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
   "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
@@ -1621,10 +1621,10 @@ alter table "better_supabase"."attachments" add column if not exists "metadata" 
 -- the upload: stored once uploaded_at is set, pending_upload until then, and
 -- missing for a record whose file never arrived.
 alter table "better_supabase"."attachments" add column if not exists "document_type_id" uuid references "better_supabase"."attachment_document_types" ("id") on delete restrict;
-alter table "better_supabase"."attachments" add column if not exists "source" text check (length("source") between 1 and 200);
-alter table "better_supabase"."attachments" add column if not exists "external_id" text check (length("external_id") between 1 and 500);
+alter table "better_supabase"."attachments" add column if not exists "source" text check (length("source") >= 1 and length("source") <= 200);
+alter table "better_supabase"."attachments" add column if not exists "external_id" text check (length("external_id") >= 1 and length("external_id") <= 500);
 alter table "better_supabase"."attachments" add column if not exists "storage_status" text not null default 'pending_upload' check ("storage_status" in ('stored', 'pending_upload', 'missing'));
-alter table "better_supabase"."attachments" add column if not exists "source_path" text check (length("source_path") between 1 and 2000);
+alter table "better_supabase"."attachments" add column if not exists "source_path" text check (length("source_path") >= 1 and length("source_path") <= 2000);
 do $$
 begin
   if coalesce(obj_description((
@@ -1712,7 +1712,7 @@ begin
     where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bsb_attachments_size'
   ), 'pg_constraint'), '') <> 'better-supabase check 65b1c9ef' then
     alter table "better_supabase"."attachments" drop constraint if exists "bsb_attachments_size";
-    alter table "better_supabase"."attachments" add constraint "bsb_attachments_size" check ("size" between 0 and 52428800);
+    alter table "better_supabase"."attachments" add constraint "bsb_attachments_size" check ("size" >= 0 and "size" <= 52428800);
     comment on constraint "bsb_attachments_size" on "better_supabase"."attachments" is 'better-supabase check 65b1c9ef';
   end if;
 end;
@@ -2760,7 +2760,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:4f131d927c75a9db97373c4a8f9b7f19c683c7e6b371f09df826e6c9ca83cc2e
+-- @bsb-hash sha256:f0d799d1e58a302843e1b2acd34d60499f17006464e40b6a69ffee1c877e44fa
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3050,10 +3050,10 @@ create table if not exists "app_private"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check (length("subject_id") between 1 and 200),
+  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "bucket" text not null default 'attachments',
   "object_path" text,
-  "name" text not null check (length("name") between 1 and 255),
+  "name" text not null check (length("name") >= 1 and length("name") <= 255),
   "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
   "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
@@ -3080,10 +3080,10 @@ alter table "app_private"."attachments" add column if not exists "metadata" json
 -- the upload: stored once uploaded_at is set, pending_upload until then, and
 -- missing for a record whose file never arrived.
 alter table "app_private"."attachments" add column if not exists "document_type_id" uuid references "app_private"."attachment_document_types" ("id") on delete restrict;
-alter table "app_private"."attachments" add column if not exists "source" text check (length("source") between 1 and 200);
-alter table "app_private"."attachments" add column if not exists "external_id" text check (length("external_id") between 1 and 500);
+alter table "app_private"."attachments" add column if not exists "source" text check (length("source") >= 1 and length("source") <= 200);
+alter table "app_private"."attachments" add column if not exists "external_id" text check (length("external_id") >= 1 and length("external_id") <= 500);
 alter table "app_private"."attachments" add column if not exists "storage_status" text not null default 'pending_upload' check ("storage_status" in ('stored', 'pending_upload', 'missing'));
-alter table "app_private"."attachments" add column if not exists "source_path" text check (length("source_path") between 1 and 2000);
+alter table "app_private"."attachments" add column if not exists "source_path" text check (length("source_path") >= 1 and length("source_path") <= 2000);
 do $$
 begin
   if coalesce(obj_description((
@@ -3171,7 +3171,7 @@ begin
     where c.conrelid = '"app_private"."attachments"'::regclass and c.conname = 'bsb_attachments_size'
   ), 'pg_constraint'), '') <> 'better-supabase check 65b1c9ef' then
     alter table "app_private"."attachments" drop constraint if exists "bsb_attachments_size";
-    alter table "app_private"."attachments" add constraint "bsb_attachments_size" check ("size" between 0 and 52428800);
+    alter table "app_private"."attachments" add constraint "bsb_attachments_size" check ("size" >= 0 and "size" <= 52428800);
     comment on constraint "bsb_attachments_size" on "app_private"."attachments" is 'better-supabase check 65b1c9ef';
   end if;
 end;
@@ -4070,7 +4070,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:f2515e0b0b46643ce939f700f44d53ffa0cec8ce01ab5c57f38dfdb3c3d6eee3
+-- @bsb-hash sha256:fb31fad7c3580bdaf47a29073dd6b48d5a32cccafa7c6d6cc57a6610149b9309
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4355,10 +4355,10 @@ create table if not exists "better_supabase"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check (length("subject_id") between 1 and 200),
+  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "bucket" text not null default 'attachments',
   "object_path" text,
-  "name" text not null check (length("name") between 1 and 255),
+  "name" text not null check (length("name") >= 1 and length("name") <= 255),
   "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
   "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
@@ -4385,10 +4385,10 @@ alter table "better_supabase"."attachments" add column if not exists "metadata" 
 -- the upload: stored once uploaded_at is set, pending_upload until then, and
 -- missing for a record whose file never arrived.
 alter table "better_supabase"."attachments" add column if not exists "document_type_id" uuid references "better_supabase"."attachment_document_types" ("id") on delete restrict;
-alter table "better_supabase"."attachments" add column if not exists "source" text check (length("source") between 1 and 200);
-alter table "better_supabase"."attachments" add column if not exists "external_id" text check (length("external_id") between 1 and 500);
+alter table "better_supabase"."attachments" add column if not exists "source" text check (length("source") >= 1 and length("source") <= 200);
+alter table "better_supabase"."attachments" add column if not exists "external_id" text check (length("external_id") >= 1 and length("external_id") <= 500);
 alter table "better_supabase"."attachments" add column if not exists "storage_status" text not null default 'pending_upload' check ("storage_status" in ('stored', 'pending_upload', 'missing'));
-alter table "better_supabase"."attachments" add column if not exists "source_path" text check (length("source_path") between 1 and 2000);
+alter table "better_supabase"."attachments" add column if not exists "source_path" text check (length("source_path") >= 1 and length("source_path") <= 2000);
 do $$
 begin
   if coalesce(obj_description((
@@ -4476,7 +4476,7 @@ begin
     where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bsb_attachments_size'
   ), 'pg_constraint'), '') <> 'better-supabase check 65b1c9ef' then
     alter table "better_supabase"."attachments" drop constraint if exists "bsb_attachments_size";
-    alter table "better_supabase"."attachments" add constraint "bsb_attachments_size" check ("size" between 0 and 52428800);
+    alter table "better_supabase"."attachments" add constraint "bsb_attachments_size" check ("size" >= 0 and "size" <= 52428800);
     comment on constraint "bsb_attachments_size" on "better_supabase"."attachments" is 'better-supabase check 65b1c9ef';
   end if;
 end;
@@ -5589,7 +5589,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:695f7ac5b68968de0435201ec264ebe98cc7197601106bae01677cacc237f144
+-- @bsb-hash sha256:685696f5b2541337196597ab7a19023e86fef8aa247ffebb11ee0ce88952ea79
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5888,10 +5888,10 @@ grant execute on function "better_supabase"."delete_attachment_document_type"(uu
 alter table "better_supabase"."attachments" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."attachments" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."attachments" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."attachments" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."attachments" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."attachments" add column if not exists "bucket" text not null default 'attachments';
 alter table "better_supabase"."attachments" add column if not exists "object_path" text;
-alter table "better_supabase"."attachments" add column if not exists "name" text check (length("name") between 1 and 255);
+alter table "better_supabase"."attachments" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 255);
 alter table "better_supabase"."attachments" add column if not exists "mime_type" text check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$');
 alter table "better_supabase"."attachments" add column if not exists "size" bigint;
 alter table "better_supabase"."attachments" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed'));
@@ -6666,7 +6666,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:e8ffc1b23a57cee1b4b63f36e6106d0179163684e021e1fafc2c6616a25f7ee3
+-- @bsb-hash sha256:daefb192aa9480f61c0550c2ee09ddb2ca5c1cb32908a518bc84f173d76cacb8
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6951,10 +6951,10 @@ create table if not exists "better_supabase"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check (length("subject_id") between 1 and 200),
+  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "bucket" text not null default 'attachments',
   "object_path" text,
-  "name" text not null check (length("name") between 1 and 255),
+  "name" text not null check (length("name") >= 1 and length("name") <= 255),
   "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
   "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
@@ -6981,10 +6981,10 @@ alter table "better_supabase"."attachments" add column if not exists "metadata" 
 -- the upload: stored once uploaded_at is set, pending_upload until then, and
 -- missing for a record whose file never arrived.
 alter table "better_supabase"."attachments" add column if not exists "document_type_id" uuid references "better_supabase"."attachment_document_types" ("id") on delete restrict;
-alter table "better_supabase"."attachments" add column if not exists "source" text check (length("source") between 1 and 200);
-alter table "better_supabase"."attachments" add column if not exists "external_id" text check (length("external_id") between 1 and 500);
+alter table "better_supabase"."attachments" add column if not exists "source" text check (length("source") >= 1 and length("source") <= 200);
+alter table "better_supabase"."attachments" add column if not exists "external_id" text check (length("external_id") >= 1 and length("external_id") <= 500);
 alter table "better_supabase"."attachments" add column if not exists "storage_status" text not null default 'pending_upload' check ("storage_status" in ('stored', 'pending_upload', 'missing'));
-alter table "better_supabase"."attachments" add column if not exists "source_path" text check (length("source_path") between 1 and 2000);
+alter table "better_supabase"."attachments" add column if not exists "source_path" text check (length("source_path") >= 1 and length("source_path") <= 2000);
 do $$
 begin
   if coalesce(obj_description((
@@ -7072,7 +7072,7 @@ begin
     where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bsb_attachments_size'
   ), 'pg_constraint'), '') <> 'better-supabase check 65b1c9ef' then
     alter table "better_supabase"."attachments" drop constraint if exists "bsb_attachments_size";
-    alter table "better_supabase"."attachments" add constraint "bsb_attachments_size" check ("size" between 0 and 52428800);
+    alter table "better_supabase"."attachments" add constraint "bsb_attachments_size" check ("size" >= 0 and "size" <= 52428800);
     comment on constraint "bsb_attachments_size" on "better_supabase"."attachments" is 'better-supabase check 65b1c9ef';
   end if;
 end;

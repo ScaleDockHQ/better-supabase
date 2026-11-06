@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:928ebf38f76cf1b8168c3ea3ff019fa9bf7f3cf6f3c3ff0c99d436e87142f1fd
+-- @bsb-hash sha256:223be73b68a8d1369fe098c584350e0adf7b6da96bb1014d03e9915f973da46b
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ create table if not exists "better_supabase"."activities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type" text not null,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "outcome" text,
   "owner_user_id" uuid,
@@ -104,13 +104,13 @@ create unique index if not exists "activities_external_ref_idx" on "better_supab
 -- in-error flag.
 alter table "better_supabase"."activities" add column if not exists "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'));
 alter table "better_supabase"."activities" add column if not exists "restricted_roles" text[];
-alter table "better_supabase"."activities" add column if not exists "category" text check (length("category") between 1 and 63);
+alter table "better_supabase"."activities" add column if not exists "category" text check (length("category") >= 1 and length("category") <= 63);
 alter table "better_supabase"."activities" add column if not exists "locked_at" timestamptz;
 alter table "better_supabase"."activities" add column if not exists "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade;
 alter table "better_supabase"."activities" add column if not exists "goal_id" uuid;
 alter table "better_supabase"."activities" add column if not exists "marked_error_at" timestamptz;
 alter table "better_supabase"."activities" add column if not exists "marked_error_by" uuid;
-alter table "better_supabase"."activities" add column if not exists "marked_error_reason" text check (length("marked_error_reason") between 1 and 2000);
+alter table "better_supabase"."activities" add column if not exists "marked_error_reason" text check (length("marked_error_reason") >= 1 and length("marked_error_reason") <= 2000);
 create index if not exists "activities_amends_idx" on "better_supabase"."activities" ("amends_id");
 alter table "better_supabase"."activities" enable row level security;
 revoke all on "better_supabase"."activities" from public, anon, authenticated;
@@ -686,7 +686,7 @@ create table if not exists "better_supabase"."engagement_transcript_segments" (
   "starts_ms" integer not null check ("starts_ms" >= 0),
   "ends_ms" integer not null,
   "text" text not null,
-  "confidence" real check ("confidence" between 0 and 1),
+  "confidence" real check ("confidence" >= 0 and "confidence" <= 1),
   primary key ("recording_id", "position"),
   check ("ends_ms" >= "starts_ms")
 );
@@ -704,7 +704,7 @@ create policy engagement_transcript_segments_read on "better_supabase"."engageme
 create table if not exists "better_supabase"."engagement_notes" (
   "activity_id" uuid primary key references "better_supabase"."activities" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "summary" text not null check (length("summary") between 1 and 20000),
+  "summary" text not null check (length("summary") >= 1 and length("summary") <= 20000),
 
   "model" text,
   "source" text not null default 'ai' check ("source" in ('ai', 'member')),

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:ac1401c58386ba5af9cda99ea40f924287fcb55a0c9c0d962131f0b7dc0a11e2
+-- @bsb-hash sha256:a4a828cb069934fd030c91504ececab55a49454470a9c45a8b2a268d932ea9ea
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -113,12 +113,12 @@ create table if not exists "better_supabase"."care_alerts" (
   "subject_id" text not null,
   "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
   "severity" text not null check ("severity" in ('info', 'warning', 'critical')),
-  "source" text not null check (length("source") between 1 and 100),
+  "source" text not null check (length("source") >= 1 and length("source") <= 100),
   "rule_id" uuid,
   "order_ids" uuid[] not null default '{}',
-  "message" text not null check (length("message") between 1 and 1000),
+  "message" text not null check (length("message") >= 1 and length("message") <= 1000),
   "details" jsonb,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
   "decided_by" uuid,
   "decided_at" timestamptz,
@@ -714,7 +714,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:8a2e2ec0e71fe25e1902e6ceadf4a871ee13f214a0e8e7ea4746179eaaf1dde5
+-- @bsb-hash sha256:f2d2883b9030e6bc750b4150204629369daf246a43e32c2787f04f14ad65e5e4
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -826,12 +826,12 @@ create table if not exists "better_supabase"."care_alerts" (
   "subject_id" text not null,
   "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
   "severity" text not null check ("severity" in ('info', 'warning', 'critical')),
-  "source" text not null check (length("source") between 1 and 100),
+  "source" text not null check (length("source") >= 1 and length("source") <= 100),
   "rule_id" uuid,
   "order_ids" uuid[] not null default '{}',
-  "message" text not null check (length("message") between 1 and 1000),
+  "message" text not null check (length("message") >= 1 and length("message") <= 1000),
   "details" jsonb,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
   "decided_by" uuid,
   "decided_at" timestamptz,
@@ -1504,7 +1504,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:ec0323583df6d67fb05190238764a4716a5956c448845f5e5555129d526fc17b
+-- @bsb-hash sha256:aaad18f87d830f88f2059a14c21993664dc2723a91b07b6facf792476157b28d
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1621,12 +1621,12 @@ create table if not exists "app_private"."care_alerts" (
   "subject_id" text not null,
   "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
   "severity" text not null check ("severity" in ('info', 'warning', 'critical')),
-  "source" text not null check (length("source") between 1 and 100),
+  "source" text not null check (length("source") >= 1 and length("source") <= 100),
   "rule_id" uuid,
   "order_ids" uuid[] not null default '{}',
-  "message" text not null check (length("message") between 1 and 1000),
+  "message" text not null check (length("message") >= 1 and length("message") <= 1000),
   "details" jsonb,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
   "decided_by" uuid,
   "decided_at" timestamptz,
@@ -2222,7 +2222,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:4e5c44af9821e9d296efe43afc38d99df02c1c9277aa01fe0b3227bac20b15d0
+-- @bsb-hash sha256:efe2aa466029605b6e97cbc9e808633133299303a9fe452e8c680410c9efca79
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2334,12 +2334,12 @@ create table if not exists "better_supabase"."care_alerts" (
   "subject_id" text not null,
   "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
   "severity" text not null check ("severity" in ('info', 'warning', 'critical')),
-  "source" text not null check (length("source") between 1 and 100),
+  "source" text not null check (length("source") >= 1 and length("source") <= 100),
   "rule_id" uuid,
   "order_ids" uuid[] not null default '{}',
-  "message" text not null check (length("message") between 1 and 1000),
+  "message" text not null check (length("message") >= 1 and length("message") <= 1000),
   "details" jsonb,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
   "decided_by" uuid,
   "decided_at" timestamptz,
@@ -3033,7 +3033,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:e0faba4f17c66bb201315ecc9167dd5e72988622e2c407595fbac3b83d560950
+-- @bsb-hash sha256:26c829e86ff7fc80a829a4a7963ab6c85b29b75e095ec984dd513edc4edd61b1
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3139,12 +3139,12 @@ alter table "better_supabase"."care_alerts" add column if not exists "subject_ty
 alter table "better_supabase"."care_alerts" add column if not exists "subject_id" text;
 alter table "better_supabase"."care_alerts" add column if not exists "kind" text check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other'));
 alter table "better_supabase"."care_alerts" add column if not exists "severity" text check ("severity" in ('info', 'warning', 'critical'));
-alter table "better_supabase"."care_alerts" add column if not exists "source" text check (length("source") between 1 and 100);
+alter table "better_supabase"."care_alerts" add column if not exists "source" text check (length("source") >= 1 and length("source") <= 100);
 alter table "better_supabase"."care_alerts" add column if not exists "rule_id" uuid;
 alter table "better_supabase"."care_alerts" add column if not exists "order_ids" uuid[] not null default '{}';
-alter table "better_supabase"."care_alerts" add column if not exists "message" text check (length("message") between 1 and 1000);
+alter table "better_supabase"."care_alerts" add column if not exists "message" text check (length("message") >= 1 and length("message") <= 1000);
 alter table "better_supabase"."care_alerts" add column if not exists "details" jsonb;
-alter table "better_supabase"."care_alerts" add column if not exists "fingerprint" text check (length("fingerprint") between 1 and 200);
+alter table "better_supabase"."care_alerts" add column if not exists "fingerprint" text check (length("fingerprint") >= 1 and length("fingerprint") <= 200);
 alter table "better_supabase"."care_alerts" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved'));
 alter table "better_supabase"."care_alerts" add column if not exists "decided_by" uuid;
 alter table "better_supabase"."care_alerts" add column if not exists "decided_at" timestamptz;
@@ -3738,7 +3738,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:54d4074b097fafcf6a951b614da876d5bbf82b0518f97d7f184fbfdf33e9eea0
+-- @bsb-hash sha256:7b9487ef9125fb9b193797729025b51b0301433de49677a6ff67655697c8245e
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3850,12 +3850,12 @@ create table if not exists "better_supabase"."care_alerts" (
   "subject_id" text not null,
   "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
   "severity" text not null check ("severity" in ('info', 'warning', 'critical')),
-  "source" text not null check (length("source") between 1 and 100),
+  "source" text not null check (length("source") >= 1 and length("source") <= 100),
   "rule_id" uuid,
   "order_ids" uuid[] not null default '{}',
-  "message" text not null check (length("message") between 1 and 1000),
+  "message" text not null check (length("message") >= 1 and length("message") <= 1000),
   "details" jsonb,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
   "decided_by" uuid,
   "decided_at" timestamptz,

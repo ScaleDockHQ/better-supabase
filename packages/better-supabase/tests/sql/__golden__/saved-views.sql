@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:b6ab8c4aba9733e83bca77d5713b6c2377f3fcedb4dcb2478f2cf144885ce12b
+-- @bsb-hash sha256:130d28b6daa9e37367e1b58980bea6f6457cc049533cb1a61d19ea7ca07db9bd
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -67,11 +67,11 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."saved_views" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "list" text not null check (length("list") between 1 and 80),
+  "list" text not null check (length("list") >= 1 and length("list") <= 80),
   "scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant')),
   "owner_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'table' check ("kind" in ('table', 'board', 'calendar', 'timeline', 'gantt')),
   "state" jsonb not null default '{}'::jsonb check (jsonb_typeof("state") = 'object' and pg_column_size("state") <= 65536),
   "rank" text collate "C" not null default 'V',
@@ -531,7 +531,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:601bc2cbec44bcf18cac28fc30e678b94d5d08629341fe618c65b76be432b29c
+-- @bsb-hash sha256:507852c8df5b5e510eaec80e46c8d587b94ccdaafe391c1ca59c27559b4d9f9f
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -597,11 +597,11 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."saved_views" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "list" text not null check (length("list") between 1 and 80),
+  "list" text not null check (length("list") >= 1 and length("list") <= 80),
   "scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant')),
   "owner_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'table' check ("kind" in ('table', 'board', 'calendar', 'timeline', 'gantt')),
   "state" jsonb not null default '{}'::jsonb check (jsonb_typeof("state") = 'object' and pg_column_size("state") <= 65536),
   "rank" text collate "C" not null default 'V',
@@ -1079,7 +1079,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:b9df43cd8fdd20be479c270e95c5448d7f47ee923fee1b1dd52c7d4c67127876
+-- @bsb-hash sha256:9f2e7ba82b6b1983c9ad71b49238a58b5829b27b942957541c538de95b602192
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1150,11 +1150,11 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."saved_views" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "list" text not null check (length("list") between 1 and 80),
+  "list" text not null check (length("list") >= 1 and length("list") <= 80),
   "scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant')),
   "owner_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'table' check ("kind" in ('table', 'board', 'calendar', 'timeline', 'gantt')),
   "state" jsonb not null default '{}'::jsonb check (jsonb_typeof("state") = 'object' and pg_column_size("state") <= 65536),
   "rank" text collate "C" not null default 'V',
@@ -1614,7 +1614,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:54210dbcd0305cd94ebf011693e0d6c6511ec42cf2aae3db780300bb6fb16b99
+-- @bsb-hash sha256:db7397ea5ed20a0b9d78526ea46d1200dd91eef14d85d2d5c37cb9d458398ae1
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1680,11 +1680,11 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."saved_views" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "list" text not null check (length("list") between 1 and 80),
+  "list" text not null check (length("list") >= 1 and length("list") <= 80),
   "scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant')),
   "owner_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'table' check ("kind" in ('table', 'board', 'calendar', 'timeline', 'gantt')),
   "state" jsonb not null default '{}'::jsonb check (jsonb_typeof("state") = 'object' and pg_column_size("state") <= 65536),
   "rank" text collate "C" not null default 'V',
@@ -2233,7 +2233,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:b51510ecc96f5b94bdf2dd98e9596eade91eb18dac9e86d7e45e1350c9cf033a
+-- @bsb-hash sha256:9221b8f65f5c4e6cbbe10e3964ca998bbde4ae311581ecdb1eb457313cda99b4
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2299,11 +2299,11 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.saved_views is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."saved_views" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."saved_views" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."saved_views" add column if not exists "list" text check (length("list") between 1 and 80);
+alter table "better_supabase"."saved_views" add column if not exists "list" text check (length("list") >= 1 and length("list") <= 80);
 alter table "better_supabase"."saved_views" add column if not exists "scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant'));
 alter table "better_supabase"."saved_views" add column if not exists "owner_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."saved_views" add column if not exists "team_id" text;
-alter table "better_supabase"."saved_views" add column if not exists "name" text check (length("name") between 1 and 120);
+alter table "better_supabase"."saved_views" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 120);
 alter table "better_supabase"."saved_views" add column if not exists "kind" text not null default 'table' check ("kind" in ('table', 'board', 'calendar', 'timeline', 'gantt'));
 alter table "better_supabase"."saved_views" add column if not exists "state" jsonb not null default '{}'::jsonb check (jsonb_typeof("state") = 'object' and pg_column_size("state") <= 65536);
 alter table "better_supabase"."saved_views" add column if not exists "rank" text collate "C" not null default 'V';
@@ -2756,7 +2756,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:03bfa6440c2814f135c56de85b7b1b6fea97635d46950675b5f9eafbb7e9d6db
+-- @bsb-hash sha256:ae2d8ff2715ef027230f2828a7ede743cccc0b51976ff4fca1ac4458556e02e3
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2822,11 +2822,11 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."saved_views" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "list" text not null check (length("list") between 1 and 80),
+  "list" text not null check (length("list") >= 1 and length("list") <= 80),
   "scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant')),
   "owner_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'table' check ("kind" in ('table', 'board', 'calendar', 'timeline', 'gantt')),
   "state" jsonb not null default '{}'::jsonb check (jsonb_typeof("state") = 'object' and pg_column_size("state") <= 65536),
   "rank" text collate "C" not null default 'V',

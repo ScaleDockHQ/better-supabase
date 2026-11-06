@@ -1,6 +1,6 @@
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:787b228b1055731e33cba31fc17d3d7b1c948fab88d68a730ee50b5199b18b74
+-- @bsb-hash sha256:52a7d9fe202ad40c58e307163fbc5b8a4715e7c82b443e110179f510a9eefd85
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -99,7 +99,7 @@ create table if not exists "better_supabase"."acknowledgement_assignments" (
   "subject_type" text not null,
   "subject_id" text not null,
   "principal_type" text not null check ("principal_type" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") between 1 and 200),
+  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
   "due_in_days" integer check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),

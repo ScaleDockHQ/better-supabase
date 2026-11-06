@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:1719c75f374c6b5e2d362daf129131312217bc1b92817de9aedc278c44092ec1
+-- @bsb-hash sha256:fea028d79b155267628e2e84116df146277076bfebad79509c68d6b211f6dcc6
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,13 +79,13 @@ create table if not exists "better_supabase"."incoming_webhooks" (
   last_status integer,
   metadata jsonb not null default '{}',
   subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  subject_id text check (length(subject_id) between 1 and 200),
+  subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200),
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 alter table "better_supabase"."incoming_webhooks" add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) between 1 and 200);
+alter table "better_supabase"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200);
 alter table "better_supabase"."incoming_webhooks" add column if not exists secret_id uuid;
 alter table "better_supabase"."incoming_webhooks" drop constraint if exists incoming_webhooks_verify_check;
 alter table "better_supabase"."incoming_webhooks" add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));

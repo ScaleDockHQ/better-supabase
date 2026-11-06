@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:67bf0987213252777b321ba00aea82abf0e6a48ffff292f10acf278c5ad46bca
+-- @bsb-hash sha256:bf1e3492e92320c4dfc77a0785d659d5d0acca1d26e8b89ffeffa28b48c0ca9b
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,9 +73,9 @@ create table if not exists "better_supabase"."payroll_runs" (
   "tenant_id" uuid not null,
   "period_from" date not null,
   "period_to" date not null,
-  "label" text check ("label" is null or length("label") between 1 and 200),
+  "label" text check ("label" is null or length("label") >= 1 and length("label") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'exported')),
-  "format" text check ("format" is null or length("format") between 1 and 100),
+  "format" text check ("format" is null or length("format") >= 1 and length("format") <= 100),
   -- The hex SHA-256 of the exported file.
   "checksum" text check ("checksum" is null or "checksum" ~ '^[0-9a-f]{64}$'),
   "exported_at" timestamptz,
@@ -108,7 +108,7 @@ create table if not exists "better_supabase"."payroll_lines" (
   "employee_name" text,
   "kind" text not null check ("kind" in ('worked', 'leave', 'scheduled')),
   -- The leave type's key; null for worked and scheduled time.
-  "code" text check ("code" is null or length("code") between 1 and 200),
+  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 200),
   "paid" boolean not null default true,
   "unit" text not null check ("unit" in ('hours', 'days')),
   "quantity" numeric(12, 2) not null check ("quantity" >= 0),

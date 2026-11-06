@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:ee2df637864b24bf2f9c14aa120fe633c4216f184dea5413910870cc7aeccb3d
+-- @bsb-hash sha256:05859cc5528dffff7fd64a99a346893bcd3bd46e7aa6bddd7ffee4d173b42a98
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -68,10 +68,10 @@ create table if not exists "better_supabase"."reviews" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete cascade,
   "author_name" text check ("author_name" is null or length("author_name") <= 100),
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "title" text check ("title" is null or length("title") <= 200),
   "body" text check ("body" is null or length("body") <= 5000),
   "status" text not null default 'pending' check ("status" in ('pending', 'published', 'rejected')),
@@ -566,7 +566,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:60cf35fef49273aa58242067ec570e2cf9132a7a069c4e33986e7a2ae9f24065
+-- @bsb-hash sha256:c649ab3ef5df28319eebf08e173d541bd6ca87fe5be374b9c7ed697d2810a846
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -650,10 +650,10 @@ create table if not exists "better_supabase"."reviews" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete cascade,
   "author_name" text check ("author_name" is null or length("author_name") <= 100),
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "title" text check ("title" is null or length("title") <= 200),
   "body" text check ("body" is null or length("body") <= 5000),
   "status" text not null default 'pending' check ("status" in ('pending', 'published', 'rejected')),
@@ -1253,7 +1253,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:3177c3c203ac9d0990a12739ae433fd2cc2cf645706f778fe18205a0de90e1a0
+-- @bsb-hash sha256:97144cdf7685010d114054e527cd491355243be601026091bcf2b82885bf1fa1
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1325,10 +1325,10 @@ create table if not exists "app_private"."reviews" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete cascade,
   "author_name" text check ("author_name" is null or length("author_name") <= 100),
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "title" text check ("title" is null or length("title") <= 200),
   "body" text check ("body" is null or length("body") <= 5000),
   "status" text not null default 'pending' check ("status" in ('pending', 'published', 'rejected')),
@@ -1823,7 +1823,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:04d4d92d307a2b2833c7b10ab2247cda4d0a40f6e3cb7e8b33a6349129e01ff6
+-- @bsb-hash sha256:45084e2370d2ffafe6f340fbaf3b5682c3907f0eab8fc06e0383926b721e61e7
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1890,10 +1890,10 @@ create table if not exists "better_supabase"."reviews" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete cascade,
   "author_name" text check ("author_name" is null or length("author_name") <= 100),
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "title" text check ("title" is null or length("title") <= 200),
   "body" text check ("body" is null or length("body") <= 5000),
   "status" text not null default 'pending' check ("status" in ('pending', 'published', 'rejected')),
@@ -2498,7 +2498,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:d6646104175c769c7bb96f8e921d72fca9d789535ac9179fd90f5c485199a618
+-- @bsb-hash sha256:7680df7894bd5a848d9ee406b26dba7099d0539d6194d33626bb6506a2519de7
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2601,10 +2601,10 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."reviews" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."reviews" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."reviews" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."reviews" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."reviews" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."reviews" add column if not exists "author_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."reviews" add column if not exists "author_name" text check ("author_name" is null or length("author_name") <= 100);
-alter table "better_supabase"."reviews" add column if not exists "rating" smallint check ("rating" between 1 and 5);
+alter table "better_supabase"."reviews" add column if not exists "rating" smallint check ("rating" >= 1 and "rating" <= 5);
 alter table "better_supabase"."reviews" add column if not exists "title" text check ("title" is null or length("title") <= 200);
 alter table "better_supabase"."reviews" add column if not exists "body" text check ("body" is null or length("body") <= 5000);
 alter table "better_supabase"."reviews" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'published', 'rejected'));
@@ -3095,7 +3095,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:e738beab9d0da78ae8e36effc60ecace0a85ffd785ca091be509f399820fab39
+-- @bsb-hash sha256:b094a1532f2fb8e3c7e56e48e219ad00c056399313465020a9811b2c166b3655
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3162,10 +3162,10 @@ create table if not exists "better_supabase"."reviews" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete cascade,
   "author_name" text check ("author_name" is null or length("author_name") <= 100),
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "title" text check ("title" is null or length("title") <= 200),
   "body" text check ("body" is null or length("body") <= 5000),
   "status" text not null default 'pending' check ("status" in ('pending', 'published', 'rejected')),

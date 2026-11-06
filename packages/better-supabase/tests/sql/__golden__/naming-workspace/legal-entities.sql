@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:a5f93b0c948713712e06b96ca386137dc280cfe1bdd58c22b670f97628583fc0
+-- @bsb-hash sha256:356b7e5d00f170c786633705c5b3d43a2cc492c7c86f59b27c72d027f8affb06
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,12 +74,12 @@ create table if not exists "better_supabase"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") between 1 and 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") between 1 and 50),
-  "iban" text check ("iban" is null or length("iban") between 1 and 34),
-  "bic" text check ("bic" is null or length("bic") between 1 and 11),
+  "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid,
   "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.

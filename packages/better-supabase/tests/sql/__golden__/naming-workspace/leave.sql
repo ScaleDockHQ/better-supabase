@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:3c3578ce26ce9a549da6bed08d106c63684ded420cb2b8ebbe6369bd8395b494
+-- @bsb-hash sha256:975afd8f2f8df282f332e4930bb878fa9886cfb2ae7e8e08f4481ca6c84c88c8
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -68,7 +68,7 @@ create table if not exists "better_supabase"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 100),
   "unit" text not null default 'days' check ("unit" in ('days', 'hours')),
   "paid" boolean not null default true,
   -- Untracked types (unpaid leave, say) book no ledger entries and skip the balance check.

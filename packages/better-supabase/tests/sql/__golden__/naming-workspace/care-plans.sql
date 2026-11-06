@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:b86e4131a9498be1689265c9a31000057eecc89783f12d962725c814a223a86f
+-- @bsb-hash sha256:222d4921b59606173f3469bd6bc9850808ce02b6a86364b10cc0b619a9963a88
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -96,9 +96,9 @@ create table if not exists "better_supabase"."care_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The client the plan is for: any registered subject type.
-  "subject_type" text not null check (length("subject_type") between 1 and 63),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "title" text not null check (length("title") between 1 and 300),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 63),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
   -- 1 for a subject's first plan, one more for each plan after it.
   "version" integer not null default 1 check ("version" >= 1),
@@ -140,9 +140,9 @@ create table if not exists "better_supabase"."care_plan_problems" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   -- One of options.codeSystems, such as icnp or snomed; the functions check it.
-  "code_system" text not null default 'custom' check (length("code_system") between 1 and 63),
+  "code_system" text not null default 'custom' check (length("code_system") >= 1 and length("code_system") <= 63),
   "code" text check ("code" is null or length("code") <= 100),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "description" text check ("description" is null or length("description") <= 10000),
   "status" text not null default 'active' check ("status" in ('active', 'resolved')),
   "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
@@ -166,7 +166,7 @@ create table if not exists "better_supabase"."care_plan_goals" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "problem_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "target_on" date,
   "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
   -- How progress is measured, such as { "kind": "score", "target": 3 }.
@@ -193,7 +193,7 @@ create table if not exists "better_supabase"."care_plan_actions" (
   "plan_id" uuid not null,
   "goal_id" uuid not null,
   "kind" text not null default 'intervention' check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "instructions" text check ("instructions" is null or length("instructions") <= 10000),
   -- How often, such as { "every": "P1D", "times": ["08:00", "20:00"] }.
   "frequency" jsonb check ("frequency" is null or jsonb_typeof("frequency") = 'object'),

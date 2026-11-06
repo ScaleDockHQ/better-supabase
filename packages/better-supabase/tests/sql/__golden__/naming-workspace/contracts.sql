@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:7fd085a3bed231cfc9356337c79ae6b1c95ddb06027102ff5f59d09cf23d5f86
+-- @bsb-hash sha256:a07a1d12c057c58d0b269d1398b0766a0e025703a1814d490bacccb0c8b44a7c
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -70,7 +70,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."contracts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 10000),
   -- The other party: a registered subject (a company or person of the parties block, say).
   "counterparty_type" text,
@@ -84,9 +84,9 @@ create table if not exists "better_supabase"."contracts" (
   "ends_on" date,
   "auto_renew" boolean not null default false,
   -- How far an auto-renewal moves ends_on.
-  "renewal_months" integer not null default 12 check ("renewal_months" between 1 and 120),
+  "renewal_months" integer not null default 12 check ("renewal_months" >= 1 and "renewal_months" <= 120),
   -- How many days before ends_on notice of termination is due.
-  "notice_days" integer not null default 30 check ("notice_days" between 0 and 3650),
+  "notice_days" integer not null default 30 check ("notice_days" >= 0 and "notice_days" <= 3650),
   "renewed_count" integer not null default 0,
   "signature_request_id" uuid references "better_supabase"."signature_requests" ("id") on delete set null,
   "signed_at" timestamptz,
@@ -117,7 +117,7 @@ create table if not exists "better_supabase"."contract_obligations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "contract_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 4000),
   "due_on" date,
   "owner_id" uuid,

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:cbdfdefc9a4dda9ae52389f570df86cd3adb288bf9ec29eef829c84cd1a54790
+-- @bsb-hash sha256:fa85d221c7187f1dfcee29bf3ddfbb80f360072a8d2a93f3450b697eaf66a2c5
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -119,7 +119,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."work_centers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- The machine or line, an asset of the assets block.
   "asset_id" uuid,
   "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24),
@@ -180,13 +180,13 @@ create table if not exists "better_supabase"."bom_operations" (
   -- 10, 20, 30: the order operations run in.
   "sequence" integer not null check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0),
   "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0),
   -- A drive node with the work instructions.
   "instructions_node_id" uuid,
   -- An inspection kind; starting the operation schedules one.
-  "inspection_template" text check ("inspection_template" is null or length("inspection_template") between 1 and 63),
+  "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
   unique ("bom_id", "sequence"),
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
@@ -212,7 +212,7 @@ create table if not exists "better_supabase"."bom_components" (
   -- Per bom quantity of the made variant, in the component's unit.
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   -- Expected loss in basis points: 250 plans 2.5% more.
-  "scrap_bps" integer not null default 0 check ("scrap_bps" between 0 and 10000),
+  "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
   -- The operation that uses it, or null for the start of the run.
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade
@@ -233,7 +233,7 @@ create table if not exists "better_supabase"."production_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- MO-2026-0001, from the numbering block when it numbers production orders.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- The bill of materials version the order was planned with.
@@ -284,7 +284,7 @@ create table if not exists "better_supabase"."production_order_operations" (
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   "sequence" integer not null check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- Setup plus run time for the order's quantity.
   "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0),
   "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done')),
@@ -318,7 +318,7 @@ create table if not exists "better_supabase"."production_consumptions" (
   "order_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check ("serial" is null or length("serial") between 1 and 100),
+  "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   -- The stock value it took, in minor units of currency; 0 without costing.
   "cost" bigint not null default 0,
@@ -2004,7 +2004,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:04f9722358eadf9fcb3abfae22a2fb4ba5fb44470b4d96eb14ae9a8d59fce5b7
+-- @bsb-hash sha256:09314b37f53450e99b3c2886ea3667c4194e32640bbde7e8c25baf11f4a9967e
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2139,7 +2139,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."work_centers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- The machine or line, an asset of the assets block.
   "asset_id" uuid references "better_supabase"."assets" ("id") on delete set null,
   "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24),
@@ -2200,13 +2200,13 @@ create table if not exists "better_supabase"."bom_operations" (
   -- 10, 20, 30: the order operations run in.
   "sequence" integer not null check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0),
   "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0),
   -- A drive node with the work instructions.
   "instructions_node_id" uuid references "better_supabase"."drive_nodes" ("id") on delete set null,
   -- An inspection kind; starting the operation schedules one.
-  "inspection_template" text check ("inspection_template" is null or length("inspection_template") between 1 and 63),
+  "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
   unique ("bom_id", "sequence"),
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
@@ -2232,7 +2232,7 @@ create table if not exists "better_supabase"."bom_components" (
   -- Per bom quantity of the made variant, in the component's unit.
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   -- Expected loss in basis points: 250 plans 2.5% more.
-  "scrap_bps" integer not null default 0 check ("scrap_bps" between 0 and 10000),
+  "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
   -- The operation that uses it, or null for the start of the run.
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade
@@ -2253,7 +2253,7 @@ create table if not exists "better_supabase"."production_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- MO-2026-0001, from the numbering block when it numbers production orders.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- The bill of materials version the order was planned with.
@@ -2304,7 +2304,7 @@ create table if not exists "better_supabase"."production_order_operations" (
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   "sequence" integer not null check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- Setup plus run time for the order's quantity.
   "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0),
   "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done')),
@@ -2338,7 +2338,7 @@ create table if not exists "better_supabase"."production_consumptions" (
   "order_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check ("serial" is null or length("serial") between 1 and 100),
+  "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   -- The stock value it took, in minor units of currency; 0 without costing.
   "cost" bigint not null default 0,
@@ -4121,7 +4121,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:78f3c6ccd2e60fd940d73d9f926455905ccad3b2da09dd2a27e7589748be18c1
+-- @bsb-hash sha256:11603bb58c624d48880e327a38f0dc6d62f8ac197183f04479f24cda4ecd9c08
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4244,7 +4244,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."work_centers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- The machine or line, an asset of the assets block.
   "asset_id" uuid,
   "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24),
@@ -4305,13 +4305,13 @@ create table if not exists "app_private"."bom_operations" (
   -- 10, 20, 30: the order operations run in.
   "sequence" integer not null check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0),
   "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0),
   -- A drive node with the work instructions.
   "instructions_node_id" uuid,
   -- An inspection kind; starting the operation schedules one.
-  "inspection_template" text check ("inspection_template" is null or length("inspection_template") between 1 and 63),
+  "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
   unique ("bom_id", "sequence"),
   foreign key ("tenant_id", "bom_id") references "app_private"."boms" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "work_center_id") references "app_private"."work_centers" ("tenant_id", "id") on delete restrict
@@ -4337,7 +4337,7 @@ create table if not exists "app_private"."bom_components" (
   -- Per bom quantity of the made variant, in the component's unit.
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   -- Expected loss in basis points: 250 plans 2.5% more.
-  "scrap_bps" integer not null default 0 check ("scrap_bps" between 0 and 10000),
+  "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
   -- The operation that uses it, or null for the start of the run.
   "operation_id" uuid references "app_private"."bom_operations" ("id") on delete set null,
   foreign key ("tenant_id", "bom_id") references "app_private"."boms" ("tenant_id", "id") on delete cascade
@@ -4358,7 +4358,7 @@ create table if not exists "app_private"."production_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- MO-2026-0001, from the numbering block when it numbers production orders.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- The bill of materials version the order was planned with.
@@ -4409,7 +4409,7 @@ create table if not exists "app_private"."production_order_operations" (
   "operation_id" uuid references "app_private"."bom_operations" ("id") on delete set null,
   "sequence" integer not null check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- Setup plus run time for the order's quantity.
   "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0),
   "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done')),
@@ -4443,7 +4443,7 @@ create table if not exists "app_private"."production_consumptions" (
   "order_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check ("serial" is null or length("serial") between 1 and 100),
+  "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   -- The stock value it took, in minor units of currency; 0 without costing.
   "cost" bigint not null default 0,
@@ -6129,7 +6129,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:86a6260223059b0e13efc05fd153264ebbdf3ba27a4d8fd66b3594c567848891
+-- @bsb-hash sha256:5e82f5aca616661aef37743254bc5ea0a3f40746db5b22f7bc8f6b77c38c4cb1
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6247,7 +6247,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."work_centers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- The machine or line, an asset of the assets block.
   "asset_id" uuid,
   "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24),
@@ -6308,13 +6308,13 @@ create table if not exists "better_supabase"."bom_operations" (
   -- 10, 20, 30: the order operations run in.
   "sequence" integer not null check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0),
   "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0),
   -- A drive node with the work instructions.
   "instructions_node_id" uuid,
   -- An inspection kind; starting the operation schedules one.
-  "inspection_template" text check ("inspection_template" is null or length("inspection_template") between 1 and 63),
+  "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
   unique ("bom_id", "sequence"),
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
@@ -6340,7 +6340,7 @@ create table if not exists "better_supabase"."bom_components" (
   -- Per bom quantity of the made variant, in the component's unit.
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   -- Expected loss in basis points: 250 plans 2.5% more.
-  "scrap_bps" integer not null default 0 check ("scrap_bps" between 0 and 10000),
+  "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
   -- The operation that uses it, or null for the start of the run.
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade
@@ -6361,7 +6361,7 @@ create table if not exists "better_supabase"."production_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- MO-2026-0001, from the numbering block when it numbers production orders.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- The bill of materials version the order was planned with.
@@ -6412,7 +6412,7 @@ create table if not exists "better_supabase"."production_order_operations" (
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   "sequence" integer not null check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- Setup plus run time for the order's quantity.
   "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0),
   "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done')),
@@ -6446,7 +6446,7 @@ create table if not exists "better_supabase"."production_consumptions" (
   "order_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check ("serial" is null or length("serial") between 1 and 100),
+  "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   -- The stock value it took, in minor units of currency; 0 without costing.
   "cost" bigint not null default 0,
@@ -8354,7 +8354,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:f8d55d54924580a90a98988f6609085aa17bcfc26030669351c0a96d04a5dbca
+-- @bsb-hash sha256:3856bdaadd94d5d3e749c957de584b1e5116d7f2f5e82221c03f4d08d96ddf1c
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8472,7 +8472,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.work_centers is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."work_centers" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."work_centers" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."work_centers" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."work_centers" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."work_centers" add column if not exists "asset_id" uuid;
 alter table "better_supabase"."work_centers" add column if not exists "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24);
 alter table "better_supabase"."work_centers" add column if not exists "cost_rate" bigint not null default 0 check ("cost_rate" >= 0);
@@ -8522,11 +8522,11 @@ alter table "better_supabase"."bom_operations" add column if not exists "tenant_
 alter table "better_supabase"."bom_operations" add column if not exists "bom_id" uuid;
 alter table "better_supabase"."bom_operations" add column if not exists "sequence" integer check ("sequence" > 0);
 alter table "better_supabase"."bom_operations" add column if not exists "work_center_id" uuid;
-alter table "better_supabase"."bom_operations" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."bom_operations" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."bom_operations" add column if not exists "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0);
 alter table "better_supabase"."bom_operations" add column if not exists "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0);
 alter table "better_supabase"."bom_operations" add column if not exists "instructions_node_id" uuid;
-alter table "better_supabase"."bom_operations" add column if not exists "inspection_template" text check ("inspection_template" is null or length("inspection_template") between 1 and 63);
+alter table "better_supabase"."bom_operations" add column if not exists "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63);
 create unique index if not exists "bsb_bom_operations_bom_sequence_key" on "better_supabase"."bom_operations" ("bom_id", "sequence");
 create index if not exists "bom_operations_parent_idx" on "better_supabase"."bom_operations" ("tenant_id", "bom_id", "sequence");
 create index if not exists "bom_operations_center_idx" on "better_supabase"."bom_operations" ("tenant_id", "work_center_id");
@@ -8546,7 +8546,7 @@ alter table "better_supabase"."bom_components" add column if not exists "bom_id"
 alter table "better_supabase"."bom_components" add column if not exists "position" integer not null default 0;
 alter table "better_supabase"."bom_components" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete restrict;
 alter table "better_supabase"."bom_components" add column if not exists "quantity" numeric(20, 6) check ("quantity" > 0);
-alter table "better_supabase"."bom_components" add column if not exists "scrap_bps" integer not null default 0 check ("scrap_bps" between 0 and 10000);
+alter table "better_supabase"."bom_components" add column if not exists "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000);
 alter table "better_supabase"."bom_components" add column if not exists "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null;
 create index if not exists "bom_components_parent_idx" on "better_supabase"."bom_components" ("tenant_id", "bom_id", "position");
 create index if not exists "bom_components_variant_idx" on "better_supabase"."bom_components" ("variant_id");
@@ -8562,7 +8562,7 @@ create policy bsb_bom_components_read on "better_supabase"."bom_components"
 -- better_supabase.production_orders is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."production_orders" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."production_orders" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."production_orders" add column if not exists "number" text check (length("number") between 1 and 100);
+alter table "better_supabase"."production_orders" add column if not exists "number" text check (length("number") >= 1 and length("number") <= 100);
 alter table "better_supabase"."production_orders" add column if not exists "sequence" bigint;
 alter table "better_supabase"."production_orders" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete restrict;
 alter table "better_supabase"."production_orders" add column if not exists "bom_id" uuid;
@@ -8606,7 +8606,7 @@ alter table "better_supabase"."production_order_operations" add column if not ex
 alter table "better_supabase"."production_order_operations" add column if not exists "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null;
 alter table "better_supabase"."production_order_operations" add column if not exists "sequence" integer check ("sequence" > 0);
 alter table "better_supabase"."production_order_operations" add column if not exists "work_center_id" uuid;
-alter table "better_supabase"."production_order_operations" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."production_order_operations" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."production_order_operations" add column if not exists "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0);
 alter table "better_supabase"."production_order_operations" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done'));
 alter table "better_supabase"."production_order_operations" add column if not exists "started_at" timestamptz;
@@ -8633,7 +8633,7 @@ alter table "better_supabase"."production_consumptions" add column if not exists
 alter table "better_supabase"."production_consumptions" add column if not exists "order_id" uuid;
 alter table "better_supabase"."production_consumptions" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete restrict;
 alter table "better_supabase"."production_consumptions" add column if not exists "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict;
-alter table "better_supabase"."production_consumptions" add column if not exists "serial" text check ("serial" is null or length("serial") between 1 and 100);
+alter table "better_supabase"."production_consumptions" add column if not exists "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100);
 alter table "better_supabase"."production_consumptions" add column if not exists "quantity" numeric(20, 6) check ("quantity" > 0);
 alter table "better_supabase"."production_consumptions" add column if not exists "cost" bigint not null default 0;
 alter table "better_supabase"."production_consumptions" add column if not exists "currency" char(3);
@@ -10310,7 +10310,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:a0e9c649ba3c9742494112f99dc62e8f89f76231e3eda8ed72dd3ba621bea132
+-- @bsb-hash sha256:401e43810bf0e8f257d762f18d575df3e38ab6749e42b289748ef9c5ee975ce0
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10428,7 +10428,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."work_centers" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- The machine or line, an asset of the assets block.
   "asset_id" uuid,
   "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24),
@@ -10489,13 +10489,13 @@ create table if not exists "better_supabase"."bom_operations" (
   -- 10, 20, 30: the order operations run in.
   "sequence" integer not null check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0),
   "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0),
   -- A drive node with the work instructions.
   "instructions_node_id" uuid,
   -- An inspection kind; starting the operation schedules one.
-  "inspection_template" text check ("inspection_template" is null or length("inspection_template") between 1 and 63),
+  "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
   unique ("bom_id", "sequence"),
   foreign key ("org_id", "bom_id") references "better_supabase"."boms" ("org_id", "id") on delete cascade,
   foreign key ("org_id", "work_center_id") references "better_supabase"."work_centers" ("org_id", "id") on delete restrict
@@ -10521,7 +10521,7 @@ create table if not exists "better_supabase"."bom_components" (
   -- Per bom quantity of the made variant, in the component's unit.
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   -- Expected loss in basis points: 250 plans 2.5% more.
-  "scrap_bps" integer not null default 0 check ("scrap_bps" between 0 and 10000),
+  "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
   -- The operation that uses it, or null for the start of the run.
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   foreign key ("org_id", "bom_id") references "better_supabase"."boms" ("org_id", "id") on delete cascade
@@ -10542,7 +10542,7 @@ create table if not exists "better_supabase"."production_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- MO-2026-0001, from the numbering block when it numbers production orders.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- The bill of materials version the order was planned with.
@@ -10593,7 +10593,7 @@ create table if not exists "better_supabase"."production_order_operations" (
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   "sequence" integer not null check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- Setup plus run time for the order's quantity.
   "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0),
   "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done')),
@@ -10627,7 +10627,7 @@ create table if not exists "better_supabase"."production_consumptions" (
   "order_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check ("serial" is null or length("serial") between 1 and 100),
+  "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   -- The stock value it took, in minor units of currency; 0 without costing.
   "cost" bigint not null default 0,

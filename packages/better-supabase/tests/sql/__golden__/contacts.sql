@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:7698e4668c8e9bbd4d26744d5f2eb32a0af7149f5e9e0d7f7c121f1c9575d6a6
+-- @bsb-hash sha256:342ec6c9e195dba5dcc557c3b09cf7ea053359253e593c27687996b23bb33ea0
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -132,12 +132,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 300),
-  "days" integer not null default 30 check ("days" between 0 and 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
-  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -154,7 +154,7 @@ create policy payment_terms_read on "better_supabase"."payment_terms"
 create table if not exists "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
@@ -196,7 +196,7 @@ create policy companies_read on "better_supabase"."companies"
 create table if not exists "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
@@ -262,9 +262,9 @@ create table if not exists "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") between 1 and 100),
+  "document_type" text not null check (length("document_type") >= 1 and length("document_type") <= 100),
   "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" between 1 and 20),
+  "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -284,8 +284,8 @@ create table if not exists "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "address" text not null check (length("address") between 1 and 500),
+  "channel" text not null check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
@@ -1631,7 +1631,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:803d70ec92859bd2e683ee97e1231346e090e146633c637c8b1817ffe95932fa
+-- @bsb-hash sha256:bee730cbe1d0fe2697b132a3839de934e6ee3c22ed5eb29ccc68b85a8f9e84b6
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1762,12 +1762,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 300),
-  "days" integer not null default 30 check ("days" between 0 and 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
-  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -1784,7 +1784,7 @@ create policy payment_terms_read on "better_supabase"."payment_terms"
 create table if not exists "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
@@ -1826,7 +1826,7 @@ create policy companies_read on "better_supabase"."companies"
 create table if not exists "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
@@ -1892,9 +1892,9 @@ create table if not exists "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") between 1 and 100),
+  "document_type" text not null check (length("document_type") >= 1 and length("document_type") <= 100),
   "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" between 1 and 20),
+  "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1914,8 +1914,8 @@ create table if not exists "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "address" text not null check (length("address") between 1 and 500),
+  "channel" text not null check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
@@ -3426,7 +3426,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:694d17ccac5d2c3db1eef31e699fe9942fb2e28e504f53645b94286848d08313
+-- @bsb-hash sha256:5db11cf41e421974088f82694562b46be9c2c682399a4516bdc029ca3401d150
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3562,12 +3562,12 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 300),
-  "days" integer not null default 30 check ("days" between 0 and 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
-  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -3584,7 +3584,7 @@ create policy payment_terms_read on "app_private"."payment_terms"
 create table if not exists "app_private"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
@@ -3626,7 +3626,7 @@ create policy companies_read on "app_private"."companies"
 create table if not exists "app_private"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
@@ -3692,9 +3692,9 @@ create table if not exists "app_private"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") between 1 and 100),
+  "document_type" text not null check (length("document_type") >= 1 and length("document_type") <= 100),
   "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" between 1 and 20),
+  "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -3714,8 +3714,8 @@ create table if not exists "app_private"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "app_private"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "address" text not null check (length("address") between 1 and 500),
+  "channel" text not null check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
@@ -5061,7 +5061,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:b4faad9d5adaa62daf773028c08779ae4f41860c2877b21c3f0d8594a0511aa0
+-- @bsb-hash sha256:d1490cc761845ca08815f63967c447076701a0259ab7f2f0ca8a57cbc611476f
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5192,12 +5192,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 300),
-  "days" integer not null default 30 check ("days" between 0 and 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
-  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -5214,7 +5214,7 @@ create policy payment_terms_read on "better_supabase"."payment_terms"
 create table if not exists "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
@@ -5256,7 +5256,7 @@ create policy companies_read on "better_supabase"."companies"
 create table if not exists "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
@@ -5322,9 +5322,9 @@ create table if not exists "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") between 1 and 100),
+  "document_type" text not null check (length("document_type") >= 1 and length("document_type") <= 100),
   "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" between 1 and 20),
+  "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -5344,8 +5344,8 @@ create table if not exists "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "address" text not null check (length("address") between 1 and 500),
+  "channel" text not null check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
@@ -6963,7 +6963,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:fea9ac370d38cdb9a38d24a326d64235f898bd6a5b1d5a6873bdd7d11bcf8689
+-- @bsb-hash sha256:d135e9fc2f76fe238f391472b1b8d114087ed0598aff32c0a26fc4d87b45ba3c
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7109,12 +7109,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.payment_terms is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."payment_terms" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."payment_terms" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."payment_terms" add column if not exists "code" text check (length("code") between 1 and 50);
-alter table "better_supabase"."payment_terms" add column if not exists "name" text check (length("name") between 1 and 300);
-alter table "better_supabase"."payment_terms" add column if not exists "days" integer not null default 30 check ("days" between 0 and 3650);
-alter table "better_supabase"."payment_terms" add column if not exists "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000);
-alter table "better_supabase"."payment_terms" add column if not exists "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650);
-alter table "better_supabase"."payment_terms" add column if not exists "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000);
+alter table "better_supabase"."payment_terms" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 50);
+alter table "better_supabase"."payment_terms" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 300);
+alter table "better_supabase"."payment_terms" add column if not exists "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650);
+alter table "better_supabase"."payment_terms" add column if not exists "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000);
+alter table "better_supabase"."payment_terms" add column if not exists "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650);
+alter table "better_supabase"."payment_terms" add column if not exists "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000);
 alter table "better_supabase"."payment_terms" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."payment_terms" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "payment_terms_tenant_id_code_key" on "better_supabase"."payment_terms" ("tenant_id", "code");
@@ -7129,7 +7129,7 @@ create policy bsb_payment_terms_select on "better_supabase"."payment_terms"
 -- better_supabase.companies is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."companies" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."companies" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."companies" add column if not exists "name" text check (length("name") between 1 and 300);
+alter table "better_supabase"."companies" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 300);
 alter table "better_supabase"."companies" add column if not exists "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$');
 alter table "better_supabase"."companies" add column if not exists "website" text;
 alter table "better_supabase"."companies" add column if not exists "vat_id" text;
@@ -7169,7 +7169,7 @@ create policy bsb_companies_select on "better_supabase"."companies"
 -- better_supabase.people is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."people" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."people" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."people" add column if not exists "name" text check (length("name") between 1 and 300);
+alter table "better_supabase"."people" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 300);
 alter table "better_supabase"."people" add column if not exists "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
 alter table "better_supabase"."people" add column if not exists "phone" text;
 alter table "better_supabase"."people" add column if not exists "title" text;
@@ -7231,9 +7231,9 @@ create policy bsb_company_people_select on "better_supabase"."company_people"
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "party_id" uuid;
-alter table "better_supabase"."document_delivery_preferences" add column if not exists "document_type" text check (length("document_type") between 1 and 100);
+alter table "better_supabase"."document_delivery_preferences" add column if not exists "document_type" text check (length("document_type") >= 1 and length("document_type") <= 100);
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "channel" text check ("channel" in ('email', 'post', 'portal'));
-alter table "better_supabase"."document_delivery_preferences" add column if not exists "copies" integer not null default 1 check ("copies" between 1 and 20);
+alter table "better_supabase"."document_delivery_preferences" add column if not exists "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20);
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "updated_at" timestamptz not null default now();
@@ -7251,8 +7251,8 @@ create policy bsb_document_delivery_preferences_select on "better_supabase"."doc
 alter table "better_supabase"."person_identities" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."person_identities" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."person_identities" add column if not exists "person_id" uuid references "better_supabase"."people" ("id") on delete cascade;
-alter table "better_supabase"."person_identities" add column if not exists "channel" text check (length("channel") between 1 and 50);
-alter table "better_supabase"."person_identities" add column if not exists "address" text check (length("address") between 1 and 500);
+alter table "better_supabase"."person_identities" add column if not exists "channel" text check (length("channel") >= 1 and length("channel") <= 50);
+alter table "better_supabase"."person_identities" add column if not exists "address" text check (length("address") >= 1 and length("address") <= 500);
 alter table "better_supabase"."person_identities" add column if not exists "verified_at" timestamptz;
 alter table "better_supabase"."person_identities" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "person_identities_tenant_id_channel_address_key" on "better_supabase"."person_identities" ("tenant_id", "channel", "address");
@@ -8596,7 +8596,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:150291b0c121217c815e3fa64ceff60ede4c2c58eefef01a084b8eab0ec5450d
+-- @bsb-hash sha256:a0560916c267d3d3418c6dfd152e9aa8fd61af9413ae786161e96d13e476fae0
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8727,12 +8727,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 300),
-  "days" integer not null default 30 check ("days" between 0 and 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
-  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "code")
@@ -8749,7 +8749,7 @@ create policy payment_terms_read on "better_supabase"."payment_terms"
 create table if not exists "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
@@ -8791,7 +8791,7 @@ create policy companies_read on "better_supabase"."companies"
 create table if not exists "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
@@ -8857,9 +8857,9 @@ create table if not exists "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") between 1 and 100),
+  "document_type" text not null check (length("document_type") >= 1 and length("document_type") <= 100),
   "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" between 1 and 20),
+  "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -8879,8 +8879,8 @@ create table if not exists "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "address" text not null check (length("address") between 1 and 500),
+  "channel" text not null check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("org_id", "channel", "address")

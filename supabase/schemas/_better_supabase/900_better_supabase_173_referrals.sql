@@ -1,6 +1,6 @@
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:711cbe8be2c913402191207b65ef0a36e067a670efad5e5f4580b7901036955b
+-- @bsb-hash sha256:b9e39010ef397114bf6ec971db5fb7def36ebb59743e10a46959cd8042a4a3d4
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,7 +74,7 @@ create table if not exists "better_supabase"."referral_codes" (
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
   "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") between 1 and 32),
+  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
   "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,

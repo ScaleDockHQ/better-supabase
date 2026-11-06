@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:b58482b28775c266cbc4ebe705884a8edd0cfdb3c62da0b36019a399386a1233
+-- @bsb-hash sha256:9b80600144649ef53679dc4384a3b6d4a798199042934894270fd64768576b3e
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."inspection_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "period_start" date not null,
   "period_end" date not null,
   "owner_id" uuid,
@@ -131,11 +131,11 @@ create table if not exists "better_supabase"."inspections" (
   "tenant_id" uuid not null,
   "program_id" uuid,
   -- AUD-2026-001, from the numbering block when it numbers inspections.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") between 1 and 63),
-  "title" text not null check (length("title") between 1 and 300),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "scope" text check ("scope" is null or length("scope") <= 10000),
   "criteria" text check ("criteria" is null or length("criteria") <= 10000),
   -- The subject audited, such as a supplier or a site.
@@ -221,8 +221,8 @@ create table if not exists "better_supabase"."inspection_findings" (
   -- 1, 2, 3 within the inspection.
   "number" integer not null check ("number" > 0),
   -- One of options.findingTypes; the functions check it.
-  "type" text not null check (length("type") between 1 and 63),
-  "title" text not null check (length("title") between 1 and 300),
+  "type" text not null check (length("type") >= 1 and length("type") <= 63),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "description" text check ("description" is null or length("description") <= 10000),
   "clause" text check ("clause" is null or length("clause") <= 200),
   "control_id" uuid,

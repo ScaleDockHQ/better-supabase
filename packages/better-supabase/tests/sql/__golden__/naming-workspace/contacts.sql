@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:875ae6adc5c4678ec9ff1a9064f8d8fe1cd3be55658fcc0207aaa63a47b62000
+-- @bsb-hash sha256:a3edee7a9373af355eddc4dd56bd9a2e9719dec14e4d4069bc5dc8f7d68860cc
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -132,12 +132,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 300),
-  "days" integer not null default 30 check ("days" between 0 and 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
-  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -154,7 +154,7 @@ create policy payment_terms_read on "better_supabase"."payment_terms"
 create table if not exists "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
@@ -196,7 +196,7 @@ create policy companies_read on "better_supabase"."companies"
 create table if not exists "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
@@ -262,9 +262,9 @@ create table if not exists "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") between 1 and 100),
+  "document_type" text not null check (length("document_type") >= 1 and length("document_type") <= 100),
   "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" between 1 and 20),
+  "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20),
   "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -284,8 +284,8 @@ create table if not exists "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "address" text not null check (length("address") between 1 and 500),
+  "channel" text not null check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")

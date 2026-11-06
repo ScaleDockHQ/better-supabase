@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:dde7ff9d32f79c0442a5aa043cec568ecbf058e974eaf7e4e379a0e9d776b1dc
+-- @bsb-hash sha256:386ad0b70466e4a7f8bf8192f1e11439f43717b7b6679dceda64ec8d9d6a431a
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -131,7 +131,7 @@ create table if not exists "better_supabase"."quotes" (
   "number" bigint not null,
   "identifier" text not null,
   "revision" integer not null default 1,
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "company_type" text,
   "company_id" text,
   "contact_type" text,
@@ -163,7 +163,7 @@ create table if not exists "better_supabase"."quotes" (
   "unpublished_changes" boolean not null default false,
   "buyer" jsonb,
   "variant_of" uuid,
-  "variant_label" text check (length("variant_label") between 1 and 100),
+  "variant_label" text check (length("variant_label") >= 1 and length("variant_label") <= 100),
   "is_selected" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -182,7 +182,7 @@ alter table "better_supabase"."quotes" add column if not exists "deposit_require
 alter table "better_supabase"."quotes" add column if not exists "unpublished_changes" boolean not null default false;
 alter table "better_supabase"."quotes" add column if not exists "buyer" jsonb;
 alter table "better_supabase"."quotes" add column if not exists "variant_of" uuid;
-alter table "better_supabase"."quotes" add column if not exists "variant_label" text check (length("variant_label") between 1 and 100);
+alter table "better_supabase"."quotes" add column if not exists "variant_label" text check (length("variant_label") >= 1 and length("variant_label") <= 100);
 alter table "better_supabase"."quotes" add column if not exists "is_selected" boolean not null default false;
 create index if not exists quotes_tenant_status_idx on "better_supabase"."quotes" ("tenant_id", "status", "created_at" desc);
 create index if not exists quotes_variant_idx on "better_supabase"."quotes" ("variant_of") where "variant_of" is not null;
@@ -406,7 +406,7 @@ create table if not exists "better_supabase"."quote_lines" (
   "parent_id" uuid not null references "better_supabase"."quotes" ("id") on delete cascade,
   "product_type" text,
   "product_id" text,
-  "description" text not null check (length("description") between 1 and 2000),
+  "description" text not null check (length("description") >= 1 and length("description") <= 2000),
   "quantity" numeric(18, 4) not null check ("quantity" > 0),
   "unit_amount" bigint not null,
   "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
@@ -421,7 +421,7 @@ create table if not exists "better_supabase"."quote_lines" (
   "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "section" text check (length("section") between 1 and 300),
+  "section" text check (length("section") >= 1 and length("section") <= 300),
   "optional" boolean not null default false,
   "selected" boolean not null default true,
   "periods" integer not null default 1 check ("periods" > 0),

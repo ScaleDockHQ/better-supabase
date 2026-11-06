@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:a9efc6942f97ff04a9880bf4aeef16e2c3e15707f74698711094f6d9c518391e
+-- @bsb-hash sha256:d3e800c2222195cf068b1d26cd5e423a53eb75e4d61423bdb8df69e0d9620842
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,14 +98,14 @@ create table if not exists "better_supabase"."case_kinds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- The capital letters case numbers start with, such as NC-2026-0001.
   "prefix" text not null check ("prefix" ~ '^[A-Z]{1,6}$'),
   -- The kind's pipeline, one per kind (pipelines scope cases by kind).
   "pipeline_id" uuid,
   "investigation_form_id" uuid,
   "effectiveness_form_id" uuid,
-  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" between 1 and 365),
+  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" >= 1 and "effectiveness_after_days" <= 365),
   "requires_root_cause" boolean not null default true,
   "requires_actions" boolean not null default true,
   "requires_effectiveness" boolean not null default false,
@@ -130,13 +130,13 @@ create table if not exists "better_supabase"."cases" (
   "tenant_id" uuid not null,
   "kind_id" uuid not null,
   -- The kind's prefix and the number numbering gives, such as NC-2026-0001.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 20000),
   -- One of options.severities and options.sources; the functions check them.
-  "severity" text check ("severity" is null or length("severity") between 1 and 41),
-  "source" text not null default 'internal' check (length("source") between 1 and 41),
+  "severity" text check ("severity" is null or length("severity") >= 1 and length("severity") <= 41),
+  "source" text not null default 'internal' check (length("source") >= 1 and length("source") <= 41),
   "reporter_id" uuid,
   "reporter_contact" jsonb check ("reporter_contact" is null or jsonb_typeof("reporter_contact") = 'object'),
   "owner_id" uuid,
@@ -1430,7 +1430,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:e32b225dc28b3d56387c048febdc278d8f851252c9059cc8224e1389c6e01e81
+-- @bsb-hash sha256:3f47c8a0135ec103ca858940b8c41bb0e300c521b79ba4ca39337180d99822e2
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1527,14 +1527,14 @@ create table if not exists "better_supabase"."case_kinds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- The capital letters case numbers start with, such as NC-2026-0001.
   "prefix" text not null check ("prefix" ~ '^[A-Z]{1,6}$'),
   -- The kind's pipeline, one per kind (pipelines scope cases by kind).
   "pipeline_id" uuid,
   "investigation_form_id" uuid,
   "effectiveness_form_id" uuid,
-  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" between 1 and 365),
+  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" >= 1 and "effectiveness_after_days" <= 365),
   "requires_root_cause" boolean not null default true,
   "requires_actions" boolean not null default true,
   "requires_effectiveness" boolean not null default false,
@@ -1559,13 +1559,13 @@ create table if not exists "better_supabase"."cases" (
   "tenant_id" uuid not null,
   "kind_id" uuid not null,
   -- The kind's prefix and the number numbering gives, such as NC-2026-0001.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 20000),
   -- One of options.severities and options.sources; the functions check them.
-  "severity" text check ("severity" is null or length("severity") between 1 and 41),
-  "source" text not null default 'internal' check (length("source") between 1 and 41),
+  "severity" text check ("severity" is null or length("severity") >= 1 and length("severity") <= 41),
+  "source" text not null default 'internal' check (length("source") >= 1 and length("source") <= 41),
   "reporter_id" uuid,
   "reporter_contact" jsonb check ("reporter_contact" is null or jsonb_typeof("reporter_contact") = 'object'),
   "owner_id" uuid,
@@ -3234,7 +3234,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:087df36250cf375ff546052b42d0b81308ddd33c7b0cf1a2b65800044c0f3604
+-- @bsb-hash sha256:00bcbb6fdc98aff98f2a253ab017e0739e5754bc93b237f88dd885f90e042502
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3336,14 +3336,14 @@ create table if not exists "app_private"."case_kinds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- The capital letters case numbers start with, such as NC-2026-0001.
   "prefix" text not null check ("prefix" ~ '^[A-Z]{1,6}$'),
   -- The kind's pipeline, one per kind (pipelines scope cases by kind).
   "pipeline_id" uuid,
   "investigation_form_id" uuid,
   "effectiveness_form_id" uuid,
-  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" between 1 and 365),
+  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" >= 1 and "effectiveness_after_days" <= 365),
   "requires_root_cause" boolean not null default true,
   "requires_actions" boolean not null default true,
   "requires_effectiveness" boolean not null default false,
@@ -3368,13 +3368,13 @@ create table if not exists "app_private"."cases" (
   "tenant_id" uuid not null,
   "kind_id" uuid not null,
   -- The kind's prefix and the number numbering gives, such as NC-2026-0001.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 20000),
   -- One of options.severities and options.sources; the functions check them.
-  "severity" text check ("severity" is null or length("severity") between 1 and 41),
-  "source" text not null default 'internal' check (length("source") between 1 and 41),
+  "severity" text check ("severity" is null or length("severity") >= 1 and length("severity") <= 41),
+  "source" text not null default 'internal' check (length("source") >= 1 and length("source") <= 41),
   "reporter_id" uuid,
   "reporter_contact" jsonb check ("reporter_contact" is null or jsonb_typeof("reporter_contact") = 'object'),
   "owner_id" uuid,
@@ -4668,7 +4668,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:9496e538f707c7a64e91f60d7ff4bb9003fe0cd629f5efa8425b50859d26ca12
+-- @bsb-hash sha256:24447dee97c415af01067d0e7deaa1faff14be731ee1758e1a3885d606217f89
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4765,14 +4765,14 @@ create table if not exists "better_supabase"."case_kinds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- The capital letters case numbers start with, such as NC-2026-0001.
   "prefix" text not null check ("prefix" ~ '^[A-Z]{1,6}$'),
   -- The kind's pipeline, one per kind (pipelines scope cases by kind).
   "pipeline_id" uuid,
   "investigation_form_id" uuid,
   "effectiveness_form_id" uuid,
-  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" between 1 and 365),
+  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" >= 1 and "effectiveness_after_days" <= 365),
   "requires_root_cause" boolean not null default true,
   "requires_actions" boolean not null default true,
   "requires_effectiveness" boolean not null default false,
@@ -4797,13 +4797,13 @@ create table if not exists "better_supabase"."cases" (
   "tenant_id" uuid not null,
   "kind_id" uuid not null,
   -- The kind's prefix and the number numbering gives, such as NC-2026-0001.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 20000),
   -- One of options.severities and options.sources; the functions check them.
-  "severity" text check ("severity" is null or length("severity") between 1 and 41),
-  "source" text not null default 'internal' check (length("source") between 1 and 41),
+  "severity" text check ("severity" is null or length("severity") >= 1 and length("severity") <= 41),
+  "source" text not null default 'internal' check (length("source") >= 1 and length("source") <= 41),
   "reporter_id" uuid,
   "reporter_contact" jsonb check ("reporter_contact" is null or jsonb_typeof("reporter_contact") = 'object'),
   "owner_id" uuid,
@@ -6351,7 +6351,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:91084cfb15bc9d6f226c13a06bc8de093cb07aa626113fdd96df7b656b9fca28
+-- @bsb-hash sha256:73f941c95ac242d367b7ef56b9abba55f548d61857606ace497d6c0205526cbc
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6448,12 +6448,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."case_kinds" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."case_kinds" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."case_kinds" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_]{0,40}$');
-alter table "better_supabase"."case_kinds" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."case_kinds" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."case_kinds" add column if not exists "prefix" text check ("prefix" ~ '^[A-Z]{1,6}$');
 alter table "better_supabase"."case_kinds" add column if not exists "pipeline_id" uuid;
 alter table "better_supabase"."case_kinds" add column if not exists "investigation_form_id" uuid;
 alter table "better_supabase"."case_kinds" add column if not exists "effectiveness_form_id" uuid;
-alter table "better_supabase"."case_kinds" add column if not exists "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" between 1 and 365);
+alter table "better_supabase"."case_kinds" add column if not exists "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" >= 1 and "effectiveness_after_days" <= 365);
 alter table "better_supabase"."case_kinds" add column if not exists "requires_root_cause" boolean not null default true;
 alter table "better_supabase"."case_kinds" add column if not exists "requires_actions" boolean not null default true;
 alter table "better_supabase"."case_kinds" add column if not exists "requires_effectiveness" boolean not null default false;
@@ -6475,12 +6475,12 @@ create policy bsb_case_kinds_read on "better_supabase"."case_kinds"
 alter table "better_supabase"."cases" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."cases" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."cases" add column if not exists "kind_id" uuid;
-alter table "better_supabase"."cases" add column if not exists "number" text check (length("number") between 1 and 100);
+alter table "better_supabase"."cases" add column if not exists "number" text check (length("number") >= 1 and length("number") <= 100);
 alter table "better_supabase"."cases" add column if not exists "sequence" bigint;
-alter table "better_supabase"."cases" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."cases" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."cases" add column if not exists "description" text check ("description" is null or length("description") <= 20000);
-alter table "better_supabase"."cases" add column if not exists "severity" text check ("severity" is null or length("severity") between 1 and 41);
-alter table "better_supabase"."cases" add column if not exists "source" text not null default 'internal' check (length("source") between 1 and 41);
+alter table "better_supabase"."cases" add column if not exists "severity" text check ("severity" is null or length("severity") >= 1 and length("severity") <= 41);
+alter table "better_supabase"."cases" add column if not exists "source" text not null default 'internal' check (length("source") >= 1 and length("source") <= 41);
 alter table "better_supabase"."cases" add column if not exists "reporter_id" uuid;
 alter table "better_supabase"."cases" add column if not exists "reporter_contact" jsonb check ("reporter_contact" is null or jsonb_typeof("reporter_contact") = 'object');
 alter table "better_supabase"."cases" add column if not exists "owner_id" uuid;
@@ -7764,7 +7764,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:f8308967b9c25c6395b6afa65d3c71df65aad68911587fef98d6eb2df869ad2c
+-- @bsb-hash sha256:2c667d2feabf56d4bf3de5fd1cfa055b570549d4e405f4ba3e34707c85f2b7f2
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7861,14 +7861,14 @@ create table if not exists "better_supabase"."case_kinds" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- The capital letters case numbers start with, such as NC-2026-0001.
   "prefix" text not null check ("prefix" ~ '^[A-Z]{1,6}$'),
   -- The kind's pipeline, one per kind (pipelines scope cases by kind).
   "pipeline_id" uuid,
   "investigation_form_id" uuid,
   "effectiveness_form_id" uuid,
-  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" between 1 and 365),
+  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" >= 1 and "effectiveness_after_days" <= 365),
   "requires_root_cause" boolean not null default true,
   "requires_actions" boolean not null default true,
   "requires_effectiveness" boolean not null default false,
@@ -7893,13 +7893,13 @@ create table if not exists "better_supabase"."cases" (
   "org_id" uuid not null,
   "kind_id" uuid not null,
   -- The kind's prefix and the number numbering gives, such as NC-2026-0001.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 20000),
   -- One of options.severities and options.sources; the functions check them.
-  "severity" text check ("severity" is null or length("severity") between 1 and 41),
-  "source" text not null default 'internal' check (length("source") between 1 and 41),
+  "severity" text check ("severity" is null or length("severity") >= 1 and length("severity") <= 41),
+  "source" text not null default 'internal' check (length("source") >= 1 and length("source") <= 41),
   "reporter_id" uuid,
   "reporter_contact" jsonb check ("reporter_contact" is null or jsonb_typeof("reporter_contact") = 'object'),
   "owner_id" uuid,

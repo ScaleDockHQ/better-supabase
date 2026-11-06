@@ -1,6 +1,6 @@
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:47fc76e9ef44a55860262f5b9e8e6f9424f2b97182e698882a55784a1d4d54f6
+-- @bsb-hash sha256:aac431d8ec77f9c96eebc9c19ff360f2e388a275b24bdedef32439b544e89851
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -97,14 +97,14 @@ create table if not exists "better_supabase"."case_kinds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- The capital letters case numbers start with, such as NC-2026-0001.
   "prefix" text not null check ("prefix" ~ '^[A-Z]{1,6}$'),
   -- The kind's pipeline, one per kind (pipelines scope cases by kind).
   "pipeline_id" uuid,
   "investigation_form_id" uuid,
   "effectiveness_form_id" uuid,
-  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" between 1 and 365),
+  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" >= 1 and "effectiveness_after_days" <= 365),
   "requires_root_cause" boolean not null default true,
   "requires_actions" boolean not null default true,
   "requires_effectiveness" boolean not null default false,
@@ -129,13 +129,13 @@ create table if not exists "better_supabase"."cases" (
   "tenant_id" uuid not null,
   "kind_id" uuid not null,
   -- The kind's prefix and the number numbering gives, such as NC-2026-0001.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 20000),
   -- One of options.severities and options.sources; the functions check them.
-  "severity" text check ("severity" is null or length("severity") between 1 and 41),
-  "source" text not null default 'internal' check (length("source") between 1 and 41),
+  "severity" text check ("severity" is null or length("severity") >= 1 and length("severity") <= 41),
+  "source" text not null default 'internal' check (length("source") >= 1 and length("source") <= 41),
   "reporter_id" uuid,
   "reporter_contact" jsonb check ("reporter_contact" is null or jsonb_typeof("reporter_contact") = 'object'),
   "owner_id" uuid,

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:dd4dbb0a1ef06c0297713392edd2a44935aa7a23e6b47a0c14c280dd4b0793da
+-- @bsb-hash sha256:18c45e187b1bd595bb34f300e0393af3e100e35ebdf1d4838edb3975f938dacc
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -116,7 +116,7 @@ create table if not exists "better_supabase"."rfqs" (
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "due_at" timestamptz,
@@ -149,7 +149,7 @@ create table if not exists "better_supabase"."rfq_lines" (
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
   "ordinal" integer not null check ("ordinal" > 0),
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "variant_id" uuid,
   "quantity" numeric not null check ("quantity" > 0),
   "unit" text check ("unit" is null or length("unit") <= 40),
@@ -170,8 +170,8 @@ create table if not exists "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "supplier_type" text not null check (length("supplier_type") between 1 and 100),
-  "supplier_id" text not null check (length("supplier_id") between 1 and 200),
+  "supplier_type" text not null check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
+  "supplier_id" text not null check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
   "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted')),
   "invited_at" timestamptz not null default now(),
   "responded_at" timestamptz,
@@ -1081,7 +1081,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:b7934d44e6ceabb38dc17dc3141f888c190d9a5fe17ee9719bf4b3e3b93416f6
+-- @bsb-hash sha256:c578002c9648c097911e25a594a9fe8a0426d2da77e9afac406893fb18178ee9
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1196,7 +1196,7 @@ create table if not exists "better_supabase"."rfqs" (
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "due_at" timestamptz,
@@ -1229,7 +1229,7 @@ create table if not exists "better_supabase"."rfq_lines" (
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
   "ordinal" integer not null check ("ordinal" > 0),
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "variant_id" uuid,
   "quantity" numeric not null check ("quantity" > 0),
   "unit" text check ("unit" is null or length("unit") <= 40),
@@ -1250,8 +1250,8 @@ create table if not exists "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "supplier_type" text not null check (length("supplier_type") between 1 and 100),
-  "supplier_id" text not null check (length("supplier_id") between 1 and 200),
+  "supplier_type" text not null check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
+  "supplier_id" text not null check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
   "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted')),
   "invited_at" timestamptz not null default now(),
   "responded_at" timestamptz,
@@ -2256,7 +2256,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:3e50b08b56e8bb6de0702c00a5e121d19f511f52d93f290e1ee5370875167743
+-- @bsb-hash sha256:02082642b33c83dc32d1222221cc80136b6063b4fbb21b7c1568559eb41cf719
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2376,7 +2376,7 @@ create table if not exists "app_private"."rfqs" (
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "due_at" timestamptz,
@@ -2409,7 +2409,7 @@ create table if not exists "app_private"."rfq_lines" (
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "app_private"."rfqs" ("id") on delete cascade,
   "ordinal" integer not null check ("ordinal" > 0),
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "variant_id" uuid,
   "quantity" numeric not null check ("quantity" > 0),
   "unit" text check ("unit" is null or length("unit") <= 40),
@@ -2430,8 +2430,8 @@ create table if not exists "app_private"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "app_private"."rfqs" ("id") on delete cascade,
-  "supplier_type" text not null check (length("supplier_type") between 1 and 100),
-  "supplier_id" text not null check (length("supplier_id") between 1 and 200),
+  "supplier_type" text not null check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
+  "supplier_id" text not null check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
   "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted')),
   "invited_at" timestamptz not null default now(),
   "responded_at" timestamptz,
@@ -3341,7 +3341,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:3210a5924eb676909225e41bc8184efec0184621ed3fec931d56f3e49dad170c
+-- @bsb-hash sha256:edb3c8a87f515e2fe99104442620ec77c663fa284a9a69f4707f08e491b9e703
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3456,7 +3456,7 @@ create table if not exists "better_supabase"."rfqs" (
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "due_at" timestamptz,
@@ -3489,7 +3489,7 @@ create table if not exists "better_supabase"."rfq_lines" (
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
   "ordinal" integer not null check ("ordinal" > 0),
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "variant_id" uuid,
   "quantity" numeric not null check ("quantity" > 0),
   "unit" text check ("unit" is null or length("unit") <= 40),
@@ -3510,8 +3510,8 @@ create table if not exists "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "supplier_type" text not null check (length("supplier_type") between 1 and 100),
-  "supplier_id" text not null check (length("supplier_id") between 1 and 200),
+  "supplier_type" text not null check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
+  "supplier_id" text not null check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
   "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted')),
   "invited_at" timestamptz not null default now(),
   "responded_at" timestamptz,
@@ -4574,7 +4574,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:0b6ea32c87749e9aed8f4dc1a228a90cd9d86062730f63c77e34fda122495586
+-- @bsb-hash sha256:b4158e2cf94016bfbc128faa122dfe8e81a364d50b69c329cb4bb68561360882
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4689,7 +4689,7 @@ alter table "better_supabase"."rfqs" add column if not exists "id" uuid default 
 alter table "better_supabase"."rfqs" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."rfqs" add column if not exists "number" text;
 alter table "better_supabase"."rfqs" add column if not exists "sequence" bigint;
-alter table "better_supabase"."rfqs" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."rfqs" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."rfqs" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled'));
 alter table "better_supabase"."rfqs" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."rfqs" add column if not exists "due_at" timestamptz;
@@ -4720,7 +4720,7 @@ alter table "better_supabase"."rfq_lines" add column if not exists "id" uuid def
 alter table "better_supabase"."rfq_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."rfq_lines" add column if not exists "rfq_id" uuid;
 alter table "better_supabase"."rfq_lines" add column if not exists "ordinal" integer check ("ordinal" > 0);
-alter table "better_supabase"."rfq_lines" add column if not exists "description" text check (length("description") between 1 and 500);
+alter table "better_supabase"."rfq_lines" add column if not exists "description" text check (length("description") >= 1 and length("description") <= 500);
 alter table "better_supabase"."rfq_lines" add column if not exists "variant_id" uuid;
 alter table "better_supabase"."rfq_lines" add column if not exists "quantity" numeric check ("quantity" > 0);
 alter table "better_supabase"."rfq_lines" add column if not exists "unit" text check ("unit" is null or length("unit") <= 40);
@@ -4739,8 +4739,8 @@ create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
 alter table "better_supabase"."rfq_suppliers" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."rfq_suppliers" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."rfq_suppliers" add column if not exists "rfq_id" uuid;
-alter table "better_supabase"."rfq_suppliers" add column if not exists "supplier_type" text check (length("supplier_type") between 1 and 100);
-alter table "better_supabase"."rfq_suppliers" add column if not exists "supplier_id" text check (length("supplier_id") between 1 and 200);
+alter table "better_supabase"."rfq_suppliers" add column if not exists "supplier_type" text check (length("supplier_type") >= 1 and length("supplier_type") <= 100);
+alter table "better_supabase"."rfq_suppliers" add column if not exists "supplier_id" text check (length("supplier_id") >= 1 and length("supplier_id") <= 200);
 alter table "better_supabase"."rfq_suppliers" add column if not exists "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted'));
 alter table "better_supabase"."rfq_suppliers" add column if not exists "invited_at" timestamptz not null default now();
 alter table "better_supabase"."rfq_suppliers" add column if not exists "responded_at" timestamptz;
@@ -5644,7 +5644,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:569543b38eada688f8e60825c89f88a96f7820009174bdd1ce66f8d3346802c9
+-- @bsb-hash sha256:2bcf5101d89f9ca89ee07081410e832272df9b7439736ad2caff20ba808c7337
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5759,7 +5759,7 @@ create table if not exists "better_supabase"."rfqs" (
   "org_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "due_at" timestamptz,
@@ -5792,7 +5792,7 @@ create table if not exists "better_supabase"."rfq_lines" (
   "org_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
   "ordinal" integer not null check ("ordinal" > 0),
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "variant_id" uuid,
   "quantity" numeric not null check ("quantity" > 0),
   "unit" text check ("unit" is null or length("unit") <= 40),
@@ -5813,8 +5813,8 @@ create table if not exists "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "supplier_type" text not null check (length("supplier_type") between 1 and 100),
-  "supplier_id" text not null check (length("supplier_id") between 1 and 200),
+  "supplier_type" text not null check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
+  "supplier_id" text not null check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
   "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted')),
   "invited_at" timestamptz not null default now(),
   "responded_at" timestamptz,

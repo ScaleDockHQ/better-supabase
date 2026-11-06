@@ -1,6 +1,6 @@
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:3567b622ff6750604b37768f1ffb4342811eef9e1b3f8fa71cd7e90c55196b09
+-- @bsb-hash sha256:a2c961266cc71030b5035cbe3fc4805347e24f7247f64941f32c630fd0fba134
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -71,7 +71,7 @@ create table if not exists "better_supabase"."agents" (
   "organization_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text not null default '' check (length("description") <= 2000),
   "instructions" text not null default '' check (length("instructions") <= 100000),
   "model" text,
@@ -119,7 +119,7 @@ create policy agent_installs_read on "better_supabase"."agent_installs"
 create table if not exists "better_supabase"."agent_ratings" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "comment" text check (length("comment") <= 2000),
   "created_at" timestamptz not null default now(),
   primary key ("agent_id", "user_id")
@@ -138,7 +138,7 @@ create policy agent_ratings_read on "better_supabase"."agent_ratings"
 create table if not exists "better_supabase"."agent_skills" (
   "id" uuid primary key default gen_random_uuid(),
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   -- Skill files kept in Storage (a list of {path, object}), the hash of their
   -- bytes, and the reference each provider returned for that hash.

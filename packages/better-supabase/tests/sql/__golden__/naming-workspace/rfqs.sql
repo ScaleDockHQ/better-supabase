@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:2a0e171e3e26650dc1d6af2dfccee9f06eb0ca589cef3503eeca32419ca7bdd4
+-- @bsb-hash sha256:73238dc3ca7324853ac8fe058c5b76a79eb6d280ef5c1bdedfa55a327ff487a8
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -116,7 +116,7 @@ create table if not exists "better_supabase"."rfqs" (
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "due_at" timestamptz,
@@ -149,7 +149,7 @@ create table if not exists "better_supabase"."rfq_lines" (
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
   "ordinal" integer not null check ("ordinal" > 0),
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "variant_id" uuid,
   "quantity" numeric not null check ("quantity" > 0),
   "unit" text check ("unit" is null or length("unit") <= 40),
@@ -170,8 +170,8 @@ create table if not exists "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "supplier_type" text not null check (length("supplier_type") between 1 and 100),
-  "supplier_id" text not null check (length("supplier_id") between 1 and 200),
+  "supplier_type" text not null check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
+  "supplier_id" text not null check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
   "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted')),
   "invited_at" timestamptz not null default now(),
   "responded_at" timestamptz,

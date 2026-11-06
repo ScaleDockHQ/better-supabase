@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:04ab57ef768728566b5461f901185233855e1d0f002d3a7870775608cd7672d5
+-- @bsb-hash sha256:6aba2a32479b1c8b41675279e128937edb0a3e6bc8183371fdc7f5440d60be8d
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,7 +77,7 @@ create table if not exists "better_supabase"."prescriptions" (
   "snapshot" jsonb,
   "signed_by" uuid,
   "signed_at" timestamptz,
-  "gateway" text check ("gateway" is null or length("gateway") between 1 and 100),
+  "gateway" text check ("gateway" is null or length("gateway") >= 1 and length("gateway") <= 100),
   "gateway_reference" text check ("gateway_reference" is null or length("gateway_reference") <= 200),
   "sent_at" timestamptz,
   "delivery_error" text check ("delivery_error" is null or length("delivery_error") <= 1000),
@@ -500,7 +500,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:86e759ef7deb9e462c6ea6c42610a916858f5054909b850ac8139fbb927f04a2
+-- @bsb-hash sha256:f891891817d542019ce202e8e597754d552a4cef3544d22a0025e9165385ebde
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -576,7 +576,7 @@ create table if not exists "better_supabase"."prescriptions" (
   "snapshot" jsonb,
   "signed_by" uuid,
   "signed_at" timestamptz,
-  "gateway" text check ("gateway" is null or length("gateway") between 1 and 100),
+  "gateway" text check ("gateway" is null or length("gateway") >= 1 and length("gateway") <= 100),
   "gateway_reference" text check ("gateway_reference" is null or length("gateway_reference") <= 200),
   "sent_at" timestamptz,
   "delivery_error" text check ("delivery_error" is null or length("delivery_error") <= 1000),
@@ -1066,7 +1066,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:c2e603278d06eaaef41d9edb087d3bd2a2cac4492c8dde5531f670fd73fa54dc
+-- @bsb-hash sha256:d07468978a8ced0df38bcc09a33eab7c5a8b9123d2222322305af9774d287897
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1147,7 +1147,7 @@ create table if not exists "app_private"."prescriptions" (
   "snapshot" jsonb,
   "signed_by" uuid,
   "signed_at" timestamptz,
-  "gateway" text check ("gateway" is null or length("gateway") between 1 and 100),
+  "gateway" text check ("gateway" is null or length("gateway") >= 1 and length("gateway") <= 100),
   "gateway_reference" text check ("gateway_reference" is null or length("gateway_reference") <= 200),
   "sent_at" timestamptz,
   "delivery_error" text check ("delivery_error" is null or length("delivery_error") <= 1000),
@@ -1570,7 +1570,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:365864afdbd912cdf5cd27728b09c9c009a3f2a94e6e0ff507a49c0b0fcf1785
+-- @bsb-hash sha256:7bd30da6fc6e5839af319e479737a5f8fde32759f8ead57064b5627e20defbe0
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1646,7 +1646,7 @@ create table if not exists "better_supabase"."prescriptions" (
   "snapshot" jsonb,
   "signed_by" uuid,
   "signed_at" timestamptz,
-  "gateway" text check ("gateway" is null or length("gateway") between 1 and 100),
+  "gateway" text check ("gateway" is null or length("gateway") >= 1 and length("gateway") <= 100),
   "gateway_reference" text check ("gateway_reference" is null or length("gateway_reference") <= 200),
   "sent_at" timestamptz,
   "delivery_error" text check ("delivery_error" is null or length("delivery_error") <= 1000),
@@ -2157,7 +2157,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:d5f39c8256832baae462e4424d0ad1ce3d15ff76e021e50d96a5151ad744dbff
+-- @bsb-hash sha256:eb829ac87f1b7016b329b48a07133b1a3542f6e802e8df77c8e467336b584d6b
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2233,7 +2233,7 @@ alter table "better_supabase"."prescriptions" add column if not exists "status" 
 alter table "better_supabase"."prescriptions" add column if not exists "snapshot" jsonb;
 alter table "better_supabase"."prescriptions" add column if not exists "signed_by" uuid;
 alter table "better_supabase"."prescriptions" add column if not exists "signed_at" timestamptz;
-alter table "better_supabase"."prescriptions" add column if not exists "gateway" text check ("gateway" is null or length("gateway") between 1 and 100);
+alter table "better_supabase"."prescriptions" add column if not exists "gateway" text check ("gateway" is null or length("gateway") >= 1 and length("gateway") <= 100);
 alter table "better_supabase"."prescriptions" add column if not exists "gateway_reference" text check ("gateway_reference" is null or length("gateway_reference") <= 200);
 alter table "better_supabase"."prescriptions" add column if not exists "sent_at" timestamptz;
 alter table "better_supabase"."prescriptions" add column if not exists "delivery_error" text check ("delivery_error" is null or length("delivery_error") <= 1000);
@@ -2649,7 +2649,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:5a9f1dc6e59d2cd3042ed6451730a4f82b4d8d9a2c2c5e878a520ed728e4027c
+-- @bsb-hash sha256:ad35522ddfa7256cfbcf7be1a23a40ee702747d9860d7f38ec850e6a7e7d1302
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2725,7 +2725,7 @@ create table if not exists "better_supabase"."prescriptions" (
   "snapshot" jsonb,
   "signed_by" uuid,
   "signed_at" timestamptz,
-  "gateway" text check ("gateway" is null or length("gateway") between 1 and 100),
+  "gateway" text check ("gateway" is null or length("gateway") >= 1 and length("gateway") <= 100),
   "gateway_reference" text check ("gateway_reference" is null or length("gateway_reference") <= 200),
   "sent_at" timestamptz,
   "delivery_error" text check ("delivery_error" is null or length("delivery_error") <= 1000),

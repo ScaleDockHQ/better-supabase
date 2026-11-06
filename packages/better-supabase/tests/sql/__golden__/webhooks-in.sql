@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:c31ebf383838414e99aa5c5c5e882414ce0a3fea1f125ce45b4ebd361a12e099
+-- @bsb-hash sha256:3db8c105ce85d7f046808cdaa28d6081710b29c1157dfe3085f45b71a5bc2207
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,13 +79,13 @@ create table if not exists "better_supabase"."incoming_webhooks" (
   last_status integer,
   metadata jsonb not null default '{}',
   subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  subject_id text check (length(subject_id) between 1 and 200),
+  subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200),
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 alter table "better_supabase"."incoming_webhooks" add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) between 1 and 200);
+alter table "better_supabase"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200);
 alter table "better_supabase"."incoming_webhooks" add column if not exists secret_id uuid;
 alter table "better_supabase"."incoming_webhooks" drop constraint if exists incoming_webhooks_verify_check;
 alter table "better_supabase"."incoming_webhooks" add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));
@@ -570,7 +570,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:0c90da20d1795fdff1c2bfeda75906d688857def740585915e73f7f87117f4d6
+-- @bsb-hash sha256:674722e5551dcaf2df1ad2c62096bcfcc5f81c772e67d56e4cd8de52a2db0191
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -648,13 +648,13 @@ create table if not exists "better_supabase"."incoming_webhooks" (
   last_status integer,
   metadata jsonb not null default '{}',
   subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  subject_id text check (length(subject_id) between 1 and 200),
+  subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200),
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 alter table "better_supabase"."incoming_webhooks" add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) between 1 and 200);
+alter table "better_supabase"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200);
 alter table "better_supabase"."incoming_webhooks" add column if not exists secret_id uuid;
 alter table "better_supabase"."incoming_webhooks" drop constraint if exists incoming_webhooks_verify_check;
 alter table "better_supabase"."incoming_webhooks" add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));
@@ -1187,7 +1187,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:a81d7c872c82aa5049c2f4d33eecc73b631116df84b5727f8742c373b5a9772a
+-- @bsb-hash sha256:ad424a1e0c9f2b83c6c2176bc45bae680c25222f7eccb88331a5668c8c7667e9
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1270,13 +1270,13 @@ create table if not exists "app_private"."incoming_webhooks" (
   last_status integer,
   metadata jsonb not null default '{}',
   subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  subject_id text check (length(subject_id) between 1 and 200),
+  subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200),
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 alter table "app_private"."incoming_webhooks" add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "app_private"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) between 1 and 200);
+alter table "app_private"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200);
 alter table "app_private"."incoming_webhooks" add column if not exists secret_id uuid;
 alter table "app_private"."incoming_webhooks" drop constraint if exists incoming_webhooks_verify_check;
 alter table "app_private"."incoming_webhooks" add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));
@@ -1761,7 +1761,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:8ec8e99c0a52c4e3c8b785f60e619cf7d8cbe0db8524274502a737661c0be04e
+-- @bsb-hash sha256:d1eb962f353f768d2ba9bf709347f2cbb823b510cc34b943b50be1149dca47bd
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1839,13 +1839,13 @@ create table if not exists "better_supabase"."incoming_webhooks" (
   last_status integer,
   metadata jsonb not null default '{}',
   subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  subject_id text check (length(subject_id) between 1 and 200),
+  subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200),
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 alter table "better_supabase"."incoming_webhooks" add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) between 1 and 200);
+alter table "better_supabase"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200);
 alter table "better_supabase"."incoming_webhooks" add column if not exists secret_id uuid;
 alter table "better_supabase"."incoming_webhooks" drop constraint if exists incoming_webhooks_verify_check;
 alter table "better_supabase"."incoming_webhooks" add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));

@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:9008a79073fe02b8bf1b6d57232e0ab4c892b54400e058bcc798a1b8ca5ae042
+-- @bsb-hash sha256:138b63f7a5296f759474bf1e2ea5d0c71a30c3634fae0a138148bf28fff659d4
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -120,13 +120,13 @@ begin
   end if;
 end;
 $$;
-alter table "better_supabase"."drive_nodes" add column if not exists "document_number" text check (length("document_number") between 1 and 100);
-alter table "better_supabase"."drive_nodes" add column if not exists "document_type" text check (length("document_type") between 1 and 63);
+alter table "better_supabase"."drive_nodes" add column if not exists "document_number" text check (length("document_number") >= 1 and length("document_number") <= 100);
+alter table "better_supabase"."drive_nodes" add column if not exists "document_type" text check (length("document_type") >= 1 and length("document_type") <= 63);
 alter table "better_supabase"."drive_nodes" add column if not exists "document_status" text check ("document_status" in ('draft', 'in_review', 'effective', 'obsolete'));
 alter table "better_supabase"."drive_nodes" add column if not exists "document_owner_id" uuid;
 alter table "better_supabase"."drive_nodes" add column if not exists "effective_version_id" uuid;
 alter table "better_supabase"."drive_nodes" add column if not exists "effective_from" timestamptz;
-alter table "better_supabase"."drive_nodes" add column if not exists "review_interval_months" integer check ("review_interval_months" between 1 and 120);
+alter table "better_supabase"."drive_nodes" add column if not exists "review_interval_months" integer check ("review_interval_months" >= 1 and "review_interval_months" <= 120);
 alter table "better_supabase"."drive_nodes" add column if not exists "next_review_on" date;
 alter table "better_supabase"."drive_nodes" add column if not exists "review_notified_for" date;
 do $$

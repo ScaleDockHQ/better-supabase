@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:706e0fb650d4a3ec9ed6a43df221f77ae7d2b48933c4030cf36c59c26b297315
+-- @bsb-hash sha256:87a1b47fe9846441a5067f4037e03bf8d47ba9aaaaeda55bb67d7dd6eec57e97
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -82,7 +82,7 @@ create table if not exists "better_supabase"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
   "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
@@ -106,7 +106,7 @@ create table if not exists "better_supabase"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "note" text check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
@@ -139,7 +139,7 @@ create table if not exists "better_supabase"."expense_lines" (
   "report_id" uuid not null references "better_supabase"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "merchant" text check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
   "amount" bigint not null check ("amount" > 0),

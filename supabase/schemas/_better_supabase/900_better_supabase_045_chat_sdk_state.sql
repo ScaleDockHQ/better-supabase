@@ -1,6 +1,6 @@
 -- better-supabase module: chat-sdk-state
 -- @bsb-block chat-sdk-state@2 managed
--- @bsb-hash sha256:87d574cd845ab04e4f0c88a6dbcf31e259dd86f9247c80f8f98a57c6b92c3423
+-- @bsb-hash sha256:bad3b258d34d3ed19c85cfd530faa1975415b5d7b9e208cf914d2b3b1062dfbc
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -97,8 +97,8 @@ grant all on "better_supabase"."chat_state_queues" to service_role;
 create table if not exists "better_supabase"."chat_installations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "adapter" text not null check (length("adapter") between 1 and 100),
-  "external_id" text not null check (length("external_id") between 1 and 500),
+  "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
+  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 500),
   "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
   "metadata" jsonb not null default '{}'::jsonb,
   "installed_by" uuid references auth.users (id) on delete set null,

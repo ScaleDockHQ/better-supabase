@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:47c96b7d36ef1549c4f86be55bbd0cb4ebd57dcb62dfd3b10f2e625e221c0c32
+-- @bsb-hash sha256:67f9f4e8f16fbf1732d985ee0d08e4b131fa3a837f2ad083720d368a6888a709
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,9 +100,9 @@ create table if not exists "better_supabase"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
-  "licensee" text not null check (length("licensee") between 1 and 200),
-  "territory" text check ("territory" is null or length("territory") between 1 and 100),
-  "channel" text check ("channel" is null or length("channel") between 1 and 100),
+  "licensee" text not null check (length("licensee") >= 1 and length("licensee") <= 200),
+  "territory" text check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
+  "channel" text check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
   "starts_on" date not null default current_date,
   "expires_on" date,
   "note" text check ("note" is null or length("note") <= 2000),

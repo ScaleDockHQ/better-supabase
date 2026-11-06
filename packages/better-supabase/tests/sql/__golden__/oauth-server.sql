@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:8e8a9f38db3cc3f4bd335a0ae66dbfe8853d0b8dd72c35a24eae8c4962795bda
+-- @bsb-hash sha256:5a278966715275c95bb6dbb20219e8877306f600af313f99804b52e289ff25c8
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -119,7 +119,7 @@ create table if not exists "better_supabase"."oauth_device_codes" (
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade,
-  "poll_interval" integer not null default 5 check ("poll_interval" between 1 and 300),
+  "poll_interval" integer not null default 5 check ("poll_interval" >= 1 and "poll_interval" <= 300),
   "last_polled_at" timestamptz,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
@@ -137,7 +137,7 @@ revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenti
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
 create table if not exists "better_supabase"."oauth_revocations" (
-  "jti" text primary key check (length("jti") between 1 and 256),
+  "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
@@ -869,7 +869,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:6a7e4f83ff5c7da2de1cb0605aaaf2af7da045723435738124401abbfc6233ba
+-- @bsb-hash sha256:fd9d19d9577d11bcc4983ae2785358b2591f680f997a832bd3727558cd967215
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -987,7 +987,7 @@ create table if not exists "better_supabase"."oauth_device_codes" (
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade,
-  "poll_interval" integer not null default 5 check ("poll_interval" between 1 and 300),
+  "poll_interval" integer not null default 5 check ("poll_interval" >= 1 and "poll_interval" <= 300),
   "last_polled_at" timestamptz,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
@@ -1005,7 +1005,7 @@ revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenti
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
 create table if not exists "better_supabase"."oauth_revocations" (
-  "jti" text primary key check (length("jti") between 1 and 256),
+  "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
@@ -1783,7 +1783,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:1d72d0250ef85316877acdc30d51453eae37e8483e8212b73e9ea88dffcc765d
+-- @bsb-hash sha256:42f3e9f022edb7f28053c58803190c1f438fad76bc4d06461624c14e0b2f3d82
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1906,7 +1906,7 @@ create table if not exists "app_private"."oauth_device_codes" (
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "app_private"."oauth_grants" ("id") on delete cascade,
-  "poll_interval" integer not null default 5 check ("poll_interval" between 1 and 300),
+  "poll_interval" integer not null default 5 check ("poll_interval" >= 1 and "poll_interval" <= 300),
   "last_polled_at" timestamptz,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
@@ -1924,7 +1924,7 @@ revoke all on "app_private"."oauth_device_codes" from public, anon, authenticate
 grant all on "app_private"."oauth_device_codes" to service_role;
 
 create table if not exists "app_private"."oauth_revocations" (
-  "jti" text primary key check (length("jti") between 1 and 256),
+  "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
@@ -2656,7 +2656,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:ece0e15b772e8aa9aab5ff4062ffe0473099b947ca323e1cb63c8cfaf4f076a6
+-- @bsb-hash sha256:fc2100a114de94cd919c6a3bedc81f4f10174e602ecc6d5104431e8d77457fc9
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2774,7 +2774,7 @@ create table if not exists "better_supabase"."oauth_device_codes" (
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade,
-  "poll_interval" integer not null default 5 check ("poll_interval" between 1 and 300),
+  "poll_interval" integer not null default 5 check ("poll_interval" >= 1 and "poll_interval" <= 300),
   "last_polled_at" timestamptz,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
@@ -2792,7 +2792,7 @@ revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenti
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
 create table if not exists "better_supabase"."oauth_revocations" (
-  "jti" text primary key check (length("jti") between 1 and 256),
+  "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
@@ -3739,7 +3739,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:f3b2db264efc1d2b18be89abfba6ddbfd268c560bbe2587f1298a719353a24c3
+-- @bsb-hash sha256:4a65b0e18c156a9ae43371d75e0858b9a3e183cf7c80030dfb2f1bafc621edf2
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3863,7 +3863,7 @@ alter table "better_supabase"."oauth_device_codes" add column if not exists "res
 alter table "better_supabase"."oauth_device_codes" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied'));
 alter table "better_supabase"."oauth_device_codes" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."oauth_device_codes" add column if not exists "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade;
-alter table "better_supabase"."oauth_device_codes" add column if not exists "poll_interval" integer not null default 5 check ("poll_interval" between 1 and 300);
+alter table "better_supabase"."oauth_device_codes" add column if not exists "poll_interval" integer not null default 5 check ("poll_interval" >= 1 and "poll_interval" <= 300);
 alter table "better_supabase"."oauth_device_codes" add column if not exists "last_polled_at" timestamptz;
 alter table "better_supabase"."oauth_device_codes" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."oauth_device_codes" add column if not exists "consumed_at" timestamptz;
@@ -3877,7 +3877,7 @@ alter table "better_supabase"."oauth_device_codes" enable row level security;
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
 -- better_supabase.oauth_revocations is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."oauth_revocations" add column if not exists "jti" text check (length("jti") between 1 and 256);
+alter table "better_supabase"."oauth_revocations" add column if not exists "jti" text check (length("jti") >= 1 and length("jti") <= 256);
 alter table "better_supabase"."oauth_revocations" add column if not exists "grant_id" uuid;
 alter table "better_supabase"."oauth_revocations" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."oauth_revocations" add column if not exists "created_at" timestamptz not null default now();

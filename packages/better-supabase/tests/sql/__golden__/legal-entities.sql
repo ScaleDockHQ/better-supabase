@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:c949792c413106121ecb6dd62555b5492d329572c430a9e78bad741d3f15943d
+-- @bsb-hash sha256:ef7619be7edda2d19a18fd4927eeea0e943b3965b2642787cd11a0dc5d500914
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,12 +74,12 @@ create table if not exists "better_supabase"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") between 1 and 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") between 1 and 50),
-  "iban" text check ("iban" is null or length("iban") between 1 and 34),
-  "bic" text check ("bic" is null or length("bic") between 1 and 11),
+  "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid,
   "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.
@@ -637,7 +637,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:8f742a958203517110ddba2671aaba37964a26ab10f0a5345bb12b0ce724f44e
+-- @bsb-hash sha256:fdb773e3534c0cfe2f0a2a92e767f402bf049feb26947f3d31f94736e2897e4a
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -710,12 +710,12 @@ create table if not exists "better_supabase"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") between 1 and 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") between 1 and 50),
-  "iban" text check ("iban" is null or length("iban") between 1 and 34),
-  "bic" text check ("bic" is null or length("bic") between 1 and 11),
+  "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid references "better_supabase"."attachments" ("id") on delete set null,
   "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.
@@ -1455,7 +1455,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:06fe75eb78ea7acc0e520bf632430cc1a278f3d96436a500d2d3048d7fd6f583
+-- @bsb-hash sha256:37e841b335afd153a52b911cb5608a75c2d5f67d62c432774649154647ae4121
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1533,12 +1533,12 @@ create table if not exists "app_private"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") between 1 and 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") between 1 and 50),
-  "iban" text check ("iban" is null or length("iban") between 1 and 34),
-  "bic" text check ("bic" is null or length("bic") between 1 and 11),
+  "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid,
   "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.
@@ -2096,7 +2096,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:a0f5649031ca3aa2ebf1ffe8b6c65b8e5fd28d528a61b479cc6053000e27d73f
+-- @bsb-hash sha256:ee4801d2afd602e54d5a2a4c0f1934d9ece9de0d42a8a43a1bf509df0bc01f61
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2169,12 +2169,12 @@ create table if not exists "better_supabase"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") between 1 and 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") between 1 and 50),
-  "iban" text check ("iban" is null or length("iban") between 1 and 34),
-  "bic" text check ("bic" is null or length("bic") between 1 and 11),
+  "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid,
   "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.
@@ -2859,7 +2859,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:fe63b4f45d0f2b756e7db1470eb0241fced0ce3b27678f32725a35e19ed6f035
+-- @bsb-hash sha256:6a51e5969ebc0182631f840682334161b50d9d5744327d1fb19586f0696e18d4
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2932,12 +2932,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."legal_entities" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."legal_entities" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."legal_entities" add column if not exists "code" text check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$');
-alter table "better_supabase"."legal_entities" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."legal_entities" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."legal_entities" add column if not exists "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object');
-alter table "better_supabase"."legal_entities" add column if not exists "vat_number" text check ("vat_number" is null or length("vat_number") between 1 and 50);
-alter table "better_supabase"."legal_entities" add column if not exists "coc_number" text check ("coc_number" is null or length("coc_number") between 1 and 50);
-alter table "better_supabase"."legal_entities" add column if not exists "iban" text check ("iban" is null or length("iban") between 1 and 34);
-alter table "better_supabase"."legal_entities" add column if not exists "bic" text check ("bic" is null or length("bic") between 1 and 11);
+alter table "better_supabase"."legal_entities" add column if not exists "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50);
+alter table "better_supabase"."legal_entities" add column if not exists "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50);
+alter table "better_supabase"."legal_entities" add column if not exists "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34);
+alter table "better_supabase"."legal_entities" add column if not exists "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11);
 alter table "better_supabase"."legal_entities" add column if not exists "logo_attachment_id" uuid;
 alter table "better_supabase"."legal_entities" add column if not exists "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."legal_entities" add column if not exists "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb check (jsonb_typeof("fiscal") = 'object');
@@ -3486,7 +3486,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:a5ed21146e7367b3a296dc4fcdab5f46f2609167611507c35b9359919c7cd99c
+-- @bsb-hash sha256:9e6d557f46d4c1d922ace47c3b05a50e72f5173708f6068bdf31c8e78a13d191
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3559,12 +3559,12 @@ create table if not exists "better_supabase"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") between 1 and 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") between 1 and 50),
-  "iban" text check ("iban" is null or length("iban") between 1 and 34),
-  "bic" text check ("bic" is null or length("bic") between 1 and 11),
+  "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid,
   "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.

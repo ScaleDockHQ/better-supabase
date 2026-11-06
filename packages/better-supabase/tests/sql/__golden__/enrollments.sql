@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:3bda4a81d350df0b53d963132297a48c6dbe677353e58272d354450d74c5a9d6
+-- @bsb-hash sha256:f7d5279954d9e4171c52bd833faf69c9d85154e7377f55421fcfa3cd3f3b7064
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,7 +76,7 @@ create table if not exists "better_supabase"."enrollment_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   -- The subject types it enrolls; empty enrolls any.
   "subject_types" text[] not null default '{}',
@@ -95,10 +95,10 @@ create table if not exists "better_supabase"."enrollment_programs" (
 create table if not exists "better_supabase"."enrollments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "program" text not null check (length("program") between 1 and 200),
+  "program" text not null check (length("program") >= 1 and length("program") <= 200),
   "program_version" integer,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   -- The program's step ids when it enrolled or last changed.
   "steps" text[] not null default '{}',
@@ -111,7 +111,7 @@ create table if not exists "better_supabase"."enrollments" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "paused_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
+  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200),
   "updated_at" timestamptz not null default now(),
   check (("subject_type" = 'user') = ("user_id" is not null)),
   check ("user_id" is null or "subject_id" = "user_id"::text),
@@ -1201,7 +1201,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:9d58939be53f89bdc6fa516a9c33aef12b8521a83b717cbee9fdb08ae2316999
+-- @bsb-hash sha256:d07748cde81b98f4bbbfcf560592dcd672c6607b8a23adb8a57841ee013b9ef3
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1276,7 +1276,7 @@ create table if not exists "better_supabase"."enrollment_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   -- The subject types it enrolls; empty enrolls any.
   "subject_types" text[] not null default '{}',
@@ -1295,10 +1295,10 @@ create table if not exists "better_supabase"."enrollment_programs" (
 create table if not exists "better_supabase"."enrollments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "program" text not null check (length("program") between 1 and 200),
+  "program" text not null check (length("program") >= 1 and length("program") <= 200),
   "program_version" integer,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   -- The program's step ids when it enrolled or last changed.
   "steps" text[] not null default '{}',
@@ -1311,7 +1311,7 @@ create table if not exists "better_supabase"."enrollments" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "paused_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
+  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200),
   "updated_at" timestamptz not null default now(),
   check (("subject_type" = 'user') = ("user_id" is not null)),
   check ("user_id" is null or "subject_id" = "user_id"::text),
@@ -2514,7 +2514,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:c14c8529977a341663c7c45d3e71262e137e37a83c08223cefe1de8d3d2f6059
+-- @bsb-hash sha256:2439c11b6ee4d0e89cf0246adca49e91c8906997bc46cc0c15b97c6bd170d08a
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2594,7 +2594,7 @@ create table if not exists "app_private"."enrollment_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   -- The subject types it enrolls; empty enrolls any.
   "subject_types" text[] not null default '{}',
@@ -2613,10 +2613,10 @@ create table if not exists "app_private"."enrollment_programs" (
 create table if not exists "app_private"."enrollments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "program" text not null check (length("program") between 1 and 200),
+  "program" text not null check (length("program") >= 1 and length("program") <= 200),
   "program_version" integer,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   -- The program's step ids when it enrolled or last changed.
   "steps" text[] not null default '{}',
@@ -2629,7 +2629,7 @@ create table if not exists "app_private"."enrollments" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "paused_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
+  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200),
   "updated_at" timestamptz not null default now(),
   check (("subject_type" = 'user') = ("user_id" is not null)),
   check ("user_id" is null or "subject_id" = "user_id"::text),
@@ -3719,7 +3719,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:a1a84bada33e93121bfbec3114f3159cd9736e9a8208549409a6933bf8f03a93
+-- @bsb-hash sha256:c34ed4135e22247ac29c4e836bb59406a2141746c144a412f762f046ed20791a
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3794,7 +3794,7 @@ create table if not exists "better_supabase"."enrollment_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   -- The subject types it enrolls; empty enrolls any.
   "subject_types" text[] not null default '{}',
@@ -3813,10 +3813,10 @@ create table if not exists "better_supabase"."enrollment_programs" (
 create table if not exists "better_supabase"."enrollments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "program" text not null check (length("program") between 1 and 200),
+  "program" text not null check (length("program") >= 1 and length("program") <= 200),
   "program_version" integer,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   -- The program's step ids when it enrolled or last changed.
   "steps" text[] not null default '{}',
@@ -3829,7 +3829,7 @@ create table if not exists "better_supabase"."enrollments" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "paused_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
+  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200),
   "updated_at" timestamptz not null default now(),
   check (("subject_type" = 'user') = ("user_id" is not null)),
   check ("user_id" is null or "subject_id" = "user_id"::text),
@@ -5063,7 +5063,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:1db138dae6d3df3c02c22b90397a343e3c03093c62de4bcab9a48305733e3522
+-- @bsb-hash sha256:99a9c074eacae31355ba6a413ac4561a5a4d227f4fd8c20b94c41dc55ead32ed
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5154,7 +5154,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."enrollment_programs" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."enrollment_programs" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."enrollment_programs" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."enrollment_programs" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."enrollment_programs" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."enrollment_programs" add column if not exists "description" text check ("description" is null or length("description") <= 2000);
 alter table "better_supabase"."enrollment_programs" add column if not exists "subject_types" text[] not null default '{}';
 alter table "better_supabase"."enrollment_programs" add column if not exists "steps" jsonb not null default '[]'::jsonb check (jsonb_typeof("steps") = 'array');
@@ -5170,10 +5170,10 @@ create unique index if not exists "bsb_enrollment_programs_key_key" on "better_s
 -- better_supabase.enrollments is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."enrollments" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."enrollments" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."enrollments" add column if not exists "program" text check (length("program") between 1 and 200);
+alter table "better_supabase"."enrollments" add column if not exists "program" text check (length("program") >= 1 and length("program") <= 200);
 alter table "better_supabase"."enrollments" add column if not exists "program_version" integer;
 alter table "better_supabase"."enrollments" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."enrollments" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."enrollments" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."enrollments" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."enrollments" add column if not exists "steps" text[] not null default '{}';
 alter table "better_supabase"."enrollments" add column if not exists "completed_steps" integer not null default 0 check ("completed_steps" >= 0);
@@ -5185,7 +5185,7 @@ alter table "better_supabase"."enrollments" add column if not exists "ends_at" t
 alter table "better_supabase"."enrollments" add column if not exists "completed_at" timestamptz;
 alter table "better_supabase"."enrollments" add column if not exists "cancelled_at" timestamptz;
 alter table "better_supabase"."enrollments" add column if not exists "paused_at" timestamptz;
-alter table "better_supabase"."enrollments" add column if not exists "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200);
+alter table "better_supabase"."enrollments" add column if not exists "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200);
 alter table "better_supabase"."enrollments" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_enrollments_subject_key" on "better_supabase"."enrollments" ("tenant_id", "program", "subject_type", "subject_id") nulls not distinct;
 create index if not exists "enrollments_program_idx" on "better_supabase"."enrollments" ("tenant_id", "program", "status");
@@ -6268,7 +6268,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:47a0230674f53205e1c7692c2c09755affeee5ca77b099a233219e45291af569
+-- @bsb-hash sha256:279c107516990ba2d87566b74087f9483740eefa5f4d9912c7c7eb96edb2ad6e
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6343,7 +6343,7 @@ create table if not exists "better_supabase"."enrollment_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   -- The subject types it enrolls; empty enrolls any.
   "subject_types" text[] not null default '{}',
@@ -6362,10 +6362,10 @@ create table if not exists "better_supabase"."enrollment_programs" (
 create table if not exists "better_supabase"."enrollments" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
-  "program" text not null check (length("program") between 1 and 200),
+  "program" text not null check (length("program") >= 1 and length("program") <= 200),
   "program_version" integer,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   -- The program's step ids when it enrolled or last changed.
   "steps" text[] not null default '{}',
@@ -6378,7 +6378,7 @@ create table if not exists "better_supabase"."enrollments" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "paused_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
+  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200),
   "updated_at" timestamptz not null default now(),
   check (("subject_type" = 'user') = ("user_id" is not null)),
   check ("user_id" is null or "subject_id" = "user_id"::text),

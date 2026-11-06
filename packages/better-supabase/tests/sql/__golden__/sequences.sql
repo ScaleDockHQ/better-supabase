@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:0fc1e58170ad7458812aeed88d45954f273fad5c844544c43f1190762ccde941
+-- @bsb-hash sha256:411f7d2ad262059016d2d037cd0cb331355145aeef4f6ca5f3263e5e34e89acf
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -63,7 +63,7 @@ create table if not exists "better_supabase"."sequences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'active', 'paused', 'archived')),
   -- An inbound message on the thread, or from the recipient's address, ends
@@ -956,7 +956,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:1661ee02710d25083d43afa9e6eff6b892d243cffaf73e5812d8c0b7c4ecf3ca
+-- @bsb-hash sha256:e2f43b2dc28a42823fe46c4f08cfe3fa5b8c72ed557fa7a92065b3e634148bf3
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1018,7 +1018,7 @@ create table if not exists "better_supabase"."sequences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'active', 'paused', 'archived')),
   -- An inbound message on the thread, or from the recipient's address, ends
@@ -2026,7 +2026,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:d7a4b414b062fcc8c22a0517b4dc62b82ea03a3f400b7b33294157861053bdc9
+-- @bsb-hash sha256:a93f601968e4152f783afdcb8663ed178d4cf3ab6f023a766c29c837d9e9cf1b
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2093,7 +2093,7 @@ create table if not exists "app_private"."sequences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'active', 'paused', 'archived')),
   -- An inbound message on the thread, or from the recipient's address, ends
@@ -2986,7 +2986,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:f1f85332fa784f29b45cc5991975222a2facf2f42754ff54600ab8e0a91709e0
+-- @bsb-hash sha256:58a14242d4e2d0ad7137f58d1731949e05171f5e7a2f64bee9ebb10eacf1c9cf
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3048,7 +3048,7 @@ create table if not exists "better_supabase"."sequences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'active', 'paused', 'archived')),
   -- An inbound message on the thread, or from the recipient's address, ends
@@ -4057,7 +4057,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:fcca7b3fe68c7d935f8ce02595f007404eb51c2233e3aaef25aefc3d143d218d
+-- @bsb-hash sha256:a9157ffb3a0f991584602f2afcb5091d136a0a5086cdf4c0d808621e50dfb7d1
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4135,7 +4135,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."sequences" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."sequences" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."sequences" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9-]{0,62}$');
-alter table "better_supabase"."sequences" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."sequences" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."sequences" add column if not exists "description" text check ("description" is null or length("description") <= 2000);
 alter table "better_supabase"."sequences" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'active', 'paused', 'archived'));
 alter table "better_supabase"."sequences" add column if not exists "exit_on_reply" boolean not null default true;
@@ -5020,7 +5020,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:f03a849968515802f1d9ff892cc7e8a0201e0b6807aa5960edefa710d3373613
+-- @bsb-hash sha256:7f1fdf3ebbac521712d53eb4777137bbb217b0c2e9858b489b4b5b7b9076cb3d
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5082,7 +5082,7 @@ create table if not exists "better_supabase"."sequences" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'active', 'paused', 'archived')),
   -- An inbound message on the thread, or from the recipient's address, ends

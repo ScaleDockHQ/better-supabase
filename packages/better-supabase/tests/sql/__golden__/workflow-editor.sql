@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:884e5cca368e0c8092067e8fa741510970c1a4080345fe0aca1de0d10e693f6e
+-- @bsb-hash sha256:48c74865f04ae37079df0914ed670a72c63e03eaceb9cf0fe87404d6ff79586c
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -81,7 +81,7 @@ create table if not exists "better_supabase"."workflow_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "slug" text not null check ("slug" ~ '^[a-z0-9][a-z0-9-]{0,99}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -165,7 +165,7 @@ create table if not exists "better_supabase"."workflow_definition_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
   "principal_kind" text not null check ("principal_kind" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") between 1 and 200),
+  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
   "action" text not null check ("action" in ('run', 'edit')),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -257,8 +257,8 @@ grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 create table if not exists "better_supabase"."workflow_credentials" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "kind" text not null check (length("kind") between 1 and 100),
-  "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "credential_ref" jsonb not null check (jsonb_typeof("credential_ref" -> 'provider') = 'string'),
   "scopes" text[] not null default '{}',
   "created_by" uuid references auth.users (id) on delete set null,
@@ -279,7 +279,7 @@ create policy workflow_credentials_read on "better_supabase"."workflow_credentia
 -- builder and the names a published graph may use.
 create table if not exists "better_supabase"."workflow_step_library" (
   "name" text primary key check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "input_schema" jsonb not null default '{}'::jsonb,
   "output_schema" jsonb not null default '{}'::jsonb,
@@ -287,7 +287,7 @@ create table if not exists "better_supabase"."workflow_step_library" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
-  check (length("operation") between 1 and 200);
+  check (length("operation") >= 1 and length("operation") <= 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
 revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
@@ -301,7 +301,7 @@ create policy workflow_step_library_read on "better_supabase"."workflow_step_lib
 -- whether the kind's edges take a true or false branch.
 create table if not exists "better_supabase"."workflow_node_kinds" (
   "kind" text primary key check ("kind" ~ '^[a-z][a-z0-9_.-]{0,62}$' and "kind" not in ('trigger', 'step', 'sleep', 'approval', 'condition')),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "branches" boolean not null default false,
   "config_schema" jsonb not null default '{}'::jsonb,
@@ -319,7 +319,7 @@ create policy workflow_node_kinds_read on "better_supabase"."workflow_node_kinds
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists "better_supabase"."workflow_node_runs" (
   "run_id" uuid not null references "better_supabase"."workflow_runs" ("id") on delete cascade,
-  "node_id" text not null check (length("node_id") between 1 and 100),
+  "node_id" text not null check (length("node_id") >= 1 and length("node_id") <= 100),
   "status" text not null check ("status" in ('running', 'waiting', 'completed', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "output" jsonb,
@@ -2286,7 +2286,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:c03a7e26a31ebd75855de55d7911a365f2a6d4f6d8422bb68add8c2d09856b0b
+-- @bsb-hash sha256:185d7073714689eabb03b0655d11d250705750022dac28086228c755e1246e28
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2366,7 +2366,7 @@ create table if not exists "better_supabase"."workflow_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "slug" text not null check ("slug" ~ '^[a-z0-9][a-z0-9-]{0,99}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -2450,7 +2450,7 @@ create table if not exists "better_supabase"."workflow_definition_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
   "principal_kind" text not null check ("principal_kind" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") between 1 and 200),
+  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
   "action" text not null check ("action" in ('run', 'edit')),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -2542,8 +2542,8 @@ grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 create table if not exists "better_supabase"."workflow_credentials" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "kind" text not null check (length("kind") between 1 and 100),
-  "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "credential_ref" jsonb not null check (jsonb_typeof("credential_ref" -> 'provider') = 'string'),
   "scopes" text[] not null default '{}',
   "created_by" uuid references auth.users (id) on delete set null,
@@ -2564,7 +2564,7 @@ create policy workflow_credentials_read on "better_supabase"."workflow_credentia
 -- builder and the names a published graph may use.
 create table if not exists "better_supabase"."workflow_step_library" (
   "name" text primary key check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "input_schema" jsonb not null default '{}'::jsonb,
   "output_schema" jsonb not null default '{}'::jsonb,
@@ -2572,7 +2572,7 @@ create table if not exists "better_supabase"."workflow_step_library" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
-  check (length("operation") between 1 and 200);
+  check (length("operation") >= 1 and length("operation") <= 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
 revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
@@ -2586,7 +2586,7 @@ create policy workflow_step_library_read on "better_supabase"."workflow_step_lib
 -- whether the kind's edges take a true or false branch.
 create table if not exists "better_supabase"."workflow_node_kinds" (
   "kind" text primary key check ("kind" ~ '^[a-z][a-z0-9_.-]{0,62}$' and "kind" not in ('trigger', 'step', 'sleep', 'approval', 'condition')),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "branches" boolean not null default false,
   "config_schema" jsonb not null default '{}'::jsonb,
@@ -2604,7 +2604,7 @@ create policy workflow_node_kinds_read on "better_supabase"."workflow_node_kinds
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists "better_supabase"."workflow_node_runs" (
   "run_id" uuid not null references "better_supabase"."workflow_runs" ("id") on delete cascade,
-  "node_id" text not null check (length("node_id") between 1 and 100),
+  "node_id" text not null check (length("node_id") >= 1 and length("node_id") <= 100),
   "status" text not null check ("status" in ('running', 'waiting', 'completed', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "output" jsonb,
@@ -4616,7 +4616,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:efa021204208557311c1179a1c04c70aebde793158c8fac3e1eec9ffe70860e7
+-- @bsb-hash sha256:6db1b1bf6a977ebe8e1034273069f47c08546d40ecae88485af8b92f06d3f65f
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4701,7 +4701,7 @@ create table if not exists "app_private"."workflow_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "slug" text not null check ("slug" ~ '^[a-z0-9][a-z0-9-]{0,99}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -4785,7 +4785,7 @@ create table if not exists "app_private"."workflow_definition_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "app_private"."workflow_definitions" ("id") on delete cascade,
   "principal_kind" text not null check ("principal_kind" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") between 1 and 200),
+  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
   "action" text not null check ("action" in ('run', 'edit')),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -4877,8 +4877,8 @@ grant all on "app_private"."workflow_webhook_tokens" to service_role;
 create table if not exists "app_private"."workflow_credentials" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "kind" text not null check (length("kind") between 1 and 100),
-  "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "credential_ref" jsonb not null check (jsonb_typeof("credential_ref" -> 'provider') = 'string'),
   "scopes" text[] not null default '{}',
   "created_by" uuid references auth.users (id) on delete set null,
@@ -4899,7 +4899,7 @@ create policy workflow_credentials_read on "app_private"."workflow_credentials"
 -- builder and the names a published graph may use.
 create table if not exists "app_private"."workflow_step_library" (
   "name" text primary key check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "input_schema" jsonb not null default '{}'::jsonb,
   "output_schema" jsonb not null default '{}'::jsonb,
@@ -4907,7 +4907,7 @@ create table if not exists "app_private"."workflow_step_library" (
   "updated_at" timestamptz not null default now()
 );
 alter table "app_private"."workflow_step_library" add column if not exists "operation" text
-  check (length("operation") between 1 and 200);
+  check (length("operation") >= 1 and length("operation") <= 200);
 alter table "app_private"."workflow_step_library" enable row level security;
 revoke all on "app_private"."workflow_step_library" from public, anon, authenticated;
 grant select on "app_private"."workflow_step_library" to authenticated;
@@ -4921,7 +4921,7 @@ create policy workflow_step_library_read on "app_private"."workflow_step_library
 -- whether the kind's edges take a true or false branch.
 create table if not exists "app_private"."workflow_node_kinds" (
   "kind" text primary key check ("kind" ~ '^[a-z][a-z0-9_.-]{0,62}$' and "kind" not in ('trigger', 'step', 'sleep', 'approval', 'condition')),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "branches" boolean not null default false,
   "config_schema" jsonb not null default '{}'::jsonb,
@@ -4939,7 +4939,7 @@ create policy workflow_node_kinds_read on "app_private"."workflow_node_kinds"
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists "app_private"."workflow_node_runs" (
   "run_id" uuid not null references "better_supabase"."workflow_runs" ("id") on delete cascade,
-  "node_id" text not null check (length("node_id") between 1 and 100),
+  "node_id" text not null check (length("node_id") >= 1 and length("node_id") <= 100),
   "status" text not null check ("status" in ('running', 'waiting', 'completed', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "output" jsonb,
@@ -6906,7 +6906,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:a6e0c34a4b1ca0f8d96c9cb6593e912345a83b4401fb26ed6f3b48c76ac06a62
+-- @bsb-hash sha256:1611a192a21e1b8d1f914469a5415a420ad3c1d592dfb40ebf16f319884f6cec
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6986,7 +6986,7 @@ create table if not exists "better_supabase"."workflow_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "slug" text not null check ("slug" ~ '^[a-z0-9][a-z0-9-]{0,99}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -7070,7 +7070,7 @@ create table if not exists "better_supabase"."workflow_definition_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
   "principal_kind" text not null check ("principal_kind" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") between 1 and 200),
+  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
   "action" text not null check ("action" in ('run', 'edit')),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -7162,8 +7162,8 @@ grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 create table if not exists "better_supabase"."workflow_credentials" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "kind" text not null check (length("kind") between 1 and 100),
-  "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "credential_ref" jsonb not null check (jsonb_typeof("credential_ref" -> 'provider') = 'string'),
   "scopes" text[] not null default '{}',
   "created_by" uuid references auth.users (id) on delete set null,
@@ -7184,7 +7184,7 @@ create policy workflow_credentials_read on "better_supabase"."workflow_credentia
 -- builder and the names a published graph may use.
 create table if not exists "better_supabase"."workflow_step_library" (
   "name" text primary key check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "input_schema" jsonb not null default '{}'::jsonb,
   "output_schema" jsonb not null default '{}'::jsonb,
@@ -7192,7 +7192,7 @@ create table if not exists "better_supabase"."workflow_step_library" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
-  check (length("operation") between 1 and 200);
+  check (length("operation") >= 1 and length("operation") <= 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
 revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
@@ -7206,7 +7206,7 @@ create policy workflow_step_library_read on "better_supabase"."workflow_step_lib
 -- whether the kind's edges take a true or false branch.
 create table if not exists "better_supabase"."workflow_node_kinds" (
   "kind" text primary key check ("kind" ~ '^[a-z][a-z0-9_.-]{0,62}$' and "kind" not in ('trigger', 'step', 'sleep', 'approval', 'condition')),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "branches" boolean not null default false,
   "config_schema" jsonb not null default '{}'::jsonb,
@@ -7224,7 +7224,7 @@ create policy workflow_node_kinds_read on "better_supabase"."workflow_node_kinds
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists "better_supabase"."workflow_node_runs" (
   "run_id" uuid not null references "better_supabase"."workflow_runs" ("id") on delete cascade,
-  "node_id" text not null check (length("node_id") between 1 and 100),
+  "node_id" text not null check (length("node_id") >= 1 and length("node_id") <= 100),
   "status" text not null check ("status" in ('running', 'waiting', 'completed', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "output" jsonb,
@@ -9592,7 +9592,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:eb962eae5fe624e550a054892e8099941c611f1d3d82665eff75b25bb687b5ed
+-- @bsb-hash sha256:101ae68f0b1872fc32aec5e555d54ca8e1fe6aa8f83fdde4f7ad952fba227bdb
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9688,7 +9688,7 @@ create extension if not exists pgcrypto with schema extensions;
 alter table "better_supabase"."workflow_definitions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."workflow_definitions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."workflow_definitions" add column if not exists "slug" text check ("slug" ~ '^[a-z0-9][a-z0-9-]{0,99}$');
-alter table "better_supabase"."workflow_definitions" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."workflow_definitions" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."workflow_definitions" add column if not exists "description" text check (length("description") <= 2000);
 alter table "better_supabase"."workflow_definitions" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."workflow_definitions" add column if not exists "created_at" timestamptz not null default now();
@@ -9743,7 +9743,7 @@ create policy bsb_workflow_opt_outs_select on "better_supabase"."workflow_opt_ou
 alter table "better_supabase"."workflow_definition_grants" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."workflow_definition_grants" add column if not exists "definition_id" uuid references "better_supabase"."workflow_definitions" ("id") on delete cascade;
 alter table "better_supabase"."workflow_definition_grants" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'team', 'role'));
-alter table "better_supabase"."workflow_definition_grants" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
+alter table "better_supabase"."workflow_definition_grants" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
 alter table "better_supabase"."workflow_definition_grants" add column if not exists "action" text check ("action" in ('run', 'edit'));
 alter table "better_supabase"."workflow_definition_grants" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."workflow_definition_grants" add column if not exists "created_at" timestamptz not null default now();
@@ -9824,8 +9824,8 @@ grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 -- better_supabase.workflow_credentials is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."workflow_credentials" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."workflow_credentials" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."workflow_credentials" add column if not exists "kind" text check (length("kind") between 1 and 100);
-alter table "better_supabase"."workflow_credentials" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."workflow_credentials" add column if not exists "kind" text check (length("kind") >= 1 and length("kind") <= 100);
+alter table "better_supabase"."workflow_credentials" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."workflow_credentials" add column if not exists "credential_ref" jsonb check (jsonb_typeof("credential_ref" -> 'provider') = 'string');
 alter table "better_supabase"."workflow_credentials" add column if not exists "scopes" text[] not null default '{}';
 alter table "better_supabase"."workflow_credentials" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
@@ -9844,7 +9844,7 @@ create policy bsb_workflow_credentials_select on "better_supabase"."workflow_cre
 -- builder and the names a published graph may use.
 -- better_supabase.workflow_step_library is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."workflow_step_library" add column if not exists "name" text check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$');
-alter table "better_supabase"."workflow_step_library" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."workflow_step_library" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."workflow_step_library" add column if not exists "description" text;
 alter table "better_supabase"."workflow_step_library" add column if not exists "input_schema" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."workflow_step_library" add column if not exists "output_schema" jsonb not null default '{}'::jsonb;
@@ -9852,7 +9852,7 @@ alter table "better_supabase"."workflow_step_library" add column if not exists "
 alter table "better_supabase"."workflow_step_library" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "workflow_step_library_name_key" on "better_supabase"."workflow_step_library" ("name");
 alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
-  check (length("operation") between 1 and 200);
+  check (length("operation") >= 1 and length("operation") <= 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
@@ -9865,7 +9865,7 @@ create policy bsb_workflow_step_library_select on "better_supabase"."workflow_st
 -- whether the kind's edges take a true or false branch.
 -- better_supabase.workflow_node_kinds is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."workflow_node_kinds" add column if not exists "kind" text check ("kind" ~ '^[a-z][a-z0-9_.-]{0,62}$' and "kind" not in ('trigger', 'step', 'sleep', 'approval', 'condition'));
-alter table "better_supabase"."workflow_node_kinds" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."workflow_node_kinds" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."workflow_node_kinds" add column if not exists "description" text;
 alter table "better_supabase"."workflow_node_kinds" add column if not exists "branches" boolean not null default false;
 alter table "better_supabase"."workflow_node_kinds" add column if not exists "config_schema" jsonb not null default '{}'::jsonb;
@@ -9882,7 +9882,7 @@ create policy bsb_workflow_node_kinds_select on "better_supabase"."workflow_node
 -- The status of each node of a run, by node id, written by the engine.
 -- better_supabase.workflow_node_runs is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."workflow_node_runs" add column if not exists "run_id" uuid references "better_supabase"."workflow_runs" ("id") on delete cascade;
-alter table "better_supabase"."workflow_node_runs" add column if not exists "node_id" text check (length("node_id") between 1 and 100);
+alter table "better_supabase"."workflow_node_runs" add column if not exists "node_id" text check (length("node_id") >= 1 and length("node_id") <= 100);
 alter table "better_supabase"."workflow_node_runs" add column if not exists "status" text check ("status" in ('running', 'waiting', 'completed', 'failed', 'skipped'));
 alter table "better_supabase"."workflow_node_runs" add column if not exists "attempts" integer not null default 0;
 alter table "better_supabase"."workflow_node_runs" add column if not exists "output" jsonb;
@@ -11842,7 +11842,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:887c1cd0fa66b52ce05516114bcebad0b46dab3b4467b8c23120d3125ede9722
+-- @bsb-hash sha256:8df13e59da27d46f7c18126a859767ea52cb0f1df878cdf20c10f74a2cedbf38
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11922,7 +11922,7 @@ create table if not exists "better_supabase"."workflow_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
   "slug" text not null check ("slug" ~ '^[a-z0-9][a-z0-9-]{0,99}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -12006,7 +12006,7 @@ create table if not exists "better_supabase"."workflow_definition_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
   "principal_kind" text not null check ("principal_kind" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") between 1 and 200),
+  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
   "action" text not null check ("action" in ('run', 'edit')),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -12098,8 +12098,8 @@ grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 create table if not exists "better_supabase"."workflow_credentials" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
-  "kind" text not null check (length("kind") between 1 and 100),
-  "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "credential_ref" jsonb not null check (jsonb_typeof("credential_ref" -> 'provider') = 'string'),
   "scopes" text[] not null default '{}',
   "created_by" uuid references auth.users (id) on delete set null,
@@ -12120,7 +12120,7 @@ create policy workflow_credentials_read on "better_supabase"."workflow_credentia
 -- builder and the names a published graph may use.
 create table if not exists "better_supabase"."workflow_step_library" (
   "name" text primary key check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "input_schema" jsonb not null default '{}'::jsonb,
   "output_schema" jsonb not null default '{}'::jsonb,
@@ -12128,7 +12128,7 @@ create table if not exists "better_supabase"."workflow_step_library" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
-  check (length("operation") between 1 and 200);
+  check (length("operation") >= 1 and length("operation") <= 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
 revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
@@ -12142,7 +12142,7 @@ create policy workflow_step_library_read on "better_supabase"."workflow_step_lib
 -- whether the kind's edges take a true or false branch.
 create table if not exists "better_supabase"."workflow_node_kinds" (
   "kind" text primary key check ("kind" ~ '^[a-z][a-z0-9_.-]{0,62}$' and "kind" not in ('trigger', 'step', 'sleep', 'approval', 'condition')),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "branches" boolean not null default false,
   "config_schema" jsonb not null default '{}'::jsonb,
@@ -12160,7 +12160,7 @@ create policy workflow_node_kinds_read on "better_supabase"."workflow_node_kinds
 -- The status of each node of a run, by node id, written by the engine.
 create table if not exists "better_supabase"."workflow_node_runs" (
   "run_id" uuid not null references "better_supabase"."workflow_runs" ("id") on delete cascade,
-  "node_id" text not null check (length("node_id") between 1 and 100),
+  "node_id" text not null check (length("node_id") >= 1 and length("node_id") <= 100),
   "status" text not null check ("status" in ('running', 'waiting', 'completed', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "output" jsonb,

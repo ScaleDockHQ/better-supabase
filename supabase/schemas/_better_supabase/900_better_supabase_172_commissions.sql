@@ -1,6 +1,6 @@
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:89e437660ffca3a80e17cc5c59179b68c2e34fa80c9f3b240b14bac6dd145de3
+-- @bsb-hash sha256:eed29e796b08282367417aaaecf34627b8eb26929105960c1bad779b86a29352
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,10 +84,10 @@ grant usage on schema better_supabase to anon, authenticated, service_role;-- Co
 create table if not exists "better_supabase"."commission_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null check ("kind" in ('flat', 'tiered')),
   -- A flat plan's rate in basis points (100 is 1%).
-  "rate_bps" integer check ("rate_bps" between 0 and 10000),
+  "rate_bps" integer check ("rate_bps" >= 0 and "rate_bps" <= 10000),
   -- A tiered plan's marginal tiers: [{ "upTo": 100000, "bps": 500 }, { "upTo": null, "bps": 800 }].
   "tiers" jsonb check ("tiers" is null or jsonb_typeof("tiers") = 'array'),
   "archived_at" timestamptz,
@@ -168,8 +168,8 @@ create table if not exists "better_supabase"."commissions" (
   "plan_id" uuid not null,
   "seller_id" uuid not null,
   -- The record the commission was earned on, such as invoices and its id.
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
+  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
   -- What the percentage was taken of, and what it came to, in minor units.
   "basis" bigint not null check ("basis" > 0),
   "amount" bigint not null check ("amount" > 0),

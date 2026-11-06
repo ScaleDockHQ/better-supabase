@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:484a196ed7a322427acb507abacada95f27fa63143df54210797f066efe6af97
+-- @bsb-hash sha256:779237425f6d3931cf5ed87a5ef288b8621e365b96078a55b4b32c925d8f4824
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,9 +92,9 @@ create extension if not exists btree_gist with schema extensions;
 create table if not exists "better_supabase"."booking_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'staff',
-  "capacity" integer not null default 1 check ("capacity" between 1 and 1000),
+  "capacity" integer not null default 1 check ("capacity" >= 1 and "capacity" <= 1000),
   "tz" text not null default 'UTC',
   "calendar_id" uuid,
   "host_user_id" uuid,
@@ -117,7 +117,7 @@ create table if not exists "better_supabase"."booking_availability" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   check ("ends_at" > "starts_at")
@@ -151,7 +151,7 @@ create policy booking_exceptions_read on "better_supabase"."booking_exceptions"
 create table if not exists "better_supabase"."booking_services" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "duration" interval not null check ("duration" > interval '0'),
   "buffer_before" interval not null default interval '0' check ("buffer_before" >= interval '0'),
   "buffer_after" interval not null default interval '0' check ("buffer_after" >= interval '0'),

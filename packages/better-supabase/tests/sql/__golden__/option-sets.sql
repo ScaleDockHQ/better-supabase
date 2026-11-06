@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:20b9d7b26e6b3dee54536682b4bb4308f33141e17d5c358714804d7404a2ee21
+-- @bsb-hash sha256:16e771286a0b3a0bdf2fadb30e0415b34d728f9af6e416809951d20b60fd344a
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,7 @@ create table if not exists "better_supabase"."option_sets" (
   "field" text not null check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "scope_id" text,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -99,7 +99,7 @@ create table if not exists "better_supabase"."option_set_items" (
   "option_set_id" uuid not null references "better_supabase"."option_sets" ("id") on delete cascade,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "label" text not null check (length("label") between 1 and 200),
+  "label" text not null check (length("label") >= 1 and length("label") <= 200),
   "color" text check ("color" is null or length("color") <= 50),
   "icon" text check ("icon" is null or length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
@@ -524,7 +524,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:1af084a80db5f5b1a5d8b1777f74e8096c4878f96a012e3259284571c93f6212
+-- @bsb-hash sha256:ac2e8bb675ea57a0835002370080d1edbaa9ea559a495ec9f1831c9115f15399
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -598,7 +598,7 @@ create table if not exists "better_supabase"."option_sets" (
   "field" text not null check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "scope_id" text,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -622,7 +622,7 @@ create table if not exists "better_supabase"."option_set_items" (
   "option_set_id" uuid not null references "better_supabase"."option_sets" ("id") on delete cascade,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "label" text not null check (length("label") between 1 and 200),
+  "label" text not null check (length("label") >= 1 and length("label") <= 200),
   "color" text check ("color" is null or length("color") <= 50),
   "icon" text check ("icon" is null or length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
@@ -1185,7 +1185,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:aab27a9ef429c66da17bb8eb2f30881f02d59f921b97c9827b348d143589b028
+-- @bsb-hash sha256:9d337b386d99c30f08e416f82d4b2181cd871a0b131bf578bad7cea60dd0d2ab
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1264,7 +1264,7 @@ create table if not exists "app_private"."option_sets" (
   "field" text not null check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "scope_id" text,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -1288,7 +1288,7 @@ create table if not exists "app_private"."option_set_items" (
   "option_set_id" uuid not null references "app_private"."option_sets" ("id") on delete cascade,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "label" text not null check (length("label") between 1 and 200),
+  "label" text not null check (length("label") >= 1 and length("label") <= 200),
   "color" text check ("color" is null or length("color") <= 50),
   "icon" text check ("icon" is null or length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
@@ -1713,7 +1713,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:f504a5a6e6b4ac42da5e17707ad369193ee4976bc363bd487a3c2bb8eed92aa2
+-- @bsb-hash sha256:5814314c3dd84a1ee801ff3da3d5ab287a6921309f14a91f00b7ca73d1ab6fdb
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1787,7 +1787,7 @@ create table if not exists "better_supabase"."option_sets" (
   "field" text not null check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "scope_id" text,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -1811,7 +1811,7 @@ create table if not exists "better_supabase"."option_set_items" (
   "option_set_id" uuid not null references "better_supabase"."option_sets" ("id") on delete cascade,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "label" text not null check (length("label") between 1 and 200),
+  "label" text not null check (length("label") >= 1 and length("label") <= 200),
   "color" text check ("color" is null or length("color") <= 50),
   "icon" text check ("icon" is null or length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
@@ -2323,7 +2323,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:1a6f6d609f005b35f7d23e4a683739d0b6f18dbf4b4ad95f7394f869d72a7a15
+-- @bsb-hash sha256:01147ff4d9c8c4cf8f68ad0468279b290ede04cc87dc67ff6dee2d8231380199
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2397,7 +2397,7 @@ alter table "better_supabase"."option_sets" add column if not exists "subject_ty
 alter table "better_supabase"."option_sets" add column if not exists "field" text check ("field" ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table "better_supabase"."option_sets" add column if not exists "scope_id" text;
 alter table "better_supabase"."option_sets" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."option_sets" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."option_sets" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."option_sets" add column if not exists "is_default" boolean not null default false;
 alter table "better_supabase"."option_sets" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."option_sets" add column if not exists "created_at" timestamptz not null default now();
@@ -2419,7 +2419,7 @@ alter table "better_supabase"."option_set_items" add column if not exists "tenan
 alter table "better_supabase"."option_set_items" add column if not exists "option_set_id" uuid references "better_supabase"."option_sets" ("id") on delete cascade;
 alter table "better_supabase"."option_set_items" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."option_set_items" add column if not exists "system_key" text;
-alter table "better_supabase"."option_set_items" add column if not exists "label" text check (length("label") between 1 and 200);
+alter table "better_supabase"."option_set_items" add column if not exists "label" text check (length("label") >= 1 and length("label") <= 200);
 alter table "better_supabase"."option_set_items" add column if not exists "color" text check ("color" is null or length("color") <= 50);
 alter table "better_supabase"."option_set_items" add column if not exists "icon" text check ("icon" is null or length("icon") <= 100);
 alter table "better_supabase"."option_set_items" add column if not exists "rank" text collate "C" not null default 'V';
@@ -2842,7 +2842,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:178e2015fffa9c47c29d2a19f7f190a11e8355e58daae42aa4d5728f0bbea797
+-- @bsb-hash sha256:66819f43feb3ca4943191be19fdad88b7f2db3bf7febe649778dfc53fd82af84
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2916,7 +2916,7 @@ create table if not exists "better_supabase"."option_sets" (
   "field" text not null check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "scope_id" text,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -2940,7 +2940,7 @@ create table if not exists "better_supabase"."option_set_items" (
   "option_set_id" uuid not null references "better_supabase"."option_sets" ("id") on delete cascade,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "label" text not null check (length("label") between 1 and 200),
+  "label" text not null check (length("label") >= 1 and length("label") <= 200),
   "color" text check ("color" is null or length("color") <= 50),
   "icon" text check ("icon" is null or length("icon") <= 100),
   "rank" text collate "C" not null default 'V',

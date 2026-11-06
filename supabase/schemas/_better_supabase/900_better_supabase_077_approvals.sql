@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:35b31ad75b180a16878442320194c322ca86d39c22e9219e2429bfc8302576fe
+-- @bsb-hash sha256:efae12c9d9bd3a842b82e267068ce2dfb014468e5ab6a1664124ef5dd800de87
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -179,7 +179,7 @@ create table if not exists "better_supabase"."approval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "key" text not null check (length("key") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "label" text check ("label" is null or length("label") <= 500),
   "payload" jsonb not null default '{}'::jsonb,
   "permission" text,
@@ -774,7 +774,7 @@ create table if not exists "better_supabase"."approval_policies" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "action" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "conditions" jsonb,
   "effect" text,
   "mode" text not null default 'authorize' check ("mode" in ('confirm', 'authorize')),

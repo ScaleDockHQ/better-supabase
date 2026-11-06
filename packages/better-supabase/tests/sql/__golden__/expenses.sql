@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:8742ac73458d154a887dbd9bc3f11b40ebadaca7373ee0e126c210af2bf9eaca
+-- @bsb-hash sha256:c843de06d4381c5bb5863d43428289f068ac82f3e9c7f9c767acd7fab2823c7d
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -82,7 +82,7 @@ create table if not exists "better_supabase"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
   "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
@@ -106,7 +106,7 @@ create table if not exists "better_supabase"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "note" text check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
@@ -139,7 +139,7 @@ create table if not exists "better_supabase"."expense_lines" (
   "report_id" uuid not null references "better_supabase"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "merchant" text check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
   "amount" bigint not null check ("amount" > 0),
@@ -879,7 +879,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:86a8f5479183906fb995bfbc8049065a9384f63f78a8c763ee6ab98fa2fa2814
+-- @bsb-hash sha256:1ade09f7eb9fb092539eeb83e2d5de8f72308d8d58459ebd4b4c867559263c2e
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -977,7 +977,7 @@ create table if not exists "better_supabase"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
   "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
@@ -1001,7 +1001,7 @@ create table if not exists "better_supabase"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "note" text check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
@@ -1034,7 +1034,7 @@ create table if not exists "better_supabase"."expense_lines" (
   "report_id" uuid not null references "better_supabase"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "merchant" text check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
   "amount" bigint not null check ("amount" > 0),
@@ -1883,7 +1883,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:11937d3cdb908087ef92692c964042972ef34178eee2984317eb124c5e26d774
+-- @bsb-hash sha256:b71cb066492cd8150b147937e71f68fca50ed88759a747d07ee7ff8618a80c41
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1969,7 +1969,7 @@ create table if not exists "app_private"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
   "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
@@ -1993,7 +1993,7 @@ create table if not exists "app_private"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "note" text check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
@@ -2026,7 +2026,7 @@ create table if not exists "app_private"."expense_lines" (
   "report_id" uuid not null references "app_private"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "merchant" text check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
   "amount" bigint not null check ("amount" > 0),
@@ -2766,7 +2766,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:db809156c303bed295f564276648f5e37dbbd0856df7c42c212eb08ce2deea55
+-- @bsb-hash sha256:11d4b5de228e6f8bec0e0a02e700cc547739fdb77b09ff223da487f74d6d09f6
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2847,7 +2847,7 @@ create table if not exists "better_supabase"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
   "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
@@ -2871,7 +2871,7 @@ create table if not exists "better_supabase"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "note" text check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
@@ -2904,7 +2904,7 @@ create table if not exists "better_supabase"."expense_lines" (
   "report_id" uuid not null references "better_supabase"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "merchant" text check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
   "amount" bigint not null check ("amount" > 0),
@@ -3791,7 +3791,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:fe882ce112a3b64ad2df38b34f0e897bc0ecc0c7d9cb57165cc278d434e1524c
+-- @bsb-hash sha256:37eb4df2d3e788cda095d2dbad113214509c91ad98beb228ec2f7c084a9cefe4
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3872,7 +3872,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."expense_categories" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."expense_categories" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."expense_categories" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."expense_categories" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."expense_categories" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."expense_categories" add column if not exists "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."expense_categories" add column if not exists "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0);
 alter table "better_supabase"."expense_categories" add column if not exists "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0);
@@ -3893,7 +3893,7 @@ create policy bsb_expense_categories_select on "better_supabase"."expense_catego
 alter table "better_supabase"."expense_reports" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."expense_reports" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."expense_reports" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."expense_reports" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."expense_reports" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."expense_reports" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."expense_reports" add column if not exists "note" text check ("note" is null or length("note") <= 2000);
 alter table "better_supabase"."expense_reports" add column if not exists "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null;
@@ -3924,7 +3924,7 @@ alter table "better_supabase"."expense_lines" add column if not exists "tenant_i
 alter table "better_supabase"."expense_lines" add column if not exists "report_id" uuid references "better_supabase"."expense_reports" ("id") on delete cascade;
 alter table "better_supabase"."expense_lines" add column if not exists "category_id" uuid;
 alter table "better_supabase"."expense_lines" add column if not exists "spent_on" date;
-alter table "better_supabase"."expense_lines" add column if not exists "description" text check (length("description") between 1 and 500);
+alter table "better_supabase"."expense_lines" add column if not exists "description" text check (length("description") >= 1 and length("description") <= 500);
 alter table "better_supabase"."expense_lines" add column if not exists "merchant" text check ("merchant" is null or length("merchant") <= 200);
 alter table "better_supabase"."expense_lines" add column if not exists "amount" bigint check ("amount" > 0);
 alter table "better_supabase"."expense_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
@@ -4660,7 +4660,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:c6158b7d9d8ddbbfac5b721170bd838ae69a62f588e01c093b893d5f75704f31
+-- @bsb-hash sha256:0a12c281887551db3edc6bf26f2f30fccd12ff5478385adf623189add4efb8e8
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4741,7 +4741,7 @@ create table if not exists "better_supabase"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
   "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
@@ -4765,7 +4765,7 @@ create table if not exists "better_supabase"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "note" text check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
@@ -4798,7 +4798,7 @@ create table if not exists "better_supabase"."expense_lines" (
   "report_id" uuid not null references "better_supabase"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") between 1 and 500),
+  "description" text not null check (length("description") >= 1 and length("description") <= 500),
   "merchant" text check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
   "amount" bigint not null check ("amount" > 0),

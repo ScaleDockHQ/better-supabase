@@ -1,6 +1,6 @@
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:e12a605bf05cdb0a4808f48d71768cad831f8f75dd9c5d1d94bf5875a9bff968
+-- @bsb-hash sha256:846c5e5e1bbf2e4fa1c0282ec1699b5880629cea082095535b8898e32b1796bb
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,11 +76,11 @@ create table if not exists "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text check (length("role") between 1 and 200),
+  "role" text check (length("role") >= 1 and length("role") <= 200),
   "target" text not null default 'role' check ("target" in ('role', 'record')),
-  "subject_type" text check (length("subject_type") between 1 and 200),
-  "subject_id" text check (length("subject_id") between 1 and 200),
-  "action" text check (length("action") between 1 and 200),
+  "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 200),
+  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "action" text check (length("action") >= 1 and length("action") <= 200),
   "emergency" boolean not null default false,
   "member_id" uuid,
   "review_verdict" text check ("review_verdict" in ('justified', 'unjustified')),
@@ -101,9 +101,9 @@ create index if not exists "access_requests_approval_idx" on "better_supabase"."
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" alter column "role" drop not null;
 alter table "better_supabase"."access_requests" add column if not exists "target" text not null default 'role' check ("target" in ('role', 'record'));
-alter table "better_supabase"."access_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 200);
-alter table "better_supabase"."access_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
-alter table "better_supabase"."access_requests" add column if not exists "action" text check (length("action") between 1 and 200);
+alter table "better_supabase"."access_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 200);
+alter table "better_supabase"."access_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."access_requests" add column if not exists "action" text check (length("action") >= 1 and length("action") <= 200);
 alter table "better_supabase"."access_requests" add column if not exists "emergency" boolean not null default false;
 alter table "better_supabase"."access_requests" add column if not exists "member_id" uuid;
 alter table "better_supabase"."access_requests" add column if not exists "review_verdict" text check ("review_verdict" in ('justified', 'unjustified'));

@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:336dfda0f5142728cd2c0c44494cdfab3932db72cfe8f85ef7d1cf7aa5c3790e
+-- @bsb-hash sha256:0fb8b6abafc44419811828419077843bfb1aab905003a4073d380631b2cd0b4c
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,7 +79,7 @@ create table if not exists "better_supabase"."reactions" (
   "actor" text not null,
   "user_id" uuid,
   "kind" text not null default 'emoji' check ("kind" in ('emoji', 'vote')),
-  "emoji" text not null check (length("emoji") between 1 and 64 and "emoji" !~ '\s'),
+  "emoji" text not null check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s'),
   -- A vote's direction; an emoji counts once.
   "value" smallint not null default 1 check ("value" in (-1, 1)),
   "created_at" timestamptz not null default now(),

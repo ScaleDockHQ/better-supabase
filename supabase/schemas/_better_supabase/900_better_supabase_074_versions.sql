@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:d7e87082e2136976418a98ef0d0e50b6eee30a72a03fde64a03838233da6e9de
+-- @bsb-hash sha256:3db75d7603acc49f727050d2492145bb25626bf170b6808545f282721ebedbf9
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,7 +61,7 @@ create table if not exists "better_supabase"."versions" (
   "subject_type" text not null,
   "subject_id" text not null,
   "number" integer not null check ("number" > 0),
-  "label" text check (length("label") between 1 and 120),
+  "label" text check (length("label") >= 1 and length("label") <= 120),
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,

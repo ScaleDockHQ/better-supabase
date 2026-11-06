@@ -1,6 +1,6 @@
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:92b6ff4820e47d4b3212adec9915533ecebfc9ddf5e50b5209d6271fa2113972
+-- @bsb-hash sha256:2227438a02797192fc24480c4cd376bb3b59828e6d8a3a2ef63e1fd6a00ed1d9
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -66,11 +66,11 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."shared_views" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "list" text not null check (length("list") between 1 and 80),
+  "list" text not null check (length("list") >= 1 and length("list") <= 80),
   "scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant')),
   "owner_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'table' check ("kind" in ('table', 'board', 'calendar', 'timeline', 'gantt')),
   "state" jsonb not null default '{}'::jsonb check (jsonb_typeof("state") = 'object' and pg_column_size("state") <= 65536),
   "rank" text collate "C" not null default 'V',

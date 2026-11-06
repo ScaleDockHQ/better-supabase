@@ -1,6 +1,6 @@
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:b6729ebf222bdd6fe40823dd756a4aaefd74659ddb36a45563fa2f78b5a7de48
+-- @bsb-hash sha256:6a9024b25b425d40e09c5b5de56c42b8eb5bdc4130718133af186c208fdc0748
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."promotions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "kind" text not null check ("kind" in ('percentage', 'fixed', 'free_shipping')),
   "percent" numeric(5, 2) check ("percent" > 0 and "percent" <= 100),

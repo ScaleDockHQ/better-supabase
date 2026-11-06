@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:14776fac2392743c27c426034e3144ab9f70f18a3783cd3ade355e27feab8df3
+-- @bsb-hash sha256:2264d9475fb1d97ea9e521629545db73c3d8c28e5459000eceb7e834dc30db15
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,7 @@ create table if not exists "better_supabase"."templates" (
   "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
   "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
   "type" text not null check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "language" text not null default 'en' check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'),
   "is_default" boolean not null default false,
   "settings" jsonb not null default '{}'::jsonb
@@ -132,8 +132,8 @@ create table if not exists "better_supabase"."template_applications" (
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );

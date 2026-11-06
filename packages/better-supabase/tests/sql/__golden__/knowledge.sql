@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:e86d94a74287bd5f4b03a720d86dfc535a0576a5848f826bd3bf738ca2427c0a
+-- @bsb-hash sha256:e0a3f4e9ea8a2f4693e27e4f648b0a8c1017b64366835b0fdc358f77ad8c2e47
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,7 +78,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."knowledge_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text,
   "visibility" text not null default 'automatic' check ("visibility" in ('automatic', 'restricted', 'disabled')),
   "priority" integer not null default 0,
@@ -323,7 +323,7 @@ create table if not exists "better_supabase"."knowledge_documents" (
   "scope" text not null default 'user' check ("scope" in ('organization', 'agent', 'project', 'chat', 'user')),
   "scope_id" uuid,
   "file_id" uuid,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "source" text,
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
@@ -336,8 +336,8 @@ create table if not exists "better_supabase"."knowledge_documents" (
   constraint knowledge_documents_system_check check ("organization_id" is not null or ("scope" = 'organization' and "owner_id" is null))
 );
 alter table "better_supabase"."knowledge_documents" add column if not exists "collection_id" uuid references "better_supabase"."knowledge_collections" ("id") on delete set null;
-alter table "better_supabase"."knowledge_documents" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."knowledge_documents" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."knowledge_documents" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."knowledge_documents" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."knowledge_documents" drop constraint if exists "knowledge_documents_scope_check";
 alter table "better_supabase"."knowledge_documents" add constraint "knowledge_documents_scope_check" check ("scope" in ('organization', 'agent', 'project', 'chat', 'user', 'subject'));
 alter table "better_supabase"."knowledge_documents" drop constraint if exists "knowledge_documents_check";
@@ -881,7 +881,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:574160bd85cf32893eda4a3a9326830d7db63ab618f84f48126b19e025e028e9
+-- @bsb-hash sha256:bd5177f393933234cdf52327735cdd264349e681462b42f8bff1bb89302c6459
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -958,7 +958,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."knowledge_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text,
   "visibility" text not null default 'automatic' check ("visibility" in ('automatic', 'restricted', 'disabled')),
   "priority" integer not null default 0,
@@ -1204,7 +1204,7 @@ create table if not exists "better_supabase"."knowledge_documents" (
   "scope" text not null default 'user' check ("scope" in ('organization', 'agent', 'project', 'chat', 'user')),
   "scope_id" uuid,
   "file_id" uuid references "better_supabase"."ai_files" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "source" text,
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
@@ -1217,8 +1217,8 @@ create table if not exists "better_supabase"."knowledge_documents" (
   constraint knowledge_documents_system_check check ("organization_id" is not null or ("scope" = 'organization' and "owner_id" is null))
 );
 alter table "better_supabase"."knowledge_documents" add column if not exists "collection_id" uuid references "better_supabase"."knowledge_collections" ("id") on delete set null;
-alter table "better_supabase"."knowledge_documents" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."knowledge_documents" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."knowledge_documents" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."knowledge_documents" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."knowledge_documents" drop constraint if exists "knowledge_documents_scope_check";
 alter table "better_supabase"."knowledge_documents" add constraint "knowledge_documents_scope_check" check ("scope" in ('organization', 'agent', 'project', 'chat', 'user', 'subject'));
 alter table "better_supabase"."knowledge_documents" drop constraint if exists "knowledge_documents_check";
@@ -1814,7 +1814,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:4b2ec830c58d0c67fa8b79101634acc82a24cd30ec68683f6aa56bf88b706b13
+-- @bsb-hash sha256:7a826a6036af7736d274c19fe1e7294e1f5a929f0f382a4022ef193c104c8625
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1896,7 +1896,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."knowledge_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text,
   "visibility" text not null default 'automatic' check ("visibility" in ('automatic', 'restricted', 'disabled')),
   "priority" integer not null default 0,
@@ -2141,7 +2141,7 @@ create table if not exists "app_private"."knowledge_documents" (
   "scope" text not null default 'user' check ("scope" in ('organization', 'agent', 'project', 'chat', 'user')),
   "scope_id" uuid,
   "file_id" uuid,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "source" text,
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
@@ -2154,8 +2154,8 @@ create table if not exists "app_private"."knowledge_documents" (
   constraint knowledge_documents_system_check check ("organization_id" is not null or ("scope" = 'organization' and "owner_id" is null))
 );
 alter table "app_private"."knowledge_documents" add column if not exists "collection_id" uuid references "app_private"."knowledge_collections" ("id") on delete set null;
-alter table "app_private"."knowledge_documents" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "app_private"."knowledge_documents" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "app_private"."knowledge_documents" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "app_private"."knowledge_documents" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "app_private"."knowledge_documents" drop constraint if exists "knowledge_documents_scope_check";
 alter table "app_private"."knowledge_documents" add constraint "knowledge_documents_scope_check" check ("scope" in ('organization', 'agent', 'project', 'chat', 'user', 'subject'));
 alter table "app_private"."knowledge_documents" drop constraint if exists "knowledge_documents_check";
@@ -2699,7 +2699,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:1681c820b8520daac187b2863ac21f9445e55c05fe1082d43bdfb2430ed4d1da
+-- @bsb-hash sha256:26091edbc3f4e5d4113ea2b6223691590edb6ebf7f095e7883581af509f99b95
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2776,7 +2776,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."knowledge_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text,
   "visibility" text not null default 'automatic' check ("visibility" in ('automatic', 'restricted', 'disabled')),
   "priority" integer not null default 0,
@@ -3021,7 +3021,7 @@ create table if not exists "better_supabase"."knowledge_documents" (
   "scope" text not null default 'user' check ("scope" in ('organization', 'agent', 'project', 'chat', 'user')),
   "scope_id" uuid,
   "file_id" uuid,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "source" text,
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
@@ -3034,8 +3034,8 @@ create table if not exists "better_supabase"."knowledge_documents" (
   constraint knowledge_documents_system_check check ("organization_id" is not null or ("scope" = 'organization' and "owner_id" is null))
 );
 alter table "better_supabase"."knowledge_documents" add column if not exists "collection_id" uuid references "better_supabase"."knowledge_collections" ("id") on delete set null;
-alter table "better_supabase"."knowledge_documents" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."knowledge_documents" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."knowledge_documents" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."knowledge_documents" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."knowledge_documents" drop constraint if exists "knowledge_documents_scope_check";
 alter table "better_supabase"."knowledge_documents" add constraint "knowledge_documents_scope_check" check ("scope" in ('organization', 'agent', 'project', 'chat', 'user', 'subject'));
 alter table "better_supabase"."knowledge_documents" drop constraint if exists "knowledge_documents_check";
@@ -3779,7 +3779,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:f3f27ab811c76b8e37432f6838bf2ceabdd1582823398b62c02a19df200c566a
+-- @bsb-hash sha256:0cd893611971fe9bb6e60864280eed1d447f6d0727ae89703b9a246e2ac58272
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3872,7 +3872,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.knowledge_collections is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."knowledge_collections" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."knowledge_collections" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."knowledge_collections" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."knowledge_collections" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."knowledge_collections" add column if not exists "description" text;
 alter table "better_supabase"."knowledge_collections" add column if not exists "visibility" text not null default 'automatic' check ("visibility" in ('automatic', 'restricted', 'disabled'));
 alter table "better_supabase"."knowledge_collections" add column if not exists "priority" integer not null default 0;
@@ -4111,7 +4111,7 @@ alter table "better_supabase"."knowledge_documents" add column if not exists "ow
 alter table "better_supabase"."knowledge_documents" add column if not exists "scope" text not null default 'user' check ("scope" in ('organization', 'agent', 'project', 'chat', 'user'));
 alter table "better_supabase"."knowledge_documents" add column if not exists "scope_id" uuid;
 alter table "better_supabase"."knowledge_documents" add column if not exists "file_id" uuid;
-alter table "better_supabase"."knowledge_documents" add column if not exists "title" text check (length("title") between 1 and 500);
+alter table "better_supabase"."knowledge_documents" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 500);
 alter table "better_supabase"."knowledge_documents" add column if not exists "source" text;
 alter table "better_supabase"."knowledge_documents" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."knowledge_documents" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed'));
@@ -4653,7 +4653,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:c728a6c92ffc5699d7c52f0776a108baa37d1585798acf7d075050952ed1c01b
+-- @bsb-hash sha256:b50ad38777f914a52fb38d12343d92ed8cb3e0228d6961ed3587479ce0645666
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4730,7 +4730,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."knowledge_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text,
   "visibility" text not null default 'automatic' check ("visibility" in ('automatic', 'restricted', 'disabled')),
   "priority" integer not null default 0,
@@ -4975,7 +4975,7 @@ create table if not exists "better_supabase"."knowledge_documents" (
   "scope" text not null default 'user' check ("scope" in ('organization', 'agent', 'project', 'chat', 'user')),
   "scope_id" uuid,
   "file_id" uuid,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "source" text,
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
@@ -4988,8 +4988,8 @@ create table if not exists "better_supabase"."knowledge_documents" (
   constraint knowledge_documents_system_check check ("org_id" is not null or ("scope" = 'organization' and "owner_id" is null))
 );
 alter table "better_supabase"."knowledge_documents" add column if not exists "collection_id" uuid references "better_supabase"."knowledge_collections" ("id") on delete set null;
-alter table "better_supabase"."knowledge_documents" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."knowledge_documents" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."knowledge_documents" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."knowledge_documents" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."knowledge_documents" drop constraint if exists "knowledge_documents_scope_check";
 alter table "better_supabase"."knowledge_documents" add constraint "knowledge_documents_scope_check" check ("scope" in ('organization', 'agent', 'project', 'chat', 'user', 'subject'));
 alter table "better_supabase"."knowledge_documents" drop constraint if exists "knowledge_documents_check";

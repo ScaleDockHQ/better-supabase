@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:cf5bdb08d3b6fef2a7b47f281310440972469804b3fbaea8b7d2a521091933ee
+-- @bsb-hash sha256:9d1be03af1566a97d5878d47890d175c249a25ab194e7c52f00dee9fd8d22391
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -128,7 +128,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "group_name" text check ("group_name" is null or length("group_name") <= 100),
   -- Whether the component shows on the public status page.
@@ -174,7 +174,7 @@ create policy incident_status_component_history_read on "better_supabase"."incid
 create table if not exists "better_supabase"."incidents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- Internal detail; the public status page never shows it.
   "description" text check ("description" is null or length("description") <= 10000),
   "severity" text not null default 'sev3' check ("severity" in ('sev1', 'sev2', 'sev3', 'sev4')),
@@ -209,7 +209,7 @@ create table if not exists "better_supabase"."incident_updates" (
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
   "status" text not null check ("status" in ('investigating', 'identified', 'monitoring', 'resolved')),
-  "body" text not null check (length("body") between 1 and 10000),
+  "body" text not null check (length("body") >= 1 and length("body") <= 10000),
   "public" boolean not null default false,
   "author_id" uuid,
   -- clock_timestamp keeps the timeline in order when one transaction posts
@@ -279,7 +279,7 @@ create table if not exists "better_supabase"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null unique,
   "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "published" boolean not null default false,
   "created_at" timestamptz not null default now(),
@@ -1451,7 +1451,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:e408c0b316f603e48f77a700affb017b6ac7c2dcca5c16434b0b9dc6171726e7
+-- @bsb-hash sha256:e2aebfb4759d6741da9d16651e65ce2d1fc39121ec964893f18442199a73eed1
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1603,7 +1603,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "group_name" text check ("group_name" is null or length("group_name") <= 100),
   -- Whether the component shows on the public status page.
@@ -1649,7 +1649,7 @@ create policy incident_status_component_history_read on "better_supabase"."incid
 create table if not exists "better_supabase"."incidents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- Internal detail; the public status page never shows it.
   "description" text check ("description" is null or length("description") <= 10000),
   "severity" text not null default 'sev3' check ("severity" in ('sev1', 'sev2', 'sev3', 'sev4')),
@@ -1684,7 +1684,7 @@ create table if not exists "better_supabase"."incident_updates" (
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
   "status" text not null check ("status" in ('investigating', 'identified', 'monitoring', 'resolved')),
-  "body" text not null check (length("body") between 1 and 10000),
+  "body" text not null check (length("body") >= 1 and length("body") <= 10000),
   "public" boolean not null default false,
   "author_id" uuid,
   -- clock_timestamp keeps the timeline in order when one transaction posts
@@ -1775,7 +1775,7 @@ create table if not exists "better_supabase"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null unique,
   "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "published" boolean not null default false,
   "created_at" timestamptz not null default now(),
@@ -3174,7 +3174,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:0f107d409f2ef3d45b02e2437d5b0ec61c5abcfbf8d6fb22a061f9ab3afc3f87
+-- @bsb-hash sha256:cdb11a7e776dc9f188c006cacdd4375fb7b6f35e893189dec1cb067d1c1cf9c7
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3306,7 +3306,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "group_name" text check ("group_name" is null or length("group_name") <= 100),
   -- Whether the component shows on the public status page.
@@ -3352,7 +3352,7 @@ create policy incident_status_component_history_read on "app_private"."incident_
 create table if not exists "app_private"."incidents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- Internal detail; the public status page never shows it.
   "description" text check ("description" is null or length("description") <= 10000),
   "severity" text not null default 'sev3' check ("severity" in ('sev1', 'sev2', 'sev3', 'sev4')),
@@ -3387,7 +3387,7 @@ create table if not exists "app_private"."incident_updates" (
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
   "status" text not null check ("status" in ('investigating', 'identified', 'monitoring', 'resolved')),
-  "body" text not null check (length("body") between 1 and 10000),
+  "body" text not null check (length("body") >= 1 and length("body") <= 10000),
   "public" boolean not null default false,
   "author_id" uuid,
   -- clock_timestamp keeps the timeline in order when one transaction posts
@@ -3457,7 +3457,7 @@ create table if not exists "app_private"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null unique,
   "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "published" boolean not null default false,
   "created_at" timestamptz not null default now(),
@@ -4629,7 +4629,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:18d4fbe0329d3997e0415bbb7d84d78250b86d442d3e96715c081d4a5779a092
+-- @bsb-hash sha256:7422403dd2e9b5fe2a43c113f2ff86728529677b3c281b6c3e119428b63d9293
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4756,7 +4756,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "group_name" text check ("group_name" is null or length("group_name") <= 100),
   -- Whether the component shows on the public status page.
@@ -4802,7 +4802,7 @@ create policy incident_status_component_history_read on "better_supabase"."incid
 create table if not exists "better_supabase"."incidents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- Internal detail; the public status page never shows it.
   "description" text check ("description" is null or length("description") <= 10000),
   "severity" text not null default 'sev3' check ("severity" in ('sev1', 'sev2', 'sev3', 'sev4')),
@@ -4837,7 +4837,7 @@ create table if not exists "better_supabase"."incident_updates" (
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
   "status" text not null check ("status" in ('investigating', 'identified', 'monitoring', 'resolved')),
-  "body" text not null check (length("body") between 1 and 10000),
+  "body" text not null check (length("body") >= 1 and length("body") <= 10000),
   "public" boolean not null default false,
   "author_id" uuid,
   -- clock_timestamp keeps the timeline in order when one transaction posts
@@ -4907,7 +4907,7 @@ create table if not exists "better_supabase"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null unique,
   "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "published" boolean not null default false,
   "created_at" timestamptz not null default now(),
@@ -6279,7 +6279,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:5c1e6d47e1b0d3bc20b2f23e7024a6cef70a5a3f70badbc723a6fa5f0bbd5ff7
+-- @bsb-hash sha256:0a0b800ca5db96befb820cf0b0a46eab00337770d7ef7bc08bb098f649d890d7
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6422,7 +6422,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.incident_status_components is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."incident_status_components" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."incident_status_components" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."incident_status_components" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."incident_status_components" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."incident_status_components" add column if not exists "description" text check ("description" is null or length("description") <= 2000);
 alter table "better_supabase"."incident_status_components" add column if not exists "group_name" text check ("group_name" is null or length("group_name") <= 100);
 alter table "better_supabase"."incident_status_components" add column if not exists "public" boolean not null default true;
@@ -6461,7 +6461,7 @@ create policy bsb_incident_status_component_history_read on "better_supabase"."i
 -- better_supabase.incidents is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."incidents" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."incidents" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."incidents" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."incidents" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."incidents" add column if not exists "description" text check ("description" is null or length("description") <= 10000);
 alter table "better_supabase"."incidents" add column if not exists "severity" text not null default 'sev3' check ("severity" in ('sev1', 'sev2', 'sev3', 'sev4'));
 alter table "better_supabase"."incidents" add column if not exists "status" text not null default 'investigating' check ("status" in ('investigating', 'identified', 'monitoring', 'resolved'));
@@ -6490,7 +6490,7 @@ alter table "better_supabase"."incident_updates" add column if not exists "id" u
 alter table "better_supabase"."incident_updates" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."incident_updates" add column if not exists "incident_id" uuid;
 alter table "better_supabase"."incident_updates" add column if not exists "status" text check ("status" in ('investigating', 'identified', 'monitoring', 'resolved'));
-alter table "better_supabase"."incident_updates" add column if not exists "body" text check (length("body") between 1 and 10000);
+alter table "better_supabase"."incident_updates" add column if not exists "body" text check (length("body") >= 1 and length("body") <= 10000);
 alter table "better_supabase"."incident_updates" add column if not exists "public" boolean not null default false;
 alter table "better_supabase"."incident_updates" add column if not exists "author_id" uuid;
 alter table "better_supabase"."incident_updates" add column if not exists "created_at" timestamptz not null default clock_timestamp();
@@ -6548,7 +6548,7 @@ create policy bsb_incident_postmortems_read on "better_supabase"."incident_postm
 alter table "better_supabase"."incident_status_pages" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."incident_status_pages" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."incident_status_pages" add column if not exists "slug" text check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$');
-alter table "better_supabase"."incident_status_pages" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."incident_status_pages" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."incident_status_pages" add column if not exists "description" text check ("description" is null or length("description") <= 2000);
 alter table "better_supabase"."incident_status_pages" add column if not exists "published" boolean not null default false;
 alter table "better_supabase"."incident_status_pages" add column if not exists "created_at" timestamptz not null default now();
@@ -7717,7 +7717,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:730e17c6c4486f287a4ed3161bf1defcd8721cf4873b7b0afaa6022305f6ca27
+-- @bsb-hash sha256:0832eca34238c5c0778f35aff2ecf628e7114589ac551438ace6215a62cf7c5b
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7844,7 +7844,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "group_name" text check ("group_name" is null or length("group_name") <= 100),
   -- Whether the component shows on the public status page.
@@ -7890,7 +7890,7 @@ create policy incident_status_component_history_read on "better_supabase"."incid
 create table if not exists "better_supabase"."incidents" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- Internal detail; the public status page never shows it.
   "description" text check ("description" is null or length("description") <= 10000),
   "severity" text not null default 'sev3' check ("severity" in ('sev1', 'sev2', 'sev3', 'sev4')),
@@ -7925,7 +7925,7 @@ create table if not exists "better_supabase"."incident_updates" (
   "org_id" uuid not null,
   "incident_id" uuid not null,
   "status" text not null check ("status" in ('investigating', 'identified', 'monitoring', 'resolved')),
-  "body" text not null check (length("body") between 1 and 10000),
+  "body" text not null check (length("body") >= 1 and length("body") <= 10000),
   "public" boolean not null default false,
   "author_id" uuid,
   -- clock_timestamp keeps the timeline in order when one transaction posts
@@ -7995,7 +7995,7 @@ create table if not exists "better_supabase"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null unique,
   "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "published" boolean not null default false,
   "created_at" timestamptz not null default now(),

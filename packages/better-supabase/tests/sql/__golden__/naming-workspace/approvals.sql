@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:b5099b69cfaf43534c072f8e3f46ed9e74823f17671051d2521630abf76535c3
+-- @bsb-hash sha256:3f084b52a84fa9652aa3f42c7503439c94625788c0c4c8428c20dbdf99a27362
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -131,7 +131,7 @@ create table if not exists "better_supabase"."approval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "key" text not null check (length("key") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "label" text check ("label" is null or length("label") <= 500),
   "payload" jsonb not null default '{}'::jsonb,
   "permission" text,

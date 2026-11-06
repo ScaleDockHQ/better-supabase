@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:edde72bc7aa9789a8060d61dae5c6360aa20880488f805d24bf98b6afdde13f2
+-- @bsb-hash sha256:65150fa833e9368093c99549cdb6b611fc17ea906b5df778b6cde8e68ccbcd17
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -152,7 +152,7 @@ create table if not exists "better_supabase"."legal_holds" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "reason" text not null check (length("reason") between 1 and 1000),
+  "reason" text not null check (length("reason") >= 1 and length("reason") <= 1000),
   "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "placed_at" timestamptz not null default now(),
   "released_by" uuid references auth.users (id) on delete set null,
@@ -376,7 +376,7 @@ create table if not exists "better_supabase"."data_subject_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
-  "requester" text not null check (length("requester") between 1 and 320),
+  "requester" text not null check (length("requester") >= 1 and length("requester") <= 320),
   "subject_type" text,
   "subject_id" text,
   "details" text check ("details" is null or length("details") <= 5000),
@@ -1492,7 +1492,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:5d84025a04475bca0319a9bfed34e10444c251586e3cf4de26b4c7ac612054ac
+-- @bsb-hash sha256:1ecc81c0041192ead2a9b15c05131d48e810ed63badf156908030612b59eba7e
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1643,7 +1643,7 @@ create table if not exists "better_supabase"."legal_holds" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "reason" text not null check (length("reason") between 1 and 1000),
+  "reason" text not null check (length("reason") >= 1 and length("reason") <= 1000),
   "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "placed_at" timestamptz not null default now(),
   "released_by" uuid references auth.users (id) on delete set null,
@@ -1890,7 +1890,7 @@ create table if not exists "better_supabase"."data_subject_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
-  "requester" text not null check (length("requester") between 1 and 320),
+  "requester" text not null check (length("requester") >= 1 and length("requester") <= 320),
   "subject_type" text,
   "subject_id" text,
   "details" text check ("details" is null or length("details") <= 5000),
@@ -4183,7 +4183,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:cf0666b25def089d2a27e63189f86ebf620bc3218faddc5eef7444df9c29b46b
+-- @bsb-hash sha256:3f998a1b1f722511df427a98d54a6ac83366d3316a2134a3d1305522a499335d
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4339,7 +4339,7 @@ create table if not exists "app_private"."legal_holds" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "reason" text not null check (length("reason") between 1 and 1000),
+  "reason" text not null check (length("reason") >= 1 and length("reason") <= 1000),
   "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "placed_at" timestamptz not null default now(),
   "released_by" uuid references auth.users (id) on delete set null,
@@ -4563,7 +4563,7 @@ create table if not exists "app_private"."data_subject_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
-  "requester" text not null check (length("requester") between 1 and 320),
+  "requester" text not null check (length("requester") >= 1 and length("requester") <= 320),
   "subject_type" text,
   "subject_id" text,
   "details" text check ("details" is null or length("details") <= 5000),
@@ -5679,7 +5679,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:1ddea31f29ec13d962c97c3e7bd479441095180f38974a911bab9f5b94ccfa73
+-- @bsb-hash sha256:f06ce685635375b6284ef8bbf2bbd022ae373859d8a4011e11dff39b6eae5979
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5830,7 +5830,7 @@ create table if not exists "better_supabase"."legal_holds" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "reason" text not null check (length("reason") between 1 and 1000),
+  "reason" text not null check (length("reason") >= 1 and length("reason") <= 1000),
   "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "placed_at" timestamptz not null default now(),
   "released_by" uuid references auth.users (id) on delete set null,
@@ -6054,7 +6054,7 @@ create table if not exists "better_supabase"."data_subject_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
-  "requester" text not null check (length("requester") between 1 and 320),
+  "requester" text not null check (length("requester") >= 1 and length("requester") <= 320),
   "subject_type" text,
   "subject_id" text,
   "details" text check ("details" is null or length("details") <= 5000),
@@ -7548,7 +7548,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:aefcd57b30b522f12ef8a65928dd626532114308b46347c143d1fac8ec5bea73
+-- @bsb-hash sha256:f2a785cc54c49e8b641f84c75c68f44e6c74bdff27018b5963635875f6f585dc
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7693,7 +7693,7 @@ grant all on "better_supabase"."retention_policies" to service_role;
 alter table "better_supabase"."legal_holds" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."legal_holds" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."legal_holds" add column if not exists "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."legal_holds" add column if not exists "reason" text check (length("reason") between 1 and 1000);
+alter table "better_supabase"."legal_holds" add column if not exists "reason" text check (length("reason") >= 1 and length("reason") <= 1000);
 alter table "better_supabase"."legal_holds" add column if not exists "placed_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."legal_holds" add column if not exists "placed_at" timestamptz not null default now();
 alter table "better_supabase"."legal_holds" add column if not exists "released_by" uuid references auth.users (id) on delete set null;
@@ -7915,7 +7915,7 @@ grant execute on function "better_supabase"."list_legal_holds"(boolean) to servi
 alter table "better_supabase"."data_subject_requests" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."data_subject_requests" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."data_subject_requests" add column if not exists "kind" text check ("kind" in ('access', 'erasure', 'rectification', 'portability'));
-alter table "better_supabase"."data_subject_requests" add column if not exists "requester" text check (length("requester") between 1 and 320);
+alter table "better_supabase"."data_subject_requests" add column if not exists "requester" text check (length("requester") >= 1 and length("requester") <= 320);
 alter table "better_supabase"."data_subject_requests" add column if not exists "subject_type" text;
 alter table "better_supabase"."data_subject_requests" add column if not exists "subject_id" text;
 alter table "better_supabase"."data_subject_requests" add column if not exists "details" text check ("details" is null or length("details") <= 5000);
@@ -9026,7 +9026,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:0aa77a82b522c8e06a9d71a2bae76b712de4a522acb646dda2da1aeed195ccb4
+-- @bsb-hash sha256:2c3f3b65c87e69abe59e27c7fa6c282d6caa24ddacbd43a5836facd479c4bf8b
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9177,7 +9177,7 @@ create table if not exists "better_supabase"."legal_holds" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
   "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "reason" text not null check (length("reason") between 1 and 1000),
+  "reason" text not null check (length("reason") >= 1 and length("reason") <= 1000),
   "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "placed_at" timestamptz not null default now(),
   "released_by" uuid references auth.users (id) on delete set null,
@@ -9401,7 +9401,7 @@ create table if not exists "better_supabase"."data_subject_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
-  "requester" text not null check (length("requester") between 1 and 320),
+  "requester" text not null check (length("requester") >= 1 and length("requester") <= 320),
   "subject_type" text,
   "subject_id" text,
   "details" text check ("details" is null or length("details") <= 5000),

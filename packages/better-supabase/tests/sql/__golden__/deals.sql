@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:deca78cb69384cf344cfb2e761a548c0365807b4f29888920a831b2178ebaf76
+-- @bsb-hash sha256:7882c7abdf4e536576ca4d7655c386632d38805c58e73c32df98fb57abf4797c
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,7 +105,7 @@ create table if not exists "better_supabase"."deals" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "company_type" text,
   "company_id" text,
   "motion" text,
@@ -684,7 +684,7 @@ create table if not exists "better_supabase"."deal_lines" (
   "parent_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
   "product_type" text,
   "product_id" text,
-  "description" text not null check (length("description") between 1 and 2000),
+  "description" text not null check (length("description") >= 1 and length("description") <= 2000),
   "quantity" numeric(18, 4) not null check ("quantity" > 0),
   "unit_amount" bigint not null,
   "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
@@ -1164,7 +1164,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:e3872fca5bbf01b446298b17745968ac951687b8c427b5ad852933e324c25b13
+-- @bsb-hash sha256:f19fcdc40cebc7f58d8d7b68db7543e5e3b01328cf196d62e8852ccf869de3c8
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1268,7 +1268,7 @@ create table if not exists "better_supabase"."deals" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "company_type" text,
   "company_id" text,
   "motion" text,
@@ -1876,7 +1876,7 @@ create table if not exists "better_supabase"."deal_lines" (
   "parent_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
   "product_type" text,
   "product_id" text,
-  "description" text not null check (length("description") between 1 and 2000),
+  "description" text not null check (length("description") >= 1 and length("description") <= 2000),
   "quantity" numeric(18, 4) not null check ("quantity" > 0),
   "unit_amount" bigint not null,
   "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
@@ -2364,7 +2364,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:d13fbaf3d2e0db3b491433e8868b8c1881e59c5a72f19fc1019851331142ed31
+-- @bsb-hash sha256:0e2e4d81e09620a5a231b5aca269d2aaf261def11ff04a657cd30e5393143149
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2473,7 +2473,7 @@ create table if not exists "app_private"."deals" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "company_type" text,
   "company_id" text,
   "motion" text,
@@ -3052,7 +3052,7 @@ create table if not exists "app_private"."deal_lines" (
   "parent_id" uuid not null references "app_private"."deals" ("id") on delete cascade,
   "product_type" text,
   "product_id" text,
-  "description" text not null check (length("description") between 1 and 2000),
+  "description" text not null check (length("description") >= 1 and length("description") <= 2000),
   "quantity" numeric(18, 4) not null check ("quantity" > 0),
   "unit_amount" bigint not null,
   "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
@@ -3532,7 +3532,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:b47c3824cd4f29c231afaae95a838d9455e9b9000e64c92a830ee263703e7ad9
+-- @bsb-hash sha256:7621ba4f8b8e319151b11151b8b5ede612e212be137a4456cf7a0297f6e9ffa8
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3636,7 +3636,7 @@ create table if not exists "better_supabase"."deals" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "company_type" text,
   "company_id" text,
   "motion" text,
@@ -4215,7 +4215,7 @@ create table if not exists "better_supabase"."deal_lines" (
   "parent_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
   "product_type" text,
   "product_id" text,
-  "description" text not null check (length("description") between 1 and 2000),
+  "description" text not null check (length("description") >= 1 and length("description") <= 2000),
   "quantity" numeric(18, 4) not null check ("quantity" > 0),
   "unit_amount" bigint not null,
   "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
@@ -4839,7 +4839,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:bad2a513af372a1b0641fb8cf13a3c069f22bcabb1e4832587e4e5e4f791e5bb
+-- @bsb-hash sha256:5de805a3c6a57bb330730734d52c26eee95bbd4a3e66311e20b6ad0bb47138d2
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4958,7 +4958,7 @@ alter table "better_supabase"."deals" add column if not exists "id" uuid default
 alter table "better_supabase"."deals" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."deals" add column if not exists "number" bigint;
 alter table "better_supabase"."deals" add column if not exists "identifier" text;
-alter table "better_supabase"."deals" add column if not exists "name" text check (length("name") between 1 and 300);
+alter table "better_supabase"."deals" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 300);
 alter table "better_supabase"."deals" add column if not exists "company_type" text;
 alter table "better_supabase"."deals" add column if not exists "company_id" text;
 alter table "better_supabase"."deals" add column if not exists "motion" text;
@@ -5529,7 +5529,7 @@ alter table "better_supabase"."deal_lines" add column if not exists "tenant_id" 
 alter table "better_supabase"."deal_lines" add column if not exists "parent_id" uuid references "better_supabase"."deals" ("id") on delete cascade;
 alter table "better_supabase"."deal_lines" add column if not exists "product_type" text;
 alter table "better_supabase"."deal_lines" add column if not exists "product_id" text;
-alter table "better_supabase"."deal_lines" add column if not exists "description" text check (length("description") between 1 and 2000);
+alter table "better_supabase"."deal_lines" add column if not exists "description" text check (length("description") >= 1 and length("description") <= 2000);
 alter table "better_supabase"."deal_lines" add column if not exists "quantity" numeric(18, 4) check ("quantity" > 0);
 alter table "better_supabase"."deal_lines" add column if not exists "unit_amount" bigint;
 alter table "better_supabase"."deal_lines" add column if not exists "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000);
@@ -6008,7 +6008,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:0258588251400b5a36de356db3aec974c5b39d51996c0ee7361f9f8709b4cfc3
+-- @bsb-hash sha256:c7ecd64bd97a905bc11ae840a60021daf192d73e5442a7f188a95f7ec0fa20be
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6112,7 +6112,7 @@ create table if not exists "better_supabase"."deals" (
   "org_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "company_type" text,
   "company_id" text,
   "motion" text,
@@ -6691,7 +6691,7 @@ create table if not exists "better_supabase"."deal_lines" (
   "parent_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
   "product_type" text,
   "product_id" text,
-  "description" text not null check (length("description") between 1 and 2000),
+  "description" text not null check (length("description") >= 1 and length("description") <= 2000),
   "quantity" numeric(18, 4) not null check ("quantity" > 0),
   "unit_amount" bigint not null,
   "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),

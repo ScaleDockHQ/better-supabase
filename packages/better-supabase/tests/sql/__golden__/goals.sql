@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:3af2f97882bbb2c2c7a805d7ce5c741d5f1ea725662bdf8fd17830849b6732af
+-- @bsb-hash sha256:a7d1b3da60370340bae56d70af73670bd73aec926588269dc9484fac9ad4db9e
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,7 +61,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
   "owner_user_id" uuid,
   "team_id" uuid,
@@ -222,7 +222,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:aed47da38459a64cc3de798572d8618cf784647a124fbf2032e4c4adbbc6f1d4
+-- @bsb-hash sha256:3f6791f663a2a63334610f9b412cbc6a4316641236448ffd4e513774db1c26cc
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -282,7 +282,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
   "owner_user_id" uuid,
   "team_id" uuid,
@@ -464,7 +464,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:c4bcfb6f23b3c9763523ffc1a0b65f27f286a7aac5e1995816a7ab9c8d2e81c8
+-- @bsb-hash sha256:78001cb2887dc172cd90ae5f3e2c9ad302121aec20197d57e8e5e78588a59b28
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -529,7 +529,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
   "owner_user_id" uuid,
   "team_id" uuid,
@@ -690,7 +690,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:677aa3f8e5db11feece49c98feb199b2c34615f0bb952c6f0e006fc9bae9b789
+-- @bsb-hash sha256:025bb9f3356cdc631e0ec69e5b6718be72e352137e3ee2d5b96284d33cac8e24
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -750,7 +750,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
   "owner_user_id" uuid,
   "team_id" uuid,
@@ -953,7 +953,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:d5f020db2291c9e83342b28b49319818ee9a39767159e853ad8b9c8655196760
+-- @bsb-hash sha256:fe67a5faba68c1d1e0e04df63ae60f63bbfbcd68c11de3db06083357c36bd8d7
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1013,7 +1013,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.goals is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."goals" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."goals" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."goals" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."goals" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."goals" add column if not exists "metric" text check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$');
 alter table "better_supabase"."goals" add column if not exists "owner_user_id" uuid;
 alter table "better_supabase"."goals" add column if not exists "team_id" uuid;
@@ -1171,7 +1171,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:f8cc230b949fa988e9cc65a4657f2951f2b433406924c3518b9c639df32130d3
+-- @bsb-hash sha256:bb38457b5b3a4c2e6942f61b8b0003075f3d1450a7a0372bf6a9e35542100235
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1231,7 +1231,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
   "owner_user_id" uuid,
   "team_id" uuid,

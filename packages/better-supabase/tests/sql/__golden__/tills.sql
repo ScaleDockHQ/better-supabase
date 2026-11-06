@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_168_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:5d8a188ead62081c85bd0960ded1a9d0a5c1f4306551e3dd0d16b6b386377d66
+-- @bsb-hash sha256:2c22d8b676a2491a14d117c4f99d0954a9132b16fb7019392258c944c0043694
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -97,7 +97,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."tills" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "account_id" uuid,
   "location" text check ("location" is null or length("location") <= 200),
@@ -891,7 +891,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_168_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:6e9e8447d528e0596f1d052f44b2a3dae43fb3c08233f106625aaee41427fcca
+-- @bsb-hash sha256:040c68447f8462abf134a361f44572cf8f1f0c828ef4c593d28cc7511757614c
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1004,7 +1004,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."tills" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "account_id" uuid,
   "location" text check ("location" is null or length("location") <= 200),
@@ -1952,7 +1952,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_168_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:06f04869af9ab247acb53de5e5a34f1e43465f4acd19bd2ec0c59feb3d0b91a3
+-- @bsb-hash sha256:98e1ce2e34b78ecb3f48fcaaf293a87d4c9d85d622aee1e1e8554ac903e4c3da
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2053,7 +2053,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."tills" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "account_id" uuid,
   "location" text check ("location" is null or length("location") <= 200),
@@ -2847,7 +2847,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_168_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:91866e32c3424928c25579e81e2a612cc664f264ccaa4599f4608f923796398a
+-- @bsb-hash sha256:1208b2091d655cf57c0894cbcaafa17b5dde72d82592fa52c87dc63bed5a356a
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2943,7 +2943,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."tills" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "account_id" uuid,
   "location" text check ("location" is null or length("location") <= 200),
@@ -3853,7 +3853,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_168_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:9e48b8f522a83febc691f59a8f52f8957a75a790e47fb5e8c8d914189336462d
+-- @bsb-hash sha256:c5cd826603c95d037a5a4ce3a9e0eeaafd5b99903b642c1c4e586e210595fad4
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3949,7 +3949,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.tills is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."tills" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."tills" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."tills" add column if not exists "name" text check (length("name") between 1 and 100);
+alter table "better_supabase"."tills" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 100);
 alter table "better_supabase"."tills" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."tills" add column if not exists "account_id" uuid;
 alter table "better_supabase"."tills" add column if not exists "location" text check ("location" is null or length("location") <= 200);
@@ -4736,7 +4736,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_168_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:122ea702ada2710b774444ac2c2d8f153e6357ba80c8b35735221227cf4d036a
+-- @bsb-hash sha256:3a065dde9489dabe77cc4b0bcabdf4bedd51cb00ffe0fb78e3ebd5b2df4d5f93
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4832,7 +4832,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."tills" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "account_id" uuid,
   "location" text check ("location" is null or length("location") <= 200),

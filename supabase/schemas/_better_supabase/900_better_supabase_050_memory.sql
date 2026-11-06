@@ -1,6 +1,6 @@
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:11ec6465cd95660b575ecef727fee55c8c1cca977af90df699eb18b0b3e06b99
+-- @bsb-hash sha256:c71cb3ead0c38b1f465e5e89c54c059c35d581a93efb3b0d73a4605ff2189de3
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,7 +87,7 @@ create table if not exists "better_supabase"."memories" (
   "subject_type" text,
   "subject_id" text,
   "category" text check ("category" ~ '^[a-z0-9][a-z0-9_-]*$'),
-  "confidence" real check ("confidence" between 0 and 1),
+  "confidence" real check ("confidence" >= 0 and "confidence" <= 1),
   "expires_at" timestamptz,
   "deleted_at" timestamptz,
   "use_count" integer not null default 0,

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@1 managed
--- @bsb-hash sha256:097bc00e52224350f4c112690ebaf088e37da4c2d5d7e338efbf01bd14412087
+-- @bsb-hash sha256:b476c32847a34b38391c271fa33dc101d50b68a954cb2cbc5131c2ba7a97fbec
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,7 +129,7 @@ create table if not exists "better_supabase"."deadlines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "jurisdiction" text not null,
   "kind" text not null,
   "rule_key" text not null,

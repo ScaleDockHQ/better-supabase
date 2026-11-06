@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:21816a257972feb8707b0c245f319207d70b429ef5961293de05204b159f0d9b
+-- @bsb-hash sha256:48846a75296db78e1178fc35134429e4c97b7af6a128e3b97a201275b4b3550f
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,9 +92,9 @@ create extension if not exists btree_gist with schema extensions;
 create table if not exists "better_supabase"."booking_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'staff',
-  "capacity" integer not null default 1 check ("capacity" between 1 and 1000),
+  "capacity" integer not null default 1 check ("capacity" >= 1 and "capacity" <= 1000),
   "tz" text not null default 'UTC',
   "calendar_id" uuid,
   "host_user_id" uuid,
@@ -117,7 +117,7 @@ create table if not exists "better_supabase"."booking_availability" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   check ("ends_at" > "starts_at")
@@ -151,7 +151,7 @@ create policy booking_exceptions_read on "better_supabase"."booking_exceptions"
 create table if not exists "better_supabase"."booking_services" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "duration" interval not null check ("duration" > interval '0'),
   "buffer_before" interval not null default interval '0' check ("buffer_before" >= interval '0'),
   "buffer_after" interval not null default interval '0' check ("buffer_after" >= interval '0'),
@@ -980,7 +980,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:ba82e137d34ead916c1e187626d5b2200bb079058289ef8cc351e0e072336c98
+-- @bsb-hash sha256:22abe123b2a576fe7533807cbe079a11a7c9195e7283be3f20e96af2dc9dafde
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1071,9 +1071,9 @@ create extension if not exists btree_gist with schema extensions;
 create table if not exists "better_supabase"."booking_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'staff',
-  "capacity" integer not null default 1 check ("capacity" between 1 and 1000),
+  "capacity" integer not null default 1 check ("capacity" >= 1 and "capacity" <= 1000),
   "tz" text not null default 'UTC',
   "calendar_id" uuid,
   "host_user_id" uuid,
@@ -1096,7 +1096,7 @@ create table if not exists "better_supabase"."booking_availability" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   check ("ends_at" > "starts_at")
@@ -1130,7 +1130,7 @@ create policy booking_exceptions_read on "better_supabase"."booking_exceptions"
 create table if not exists "better_supabase"."booking_services" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "duration" interval not null check ("duration" > interval '0'),
   "buffer_before" interval not null default interval '0' check ("buffer_before" >= interval '0'),
   "buffer_after" interval not null default interval '0' check ("buffer_after" >= interval '0'),
@@ -2214,7 +2214,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:ad52a77fc9a687ae68f2e1af6f0834d15918ccf3ab17e11e1b2b38a73a8dcb50
+-- @bsb-hash sha256:d5b602ba1b037dde4dcebd6578bc9499cd27974680c664cc1a6d59f2f37fea74
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2310,9 +2310,9 @@ create extension if not exists btree_gist with schema extensions;
 create table if not exists "app_private"."booking_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'staff',
-  "capacity" integer not null default 1 check ("capacity" between 1 and 1000),
+  "capacity" integer not null default 1 check ("capacity" >= 1 and "capacity" <= 1000),
   "tz" text not null default 'UTC',
   "calendar_id" uuid,
   "host_user_id" uuid,
@@ -2335,7 +2335,7 @@ create table if not exists "app_private"."booking_availability" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "resource_id" uuid not null references "app_private"."booking_resources" ("id") on delete cascade,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   check ("ends_at" > "starts_at")
@@ -2369,7 +2369,7 @@ create policy booking_exceptions_read on "app_private"."booking_exceptions"
 create table if not exists "app_private"."booking_services" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "duration" interval not null check ("duration" > interval '0'),
   "buffer_before" interval not null default interval '0' check ("buffer_before" >= interval '0'),
   "buffer_after" interval not null default interval '0' check ("buffer_after" >= interval '0'),
@@ -3198,7 +3198,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:6cbdedf0faf07833ea0a74c466e14c7916772428dfe1605fcec3c079af1374bc
+-- @bsb-hash sha256:cb86a32b825c29d6cc09353752ed5900c8bf1742160d3c37d3b29a2411ab19d8
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3289,9 +3289,9 @@ create extension if not exists btree_gist with schema extensions;
 create table if not exists "better_supabase"."booking_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'staff',
-  "capacity" integer not null default 1 check ("capacity" between 1 and 1000),
+  "capacity" integer not null default 1 check ("capacity" >= 1 and "capacity" <= 1000),
   "tz" text not null default 'UTC',
   "calendar_id" uuid,
   "host_user_id" uuid,
@@ -3314,7 +3314,7 @@ create table if not exists "better_supabase"."booking_availability" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   check ("ends_at" > "starts_at")
@@ -3348,7 +3348,7 @@ create policy booking_exceptions_read on "better_supabase"."booking_exceptions"
 create table if not exists "better_supabase"."booking_services" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "duration" interval not null check ("duration" > interval '0'),
   "buffer_before" interval not null default interval '0' check ("buffer_before" >= interval '0'),
   "buffer_after" interval not null default interval '0' check ("buffer_after" >= interval '0'),
@@ -4358,7 +4358,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:269545f4792aac185862f7e5eabf405842d1a8320648e36a4e01c72b92c57664
+-- @bsb-hash sha256:b64d2d9d4daa8ca9aa663d28438f6a962e05a270502a6b55bf565cbc18dcbb9e
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4465,9 +4465,9 @@ create extension if not exists btree_gist with schema extensions;
 -- better_supabase.booking_resources is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."booking_resources" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."booking_resources" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."booking_resources" add column if not exists "name" text check (length("name") between 1 and 120);
+alter table "better_supabase"."booking_resources" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 120);
 alter table "better_supabase"."booking_resources" add column if not exists "kind" text not null default 'staff';
-alter table "better_supabase"."booking_resources" add column if not exists "capacity" integer not null default 1 check ("capacity" between 1 and 1000);
+alter table "better_supabase"."booking_resources" add column if not exists "capacity" integer not null default 1 check ("capacity" >= 1 and "capacity" <= 1000);
 alter table "better_supabase"."booking_resources" add column if not exists "tz" text not null default 'UTC';
 alter table "better_supabase"."booking_resources" add column if not exists "calendar_id" uuid;
 alter table "better_supabase"."booking_resources" add column if not exists "host_user_id" uuid;
@@ -4488,7 +4488,7 @@ create policy bsb_booking_resources_select on "better_supabase"."booking_resourc
 alter table "better_supabase"."booking_availability" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."booking_availability" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."booking_availability" add column if not exists "resource_id" uuid references "better_supabase"."booking_resources" ("id") on delete cascade;
-alter table "better_supabase"."booking_availability" add column if not exists "weekday" smallint check ("weekday" between 1 and 7);
+alter table "better_supabase"."booking_availability" add column if not exists "weekday" smallint check ("weekday" >= 1 and "weekday" <= 7);
 alter table "better_supabase"."booking_availability" add column if not exists "starts_at" time;
 alter table "better_supabase"."booking_availability" add column if not exists "ends_at" time;
 create index if not exists booking_availability_resource_idx on "better_supabase"."booking_availability" ("resource_id", "weekday");
@@ -4517,7 +4517,7 @@ create policy bsb_booking_exceptions_select on "better_supabase"."booking_except
 -- better_supabase.booking_services is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."booking_services" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."booking_services" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."booking_services" add column if not exists "name" text check (length("name") between 1 and 120);
+alter table "better_supabase"."booking_services" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 120);
 alter table "better_supabase"."booking_services" add column if not exists "duration" interval check ("duration" > interval '0');
 alter table "better_supabase"."booking_services" add column if not exists "buffer_before" interval not null default interval '0' check ("buffer_before" >= interval '0');
 alter table "better_supabase"."booking_services" add column if not exists "buffer_after" interval not null default interval '0' check ("buffer_after" >= interval '0');
@@ -5335,7 +5335,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:c5de9a7084e8d7a048d720286e7725a75de01376df85399238d52e9eb24795b9
+-- @bsb-hash sha256:645e2c297d9419a53c74d18f691621c6f314e100be9c9018374501245179465b
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5426,9 +5426,9 @@ create extension if not exists btree_gist with schema extensions;
 create table if not exists "better_supabase"."booking_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'staff',
-  "capacity" integer not null default 1 check ("capacity" between 1 and 1000),
+  "capacity" integer not null default 1 check ("capacity" >= 1 and "capacity" <= 1000),
   "tz" text not null default 'UTC',
   "calendar_id" uuid,
   "host_user_id" uuid,
@@ -5451,7 +5451,7 @@ create table if not exists "better_supabase"."booking_availability" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   check ("ends_at" > "starts_at")
@@ -5485,7 +5485,7 @@ create policy booking_exceptions_read on "better_supabase"."booking_exceptions"
 create table if not exists "better_supabase"."booking_services" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "duration" interval not null check ("duration" > interval '0'),
   "buffer_before" interval not null default interval '0' check ("buffer_before" >= interval '0'),
   "buffer_after" interval not null default interval '0' check ("buffer_after" >= interval '0'),

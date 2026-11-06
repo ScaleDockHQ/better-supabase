@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:d00575aa0d83a6f14a3a229a7045291049c87c75c5cc05e9437f7bc544b50714
+-- @bsb-hash sha256:33a69a6b871c6f09fccde1ebf1466ebcf87c3aa001432f8a82948eae2e0e9b3a
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,7 +84,7 @@ create table if not exists "better_supabase"."forms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'archived')),
   "current_version_id" uuid,
@@ -1159,7 +1159,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:ef649198f06041d244a32d48f892c12668659567e105eae02a7896decf160c8a
+-- @bsb-hash sha256:e0df5c1311e5becdba125157741b15eb528df612bd7eb6050b258d12c82c4cdd
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1242,7 +1242,7 @@ create table if not exists "better_supabase"."forms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'archived')),
   "current_version_id" uuid,
@@ -2474,7 +2474,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:a02d7108a527ada7ddd80dd742e4020633a62d2626d3e0a89c8d9208bfa78c31
+-- @bsb-hash sha256:b542ee1cf83b7cb966b73f8d934a4e34289628a666c4beb7c98c63f53e486234
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2562,7 +2562,7 @@ create table if not exists "app_private"."forms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'archived')),
   "current_version_id" uuid,
@@ -3637,7 +3637,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:5bdda1144f5876dc69b6fe8cf1bc29f0bca8048cc448be658ad8e7dba306d600
+-- @bsb-hash sha256:5b0d4b750a4f75db4bc39cf7f583b70b888b392d1cc90ee88a9cbc4fbdda96d4
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3720,7 +3720,7 @@ create table if not exists "better_supabase"."forms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'archived')),
   "current_version_id" uuid,
@@ -4935,7 +4935,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:69ca894d5e358583970d369ab7103d3c338890835d664689f99260ccf51b199c
+-- @bsb-hash sha256:141f577c19f4440a30285900495f90bc259e7d37b2ff82a1602e734fc54ecb08
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5034,7 +5034,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."forms" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."forms" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."forms" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."forms" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."forms" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."forms" add column if not exists "description" text check ("description" is null or length("description") <= 2000);
 alter table "better_supabase"."forms" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'archived'));
 alter table "better_supabase"."forms" add column if not exists "current_version_id" uuid;
@@ -6100,7 +6100,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:09c508090c92dce4ebf2bc0fbece3c4282f2c7b064cce93b8de6d5825a821947
+-- @bsb-hash sha256:99e2573ff10e31885ec7d8eb96b420ef4bc537c1fd7fef67e4d14a3961cb550b
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6183,7 +6183,7 @@ create table if not exists "better_supabase"."forms" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'archived')),
   "current_version_id" uuid,

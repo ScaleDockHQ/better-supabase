@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:d41ee9ea43fde8fbe5d36e66348cfafef3ed3159d8df57c09978fa150e1aa0fc
+-- @bsb-hash sha256:5c127e00ed9a0d1b3f3bf62683a7d5462504f674951530a9446c8814ca6e9ec4
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -95,7 +95,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."bank_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- Upper case without spaces; save_bank_account checks the ISO 13616 digits.
   "iban" text check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "bic" text check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
@@ -122,7 +122,7 @@ create policy bank_accounts_read on "better_supabase"."bank_accounts"
 create table if not exists "better_supabase"."bank_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- A filter tree (ADR 0046) over the transaction: amount, currency,
   -- counterpartyName, counterpartyIban, remittance and the rest.
   "conditions" jsonb not null default '{"type":"group","combinator":"and","rules":[]}'::jsonb,
@@ -155,7 +155,7 @@ create table if not exists "better_supabase"."bank_statements" (
   "tenant_id" uuid not null,
   "account_id" uuid not null,
   -- The bank's statement id; an import with the same reference adds to it.
-  "reference" text check ("reference" is null or length("reference") between 1 and 200),
+  "reference" text check ("reference" is null or length("reference") >= 1 and length("reference") <= 200),
   "from_on" date,
   "until_on" date,
   -- Minor units of the account's currency.
@@ -201,7 +201,7 @@ create table if not exists "better_supabase"."bank_transactions" (
   "structured_reference" text check ("structured_reference" is null or length("structured_reference") <= 100),
   "end_to_end_id" text check ("end_to_end_id" is null or length("end_to_end_id") <= 100),
   -- The bank's id of the entry; importing it again adds nothing.
-  "external_id" text not null check (length("external_id") between 1 and 200),
+  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
   "status" text not null default 'unmatched' check ("status" in ('unmatched', 'matched', 'ignored')),
   -- The bank rule that matched or ignored it.
   "rule_id" uuid,
@@ -1343,7 +1343,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:3469d4e103e558a3a554e0aa3896f120aeaeabd7b6e366c4421868a9a5bac181
+-- @bsb-hash sha256:bebc897bb99f4a4d361705122fd927444d046eaadd7ba1a17a2939290942676c
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1453,7 +1453,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."bank_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- Upper case without spaces; save_bank_account checks the ISO 13616 digits.
   "iban" text check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "bic" text check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
@@ -1480,7 +1480,7 @@ create policy bank_accounts_read on "better_supabase"."bank_accounts"
 create table if not exists "better_supabase"."bank_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- A filter tree (ADR 0046) over the transaction: amount, currency,
   -- counterpartyName, counterpartyIban, remittance and the rest.
   "conditions" jsonb not null default '{"type":"group","combinator":"and","rules":[]}'::jsonb,
@@ -1513,7 +1513,7 @@ create table if not exists "better_supabase"."bank_statements" (
   "tenant_id" uuid not null,
   "account_id" uuid not null,
   -- The bank's statement id; an import with the same reference adds to it.
-  "reference" text check ("reference" is null or length("reference") between 1 and 200),
+  "reference" text check ("reference" is null or length("reference") >= 1 and length("reference") <= 200),
   "from_on" date,
   "until_on" date,
   -- Minor units of the account's currency.
@@ -1559,7 +1559,7 @@ create table if not exists "better_supabase"."bank_transactions" (
   "structured_reference" text check ("structured_reference" is null or length("structured_reference") <= 100),
   "end_to_end_id" text check ("end_to_end_id" is null or length("end_to_end_id") <= 100),
   -- The bank's id of the entry; importing it again adds nothing.
-  "external_id" text not null check (length("external_id") between 1 and 200),
+  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
   "status" text not null default 'unmatched' check ("status" in ('unmatched', 'matched', 'ignored')),
   -- The bank rule that matched or ignored it.
   "rule_id" uuid,
@@ -1616,9 +1616,9 @@ create table if not exists "better_supabase"."payment_batches" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "bank_account_id" uuid not null,
-  "reference" text not null check (length("reference") between 1 and 200),
+  "reference" text not null check (length("reference") >= 1 and length("reference") <= 200),
   -- The SEPA MsgId of the file: at most 35 characters.
-  "message_id" text not null check (length("message_id") between 1 and 35),
+  "message_id" text not null check (length("message_id") >= 1 and length("message_id") <= 35),
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "due_by" date not null,
   "execution_on" date not null,
@@ -1655,7 +1655,7 @@ create table if not exists "better_supabase"."payment_batch_items" (
   "batch_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete restrict,
   "party_id" text not null,
-  "creditor_name" text not null check (length("creditor_name") between 1 and 140),
+  "creditor_name" text not null check (length("creditor_name") >= 1 and length("creditor_name") <= 140),
   "creditor_iban" text not null check ("creditor_iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "creditor_bic" text check ("creditor_bic" is null or "creditor_bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
   -- Minor units paid for the bill, and the early payment discount it takes.
@@ -1663,7 +1663,7 @@ create table if not exists "better_supabase"."payment_batch_items" (
   "discount" bigint not null default 0 check ("discount" >= 0),
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   -- The SEPA EndToEndId: at most 35 characters.
-  "end_to_end_id" text not null check (length("end_to_end_id") between 1 and 35),
+  "end_to_end_id" text not null check (length("end_to_end_id") >= 1 and length("end_to_end_id") <= 35),
   "remittance" text check ("remittance" is null or length("remittance") <= 140),
   "status" text not null default 'open' check ("status" in ('open', 'posted', 'paid', 'cancelled')),
   foreign key ("tenant_id", "batch_id") references "better_supabase"."payment_batches" ("tenant_id", "id") on delete cascade
@@ -3269,7 +3269,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:2112b9a31053685c79fb1ae776e7588ba1969d0aff126157b3d0b80e9638717e
+-- @bsb-hash sha256:0b585dcd755298654393c3f3eeaca86cd385bb9700bd225c5ffc03e182b3efa8
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3368,7 +3368,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."bank_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- Upper case without spaces; save_bank_account checks the ISO 13616 digits.
   "iban" text check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "bic" text check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
@@ -3395,7 +3395,7 @@ create policy bank_accounts_read on "app_private"."bank_accounts"
 create table if not exists "app_private"."bank_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- A filter tree (ADR 0046) over the transaction: amount, currency,
   -- counterpartyName, counterpartyIban, remittance and the rest.
   "conditions" jsonb not null default '{"type":"group","combinator":"and","rules":[]}'::jsonb,
@@ -3428,7 +3428,7 @@ create table if not exists "app_private"."bank_statements" (
   "tenant_id" uuid not null,
   "account_id" uuid not null,
   -- The bank's statement id; an import with the same reference adds to it.
-  "reference" text check ("reference" is null or length("reference") between 1 and 200),
+  "reference" text check ("reference" is null or length("reference") >= 1 and length("reference") <= 200),
   "from_on" date,
   "until_on" date,
   -- Minor units of the account's currency.
@@ -3474,7 +3474,7 @@ create table if not exists "app_private"."bank_transactions" (
   "structured_reference" text check ("structured_reference" is null or length("structured_reference") <= 100),
   "end_to_end_id" text check ("end_to_end_id" is null or length("end_to_end_id") <= 100),
   -- The bank's id of the entry; importing it again adds nothing.
-  "external_id" text not null check (length("external_id") between 1 and 200),
+  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
   "status" text not null default 'unmatched' check ("status" in ('unmatched', 'matched', 'ignored')),
   -- The bank rule that matched or ignored it.
   "rule_id" uuid,
@@ -4616,7 +4616,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:ee5e3693fbb086aafad6dbd71e13c16537f3067abe01efa00513b198f6ad60c4
+-- @bsb-hash sha256:e06d919add7e41df987bac420c3f058010ec858faf12520d23bb1813ba369dec
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4710,7 +4710,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."bank_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- Upper case without spaces; save_bank_account checks the ISO 13616 digits.
   "iban" text check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "bic" text check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
@@ -4737,7 +4737,7 @@ create policy bank_accounts_read on "better_supabase"."bank_accounts"
 create table if not exists "better_supabase"."bank_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- A filter tree (ADR 0046) over the transaction: amount, currency,
   -- counterpartyName, counterpartyIban, remittance and the rest.
   "conditions" jsonb not null default '{"type":"group","combinator":"and","rules":[]}'::jsonb,
@@ -4770,7 +4770,7 @@ create table if not exists "better_supabase"."bank_statements" (
   "tenant_id" uuid not null,
   "account_id" uuid not null,
   -- The bank's statement id; an import with the same reference adds to it.
-  "reference" text check ("reference" is null or length("reference") between 1 and 200),
+  "reference" text check ("reference" is null or length("reference") >= 1 and length("reference") <= 200),
   "from_on" date,
   "until_on" date,
   -- Minor units of the account's currency.
@@ -4816,7 +4816,7 @@ create table if not exists "better_supabase"."bank_transactions" (
   "structured_reference" text check ("structured_reference" is null or length("structured_reference") <= 100),
   "end_to_end_id" text check ("end_to_end_id" is null or length("end_to_end_id") <= 100),
   -- The bank's id of the entry; importing it again adds nothing.
-  "external_id" text not null check (length("external_id") between 1 and 200),
+  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
   "status" text not null default 'unmatched' check ("status" in ('unmatched', 'matched', 'ignored')),
   -- The bank rule that matched or ignored it.
   "rule_id" uuid,
@@ -6133,7 +6133,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:0eaeedbe373e361cce407694eb54263c346054b178848a9c35bd79f83780240b
+-- @bsb-hash sha256:8adee2df5df6155b65463b0325e80c2469fd2bc5f0f42bfc7abed0a28cb951eb
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6227,7 +6227,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.bank_accounts is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."bank_accounts" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."bank_accounts" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."bank_accounts" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."bank_accounts" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."bank_accounts" add column if not exists "iban" text check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$');
 alter table "better_supabase"."bank_accounts" add column if not exists "bic" text check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$');
 alter table "better_supabase"."bank_accounts" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
@@ -6250,7 +6250,7 @@ create policy bsb_bank_accounts_read on "better_supabase"."bank_accounts"
 -- better_supabase.bank_rules is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."bank_rules" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."bank_rules" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."bank_rules" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."bank_rules" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."bank_rules" add column if not exists "conditions" jsonb not null default '{"type":"group","combinator":"and","rules":[]}'::jsonb;
 alter table "better_supabase"."bank_rules" add column if not exists "account_id" uuid;
 alter table "better_supabase"."bank_rules" add column if not exists "party_id" uuid;
@@ -6274,7 +6274,7 @@ create policy bsb_bank_rules_read on "better_supabase"."bank_rules"
 alter table "better_supabase"."bank_statements" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."bank_statements" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."bank_statements" add column if not exists "account_id" uuid;
-alter table "better_supabase"."bank_statements" add column if not exists "reference" text check ("reference" is null or length("reference") between 1 and 200);
+alter table "better_supabase"."bank_statements" add column if not exists "reference" text check ("reference" is null or length("reference") >= 1 and length("reference") <= 200);
 alter table "better_supabase"."bank_statements" add column if not exists "from_on" date;
 alter table "better_supabase"."bank_statements" add column if not exists "until_on" date;
 alter table "better_supabase"."bank_statements" add column if not exists "opening_balance" bigint;
@@ -6309,7 +6309,7 @@ alter table "better_supabase"."bank_transactions" add column if not exists "coun
 alter table "better_supabase"."bank_transactions" add column if not exists "remittance" text check ("remittance" is null or length("remittance") <= 2000);
 alter table "better_supabase"."bank_transactions" add column if not exists "structured_reference" text check ("structured_reference" is null or length("structured_reference") <= 100);
 alter table "better_supabase"."bank_transactions" add column if not exists "end_to_end_id" text check ("end_to_end_id" is null or length("end_to_end_id") <= 100);
-alter table "better_supabase"."bank_transactions" add column if not exists "external_id" text check (length("external_id") between 1 and 200);
+alter table "better_supabase"."bank_transactions" add column if not exists "external_id" text check (length("external_id") >= 1 and length("external_id") <= 200);
 alter table "better_supabase"."bank_transactions" add column if not exists "status" text not null default 'unmatched' check ("status" in ('unmatched', 'matched', 'ignored'));
 alter table "better_supabase"."bank_transactions" add column if not exists "rule_id" uuid;
 alter table "better_supabase"."bank_transactions" add column if not exists "matched_at" timestamptz;
@@ -7440,7 +7440,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:349a9e758d862a27ce237b38edbd6ddd507d540f81cdf10306d460ddcdbd29c4
+-- @bsb-hash sha256:8c7fc6134a06045637b782032b3c3b03f158b414224914d034bcf3da050908cf
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7534,7 +7534,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."bank_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- Upper case without spaces; save_bank_account checks the ISO 13616 digits.
   "iban" text check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "bic" text check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
@@ -7561,7 +7561,7 @@ create policy bank_accounts_read on "better_supabase"."bank_accounts"
 create table if not exists "better_supabase"."bank_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- A filter tree (ADR 0046) over the transaction: amount, currency,
   -- counterpartyName, counterpartyIban, remittance and the rest.
   "conditions" jsonb not null default '{"type":"group","combinator":"and","rules":[]}'::jsonb,
@@ -7594,7 +7594,7 @@ create table if not exists "better_supabase"."bank_statements" (
   "org_id" uuid not null,
   "account_id" uuid not null,
   -- The bank's statement id; an import with the same reference adds to it.
-  "reference" text check ("reference" is null or length("reference") between 1 and 200),
+  "reference" text check ("reference" is null or length("reference") >= 1 and length("reference") <= 200),
   "from_on" date,
   "until_on" date,
   -- Minor units of the account's currency.
@@ -7640,7 +7640,7 @@ create table if not exists "better_supabase"."bank_transactions" (
   "structured_reference" text check ("structured_reference" is null or length("structured_reference") <= 100),
   "end_to_end_id" text check ("end_to_end_id" is null or length("end_to_end_id") <= 100),
   -- The bank's id of the entry; importing it again adds nothing.
-  "external_id" text not null check (length("external_id") between 1 and 200),
+  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
   "status" text not null default 'unmatched' check ("status" in ('unmatched', 'matched', 'ignored')),
   -- The bank rule that matched or ignored it.
   "rule_id" uuid,

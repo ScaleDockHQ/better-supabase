@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:8d87c9bfd1bc783e1ed5d68bf6397c9dba2efd8bf56908f611f3f62e5fb3d4a0
+-- @bsb-hash sha256:9e927c1d430e8e1c15f3ee922e1667c8ecbccb20a8ed70d8addf8e52fa9e7ecd
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3081,8 +3081,8 @@ grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, 
 create table if not exists "better_supabase"."accounting_recognition_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
+  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
   "line_ref" text not null default '' check (length("line_ref") <= 200),
   "amount" bigint not null check ("amount" > 0),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),

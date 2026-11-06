@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:608b2842bf993c4193543b3aad9c822bd9b40504e6108107b84f8e6ac0fd2e7a
+-- @bsb-hash sha256:5731fe180818a08b7486f5cb4f48e218637d1e18e4d731a4a3df052d2605cc75
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,7 @@ create table if not exists "better_supabase"."templates" (
   "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
   "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
   "type" text not null check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "language" text not null default 'en' check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'),
   "is_default" boolean not null default false,
   "settings" jsonb not null default '{}'::jsonb
@@ -132,8 +132,8 @@ create table if not exists "better_supabase"."template_applications" (
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );
@@ -991,7 +991,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:74dc898be7cb2c33a88be5b6952d3b4da2ba20952f96af085d8511244f0928eb
+-- @bsb-hash sha256:5b92863be6803a75d6a9eb3b95d9ef3bc08e6cecb4bb7e428cafe417326ec38c
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1081,7 +1081,7 @@ create table if not exists "better_supabase"."templates" (
   "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
   "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
   "type" text not null check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "language" text not null default 'en' check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'),
   "is_default" boolean not null default false,
   "settings" jsonb not null default '{}'::jsonb
@@ -1138,8 +1138,8 @@ create table if not exists "better_supabase"."template_applications" (
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );
@@ -2593,7 +2593,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:59e5284db6d39415f6fc8a6dddd7bf8845ba8afa465ab22cec34448b9888c2af
+-- @bsb-hash sha256:3c2079d39d0e9a9aa069931dc811e291f0ee77f5136331fa8620dc2a60e34aa0
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2672,7 +2672,7 @@ create table if not exists "app_private"."templates" (
   "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
   "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
   "type" text not null check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "language" text not null default 'en' check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'),
   "is_default" boolean not null default false,
   "settings" jsonb not null default '{}'::jsonb
@@ -2729,8 +2729,8 @@ create table if not exists "app_private"."template_applications" (
   "template_id" uuid not null references "app_private"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "app_private"."template_versions" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );
@@ -3588,7 +3588,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:0d3b7c1026d20b73a8264a4a484d52d13bef51ef3e697ff47859e31a49cb48df
+-- @bsb-hash sha256:ae3995a6f0af32f74c577ec76b91558449be728fe0414d7d20782dafffd4673a
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3662,7 +3662,7 @@ create table if not exists "better_supabase"."templates" (
   "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
   "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
   "type" text not null check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "language" text not null default 'en' check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'),
   "is_default" boolean not null default false,
   "settings" jsonb not null default '{}'::jsonb
@@ -3719,8 +3719,8 @@ create table if not exists "better_supabase"."template_applications" (
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );
@@ -4743,7 +4743,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:813b21a1637b423e14fbbc13daff31fc0e2b1b9c0620c78d3c1a6098fca4baf4
+-- @bsb-hash sha256:835966d2f72b2057d386b8ad26f55bab37f5fe5a7805fe96d021b4f41692d55d
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4833,7 +4833,7 @@ alter table "better_supabase"."templates" add column if not exists "tenant_id" u
 alter table "better_supabase"."templates" add column if not exists "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system'));
 alter table "better_supabase"."templates" add column if not exists "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$');
 alter table "better_supabase"."templates" add column if not exists "type" text check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$');
-alter table "better_supabase"."templates" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."templates" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."templates" add column if not exists "language" text not null default 'en' check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$');
 alter table "better_supabase"."templates" add column if not exists "is_default" boolean not null default false;
 alter table "better_supabase"."templates" add column if not exists "settings" jsonb not null default '{}'::jsonb check (jsonb_typeof("settings") = 'object' and pg_column_size("settings") <= 65536);
@@ -4884,8 +4884,8 @@ alter table "better_supabase"."template_applications" add column if not exists "
 alter table "better_supabase"."template_applications" add column if not exists "template_id" uuid references "better_supabase"."templates" ("id") on delete cascade;
 alter table "better_supabase"."template_applications" add column if not exists "version_id" uuid references "better_supabase"."template_versions" ("id") on delete cascade;
 alter table "better_supabase"."template_applications" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."template_applications" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."template_applications" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."template_applications" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."template_applications" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."template_applications" add column if not exists "applied_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."template_applications" add column if not exists "applied_at" timestamptz not null default now();
 create index if not exists template_applications_tenant_idx on "better_supabase"."template_applications" ("tenant_id", "applied_at" desc);
@@ -5741,7 +5741,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:717a4ab41a9bafe7918b5207cb46d89481aa458ab9ab5bd83a7783c254b5026a
+-- @bsb-hash sha256:0c98acdeb94b53b9627867442c2f939d735a61447d43282fae9922886ddf6abb
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5815,7 +5815,7 @@ create table if not exists "better_supabase"."templates" (
   "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
   "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
   "type" text not null check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "language" text not null default 'en' check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'),
   "is_default" boolean not null default false,
   "settings" jsonb not null default '{}'::jsonb
@@ -5872,8 +5872,8 @@ create table if not exists "better_supabase"."template_applications" (
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
   "org_id" uuid not null,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );

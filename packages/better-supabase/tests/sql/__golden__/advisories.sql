@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:f81f47c7ee9af9a9eb6ceabba5930919e494545f7fb6443e8b2a935295c1be90
+-- @bsb-hash sha256:53454dd8f1096c85ecc3a6a52f275099131869e59a2d6e592fec12503ce72bd7
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -113,7 +113,7 @@ create table if not exists "better_supabase"."advisory_products" (
   "tenant_id" uuid not null,
   -- Names the product in OpenVEX and CSAF documents.
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "vendor" text check ("vendor" is null or length("vendor") <= 200),
   "description" text check ("description" is null or length("description") <= 5000),
   "archived_at" timestamptz,
@@ -135,7 +135,7 @@ create table if not exists "better_supabase"."advisory_product_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null,
-  "version" text not null check (length("version") between 1 and 100),
+  "version" text not null check (length("version") >= 1 and length("version") <= 100),
   "released_at" timestamptz,
   "end_of_support_at" timestamptz,
   -- The BOM the components came from: its urn:uuid serial and CycloneDX version.
@@ -161,7 +161,7 @@ create table if not exists "better_supabase"."sbom_components" (
   "version_id" uuid not null,
   "bom_ref" text,
   "component_type" text not null default 'library',
-  "name" text not null check (length("name") between 1 and 500),
+  "name" text not null check (length("name") >= 1 and length("name") <= 500),
   "component_version" text,
   "purl" text,
   -- The purl without version, qualifiers and subpath, which vulnerabilities match on.
@@ -191,10 +191,10 @@ create table if not exists "better_supabase"."vulnerabilities" (
   "details" text check ("details" is null or length("details") <= 20000),
   "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300),
   "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
-  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" between 0 and 10),
+  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
   "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" between 0 and 1),
-  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" between 0 and 1),
+  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
+  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
   "epss_date" date,
   "kev" boolean not null default false,
   "kev_added_on" date,
@@ -251,7 +251,7 @@ create table if not exists "better_supabase"."advisories" (
   "tenant_id" uuid not null,
   -- The CSAF tracking id, such as ACME-SA-2026-001.
   "tracking_id" text not null check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "summary" text check ("summary" is null or length("summary") <= 10000),
   "product_id" uuid not null,
   "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
@@ -1334,7 +1334,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:f0a9f625c277cbd0088fafb3eca6cfc0523d85295611c5a111a32359d60a6fc0
+-- @bsb-hash sha256:97a567c9fd3dfc734fffe9d17b627e4caff601794dd8a154585ba20a7f8612f1
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1446,7 +1446,7 @@ create table if not exists "better_supabase"."advisory_products" (
   "tenant_id" uuid not null,
   -- Names the product in OpenVEX and CSAF documents.
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "vendor" text check ("vendor" is null or length("vendor") <= 200),
   "description" text check ("description" is null or length("description") <= 5000),
   "archived_at" timestamptz,
@@ -1468,7 +1468,7 @@ create table if not exists "better_supabase"."advisory_product_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null,
-  "version" text not null check (length("version") between 1 and 100),
+  "version" text not null check (length("version") >= 1 and length("version") <= 100),
   "released_at" timestamptz,
   "end_of_support_at" timestamptz,
   -- The BOM the components came from: its urn:uuid serial and CycloneDX version.
@@ -1494,7 +1494,7 @@ create table if not exists "better_supabase"."sbom_components" (
   "version_id" uuid not null,
   "bom_ref" text,
   "component_type" text not null default 'library',
-  "name" text not null check (length("name") between 1 and 500),
+  "name" text not null check (length("name") >= 1 and length("name") <= 500),
   "component_version" text,
   "purl" text,
   -- The purl without version, qualifiers and subpath, which vulnerabilities match on.
@@ -1524,10 +1524,10 @@ create table if not exists "better_supabase"."vulnerabilities" (
   "details" text check ("details" is null or length("details") <= 20000),
   "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300),
   "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
-  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" between 0 and 10),
+  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
   "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" between 0 and 1),
-  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" between 0 and 1),
+  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
+  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
   "epss_date" date,
   "kev" boolean not null default false,
   "kev_added_on" date,
@@ -1584,7 +1584,7 @@ create table if not exists "better_supabase"."advisories" (
   "tenant_id" uuid not null,
   -- The CSAF tracking id, such as ACME-SA-2026-001.
   "tracking_id" text not null check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "summary" text check ("summary" is null or length("summary") <= 10000),
   "product_id" uuid not null,
   "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
@@ -2780,7 +2780,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:1a1a7c88c13053a5f5bb7111a1c230cf82ba8b8ef02b674323f7277024dcfe76
+-- @bsb-hash sha256:10094121d240e52d48623a7466dea580656f66fbf6c5c7b874b6c47845ed843a
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2897,7 +2897,7 @@ create table if not exists "app_private"."advisory_products" (
   "tenant_id" uuid not null,
   -- Names the product in OpenVEX and CSAF documents.
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "vendor" text check ("vendor" is null or length("vendor") <= 200),
   "description" text check ("description" is null or length("description") <= 5000),
   "archived_at" timestamptz,
@@ -2919,7 +2919,7 @@ create table if not exists "app_private"."advisory_product_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null,
-  "version" text not null check (length("version") between 1 and 100),
+  "version" text not null check (length("version") >= 1 and length("version") <= 100),
   "released_at" timestamptz,
   "end_of_support_at" timestamptz,
   -- The BOM the components came from: its urn:uuid serial and CycloneDX version.
@@ -2945,7 +2945,7 @@ create table if not exists "app_private"."sbom_components" (
   "version_id" uuid not null,
   "bom_ref" text,
   "component_type" text not null default 'library',
-  "name" text not null check (length("name") between 1 and 500),
+  "name" text not null check (length("name") >= 1 and length("name") <= 500),
   "component_version" text,
   "purl" text,
   -- The purl without version, qualifiers and subpath, which vulnerabilities match on.
@@ -2975,10 +2975,10 @@ create table if not exists "app_private"."vulnerabilities" (
   "details" text check ("details" is null or length("details") <= 20000),
   "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300),
   "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
-  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" between 0 and 10),
+  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
   "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" between 0 and 1),
-  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" between 0 and 1),
+  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
+  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
   "epss_date" date,
   "kev" boolean not null default false,
   "kev_added_on" date,
@@ -3035,7 +3035,7 @@ create table if not exists "app_private"."advisories" (
   "tenant_id" uuid not null,
   -- The CSAF tracking id, such as ACME-SA-2026-001.
   "tracking_id" text not null check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "summary" text check ("summary" is null or length("summary") <= 10000),
   "product_id" uuid not null,
   "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
@@ -4118,7 +4118,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:53cb6613847b398fed77326f7c62daf6cad31bace4c232e2c9f8a2c9a37b388c
+-- @bsb-hash sha256:bd7fc24f50540df2d3b0b0bc4d7714e0f291d429e5f3cf32f83fdfbc1f2131b5
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4230,7 +4230,7 @@ create table if not exists "better_supabase"."advisory_products" (
   "tenant_id" uuid not null,
   -- Names the product in OpenVEX and CSAF documents.
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "vendor" text check ("vendor" is null or length("vendor") <= 200),
   "description" text check ("description" is null or length("description") <= 5000),
   "archived_at" timestamptz,
@@ -4252,7 +4252,7 @@ create table if not exists "better_supabase"."advisory_product_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null,
-  "version" text not null check (length("version") between 1 and 100),
+  "version" text not null check (length("version") >= 1 and length("version") <= 100),
   "released_at" timestamptz,
   "end_of_support_at" timestamptz,
   -- The BOM the components came from: its urn:uuid serial and CycloneDX version.
@@ -4278,7 +4278,7 @@ create table if not exists "better_supabase"."sbom_components" (
   "version_id" uuid not null,
   "bom_ref" text,
   "component_type" text not null default 'library',
-  "name" text not null check (length("name") between 1 and 500),
+  "name" text not null check (length("name") >= 1 and length("name") <= 500),
   "component_version" text,
   "purl" text,
   -- The purl without version, qualifiers and subpath, which vulnerabilities match on.
@@ -4308,10 +4308,10 @@ create table if not exists "better_supabase"."vulnerabilities" (
   "details" text check ("details" is null or length("details") <= 20000),
   "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300),
   "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
-  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" between 0 and 10),
+  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
   "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" between 0 and 1),
-  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" between 0 and 1),
+  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
+  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
   "epss_date" date,
   "kev" boolean not null default false,
   "kev_added_on" date,
@@ -4368,7 +4368,7 @@ create table if not exists "better_supabase"."advisories" (
   "tenant_id" uuid not null,
   -- The CSAF tracking id, such as ACME-SA-2026-001.
   "tracking_id" text not null check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "summary" text check ("summary" is null or length("summary") <= 10000),
   "product_id" uuid not null,
   "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
@@ -5645,7 +5645,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:81ec593e0f444fe422975bbc6761fcb24325904221b01790b9490309c5f86c8c
+-- @bsb-hash sha256:f00bfffb9507cf42597248665c49a29a5c953bf0824b1b49e6abb0b5d7068c3a
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5756,7 +5756,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."advisory_products" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."advisory_products" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."advisory_products" add column if not exists "key" text check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$');
-alter table "better_supabase"."advisory_products" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."advisory_products" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."advisory_products" add column if not exists "vendor" text check ("vendor" is null or length("vendor") <= 200);
 alter table "better_supabase"."advisory_products" add column if not exists "description" text check ("description" is null or length("description") <= 5000);
 alter table "better_supabase"."advisory_products" add column if not exists "archived_at" timestamptz;
@@ -5776,7 +5776,7 @@ create policy bsb_advisory_products_read on "better_supabase"."advisory_products
 alter table "better_supabase"."advisory_product_versions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."advisory_product_versions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."advisory_product_versions" add column if not exists "product_id" uuid;
-alter table "better_supabase"."advisory_product_versions" add column if not exists "version" text check (length("version") between 1 and 100);
+alter table "better_supabase"."advisory_product_versions" add column if not exists "version" text check (length("version") >= 1 and length("version") <= 100);
 alter table "better_supabase"."advisory_product_versions" add column if not exists "released_at" timestamptz;
 alter table "better_supabase"."advisory_product_versions" add column if not exists "end_of_support_at" timestamptz;
 alter table "better_supabase"."advisory_product_versions" add column if not exists "sbom_serial" text;
@@ -5799,7 +5799,7 @@ alter table "better_supabase"."sbom_components" add column if not exists "tenant
 alter table "better_supabase"."sbom_components" add column if not exists "version_id" uuid;
 alter table "better_supabase"."sbom_components" add column if not exists "bom_ref" text;
 alter table "better_supabase"."sbom_components" add column if not exists "component_type" text not null default 'library';
-alter table "better_supabase"."sbom_components" add column if not exists "name" text check (length("name") between 1 and 500);
+alter table "better_supabase"."sbom_components" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 500);
 alter table "better_supabase"."sbom_components" add column if not exists "component_version" text;
 alter table "better_supabase"."sbom_components" add column if not exists "purl" text;
 alter table "better_supabase"."sbom_components" add column if not exists "package_purl" text;
@@ -5826,10 +5826,10 @@ alter table "better_supabase"."vulnerabilities" add column if not exists "summar
 alter table "better_supabase"."vulnerabilities" add column if not exists "details" text check ("details" is null or length("details") <= 20000);
 alter table "better_supabase"."vulnerabilities" add column if not exists "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300);
 alter table "better_supabase"."vulnerabilities" add column if not exists "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0'));
-alter table "better_supabase"."vulnerabilities" add column if not exists "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" between 0 and 10);
+alter table "better_supabase"."vulnerabilities" add column if not exists "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10);
 alter table "better_supabase"."vulnerabilities" add column if not exists "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical'));
-alter table "better_supabase"."vulnerabilities" add column if not exists "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" between 0 and 1);
-alter table "better_supabase"."vulnerabilities" add column if not exists "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" between 0 and 1);
+alter table "better_supabase"."vulnerabilities" add column if not exists "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1);
+alter table "better_supabase"."vulnerabilities" add column if not exists "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1);
 alter table "better_supabase"."vulnerabilities" add column if not exists "epss_date" date;
 alter table "better_supabase"."vulnerabilities" add column if not exists "kev" boolean not null default false;
 alter table "better_supabase"."vulnerabilities" add column if not exists "kev_added_on" date;
@@ -5879,7 +5879,7 @@ create policy bsb_vex_statements_read on "better_supabase"."vex_statements"
 alter table "better_supabase"."advisories" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."advisories" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."advisories" add column if not exists "tracking_id" text check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$');
-alter table "better_supabase"."advisories" add column if not exists "title" text check (length("title") between 1 and 300);
+alter table "better_supabase"."advisories" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
 alter table "better_supabase"."advisories" add column if not exists "summary" text check ("summary" is null or length("summary") <= 10000);
 alter table "better_supabase"."advisories" add column if not exists "product_id" uuid;
 alter table "better_supabase"."advisories" add column if not exists "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical'));
@@ -6955,7 +6955,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:9966c794626a764e2b27e6f5498a60ed4b657092bbec59d7e3c5cf362dd405a7
+-- @bsb-hash sha256:89b3dba7b82f5d88971be7414f9233ea6531e1a4597f96da68351e6d7c8538bf
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7067,7 +7067,7 @@ create table if not exists "better_supabase"."advisory_products" (
   "org_id" uuid not null,
   -- Names the product in OpenVEX and CSAF documents.
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "vendor" text check ("vendor" is null or length("vendor") <= 200),
   "description" text check ("description" is null or length("description") <= 5000),
   "archived_at" timestamptz,
@@ -7089,7 +7089,7 @@ create table if not exists "better_supabase"."advisory_product_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "product_id" uuid not null,
-  "version" text not null check (length("version") between 1 and 100),
+  "version" text not null check (length("version") >= 1 and length("version") <= 100),
   "released_at" timestamptz,
   "end_of_support_at" timestamptz,
   -- The BOM the components came from: its urn:uuid serial and CycloneDX version.
@@ -7115,7 +7115,7 @@ create table if not exists "better_supabase"."sbom_components" (
   "version_id" uuid not null,
   "bom_ref" text,
   "component_type" text not null default 'library',
-  "name" text not null check (length("name") between 1 and 500),
+  "name" text not null check (length("name") >= 1 and length("name") <= 500),
   "component_version" text,
   "purl" text,
   -- The purl without version, qualifiers and subpath, which vulnerabilities match on.
@@ -7145,10 +7145,10 @@ create table if not exists "better_supabase"."vulnerabilities" (
   "details" text check ("details" is null or length("details") <= 20000),
   "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300),
   "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
-  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" between 0 and 10),
+  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
   "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" between 0 and 1),
-  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" between 0 and 1),
+  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
+  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
   "epss_date" date,
   "kev" boolean not null default false,
   "kev_added_on" date,
@@ -7205,7 +7205,7 @@ create table if not exists "better_supabase"."advisories" (
   "org_id" uuid not null,
   -- The CSAF tracking id, such as ACME-SA-2026-001.
   "tracking_id" text not null check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "summary" text check ("summary" is null or length("summary") <= 10000),
   "product_id" uuid not null,
   "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),

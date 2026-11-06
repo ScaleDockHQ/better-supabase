@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:08a870f70f728ee9ad223c2fdb578fb6bd7a6b18d0a353ed7a032ddb8b2185a1
+-- @bsb-hash sha256:e1e9cfc2fcf3cf95efcf1f9fa7712532561857a1e5e6b16b461df5336dc2cf86
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,10 +85,10 @@ grant usage on schema better_supabase to anon, authenticated, service_role;-- Co
 create table if not exists "better_supabase"."commission_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null check ("kind" in ('flat', 'tiered')),
   -- A flat plan's rate in basis points (100 is 1%).
-  "rate_bps" integer check ("rate_bps" between 0 and 10000),
+  "rate_bps" integer check ("rate_bps" >= 0 and "rate_bps" <= 10000),
   -- A tiered plan's marginal tiers: [{ "upTo": 100000, "bps": 500 }, { "upTo": null, "bps": 800 }].
   "tiers" jsonb check ("tiers" is null or jsonb_typeof("tiers") = 'array'),
   "archived_at" timestamptz,
@@ -169,8 +169,8 @@ create table if not exists "better_supabase"."commissions" (
   "plan_id" uuid not null,
   "seller_id" uuid not null,
   -- The record the commission was earned on, such as invoices and its id.
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
+  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
   -- What the percentage was taken of, and what it came to, in minor units.
   "basis" bigint not null check ("basis" > 0),
   "amount" bigint not null check ("amount" > 0),
@@ -1049,7 +1049,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:6035cfaebb1363902dce1bacf00bf6d121fa93eed4ab51146df085708580b827
+-- @bsb-hash sha256:89785358fe135f191c2f737cb6e77dda2bd3838cb7c1d74cf92d0b85ba833d32
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1133,10 +1133,10 @@ grant usage on schema better_supabase to anon, authenticated, service_role;-- Co
 create table if not exists "better_supabase"."commission_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null check ("kind" in ('flat', 'tiered')),
   -- A flat plan's rate in basis points (100 is 1%).
-  "rate_bps" integer check ("rate_bps" between 0 and 10000),
+  "rate_bps" integer check ("rate_bps" >= 0 and "rate_bps" <= 10000),
   -- A tiered plan's marginal tiers: [{ "upTo": 100000, "bps": 500 }, { "upTo": null, "bps": 800 }].
   "tiers" jsonb check ("tiers" is null or jsonb_typeof("tiers") = 'array'),
   "archived_at" timestamptz,
@@ -1217,8 +1217,8 @@ create table if not exists "better_supabase"."commissions" (
   "plan_id" uuid not null,
   "seller_id" uuid not null,
   -- The record the commission was earned on, such as invoices and its id.
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
+  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
   -- What the percentage was taken of, and what it came to, in minor units.
   "basis" bigint not null check ("basis" > 0),
   "amount" bigint not null check ("amount" > 0),
@@ -2163,7 +2163,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:79b4b75b03cc8aa9775e0ec3ef4fdec51a954d04d518d375eca0effa31017093
+-- @bsb-hash sha256:12b1f979f49b9cfc6ebbbf5ef85a2f7adcf13d6d73617ea06a90f3402d63439c
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2252,10 +2252,10 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."commission_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null check ("kind" in ('flat', 'tiered')),
   -- A flat plan's rate in basis points (100 is 1%).
-  "rate_bps" integer check ("rate_bps" between 0 and 10000),
+  "rate_bps" integer check ("rate_bps" >= 0 and "rate_bps" <= 10000),
   -- A tiered plan's marginal tiers: [{ "upTo": 100000, "bps": 500 }, { "upTo": null, "bps": 800 }].
   "tiers" jsonb check ("tiers" is null or jsonb_typeof("tiers") = 'array'),
   "archived_at" timestamptz,
@@ -2336,8 +2336,8 @@ create table if not exists "app_private"."commissions" (
   "plan_id" uuid not null,
   "seller_id" uuid not null,
   -- The record the commission was earned on, such as invoices and its id.
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
+  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
   -- What the percentage was taken of, and what it came to, in minor units.
   "basis" bigint not null check ("basis" > 0),
   "amount" bigint not null check ("amount" > 0),
@@ -3216,7 +3216,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:97c5ea453e56fc014177f296ada408e17c6d188a095b3b4edde4c349c56f21dc
+-- @bsb-hash sha256:e6307ee970dd8b4fff0eaa7b11e9767115d048d8898ae2e4f95f026c510d60af
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3300,10 +3300,10 @@ grant usage on schema better_supabase to anon, authenticated, service_role;-- Co
 create table if not exists "better_supabase"."commission_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null check ("kind" in ('flat', 'tiered')),
   -- A flat plan's rate in basis points (100 is 1%).
-  "rate_bps" integer check ("rate_bps" between 0 and 10000),
+  "rate_bps" integer check ("rate_bps" >= 0 and "rate_bps" <= 10000),
   -- A tiered plan's marginal tiers: [{ "upTo": 100000, "bps": 500 }, { "upTo": null, "bps": 800 }].
   "tiers" jsonb check ("tiers" is null or jsonb_typeof("tiers") = 'array'),
   "archived_at" timestamptz,
@@ -3384,8 +3384,8 @@ create table if not exists "better_supabase"."commissions" (
   "plan_id" uuid not null,
   "seller_id" uuid not null,
   -- The record the commission was earned on, such as invoices and its id.
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
+  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
   -- What the percentage was taken of, and what it came to, in minor units.
   "basis" bigint not null check ("basis" > 0),
   "amount" bigint not null check ("amount" > 0),
@@ -4475,7 +4475,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:28fb5f3f6d82b3675ff8b434cc808798462262af6d5e7d55cd12ca5ef290a5c6
+-- @bsb-hash sha256:8841fb5252e71c8c467b992d3bf397b017ed862b71750f648de47768fd27d0e9
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4559,9 +4559,9 @@ grant usage on schema better_supabase to anon, authenticated, service_role;-- Co
 -- better_supabase.commission_plans is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."commission_plans" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."commission_plans" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."commission_plans" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."commission_plans" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."commission_plans" add column if not exists "kind" text check ("kind" in ('flat', 'tiered'));
-alter table "better_supabase"."commission_plans" add column if not exists "rate_bps" integer check ("rate_bps" between 0 and 10000);
+alter table "better_supabase"."commission_plans" add column if not exists "rate_bps" integer check ("rate_bps" >= 0 and "rate_bps" <= 10000);
 alter table "better_supabase"."commission_plans" add column if not exists "tiers" jsonb check ("tiers" is null or jsonb_typeof("tiers") = 'array');
 alter table "better_supabase"."commission_plans" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."commission_plans" add column if not exists "created_at" timestamptz not null default now();
@@ -4623,8 +4623,8 @@ alter table "better_supabase"."commissions" add column if not exists "id" uuid d
 alter table "better_supabase"."commissions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."commissions" add column if not exists "plan_id" uuid;
 alter table "better_supabase"."commissions" add column if not exists "seller_id" uuid;
-alter table "better_supabase"."commissions" add column if not exists "source_type" text check (length("source_type") between 1 and 100);
-alter table "better_supabase"."commissions" add column if not exists "source_id" text check (length("source_id") between 1 and 200);
+alter table "better_supabase"."commissions" add column if not exists "source_type" text check (length("source_type") >= 1 and length("source_type") <= 100);
+alter table "better_supabase"."commissions" add column if not exists "source_id" text check (length("source_id") >= 1 and length("source_id") <= 200);
 alter table "better_supabase"."commissions" add column if not exists "basis" bigint check ("basis" > 0);
 alter table "better_supabase"."commissions" add column if not exists "amount" bigint check ("amount" > 0);
 alter table "better_supabase"."commissions" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
@@ -5497,7 +5497,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:c04c6129a6e0838c63fefb30a0db9bf2072a7d8eb668c1d85ee69e42e8a9cbfd
+-- @bsb-hash sha256:ddef44a18d357c0cd73c78279df96df79d07e3bb93d1f5af2cb886815ce9ea3e
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5581,10 +5581,10 @@ grant usage on schema better_supabase to anon, authenticated, service_role;-- Co
 create table if not exists "better_supabase"."commission_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null check ("kind" in ('flat', 'tiered')),
   -- A flat plan's rate in basis points (100 is 1%).
-  "rate_bps" integer check ("rate_bps" between 0 and 10000),
+  "rate_bps" integer check ("rate_bps" >= 0 and "rate_bps" <= 10000),
   -- A tiered plan's marginal tiers: [{ "upTo": 100000, "bps": 500 }, { "upTo": null, "bps": 800 }].
   "tiers" jsonb check ("tiers" is null or jsonb_typeof("tiers") = 'array'),
   "archived_at" timestamptz,
@@ -5665,8 +5665,8 @@ create table if not exists "better_supabase"."commissions" (
   "plan_id" uuid not null,
   "seller_id" uuid not null,
   -- The record the commission was earned on, such as invoices and its id.
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
+  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
   -- What the percentage was taken of, and what it came to, in minor units.
   "basis" bigint not null check ("basis" > 0),
   "amount" bigint not null check ("amount" > 0),

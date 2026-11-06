@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:b85eab398f6f509c616e4bc510a792b726dc90663fd5fef8f3bd5e58abb15904
+-- @bsb-hash sha256:3471284b12c32fe5e4f149978d86b23f8c46ca6541e18b0a22183636c4ef4c05
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -687,7 +687,7 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 create table if not exists "better_supabase"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "plan" text not null check (length("plan") between 1 and 100),
+  "plan" text not null check (length("plan") >= 1 and length("plan") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "unit_amount" bigint not null check ("unit_amount" >= 0),
   "quantity" integer not null default 1 check ("quantity" >= 0),
@@ -874,7 +874,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:c0c845568cb65742f2b1714f689628ba5c5f50d61930e025a2ef820d7eee22b2
+-- @bsb-hash sha256:64894f5a0d01a901550b477a24e1f70197d0a6497baf6fd788e6ba4b2401caf6
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1595,7 +1595,7 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 create table if not exists "better_supabase"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "plan" text not null check (length("plan") between 1 and 100),
+  "plan" text not null check (length("plan") >= 1 and length("plan") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "unit_amount" bigint not null check ("unit_amount" >= 0),
   "quantity" integer not null default 1 check ("quantity" >= 0),
@@ -1793,7 +1793,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:8f2e72235327e742998552cc8102aab7d93b4872b59b58f74efe084d560ad5f3
+-- @bsb-hash sha256:f8dc4de5e21bf713d25aea2c7a71086a37be09b7a3ed2a9844a053875ec8fd8e
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2484,7 +2484,7 @@ grant execute on function "app_private"."billing_overview"(uuid, integer) to aut
 create table if not exists "app_private"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "plan" text not null check (length("plan") between 1 and 100),
+  "plan" text not null check (length("plan") >= 1 and length("plan") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "unit_amount" bigint not null check ("unit_amount" >= 0),
   "quantity" integer not null default 1 check ("quantity" >= 0),
@@ -2671,7 +2671,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:c66787a6c4587b4b0c2c247ce4ab50731bc66cc5eff5e4bf704a2cef7a7428c0
+-- @bsb-hash sha256:c96bf652187a0a10ee631b5b1a0799e27d883a72bf4f484973322f9cf61b60e4
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3357,7 +3357,7 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 create table if not exists "better_supabase"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "plan" text not null check (length("plan") between 1 and 100),
+  "plan" text not null check (length("plan") >= 1 and length("plan") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "unit_amount" bigint not null check ("unit_amount" >= 0),
   "quantity" integer not null default 1 check ("quantity" >= 0),
@@ -3843,7 +3843,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:8088923f13fad90ff2eb52d7184d57ea948408862e038b09210001792231248a
+-- @bsb-hash sha256:64abe4712f65fc8ffb56708841daee5f28ce650b51d2795b094df6a1afa83f3f
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4524,7 +4524,7 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 -- better_supabase.billing_native_subscriptions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."billing_native_subscriptions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."billing_native_subscriptions" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."billing_native_subscriptions" add column if not exists "plan" text check (length("plan") between 1 and 100);
+alter table "better_supabase"."billing_native_subscriptions" add column if not exists "plan" text check (length("plan") >= 1 and length("plan") <= 100);
 alter table "better_supabase"."billing_native_subscriptions" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."billing_native_subscriptions" add column if not exists "unit_amount" bigint check ("unit_amount" >= 0);
 alter table "better_supabase"."billing_native_subscriptions" add column if not exists "quantity" integer not null default 1 check ("quantity" >= 0);
@@ -4707,7 +4707,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:100d93ac419ee3493b9ed2c247618c516885205f48f56eb5eb479839fd2922b3
+-- @bsb-hash sha256:df877c0749136cbf0338d682cbc9d19ef62ad899c28efec5b21f0568141da1fe
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5393,7 +5393,7 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 create table if not exists "better_supabase"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "plan" text not null check (length("plan") between 1 and 100),
+  "plan" text not null check (length("plan") >= 1 and length("plan") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "unit_amount" bigint not null check ("unit_amount" >= 0),
   "quantity" integer not null default 1 check ("quantity" >= 0),

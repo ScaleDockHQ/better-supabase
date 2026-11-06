@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:fc915ddbb8f918bf255cbf9920300143afc36ff1bfb1e218358233666bbe4690
+-- @bsb-hash sha256:ca60c183545ef457e80486ccf3323c130bde1fbdffaad87b0af655dffa980901
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,7 +73,7 @@ create table if not exists "better_supabase"."observation_definitions" (
   -- Null for a system definition every organization reads.
   "tenant_id" uuid,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
   "unit" text check ("unit" is null or length("unit") <= 50),
@@ -83,7 +83,7 @@ create table if not exists "better_supabase"."observation_definitions" (
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
   "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" between 0 and 6),
+  "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -113,8 +113,8 @@ create table if not exists "better_supabase"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
@@ -132,7 +132,7 @@ create table if not exists "better_supabase"."observations" (
   "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") between 1 and 200),
+  "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid,
   "performer_id" uuid,
   "note" text check ("note" is null or length("note") <= 4000),
@@ -1105,7 +1105,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:34955dd01324912eb9a72d66a1be0d0b0248ffc2c2f3485a2a9dfaeec4a3f2ff
+-- @bsb-hash sha256:87096ee9d84d481866e14f81666e449352175f75ae7c6be49b903610c9319e51
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1194,7 +1194,7 @@ create table if not exists "better_supabase"."observation_definitions" (
   -- Null for a system definition every organization reads.
   "tenant_id" uuid,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
   "unit" text check ("unit" is null or length("unit") <= 50),
@@ -1204,7 +1204,7 @@ create table if not exists "better_supabase"."observation_definitions" (
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
   "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" between 0 and 6),
+  "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -1234,8 +1234,8 @@ create table if not exists "better_supabase"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
@@ -1253,7 +1253,7 @@ create table if not exists "better_supabase"."observations" (
   "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") between 1 and 200),
+  "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null,
   "performer_id" uuid,
   "note" text check ("note" is null or length("note") <= 4000),
@@ -2449,7 +2449,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:d98eaf7a9102d559544ed65b2d5809852df6623d4a90a42daba43c8d4fb02e5a
+-- @bsb-hash sha256:a66313e6ae12c466509e19b7953076e360a885d034645aa459d5b709bb388e6f
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2526,7 +2526,7 @@ create table if not exists "app_private"."observation_definitions" (
   -- Null for a system definition every organization reads.
   "tenant_id" uuid,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
   "unit" text check ("unit" is null or length("unit") <= 50),
@@ -2536,7 +2536,7 @@ create table if not exists "app_private"."observation_definitions" (
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
   "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" between 0 and 6),
+  "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -2566,8 +2566,8 @@ create table if not exists "app_private"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "app_private"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
@@ -2585,7 +2585,7 @@ create table if not exists "app_private"."observations" (
   "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") between 1 and 200),
+  "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid,
   "performer_id" uuid,
   "note" text check ("note" is null or length("note") <= 4000),
@@ -3558,7 +3558,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:3f127261aa088d88aa9b2b00e3609bc0789607db22ed698468597466d9c06cb1
+-- @bsb-hash sha256:e39ae7989e851ac04246cbb0a70ddde9d658c17429d039c10526031c40eca68c
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3630,7 +3630,7 @@ create table if not exists "better_supabase"."observation_definitions" (
   -- Null for a system definition every organization reads.
   "tenant_id" uuid,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
   "unit" text check ("unit" is null or length("unit") <= 50),
@@ -3640,7 +3640,7 @@ create table if not exists "better_supabase"."observation_definitions" (
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
   "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" between 0 and 6),
+  "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -3670,8 +3670,8 @@ create table if not exists "better_supabase"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
@@ -3689,7 +3689,7 @@ create table if not exists "better_supabase"."observations" (
   "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") between 1 and 200),
+  "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid,
   "performer_id" uuid,
   "note" text check ("note" is null or length("note") <= 4000),
@@ -4790,7 +4790,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:f7ed05f79f992988711152597af0c278b0195e311b1fec83219db820ad183c0d
+-- @bsb-hash sha256:b5735226387f1230f033041c227a236f1b22d7961e33ff664a68cc0036737c29
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4861,13 +4861,13 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."observation_definitions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."observation_definitions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."observation_definitions" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."observation_definitions" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."observation_definitions" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."observation_definitions" add column if not exists "value_type" text check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components'));
 alter table "better_supabase"."observation_definitions" add column if not exists "unit" text check ("unit" is null or length("unit") <= 50);
 alter table "better_supabase"."observation_definitions" add column if not exists "code_system" text check ("code_system" is null or length("code_system") <= 200);
 alter table "better_supabase"."observation_definitions" add column if not exists "code" text check ("code" is null or length("code") <= 100);
 alter table "better_supabase"."observation_definitions" add column if not exists "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array');
-alter table "better_supabase"."observation_definitions" add column if not exists "decimals" integer check ("decimals" is null or "decimals" between 0 and 6);
+alter table "better_supabase"."observation_definitions" add column if not exists "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6);
 alter table "better_supabase"."observation_definitions" add column if not exists "valid_low" numeric;
 alter table "better_supabase"."observation_definitions" add column if not exists "valid_high" numeric;
 alter table "better_supabase"."observation_definitions" add column if not exists "reference_low" numeric;
@@ -4890,8 +4890,8 @@ create policy bsb_observation_definitions_read on "better_supabase"."observation
 alter table "better_supabase"."observations" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."observations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."observations" add column if not exists "definition_id" uuid references "better_supabase"."observation_definitions" ("id") on delete restrict;
-alter table "better_supabase"."observations" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."observations" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."observations" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."observations" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."observations" add column if not exists "observed_at" timestamptz not null default now();
 alter table "better_supabase"."observations" add column if not exists "value_number" numeric;
 alter table "better_supabase"."observations" add column if not exists "value_text" text check ("value_text" is null or length("value_text") <= 4000);
@@ -4904,7 +4904,7 @@ alter table "better_supabase"."observations" add column if not exists "reason" t
 alter table "better_supabase"."observations" add column if not exists "method" text check ("method" is null or length("method") <= 200);
 alter table "better_supabase"."observations" add column if not exists "device" text check ("device" is null or length("device") <= 200);
 alter table "better_supabase"."observations" add column if not exists "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import'));
-alter table "better_supabase"."observations" add column if not exists "external_id" text check ("external_id" is null or length("external_id") between 1 and 200);
+alter table "better_supabase"."observations" add column if not exists "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200);
 alter table "better_supabase"."observations" add column if not exists "submission_id" uuid;
 alter table "better_supabase"."observations" add column if not exists "performer_id" uuid;
 alter table "better_supabase"."observations" add column if not exists "note" text check ("note" is null or length("note") <= 4000);
@@ -5875,7 +5875,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:9343324ee53af820bb075392eec00620b22cb83ad6bd44146bd273eb2f112482
+-- @bsb-hash sha256:dccbb50c539e936ce707d52be73335b9d49d3b88dde455ec3ed62f2f6417db4d
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5947,7 +5947,7 @@ create table if not exists "better_supabase"."observation_definitions" (
   -- Null for a system definition every organization reads.
   "org_id" uuid,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
   "unit" text check ("unit" is null or length("unit") <= 50),
@@ -5957,7 +5957,7 @@ create table if not exists "better_supabase"."observation_definitions" (
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
   "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" between 0 and 6),
+  "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -5987,8 +5987,8 @@ create table if not exists "better_supabase"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
@@ -6006,7 +6006,7 @@ create table if not exists "better_supabase"."observations" (
   "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") between 1 and 200),
+  "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid,
   "performer_id" uuid,
   "note" text check ("note" is null or length("note") <= 4000),

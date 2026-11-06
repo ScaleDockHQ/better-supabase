@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:bf40715ae960153b194cdc1a0d471ae8c542d91bff461147f85cc86287a85e10
+-- @bsb-hash sha256:db37aa400895010f302812cb3fb5a71455daebf26cbf9d8d200fd86a71503e55
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -103,7 +103,7 @@ begin
     where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
   ) then
     alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
-      check ("offset_minutes" between -525600 and 525600) not valid;
+      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
     begin
       alter table "better_supabase"."reminders" validate constraint "reminders_offset_check";
     exception when check_violation then
@@ -372,7 +372,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:b2e4a757d5afa6edae53cdd6165c40c422900a1ca84863ebe6045d5b9525af1e
+-- @bsb-hash sha256:926357f211660b176359cef6c4d81b3aa36d5997d7629f0c5b2e5cb8ac12286d
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -474,7 +474,7 @@ begin
     where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
   ) then
     alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
-      check ("offset_minutes" between -525600 and 525600) not valid;
+      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
     begin
       alter table "better_supabase"."reminders" validate constraint "reminders_offset_check";
     exception when check_violation then
@@ -750,7 +750,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:7e337ee5de0c7c221fa4c045a5aa003935710f8a38c73e5ef2766a90b8d06028
+-- @bsb-hash sha256:483d9aba75df2a25141de6648a2f1aa04930eeb43b6558ef33b8ff3888621aff
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -857,7 +857,7 @@ begin
     where conrelid = '"app_private"."reminders"'::regclass and conname = 'reminders_offset_check'
   ) then
     alter table "app_private"."reminders" add constraint "reminders_offset_check"
-      check ("offset_minutes" between -525600 and 525600) not valid;
+      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
     begin
       alter table "app_private"."reminders" validate constraint "reminders_offset_check";
     exception when check_violation then
@@ -1126,7 +1126,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:c953ea770e448693d72753ea97efe84c66e34a915c7da3743db281d58bbac70b
+-- @bsb-hash sha256:9e2defead04fb06d451c8844fee6ea9880134d7f651cc5e49d9778ab7a7a690c
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1228,7 +1228,7 @@ begin
     where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
   ) then
     alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
-      check ("offset_minutes" between -525600 and 525600) not valid;
+      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
     begin
       alter table "better_supabase"."reminders" validate constraint "reminders_offset_check";
     exception when check_violation then
@@ -1942,7 +1942,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:a82840b29fdfdae884c0b51424c9760fd2ea090c4091ed1bedeb43ceee328307
+-- @bsb-hash sha256:410d06fa63a358fa363e5b9d2d35c6ded1273e08de647b323ebf0d7d5d40aa53
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2044,7 +2044,7 @@ begin
     where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
   ) then
     alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
-      check ("offset_minutes" between -525600 and 525600) not valid;
+      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
     begin
       alter table "better_supabase"."reminders" validate constraint "reminders_offset_check";
     exception when check_violation then

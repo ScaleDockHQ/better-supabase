@@ -1,6 +1,6 @@
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:296a7c950edcd2e51983cb6c7402dfeba6adcfa7d8e7d2166cb405bc4a9085f3
+-- @bsb-hash sha256:312166146784b2b3014935bbb62e93e9e2bc362ff01038a413a3734724259842
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -59,10 +59,10 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
 create table if not exists "better_supabase"."streams" (
-  "id" text primary key check (length("id") between 1 and 200),
+  "id" text primary key check (length("id") >= 1 and length("id") <= 200),
   "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'default' check (length("kind") between 1 and 100),
+  "kind" text not null default 'default' check (length("kind") >= 1 and length("kind") <= 100),
   "wake" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "closed_at" timestamptz,
@@ -104,7 +104,7 @@ create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
 create table if not exists "better_supabase"."stream_kv" (
-  "key" text primary key check (length("key") between 1 and 400),
+  "key" text primary key check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );

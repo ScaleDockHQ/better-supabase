@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:b5725bc2f917bb8a361406d32d092b6bc4ac77fd397e8cde6ded8c12ef73df71
+-- @bsb-hash sha256:2d11605666edb0bf6d6ed15ddaf498c266749d06e1ea8cebf5d944ef88ced094
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,7 +79,7 @@ create table if not exists "better_supabase"."automations" (
   "organization_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
@@ -109,7 +109,7 @@ create table if not exists "better_supabase"."automation_defaults" (
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
@@ -1317,7 +1317,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:b90ce0a052a1d881ffff661597f020882e2afccfe629d7647901886b3b42bd19
+-- @bsb-hash sha256:9d052925763a7d682379f3a23c3b81e338c51133dd726f0541c974ed9153b51e
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1395,7 +1395,7 @@ create table if not exists "better_supabase"."automations" (
   "organization_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
@@ -1425,7 +1425,7 @@ create table if not exists "better_supabase"."automation_defaults" (
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
@@ -2720,7 +2720,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:ac174d35d8ef65ebcbbb122a63241ea7efa39e2b235503a08a529eb8b29f7389
+-- @bsb-hash sha256:11a96747ae3e9b38b32f60bf909d35c8f663b6e628e8db7d305b3f6f3eb316f6
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2803,7 +2803,7 @@ create table if not exists "app_private"."automations" (
   "organization_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
@@ -2833,7 +2833,7 @@ create table if not exists "app_private"."automation_defaults" (
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
@@ -4041,7 +4041,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:9ac91beeb51fbf23319b0efa4ea5e7c802043780b410933e46d6cfb8c7a536b1
+-- @bsb-hash sha256:237e3b5755893cbe81f2e58688bad80a414bbded8fc521881c1bfcc534ede47b
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4119,7 +4119,7 @@ create table if not exists "better_supabase"."automations" (
   "organization_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
@@ -4149,7 +4149,7 @@ create table if not exists "better_supabase"."automation_defaults" (
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
@@ -5660,7 +5660,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:98bc8f9625faf858ef3c59375d3e32785eeb4346345728739d1f27e4712543fc
+-- @bsb-hash sha256:7c60eff8edb61ef058b355fe5953fc084175b71c142b6f981a8ccceb92294a81
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5754,7 +5754,7 @@ alter table "better_supabase"."automations" add column if not exists "id" uuid d
 alter table "better_supabase"."automations" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."automations" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."automations" add column if not exists "trigger" text check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$');
-alter table "better_supabase"."automations" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."automations" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."automations" add column if not exists "description" text check (length("description") <= 2000);
 alter table "better_supabase"."automations" add column if not exists "conditions" jsonb;
 alter table "better_supabase"."automations" add column if not exists "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array');
@@ -5782,7 +5782,7 @@ alter table "better_supabase"."automation_defaults" add column if not exists "ke
 alter table "better_supabase"."automation_defaults" add column if not exists "block" text;
 alter table "better_supabase"."automation_defaults" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."automation_defaults" add column if not exists "trigger" text check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$');
-alter table "better_supabase"."automation_defaults" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."automation_defaults" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."automation_defaults" add column if not exists "description" text check (length("description") <= 2000);
 alter table "better_supabase"."automation_defaults" add column if not exists "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb;
 alter table "better_supabase"."automation_defaults" add column if not exists "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array');
@@ -6982,7 +6982,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:36fcecc39a41568bd20400616eb188e6901ad5ac94b14e65718b17068b63ed9e
+-- @bsb-hash sha256:cf4e02efd1e69b8d08ae80ab7f9f2e975964ea383289fccb640fba0a386a3914
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7060,7 +7060,7 @@ create table if not exists "better_supabase"."automations" (
   "org_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
@@ -7090,7 +7090,7 @@ create table if not exists "better_supabase"."automation_defaults" (
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),

@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@5 managed tasks
--- @bsb-hash sha256:f7728a7395fe73a23336fe6305e1202ca14a88b693f82ba2c7458bdb162f24be
+-- @bsb-hash sha256:b89973c73b1c6e86720d3b25993a7b844d938ef3de39ec2141272eb6483131cd
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -121,15 +121,15 @@ create table if not exists "better_supabase"."maintenance_requests" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "better_supabase"."maintenance_requests" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid,
   "iteration_id" uuid,
-  "priority" smallint not null default 0 check ("priority" between 0 and 4),
+  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
   "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" between 0 and 100),
+  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
@@ -188,7 +188,7 @@ create table if not exists "better_supabase"."maintenance_request_checklist_item
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "maintenance_request_id" uuid not null references "better_supabase"."maintenance_requests" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:0cbea9cc44374e4e7194b806591753f92a2bb38aaf2fa2ea93a97db0728758fa
+-- @bsb-hash sha256:341eb81eb6a085bc5f07a13afaa7b5183c8e3ff98a3cea210035720366e50e5a
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,7 +79,7 @@ create table if not exists "better_supabase"."automations" (
   "workspace_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
@@ -109,7 +109,7 @@ create table if not exists "better_supabase"."automation_defaults" (
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
   "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),

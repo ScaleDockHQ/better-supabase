@@ -22,7 +22,7 @@ describe("brand-scoped templates", () => {
     );
 
     expect(sql).toContain(
-      `add column if not exists "brand" text check (length("brand") between 1 and 100)`,
+      `add column if not exists "brand" text check (length("brand") >= 1 and length("brand") <= 100)`,
     );
     expect(sql).toContain(`check ("scope" in ('tenant', 'brand', 'system'))`);
     expect(sql).toContain(

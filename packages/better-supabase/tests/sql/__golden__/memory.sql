@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:76bfc744504b2681724a36b470b27f3f606119b1ad40a1d4a87c5e3210d2dcf5
+-- @bsb-hash sha256:f3223e01157e718704ecc663d77db60f42f7af153ed4b5c2dfafd0b52e1f3b76
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,7 +88,7 @@ create table if not exists "better_supabase"."memories" (
   "subject_type" text,
   "subject_id" text,
   "category" text check ("category" ~ '^[a-z0-9][a-z0-9_-]*$'),
-  "confidence" real check ("confidence" between 0 and 1),
+  "confidence" real check ("confidence" >= 0 and "confidence" <= 1),
   "expires_at" timestamptz,
   "deleted_at" timestamptz,
   "use_count" integer not null default 0,
@@ -1193,7 +1193,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:70f828991f0ad68e0f1f486aedb0d08533dcf2ac90a41522b5b38d171b975000
+-- @bsb-hash sha256:daa26ed5f9991f47bdb2aef05175f3c168fc8b5cdd9a50b3efd15bac88068694
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1280,7 +1280,7 @@ create table if not exists "better_supabase"."memories" (
   "subject_type" text,
   "subject_id" text,
   "category" text check ("category" ~ '^[a-z0-9][a-z0-9_-]*$'),
-  "confidence" real check ("confidence" between 0 and 1),
+  "confidence" real check ("confidence" >= 0 and "confidence" <= 1),
   "expires_at" timestamptz,
   "deleted_at" timestamptz,
   "use_count" integer not null default 0,
@@ -2395,7 +2395,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:e293a14b1919e6ccc39f1fd8ac9780003ab304e2930857d8d1a57157b6049f01
+-- @bsb-hash sha256:6819b1e8da9ec02bf035b26d2b517c06f7f4387cea48ae4b1a02cae4d9ebb47a
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2487,7 +2487,7 @@ create table if not exists "app_private"."memories" (
   "subject_type" text,
   "subject_id" text,
   "category" text check ("category" ~ '^[a-z0-9][a-z0-9_-]*$'),
-  "confidence" real check ("confidence" between 0 and 1),
+  "confidence" real check ("confidence" >= 0 and "confidence" <= 1),
   "expires_at" timestamptz,
   "deleted_at" timestamptz,
   "use_count" integer not null default 0,
@@ -3592,7 +3592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:873e7fe53f863915f58fce2b860f6459fe2a53bb93576f95f0c1a7e77a40c52d
+-- @bsb-hash sha256:4debbfe030b8034569d4e64772ad9410ef743f6fa05cad65cdf8c03bf3e9c649
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3679,7 +3679,7 @@ create table if not exists "better_supabase"."memories" (
   "subject_type" text,
   "subject_id" text,
   "category" text check ("category" ~ '^[a-z0-9][a-z0-9_-]*$'),
-  "confidence" real check ("confidence" between 0 and 1),
+  "confidence" real check ("confidence" >= 0 and "confidence" <= 1),
   "expires_at" timestamptz,
   "deleted_at" timestamptz,
   "use_count" integer not null default 0,
@@ -4995,7 +4995,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:b8ec2dda8a3d614f2f1083e86e60f4f25481bd3a6d3bd517cca4d17471543417
+-- @bsb-hash sha256:94228f26743c439db8896add89f16ed76918c5e70a7075bf552afa2f8c3e4edf
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5098,7 +5098,7 @@ alter table "better_supabase"."memories" add column if not exists "superseded_by
 alter table "better_supabase"."memories" add column if not exists "subject_type" text;
 alter table "better_supabase"."memories" add column if not exists "subject_id" text;
 alter table "better_supabase"."memories" add column if not exists "category" text check ("category" ~ '^[a-z0-9][a-z0-9_-]*$');
-alter table "better_supabase"."memories" add column if not exists "confidence" real check ("confidence" between 0 and 1);
+alter table "better_supabase"."memories" add column if not exists "confidence" real check ("confidence" >= 0 and "confidence" <= 1);
 alter table "better_supabase"."memories" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."memories" add column if not exists "deleted_at" timestamptz;
 alter table "better_supabase"."memories" add column if not exists "use_count" integer not null default 0;
@@ -6194,7 +6194,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:2dad1948bdba5c4ad6f8d6c433a70b510774168ffdb967febcfd2e8ce3149b92
+-- @bsb-hash sha256:ceaa5048d8b1808c4447068ffe87469879938129c8dcae9c64c943bc3ac64d0c
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6281,7 +6281,7 @@ create table if not exists "better_supabase"."memories" (
   "subject_type" text,
   "subject_id" text,
   "category" text check ("category" ~ '^[a-z0-9][a-z0-9_-]*$'),
-  "confidence" real check ("confidence" between 0 and 1),
+  "confidence" real check ("confidence" >= 0 and "confidence" <= 1),
   "expires_at" timestamptz,
   "deleted_at" timestamptz,
   "use_count" integer not null default 0,

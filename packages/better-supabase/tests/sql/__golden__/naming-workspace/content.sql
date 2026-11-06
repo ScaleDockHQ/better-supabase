@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:22d8cc5ec2ad6906515b12fdb787dcfd40463a68393611082d0fdf3fcb784a7c
+-- @bsb-hash sha256:18c894c2f4dd2a50a215409edc8d52c645ba9533318a4c8c40fafeec0ef8b8cf
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -65,7 +65,7 @@ create table if not exists "better_supabase"."content_entries" (
   "type" text not null,
   "locale" text not null,
   "slug" text not null check (length("slug") <= 200 and "slug" ~ '^[a-z0-9]+(?:[-/][a-z0-9]+)*$'),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "summary" text check ("summary" is null or length("summary") <= 2000),
   "body" jsonb not null default '{}'::jsonb check (jsonb_typeof("body") in ('object', 'array')),
   "status" text not null default 'draft' check ("status" in ('draft', 'scheduled', 'published', 'archived')),

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:48c4ca2eedec3acaf74ab04a241c3142f4c26f04b42b40641547acde544215ab
+-- @bsb-hash sha256:3cde320332a8c6aa2d371b07f76af6a7127a42f46d929d4ca86daff8a219aca2
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,12 +87,12 @@ create table if not exists "better_supabase"."consent_purposes" (
   -- Null for a system purpose every organization uses.
   "tenant_id" uuid,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text check ("description" is null or length("description") <= 4000),
   "legal_basis" text not null default 'consent' check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
-  "version" text not null default '1' check (length("version") between 1 and 40),
+  "version" text not null default '1' check (length("version") >= 1 and length("version") <= 40),
   "requires_signature" boolean not null default false,
-  "valid_months" integer check ("valid_months" is null or "valid_months" between 1 and 1200),
+  "valid_months" integer check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -154,7 +154,7 @@ create table if not exists "better_supabase"."consent_signals" (
   "subject_type" text not null,
   "subject_id" text not null,
   "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
-  "raw" text not null check (length("raw") between 1 and 8192),
+  "raw" text not null check (length("raw") >= 1 and length("raw") <= 8192),
   "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
   "consent_ids" uuid[] not null default '{}',
   "created_by" uuid,

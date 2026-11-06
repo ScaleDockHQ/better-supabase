@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:b950ec2a2ad1ad60f52109a64ee9005afc211d4878df579c91fda2a90c2eb1c8
+-- @bsb-hash sha256:69215ab5dc0ead1228bfada7a5d335a30365d58381ef26fad1ce2baffec56bea
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -68,10 +68,10 @@ create table if not exists "better_supabase"."reviews" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete cascade,
   "author_name" text check ("author_name" is null or length("author_name") <= 100),
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "title" text check ("title" is null or length("title") <= 200),
   "body" text check ("body" is null or length("body") <= 5000),
   "status" text not null default 'pending' check ("status" in ('pending', 'published', 'rejected')),

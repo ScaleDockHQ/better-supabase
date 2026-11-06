@@ -1,6 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:6168cfa351a60f162cdf722f4984f198d013a9c791299cce55a200f4b2533fda
+-- @bsb-hash sha256:fecf76f2b5ed6a7015e272bb079a944c4447b7d1e025779e4b723de7b296492b
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,7 +89,7 @@ create table if not exists "better_supabase"."observation_definitions" (
   -- Null for a system definition every organization reads.
   "tenant_id" uuid,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
   "unit" text check ("unit" is null or length("unit") <= 50),
@@ -99,7 +99,7 @@ create table if not exists "better_supabase"."observation_definitions" (
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
   "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" between 0 and 6),
+  "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -129,8 +129,8 @@ create table if not exists "better_supabase"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
@@ -148,7 +148,7 @@ create table if not exists "better_supabase"."observations" (
   "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") between 1 and 200),
+  "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null,
   "performer_id" uuid,
   "note" text check ("note" is null or length("note") <= 4000),

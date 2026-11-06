@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:f04920e103f2eb828b3301c207c9c5852f34930ff31084d9b08150039254b20e
+-- @bsb-hash sha256:61776181bbafef0366ddaa9e64f30a12febca299c9a6c8c8f2eae917d5d4dcc9
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17,7 +17,7 @@ create table if not exists "better_supabase"."prompt_versions" (
   "organization_id" uuid,
   "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "version" integer not null check ("version" >= 1),
-  "template" text not null check (length("template") between 1 and 102400),
+  "template" text not null check (length("template") >= 1 and length("template") <= 102400),
   "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );

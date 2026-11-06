@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:1377321ffe33feb4e7ccf884bfff02cd9514035efbe4794fc21c303ed9621a6f
+-- @bsb-hash sha256:b520e764d2a04765100866aaab2e645b75dc0d1565a2cd631dced377caecaa7e
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,7 +112,7 @@ create table if not exists "better_supabase"."projects" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "owner_user_id" uuid,
   "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
   "start_on" date,
@@ -139,7 +139,7 @@ create table if not exists "better_supabase"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "team_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   "created_at" timestamptz not null default now(),
@@ -160,15 +160,15 @@ create table if not exists "better_supabase"."tasks" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
-  "priority" smallint not null default 0 check ("priority" between 0 and 4),
+  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
   "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" between 0 and 100),
+  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
@@ -225,7 +225,7 @@ create table if not exists "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "task_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,
@@ -1154,7 +1154,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:495fdb7a7916064e686a6e1b105d28dcec883288c8f67b8d00e01b96bbbefb94
+-- @bsb-hash sha256:7d05112df97bc9256e91be712659dcaace6f330019da017d772704ebac025fac
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1265,7 +1265,7 @@ create table if not exists "better_supabase"."projects" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "owner_user_id" uuid,
   "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
   "start_on" date,
@@ -1292,7 +1292,7 @@ create table if not exists "better_supabase"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "team_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   "created_at" timestamptz not null default now(),
@@ -1313,15 +1313,15 @@ create table if not exists "better_supabase"."tasks" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
-  "priority" smallint not null default 0 check ("priority" between 0 and 4),
+  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
   "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" between 0 and 100),
+  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
@@ -1378,7 +1378,7 @@ create table if not exists "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "task_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,
@@ -2505,7 +2505,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:5708c1514d55096b176ffac640ec51139a475d3800adcf565693e4fa45de864a
+-- @bsb-hash sha256:8f6a6801eb7bc1de1b09026c595a581dd487674912e17e8573e6d78e72c4e194
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2621,7 +2621,7 @@ create table if not exists "app_private"."projects" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "owner_user_id" uuid,
   "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
   "start_on" date,
@@ -2648,7 +2648,7 @@ create table if not exists "app_private"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "team_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   "created_at" timestamptz not null default now(),
@@ -2669,15 +2669,15 @@ create table if not exists "app_private"."tasks" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "app_private"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "app_private"."projects" ("id") on delete set null,
   "iteration_id" uuid references "app_private"."iterations" ("id") on delete set null,
-  "priority" smallint not null default 0 check ("priority" between 0 and 4),
+  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
   "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" between 0 and 100),
+  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
@@ -2734,7 +2734,7 @@ create table if not exists "app_private"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "task_id" uuid not null references "app_private"."tasks" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,
@@ -3663,7 +3663,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:3c8720bf145ae339e0ce9755763d9abb3e2e3201d3a5898998ddff878895e7e1
+-- @bsb-hash sha256:37711de710d40e24e78a589ca3c409a2e3e12e76b9443a8afca1017cda4f7cd7
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3774,7 +3774,7 @@ create table if not exists "better_supabase"."projects" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "owner_user_id" uuid,
   "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
   "start_on" date,
@@ -3801,7 +3801,7 @@ create table if not exists "better_supabase"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "team_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   "created_at" timestamptz not null default now(),
@@ -3822,15 +3822,15 @@ create table if not exists "better_supabase"."tasks" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
-  "priority" smallint not null default 0 check ("priority" between 0 and 4),
+  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
   "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" between 0 and 100),
+  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
@@ -3887,7 +3887,7 @@ create table if not exists "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "task_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,
@@ -4999,7 +4999,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:774dc7ab821575a300cdfbb215e68285f5cb6edabe48fd8151b6212b55fc9dfc
+-- @bsb-hash sha256:820c8cf3fec43e843dcb4dc1ed253af2ef70e77bfacb1b9e34d607e77ad77967
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5125,7 +5125,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."projects" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."projects" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."projects" add column if not exists "key" text check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$');
-alter table "better_supabase"."projects" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."projects" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."projects" add column if not exists "owner_user_id" uuid;
 alter table "better_supabase"."projects" add column if not exists "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled'));
 alter table "better_supabase"."projects" add column if not exists "start_on" date;
@@ -5149,7 +5149,7 @@ create policy bsb_projects_select on "better_supabase"."projects"
 alter table "better_supabase"."iterations" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."iterations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."iterations" add column if not exists "team_id" uuid;
-alter table "better_supabase"."iterations" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."iterations" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."iterations" add column if not exists "starts_on" date;
 alter table "better_supabase"."iterations" add column if not exists "ends_on" date;
 alter table "better_supabase"."iterations" add column if not exists "created_at" timestamptz not null default now();
@@ -5167,15 +5167,15 @@ alter table "better_supabase"."tasks" add column if not exists "id" uuid default
 alter table "better_supabase"."tasks" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."tasks" add column if not exists "number" bigint;
 alter table "better_supabase"."tasks" add column if not exists "identifier" text;
-alter table "better_supabase"."tasks" add column if not exists "title" text check (length("title") between 1 and 500);
+alter table "better_supabase"."tasks" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 500);
 alter table "better_supabase"."tasks" add column if not exists "body" text;
 alter table "better_supabase"."tasks" add column if not exists "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade;
 alter table "better_supabase"."tasks" add column if not exists "team_id" uuid;
 alter table "better_supabase"."tasks" add column if not exists "project_id" uuid references "better_supabase"."projects" ("id") on delete set null;
 alter table "better_supabase"."tasks" add column if not exists "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null;
-alter table "better_supabase"."tasks" add column if not exists "priority" smallint not null default 0 check ("priority" between 0 and 4);
+alter table "better_supabase"."tasks" add column if not exists "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4);
 alter table "better_supabase"."tasks" add column if not exists "estimate" numeric(10, 2) check ("estimate" >= 0);
-alter table "better_supabase"."tasks" add column if not exists "progress" smallint check ("progress" between 0 and 100);
+alter table "better_supabase"."tasks" add column if not exists "progress" smallint check ("progress" >= 0 and "progress" <= 100);
 alter table "better_supabase"."tasks" add column if not exists "start_at" timestamptz;
 alter table "better_supabase"."tasks" add column if not exists "end_at" timestamptz;
 alter table "better_supabase"."tasks" add column if not exists "due_at" timestamptz;
@@ -5227,7 +5227,7 @@ create unique index if not exists "tasks_recurs_from_idx" on "better_supabase"."
 alter table "better_supabase"."task_checklist_items" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."task_checklist_items" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."task_checklist_items" add column if not exists "task_id" uuid references "better_supabase"."tasks" ("id") on delete cascade;
-alter table "better_supabase"."task_checklist_items" add column if not exists "title" text check (length("title") between 1 and 500);
+alter table "better_supabase"."task_checklist_items" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 500);
 alter table "better_supabase"."task_checklist_items" add column if not exists "done" boolean not null default false;
 alter table "better_supabase"."task_checklist_items" add column if not exists "done_at" timestamptz;
 alter table "better_supabase"."task_checklist_items" add column if not exists "done_by" uuid;
@@ -6154,7 +6154,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:10751ceaaafaf43a8175aa0376be2cefb4ba0657e683a4d9a2af1d03a5b8669e
+-- @bsb-hash sha256:d4fd4dd703287798a7f7d2f6e47061f6048d0c8f8162af8c396730c3186f0a38
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6265,7 +6265,7 @@ create table if not exists "better_supabase"."projects" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "owner_user_id" uuid,
   "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
   "start_on" date,
@@ -6292,7 +6292,7 @@ create table if not exists "better_supabase"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "team_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   "created_at" timestamptz not null default now(),
@@ -6313,15 +6313,15 @@ create table if not exists "better_supabase"."tasks" (
   "org_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
-  "priority" smallint not null default 0 check ("priority" between 0 and 4),
+  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
   "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" between 0 and 100),
+  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
@@ -6378,7 +6378,7 @@ create table if not exists "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "task_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,

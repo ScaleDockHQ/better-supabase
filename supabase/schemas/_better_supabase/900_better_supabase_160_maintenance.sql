@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:ea455986a0f3bc02a4b26e8d55a9097f299fca57e3e93eeb2660077e2845e8bf
+-- @bsb-hash sha256:89efbc046c57d439941cb82155d362b007b7f451175d99f208ee6d950305ebff
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,8 +94,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."maintenance_meters" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "unit" text not null check (length("unit") between 1 and 30),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "unit" text not null check (length("unit") >= 1 and length("unit") <= 30),
   "asset_id" uuid,
   -- The latest reading. Readings only go up, so a plan can count from it.
   "reading" numeric not null default 0 check ("reading" >= 0),
@@ -135,7 +135,7 @@ create policy maintenance_meter_readings_read on "better_supabase"."maintenance_
 create table if not exists "better_supabase"."maintenance_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "asset_id" uuid,
   "kind" text not null check ("kind" in ('time', 'meter', 'rrule')),
   -- A time plan falls due every_days after it was last done.
@@ -153,7 +153,7 @@ create table if not exists "better_supabase"."maintenance_plans" (
   -- An rrule plan (RFC 5545: FREQ DAILY to YEARLY with INTERVAL, COUNT, UNTIL,
   -- BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS and WKST) falls due on each
   -- occurrence from dtstart, read in the time zone tz.
-  "rrule" text check ("rrule" is null or length("rrule") between 1 and 500),
+  "rrule" text check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500),
   "dtstart" timestamptz,
   "tz" text not null default 'UTC',
   -- Qualification type keys the technician of the work order must hold.
@@ -187,7 +187,7 @@ create table if not exists "better_supabase"."maintenance_plan_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "quantity" numeric not null default 1 check ("quantity" > 0),
   "variant_id" uuid,
   foreign key ("tenant_id", "plan_id") references "better_supabase"."maintenance_plans" ("tenant_id", "id") on delete cascade
@@ -206,7 +206,7 @@ create table if not exists "better_supabase"."maintenance_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid,
-  "instrument" text not null check (length("instrument") between 1 and 200),
+  "instrument" text not null check (length("instrument") >= 1 and length("instrument") <= 200),
   "performed_at" timestamptz not null,
   "due_at" timestamptz,
   "result" text not null check ("result" in ('pass', 'fail', 'adjusted')),

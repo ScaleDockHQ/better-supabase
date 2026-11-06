@@ -1,6 +1,6 @@
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:b62b64429079a711f50195cc282fb84ffc8d77af3ca77d224b106d592647d594
+-- @bsb-hash sha256:935f946a844f80c887b89e98de8b31e5ff1f25012be164c0a3cd68d829b541d0
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,7 +69,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
   "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
   "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
@@ -145,7 +145,7 @@ create policy connector_sessions_read on "better_supabase"."connector_sessions"
 -- admin before an assistant may call it.
 create table if not exists "better_supabase"."connector_tool_fingerprints" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,

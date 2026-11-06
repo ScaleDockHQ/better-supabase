@@ -127,7 +127,7 @@ describe("ai-files module", () => {
       "values ('chat-files', 'chat-files', false, 1024, array['image/*', 'application/pdf']::text[])",
     );
     expect(sql).toContain("like any (array['image/%', 'application/pdf'])");
-    expect(sql).toContain("between 0 and 1024");
+    expect(sql).toContain(`"byte_size" >= 0 and "byte_size" <= 1024`);
   });
 
   it("rejects a bad bucket, size or media type", () => {

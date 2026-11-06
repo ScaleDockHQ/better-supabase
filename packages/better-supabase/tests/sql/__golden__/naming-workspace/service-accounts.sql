@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:d5bf389642d3e9e2fdb89588d4a19cf1acee81718a463dec60d70734a1ce4ec4
+-- @bsb-hash sha256:d4aa1aa93fbaa059953efb53f71c81204b0fcb991ec3b916f416d4575486f240
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,8 +30,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."service_principals" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
-  "role" text not null check (length("role") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
+  "role" text not null check (length("role") >= 1 and length("role") <= 200),
   "is_default" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),

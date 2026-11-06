@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:d136a1ff8a286ff4fc2b316a12ea9e71ef8e705333b2e14d2226d66c566767a5
+-- @bsb-hash sha256:2e0ab685f953f4fdfab599f3a9e86295bab2e1ba0854bf96be436f279aeb8932
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -93,7 +93,7 @@ create table if not exists "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "instructions" text not null default '' check (length("instructions") <= 20000),
   "default_model" text check (length("default_model") <= 200),
   "pinned" boolean not null default false,
@@ -196,7 +196,7 @@ create policy ai_chats_read on "better_supabase"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 create table if not exists "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") between 1 and 200),
+  "id" text not null check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
@@ -205,7 +205,7 @@ create table if not exists "better_supabase"."ai_messages" (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") between 1 and 50),
+  "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
   "model" text,
@@ -237,7 +237,7 @@ create table if not exists "better_supabase"."ai_runs" (
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50),
+  "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50),
   "external_run_id" text check (length("external_run_id") <= 200),
   "model" text,
   "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
@@ -263,12 +263,12 @@ create policy ai_runs_owner_read on "better_supabase"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 create table if not exists "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") between 1 and 200),
+  "approval_id" text primary key check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
   "decision" text check ("decision" in ('approved', 'denied')),
@@ -294,7 +294,7 @@ create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approva
 -- runs (deny).
 create table if not exists "better_supabase"."ai_tool_policies" (
   "organization_id" uuid not null,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
   "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "tool")
@@ -310,7 +310,7 @@ create table if not exists "better_supabase"."ai_pending_inputs" (
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") between 1 and 2000),
+  "question" text not null check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
@@ -406,7 +406,7 @@ grant all on "better_supabase"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 create table if not exists "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") between 1 and 200),
+  "model_id" text primary key check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -427,7 +427,7 @@ create table if not exists "better_supabase"."ai_moderation_events" (
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
   "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") between 1 and 100),
+  "category" text not null check (length("category") >= 1 and length("category") <= 100),
   "score" real,
   "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
@@ -445,8 +445,8 @@ create table if not exists "better_supabase"."ai_run_steps" (
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") between 1 and 200),
-  "label" text not null check (length("label") between 1 and 300),
+  "step_key" text not null check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null check (length("label") >= 1 and length("label") <= 300),
   "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
   "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
@@ -469,7 +469,7 @@ create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 create table if not exists "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") between 1 and 200),
+  "harness_id" text not null check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
@@ -2240,9 +2240,9 @@ create table if not exists "better_supabase"."ai_sandboxes" (
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") between 1 and 200),
+  "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
+  "sandbox_id" text not null check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
   "container_id" text check (length("container_id") <= 200),
   "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
@@ -2919,7 +2919,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:7db35b5c28060dd430c5f44251a1b403373cb877af38c806ed178d8c4e1c8825
+-- @bsb-hash sha256:888c7172f975f26af00999ec7e8df076ae69a7d959b5444d1eb257f244b46491
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3011,7 +3011,7 @@ create table if not exists "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "instructions" text not null default '' check (length("instructions") <= 20000),
   "default_model" text check (length("default_model") <= 200),
   "pinned" boolean not null default false,
@@ -3114,7 +3114,7 @@ create policy ai_chats_read on "better_supabase"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 create table if not exists "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") between 1 and 200),
+  "id" text not null check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
@@ -3123,7 +3123,7 @@ create table if not exists "better_supabase"."ai_messages" (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") between 1 and 50),
+  "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
   "model" text,
@@ -3155,7 +3155,7 @@ create table if not exists "better_supabase"."ai_runs" (
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50),
+  "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50),
   "external_run_id" text check (length("external_run_id") <= 200),
   "model" text,
   "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
@@ -3181,12 +3181,12 @@ create policy ai_runs_owner_read on "better_supabase"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 create table if not exists "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") between 1 and 200),
+  "approval_id" text primary key check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
   "decision" text check ("decision" in ('approved', 'denied')),
@@ -3212,7 +3212,7 @@ create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approva
 -- runs (deny).
 create table if not exists "better_supabase"."ai_tool_policies" (
   "organization_id" uuid not null,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
   "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "tool")
@@ -3228,7 +3228,7 @@ create table if not exists "better_supabase"."ai_pending_inputs" (
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") between 1 and 2000),
+  "question" text not null check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
@@ -3324,7 +3324,7 @@ grant all on "better_supabase"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 create table if not exists "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") between 1 and 200),
+  "model_id" text primary key check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -3345,7 +3345,7 @@ create table if not exists "better_supabase"."ai_moderation_events" (
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
   "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") between 1 and 100),
+  "category" text not null check (length("category") >= 1 and length("category") <= 100),
   "score" real,
   "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
@@ -3363,8 +3363,8 @@ create table if not exists "better_supabase"."ai_run_steps" (
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") between 1 and 200),
-  "label" text not null check (length("label") between 1 and 300),
+  "step_key" text not null check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null check (length("label") >= 1 and length("label") <= 300),
   "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
   "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
@@ -3387,7 +3387,7 @@ create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 create table if not exists "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") between 1 and 200),
+  "harness_id" text not null check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
@@ -5231,9 +5231,9 @@ create table if not exists "better_supabase"."ai_sandboxes" (
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") between 1 and 200),
+  "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
+  "sandbox_id" text not null check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
   "container_id" text check (length("container_id") <= 200),
   "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
@@ -5918,7 +5918,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:6d1d03cbd53ce16fb8927cca9426ef9266525d1379779265b3be8289583cb4eb
+-- @bsb-hash sha256:6b451099fc862c5f4a855b3b553b49ef332c7c1009fecfe42a7338d8495a45d4
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6015,7 +6015,7 @@ create table if not exists "app_private"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "instructions" text not null default '' check (length("instructions") <= 20000),
   "default_model" text check (length("default_model") <= 200),
   "pinned" boolean not null default false,
@@ -6118,7 +6118,7 @@ create policy ai_chats_read on "app_private"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 create table if not exists "app_private"."ai_messages" (
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") between 1 and 200),
+  "id" text not null check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
@@ -6127,7 +6127,7 @@ create table if not exists "app_private"."ai_messages" (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") between 1 and 50),
+  "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
   "model" text,
@@ -6159,7 +6159,7 @@ create table if not exists "app_private"."ai_runs" (
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50),
+  "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50),
   "external_run_id" text check (length("external_run_id") <= 200),
   "model" text,
   "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
@@ -6185,12 +6185,12 @@ create policy ai_runs_owner_read on "app_private"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 create table if not exists "app_private"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") between 1 and 200),
+  "approval_id" text primary key check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "app_private"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
   "decision" text check ("decision" in ('approved', 'denied')),
@@ -6216,7 +6216,7 @@ create policy ai_tool_approvals_owner_read on "app_private"."ai_tool_approvals"
 -- runs (deny).
 create table if not exists "app_private"."ai_tool_policies" (
   "organization_id" uuid not null,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
   "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "tool")
@@ -6232,7 +6232,7 @@ create table if not exists "app_private"."ai_pending_inputs" (
   "owner_id" uuid not null,
   "run_id" uuid references "app_private"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") between 1 and 2000),
+  "question" text not null check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
@@ -6328,7 +6328,7 @@ grant all on "app_private"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 create table if not exists "app_private"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") between 1 and 200),
+  "model_id" text primary key check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -6349,7 +6349,7 @@ create table if not exists "app_private"."ai_moderation_events" (
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
   "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") between 1 and 100),
+  "category" text not null check (length("category") >= 1 and length("category") <= 100),
   "score" real,
   "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
@@ -6367,8 +6367,8 @@ create table if not exists "app_private"."ai_run_steps" (
   "run_id" uuid not null references "app_private"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") between 1 and 200),
-  "label" text not null check (length("label") between 1 and 300),
+  "step_key" text not null check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null check (length("label") >= 1 and length("label") <= 300),
   "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
   "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
@@ -6391,7 +6391,7 @@ create policy ai_run_steps_owner_read on "app_private"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 create table if not exists "app_private"."ai_harness_sessions" (
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") between 1 and 200),
+  "harness_id" text not null check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
@@ -8162,9 +8162,9 @@ create table if not exists "app_private"."ai_sandboxes" (
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") between 1 and 200),
+  "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
+  "sandbox_id" text not null check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
   "container_id" text check (length("container_id") <= 200),
   "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
@@ -8841,7 +8841,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:3a01a57ec8330c0d0c96b16140218b3d1125385a29152c3b59c5b77719d1310c
+-- @bsb-hash sha256:2d5bbcd3a0d4042d84dd9575aa183743ca7cf524565b42289ee4bfeac1ae5e9a
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8933,7 +8933,7 @@ create table if not exists "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "instructions" text not null default '' check (length("instructions") <= 20000),
   "default_model" text check (length("default_model") <= 200),
   "pinned" boolean not null default false,
@@ -9036,7 +9036,7 @@ create policy ai_chats_read on "better_supabase"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 create table if not exists "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") between 1 and 200),
+  "id" text not null check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
@@ -9045,7 +9045,7 @@ create table if not exists "better_supabase"."ai_messages" (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") between 1 and 50),
+  "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
   "model" text,
@@ -9077,7 +9077,7 @@ create table if not exists "better_supabase"."ai_runs" (
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50),
+  "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50),
   "external_run_id" text check (length("external_run_id") <= 200),
   "model" text,
   "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
@@ -9103,12 +9103,12 @@ create policy ai_runs_owner_read on "better_supabase"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 create table if not exists "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") between 1 and 200),
+  "approval_id" text primary key check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
   "decision" text check ("decision" in ('approved', 'denied')),
@@ -9134,7 +9134,7 @@ create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approva
 -- runs (deny).
 create table if not exists "better_supabase"."ai_tool_policies" (
   "organization_id" uuid not null,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
   "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "tool")
@@ -9150,7 +9150,7 @@ create table if not exists "better_supabase"."ai_pending_inputs" (
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") between 1 and 2000),
+  "question" text not null check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
@@ -9246,7 +9246,7 @@ grant all on "better_supabase"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 create table if not exists "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") between 1 and 200),
+  "model_id" text primary key check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -9267,7 +9267,7 @@ create table if not exists "better_supabase"."ai_moderation_events" (
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
   "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") between 1 and 100),
+  "category" text not null check (length("category") >= 1 and length("category") <= 100),
   "score" real,
   "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
@@ -9285,8 +9285,8 @@ create table if not exists "better_supabase"."ai_run_steps" (
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") between 1 and 200),
-  "label" text not null check (length("label") between 1 and 300),
+  "step_key" text not null check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null check (length("label") >= 1 and length("label") <= 300),
   "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
   "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
@@ -9309,7 +9309,7 @@ create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 create table if not exists "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") between 1 and 200),
+  "harness_id" text not null check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
@@ -11080,9 +11080,9 @@ create table if not exists "better_supabase"."ai_sandboxes" (
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") between 1 and 200),
+  "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
+  "sandbox_id" text not null check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
   "container_id" text check (length("container_id") <= 200),
   "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
@@ -12355,7 +12355,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:6b2b2b0da13aa3f64ffa49fbb4b9e13d062409077e4c83e7cb8b458a3f966521
+-- @bsb-hash sha256:fd5557b9073dfa8f42179ac7d836c3de30a590b7e49e2b64b59e045243f18c46
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12463,7 +12463,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."ai_projects" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."ai_projects" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_projects" add column if not exists "owner_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_projects" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."ai_projects" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."ai_projects" add column if not exists "instructions" text not null default '' check (length("instructions") <= 20000);
 alter table "better_supabase"."ai_projects" add column if not exists "default_model" text check (length("default_model") <= 200);
 alter table "better_supabase"."ai_projects" add column if not exists "pinned" boolean not null default false;
@@ -12553,13 +12553,13 @@ create policy bsb_ai_chats_select on "better_supabase"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 -- better_supabase.ai_messages is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_messages" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
-alter table "better_supabase"."ai_messages" add column if not exists "id" text check (length("id") between 1 and 200);
+alter table "better_supabase"."ai_messages" add column if not exists "id" text check (length("id") >= 1 and length("id") <= 200);
 alter table "better_supabase"."ai_messages" add column if not exists "parent_id" text;
 alter table "better_supabase"."ai_messages" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."ai_messages" add column if not exists "role" text check ("role" in ('system', 'user', 'assistant', 'tool'));
 alter table "better_supabase"."ai_messages" add column if not exists "parts" jsonb not null default '[]' check ( jsonb_typeof("parts") = 'array' and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))') );
-alter table "better_supabase"."ai_messages" add column if not exists "format" text not null default 'canonical' check (length("format") between 1 and 50);
+alter table "better_supabase"."ai_messages" add column if not exists "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50);
 alter table "better_supabase"."ai_messages" add column if not exists "native" jsonb;
 alter table "better_supabase"."ai_messages" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."ai_messages" add column if not exists "model" text;
@@ -12587,7 +12587,7 @@ alter table "better_supabase"."ai_runs" add column if not exists "chat_id" uuid 
 alter table "better_supabase"."ai_runs" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_runs" add column if not exists "assistant_message_id" text;
 alter table "better_supabase"."ai_runs" add column if not exists "stream_id" text;
-alter table "better_supabase"."ai_runs" add column if not exists "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50);
+alter table "better_supabase"."ai_runs" add column if not exists "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50);
 alter table "better_supabase"."ai_runs" add column if not exists "external_run_id" text check (length("external_run_id") <= 200);
 alter table "better_supabase"."ai_runs" add column if not exists "model" text;
 alter table "better_supabase"."ai_runs" add column if not exists "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled'));
@@ -12611,12 +12611,12 @@ create policy bsb_ai_runs_select on "better_supabase"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 -- better_supabase.ai_tool_approvals is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."ai_tool_approvals" add column if not exists "approval_id" text check (length("approval_id") between 1 and 200);
+alter table "better_supabase"."ai_tool_approvals" add column if not exists "approval_id" text check (length("approval_id") >= 1 and length("approval_id") <= 200);
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "message_id" text;
-alter table "better_supabase"."ai_tool_approvals" add column if not exists "tool" text check (length("tool") between 1 and 200);
+alter table "better_supabase"."ai_tool_approvals" add column if not exists "tool" text check (length("tool") >= 1 and length("tool") <= 200);
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "tool_call_id" text;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "input" jsonb;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "decision" text check ("decision" in ('approved', 'denied'));
@@ -12641,7 +12641,7 @@ create policy bsb_ai_tool_approvals_select on "better_supabase"."ai_tool_approva
 -- runs (deny).
 -- better_supabase.ai_tool_policies is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_tool_policies" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."ai_tool_policies" add column if not exists "tool" text check (length("tool") between 1 and 200);
+alter table "better_supabase"."ai_tool_policies" add column if not exists "tool" text check (length("tool") >= 1 and length("tool") <= 200);
 alter table "better_supabase"."ai_tool_policies" add column if not exists "policy" text check ("policy" in ('auto', 'ask', 'deny'));
 alter table "better_supabase"."ai_tool_policies" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_ai_tool_policies_tool_key" on "better_supabase"."ai_tool_policies" ("organization_id", "tool");
@@ -12655,7 +12655,7 @@ alter table "better_supabase"."ai_pending_inputs" add column if not exists "chat
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "tool_call_id" text;
-alter table "better_supabase"."ai_pending_inputs" add column if not exists "question" text check (length("question") between 1 and 2000);
+alter table "better_supabase"."ai_pending_inputs" add column if not exists "question" text check (length("question") >= 1 and length("question") <= 2000);
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "schema" jsonb;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "answer" jsonb;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "answered_at" timestamptz;
@@ -12740,7 +12740,7 @@ grant all on "better_supabase"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 -- better_supabase.ai_model_catalog is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."ai_model_catalog" add column if not exists "model_id" text check (length("model_id") between 1 and 200);
+alter table "better_supabase"."ai_model_catalog" add column if not exists "model_id" text check (length("model_id") >= 1 and length("model_id") <= 200);
 alter table "better_supabase"."ai_model_catalog" add column if not exists "provider" text not null default '';
 alter table "better_supabase"."ai_model_catalog" add column if not exists "name" text not null default '';
 alter table "better_supabase"."ai_model_catalog" add column if not exists "pricing" jsonb not null default '{}';
@@ -12760,7 +12760,7 @@ alter table "better_supabase"."ai_moderation_events" add column if not exists "c
 alter table "better_supabase"."ai_moderation_events" add column if not exists "message_id" text;
 alter table "better_supabase"."ai_moderation_events" add column if not exists "user_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."ai_moderation_events" add column if not exists "stage" text check ("stage" in ('input', 'output', 'tool'));
-alter table "better_supabase"."ai_moderation_events" add column if not exists "category" text check (length("category") between 1 and 100);
+alter table "better_supabase"."ai_moderation_events" add column if not exists "category" text check (length("category") >= 1 and length("category") <= 100);
 alter table "better_supabase"."ai_moderation_events" add column if not exists "score" real;
 alter table "better_supabase"."ai_moderation_events" add column if not exists "action" text check ("action" in ('allow', 'flag', 'redact', 'block'));
 alter table "better_supabase"."ai_moderation_events" add column if not exists "created_at" timestamptz not null default now();
@@ -12776,8 +12776,8 @@ alter table "better_supabase"."ai_run_steps" add column if not exists "id" uuid 
 alter table "better_supabase"."ai_run_steps" add column if not exists "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete cascade;
 alter table "better_supabase"."ai_run_steps" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
 alter table "better_supabase"."ai_run_steps" add column if not exists "owner_id" uuid;
-alter table "better_supabase"."ai_run_steps" add column if not exists "step_key" text check (length("step_key") between 1 and 200);
-alter table "better_supabase"."ai_run_steps" add column if not exists "label" text check (length("label") between 1 and 300);
+alter table "better_supabase"."ai_run_steps" add column if not exists "step_key" text check (length("step_key") >= 1 and length("step_key") <= 200);
+alter table "better_supabase"."ai_run_steps" add column if not exists "label" text check (length("label") >= 1 and length("label") <= 300);
 alter table "better_supabase"."ai_run_steps" add column if not exists "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped'));
 alter table "better_supabase"."ai_run_steps" add column if not exists "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object');
 alter table "better_supabase"."ai_run_steps" add column if not exists "started_at" timestamptz not null default now();
@@ -12798,7 +12798,7 @@ create policy bsb_ai_run_steps_select on "better_supabase"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 -- better_supabase.ai_harness_sessions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
-alter table "better_supabase"."ai_harness_sessions" add column if not exists "harness_id" text check (length("harness_id") between 1 and 200);
+alter table "better_supabase"."ai_harness_sessions" add column if not exists "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200);
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "resume_state" jsonb;
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "continue_state" jsonb;
@@ -14566,9 +14566,9 @@ alter table "better_supabase"."ai_sandboxes" add column if not exists "id" uuid 
 alter table "better_supabase"."ai_sandboxes" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_sandboxes" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_sandboxes" add column if not exists "chat_id" uuid;
-alter table "better_supabase"."ai_sandboxes" add column if not exists "harness_id" text check (length("harness_id") between 1 and 200);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200);
 alter table "better_supabase"."ai_sandboxes" add column if not exists "provider" text check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$');
-alter table "better_supabase"."ai_sandboxes" add column if not exists "sandbox_id" text check (length("sandbox_id") between 1 and 200);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "sandbox_id" text check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200);
 alter table "better_supabase"."ai_sandboxes" add column if not exists "container_id" text check (length("container_id") <= 200);
 alter table "better_supabase"."ai_sandboxes" add column if not exists "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped'));
 alter table "better_supabase"."ai_sandboxes" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
@@ -15243,7 +15243,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:1e8f74925433234030ec7728cef4e3f2e5dd7107c1101e8897ba6127cdea8d2f
+-- @bsb-hash sha256:a0f29d93e3b81a18766b8d357324b500e69ce450037cc9aba22062fb45337e83
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15335,7 +15335,7 @@ create table if not exists "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "instructions" text not null default '' check (length("instructions") <= 20000),
   "default_model" text check (length("default_model") <= 200),
   "pinned" boolean not null default false,
@@ -15438,7 +15438,7 @@ create policy ai_chats_read on "better_supabase"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 create table if not exists "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") between 1 and 200),
+  "id" text not null check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
@@ -15447,7 +15447,7 @@ create table if not exists "better_supabase"."ai_messages" (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") between 1 and 50),
+  "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
   "model" text,
@@ -15479,7 +15479,7 @@ create table if not exists "better_supabase"."ai_runs" (
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50),
+  "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50),
   "external_run_id" text check (length("external_run_id") <= 200),
   "model" text,
   "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
@@ -15505,12 +15505,12 @@ create policy ai_runs_owner_read on "better_supabase"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 create table if not exists "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") between 1 and 200),
+  "approval_id" text primary key check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
   "decision" text check ("decision" in ('approved', 'denied')),
@@ -15536,7 +15536,7 @@ create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approva
 -- runs (deny).
 create table if not exists "better_supabase"."ai_tool_policies" (
   "org_id" uuid not null,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
   "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "tool")
@@ -15552,7 +15552,7 @@ create table if not exists "better_supabase"."ai_pending_inputs" (
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") between 1 and 2000),
+  "question" text not null check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
@@ -15648,7 +15648,7 @@ grant all on "better_supabase"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 create table if not exists "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") between 1 and 200),
+  "model_id" text primary key check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -15669,7 +15669,7 @@ create table if not exists "better_supabase"."ai_moderation_events" (
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
   "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") between 1 and 100),
+  "category" text not null check (length("category") >= 1 and length("category") <= 100),
   "score" real,
   "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
@@ -15687,8 +15687,8 @@ create table if not exists "better_supabase"."ai_run_steps" (
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") between 1 and 200),
-  "label" text not null check (length("label") between 1 and 300),
+  "step_key" text not null check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null check (length("label") >= 1 and length("label") <= 300),
   "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
   "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
@@ -15711,7 +15711,7 @@ create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 create table if not exists "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") between 1 and 200),
+  "harness_id" text not null check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
@@ -17482,9 +17482,9 @@ create table if not exists "better_supabase"."ai_sandboxes" (
   "org_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") between 1 and 200),
+  "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
+  "sandbox_id" text not null check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
   "container_id" text check (length("container_id") <= 200),
   "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
   "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),

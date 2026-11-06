@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:7a410ca43d6fa5f53ffb9d4f9dc08b2becc67e4b9d7ec7af942b0072a3ffa9c6
+-- @bsb-hash sha256:a224774edb2ba5b857f76a77b0a7cb59ef23cf360c60118606252f217e414125
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -95,8 +95,8 @@ create table if not exists "better_supabase"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") between 1 and 63),
-  "title" text not null check (length("title") between 1 and 300),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "location" text check ("location" is null or length("location") <= 500),
   "starts_at" timestamptz not null,
   "ends_at" timestamptz,
@@ -163,7 +163,7 @@ create table if not exists "better_supabase"."meeting_agenda_items" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "ordinal" integer not null check ("ordinal" > 0),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "notes" text check ("notes" is null or length("notes") <= 10000),
   "presenter_id" uuid,
   -- Minutes of this item, in Markdown.
@@ -190,7 +190,7 @@ create table if not exists "better_supabase"."meeting_decisions" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "agenda_item_id" uuid,
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "body" text check ("body" is null or length("body") <= 10000),
   "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
   "decided_by" uuid,

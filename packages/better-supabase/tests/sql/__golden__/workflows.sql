@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:a2b9eaa7b5b103af97106d0f4eebac08cb83cfde9d0fd16c33d093d8da2c613b
+-- @bsb-hash sha256:003a68e16717e15b6bd9b62f0cde09483302d42e271a08b1fa19b74452accc8d
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,9 +77,9 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- read them through RLS.
 create table if not exists "better_supabase"."workflow_runs" (
   "id" uuid primary key default gen_random_uuid(),
-  "engine" text not null check (length("engine") between 1 and 100),
-  "external_id" text not null check (length("external_id") between 1 and 200),
-  "definition" text not null check (length("definition") between 1 and 200),
+  "engine" text not null check (length("engine") >= 1 and length("engine") <= 100),
+  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
+  "definition" text not null check (length("definition") >= 1 and length("definition") <= 200),
   "tenant_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
   "status" text not null default 'queued' check ("status" in ('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled')),
@@ -99,16 +99,16 @@ create index if not exists workflow_runs_status_idx on "better_supabase"."workfl
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
 create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 do $$
@@ -140,10 +140,10 @@ create policy workflow_runs_read on "better_supabase"."workflow_runs"
 create table if not exists "better_supabase"."workflow_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
-  "cron" text not null check (length("cron") between 1 and 200),
+  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
   "timezone" text not null default 'UTC',
   "next_run_at" timestamptz not null,
   "last_run_at" timestamptz,
@@ -167,8 +167,8 @@ create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
 create table if not exists "better_supabase"."workflow_semaphores" (
-  "key" text not null check (length("key") between 1 and 200),
-  "holder" text not null check (length("holder") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
+  "holder" text not null check (length("holder") >= 1 and length("holder") <= 200),
   "acquired_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   primary key ("key", "holder")
@@ -182,8 +182,8 @@ grant all on "better_supabase"."workflow_semaphores" to service_role;
 -- its key is active (singleton).
 create table if not exists "better_supabase"."workflow_start_requests" (
   "id" uuid primary key default gen_random_uuid(),
-  "key" text not null check (length("key") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
+  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
   "tenant_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
@@ -198,8 +198,8 @@ create table if not exists "better_supabase"."workflow_start_requests" (
 create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
 create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 do $$
 begin
   if coalesce(obj_description((
@@ -1166,7 +1166,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:c0de17c3ab1c40e505f61eb2018af2bd837002c9a9e7b2f778594d6bce11b464
+-- @bsb-hash sha256:86e0f00f723fd40f975d12c8672713548984a77a4fcf62e1e2ec99589b2616a2
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1242,9 +1242,9 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- read them through RLS.
 create table if not exists "better_supabase"."workflow_runs" (
   "id" uuid primary key default gen_random_uuid(),
-  "engine" text not null check (length("engine") between 1 and 100),
-  "external_id" text not null check (length("external_id") between 1 and 200),
-  "definition" text not null check (length("definition") between 1 and 200),
+  "engine" text not null check (length("engine") >= 1 and length("engine") <= 100),
+  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
+  "definition" text not null check (length("definition") >= 1 and length("definition") <= 200),
   "tenant_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
   "status" text not null default 'queued' check ("status" in ('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled')),
@@ -1264,16 +1264,16 @@ create index if not exists workflow_runs_status_idx on "better_supabase"."workfl
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
 create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 do $$
@@ -1305,10 +1305,10 @@ create policy workflow_runs_read on "better_supabase"."workflow_runs"
 create table if not exists "better_supabase"."workflow_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
-  "cron" text not null check (length("cron") between 1 and 200),
+  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
   "timezone" text not null default 'UTC',
   "next_run_at" timestamptz not null,
   "last_run_at" timestamptz,
@@ -1332,8 +1332,8 @@ create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
 create table if not exists "better_supabase"."workflow_semaphores" (
-  "key" text not null check (length("key") between 1 and 200),
-  "holder" text not null check (length("holder") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
+  "holder" text not null check (length("holder") >= 1 and length("holder") <= 200),
   "acquired_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   primary key ("key", "holder")
@@ -1347,8 +1347,8 @@ grant all on "better_supabase"."workflow_semaphores" to service_role;
 -- its key is active (singleton).
 create table if not exists "better_supabase"."workflow_start_requests" (
   "id" uuid primary key default gen_random_uuid(),
-  "key" text not null check (length("key") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
+  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
   "tenant_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
@@ -1363,8 +1363,8 @@ create table if not exists "better_supabase"."workflow_start_requests" (
 create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
 create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 do $$
 begin
   if coalesce(obj_description((
@@ -2345,7 +2345,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:774558c1cf2f72cb5d25e24d144ca951cdabf30d112606d8b1beef7385efb833
+-- @bsb-hash sha256:5727c1855e37ede60a05ae33e4f780eba53d7bbb42043f50374e00dc8452fa33
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2426,9 +2426,9 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- read them through RLS.
 create table if not exists "app_private"."workflow_runs" (
   "id" uuid primary key default gen_random_uuid(),
-  "engine" text not null check (length("engine") between 1 and 100),
-  "external_id" text not null check (length("external_id") between 1 and 200),
-  "definition" text not null check (length("definition") between 1 and 200),
+  "engine" text not null check (length("engine") >= 1 and length("engine") <= 100),
+  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
+  "definition" text not null check (length("definition") >= 1 and length("definition") <= 200),
   "tenant_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
   "status" text not null default 'queued' check ("status" in ('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled')),
@@ -2448,16 +2448,16 @@ create index if not exists workflow_runs_status_idx on "app_private"."workflow_r
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "app_private"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "app_private"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "app_private"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "app_private"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "app_private"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "app_private"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
+alter table "app_private"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
 alter table "app_private"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "app_private"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+alter table "app_private"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "app_private"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+alter table "app_private"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
 create unique index if not exists workflow_runs_idempotency_key on "app_private"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
 alter table "app_private"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 do $$
@@ -2489,10 +2489,10 @@ create policy workflow_runs_read on "app_private"."workflow_runs"
 create table if not exists "app_private"."workflow_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
-  "cron" text not null check (length("cron") between 1 and 200),
+  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
   "timezone" text not null default 'UTC',
   "next_run_at" timestamptz not null,
   "last_run_at" timestamptz,
@@ -2516,8 +2516,8 @@ create policy workflow_schedules_read on "app_private"."workflow_schedules"
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
 create table if not exists "app_private"."workflow_semaphores" (
-  "key" text not null check (length("key") between 1 and 200),
-  "holder" text not null check (length("holder") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
+  "holder" text not null check (length("holder") >= 1 and length("holder") <= 200),
   "acquired_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   primary key ("key", "holder")
@@ -2531,8 +2531,8 @@ grant all on "app_private"."workflow_semaphores" to service_role;
 -- its key is active (singleton).
 create table if not exists "app_private"."workflow_start_requests" (
   "id" uuid primary key default gen_random_uuid(),
-  "key" text not null check (length("key") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
+  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
   "tenant_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
@@ -2547,8 +2547,8 @@ create table if not exists "app_private"."workflow_start_requests" (
 create index if not exists workflow_start_requests_key_idx on "app_private"."workflow_start_requests" ("key", "status");
 create index if not exists workflow_start_requests_due_idx on "app_private"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index if not exists workflow_start_requests_actor_idx on "app_private"."workflow_start_requests" ("actor_id");
-alter table "app_private"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "app_private"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "app_private"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "app_private"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 do $$
 begin
   if coalesce(obj_description((
@@ -3515,7 +3515,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:f3a7bf838531de1f62968a12981bbc0d6a1fc44e78c7fd62573861971014e0de
+-- @bsb-hash sha256:522db34055fd7957717c428c01317cdd420c78e883abf388fe155c7b84ed23ba
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3591,9 +3591,9 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- read them through RLS.
 create table if not exists "better_supabase"."workflow_runs" (
   "id" uuid primary key default gen_random_uuid(),
-  "engine" text not null check (length("engine") between 1 and 100),
-  "external_id" text not null check (length("external_id") between 1 and 200),
-  "definition" text not null check (length("definition") between 1 and 200),
+  "engine" text not null check (length("engine") >= 1 and length("engine") <= 100),
+  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
+  "definition" text not null check (length("definition") >= 1 and length("definition") <= 200),
   "tenant_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
   "status" text not null default 'queued' check ("status" in ('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled')),
@@ -3613,16 +3613,16 @@ create index if not exists workflow_runs_status_idx on "better_supabase"."workfl
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
 create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 do $$
@@ -3654,10 +3654,10 @@ create policy workflow_runs_read on "better_supabase"."workflow_runs"
 create table if not exists "better_supabase"."workflow_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
-  "cron" text not null check (length("cron") between 1 and 200),
+  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
   "timezone" text not null default 'UTC',
   "next_run_at" timestamptz not null,
   "last_run_at" timestamptz,
@@ -3681,8 +3681,8 @@ create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
 create table if not exists "better_supabase"."workflow_semaphores" (
-  "key" text not null check (length("key") between 1 and 200),
-  "holder" text not null check (length("holder") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
+  "holder" text not null check (length("holder") >= 1 and length("holder") <= 200),
   "acquired_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   primary key ("key", "holder")
@@ -3696,8 +3696,8 @@ grant all on "better_supabase"."workflow_semaphores" to service_role;
 -- its key is active (singleton).
 create table if not exists "better_supabase"."workflow_start_requests" (
   "id" uuid primary key default gen_random_uuid(),
-  "key" text not null check (length("key") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
+  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
   "tenant_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
@@ -3712,8 +3712,8 @@ create table if not exists "better_supabase"."workflow_start_requests" (
 create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
 create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 do $$
 begin
   if coalesce(obj_description((
@@ -4884,7 +4884,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:a2bf6c673809653d41cb92151f1eba3738d6a4b04c165cf69d36e0d47c98552f
+-- @bsb-hash sha256:fbc250a6f87bcf3cc6023c4606a75fff98c9ae18eadbc9d1e613ce665236fccb
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4976,9 +4976,9 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- read them through RLS.
 -- better_supabase.workflow_runs is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."workflow_runs" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."workflow_runs" add column if not exists "engine" text check (length("engine") between 1 and 100);
-alter table "better_supabase"."workflow_runs" add column if not exists "external_id" text check (length("external_id") between 1 and 200);
-alter table "better_supabase"."workflow_runs" add column if not exists "definition" text check (length("definition") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "engine" text check (length("engine") >= 1 and length("engine") <= 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "external_id" text check (length("external_id") >= 1 and length("external_id") <= 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "definition" text check (length("definition") >= 1 and length("definition") <= 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."workflow_runs" add column if not exists "actor_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."workflow_runs" add column if not exists "status" text not null default 'queued' check ("status" in ('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled'));
@@ -4997,16 +4997,16 @@ create index if not exists workflow_runs_status_idx on "better_supabase"."workfl
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
 create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 create index if not exists workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
@@ -5025,10 +5025,10 @@ create policy bsb_workflow_runs_select on "better_supabase"."workflow_runs"
 -- better_supabase.workflow_schedules is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."workflow_schedules" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."workflow_schedules" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."workflow_schedules" add column if not exists "name" text check (length("name") between 1 and 200);
-alter table "better_supabase"."workflow_schedules" add column if not exists "workflow" text check (length("workflow") between 1 and 200);
+alter table "better_supabase"."workflow_schedules" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."workflow_schedules" add column if not exists "workflow" text check (length("workflow") >= 1 and length("workflow") <= 200);
 alter table "better_supabase"."workflow_schedules" add column if not exists "input" jsonb not null default '[]'::jsonb;
-alter table "better_supabase"."workflow_schedules" add column if not exists "cron" text check (length("cron") between 1 and 200);
+alter table "better_supabase"."workflow_schedules" add column if not exists "cron" text check (length("cron") >= 1 and length("cron") <= 200);
 alter table "better_supabase"."workflow_schedules" add column if not exists "timezone" text not null default 'UTC';
 alter table "better_supabase"."workflow_schedules" add column if not exists "next_run_at" timestamptz;
 alter table "better_supabase"."workflow_schedules" add column if not exists "last_run_at" timestamptz;
@@ -5050,8 +5050,8 @@ create policy bsb_workflow_schedules_select on "better_supabase"."workflow_sched
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
 -- better_supabase.workflow_semaphores is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."workflow_semaphores" add column if not exists "key" text check (length("key") between 1 and 200);
-alter table "better_supabase"."workflow_semaphores" add column if not exists "holder" text check (length("holder") between 1 and 200);
+alter table "better_supabase"."workflow_semaphores" add column if not exists "key" text check (length("key") >= 1 and length("key") <= 200);
+alter table "better_supabase"."workflow_semaphores" add column if not exists "holder" text check (length("holder") >= 1 and length("holder") <= 200);
 alter table "better_supabase"."workflow_semaphores" add column if not exists "acquired_at" timestamptz not null default now();
 alter table "better_supabase"."workflow_semaphores" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."workflow_semaphores" enable row level security;
@@ -5062,8 +5062,8 @@ grant all on "better_supabase"."workflow_semaphores" to service_role;
 -- its key is active (singleton).
 -- better_supabase.workflow_start_requests is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."workflow_start_requests" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."workflow_start_requests" add column if not exists "key" text check (length("key") between 1 and 200);
-alter table "better_supabase"."workflow_start_requests" add column if not exists "workflow" text check (length("workflow") between 1 and 200);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "key" text check (length("key") >= 1 and length("key") <= 200);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "workflow" text check (length("workflow") >= 1 and length("workflow") <= 200);
 alter table "better_supabase"."workflow_start_requests" add column if not exists "input" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."workflow_start_requests" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."workflow_start_requests" add column if not exists "actor_id" uuid references auth.users (id) on delete set null;
@@ -5077,8 +5077,8 @@ alter table "better_supabase"."workflow_start_requests" add column if not exists
 create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
 create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."workflow_start_requests" enable row level security;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
 
@@ -6034,7 +6034,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:ccc0f4cc9e64dbe536ed6f1b64c3b4914306796fea74b0785f48e7b2fdbef9bf
+-- @bsb-hash sha256:8a62dcb65439968bc8978082f3d7d784f83683d9bccce8a39d4b37a61c954c7f
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6110,9 +6110,9 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- read them through RLS.
 create table if not exists "better_supabase"."workflow_runs" (
   "id" uuid primary key default gen_random_uuid(),
-  "engine" text not null check (length("engine") between 1 and 100),
-  "external_id" text not null check (length("external_id") between 1 and 200),
-  "definition" text not null check (length("definition") between 1 and 200),
+  "engine" text not null check (length("engine") >= 1 and length("engine") <= 100),
+  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
+  "definition" text not null check (length("definition") >= 1 and length("definition") <= 200),
   "org_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
   "status" text not null default 'queued' check ("status" in ('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled')),
@@ -6132,16 +6132,16 @@ create index if not exists workflow_runs_status_idx on "better_supabase"."workfl
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") between 1 and 200);
+alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
 alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") between 1 and 100);
+alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 500);
+alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
 create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("org_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
 do $$
@@ -6173,10 +6173,10 @@ create policy workflow_runs_read on "better_supabase"."workflow_runs"
 create table if not exists "better_supabase"."workflow_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
-  "cron" text not null check (length("cron") between 1 and 200),
+  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
   "timezone" text not null default 'UTC',
   "next_run_at" timestamptz not null,
   "last_run_at" timestamptz,
@@ -6200,8 +6200,8 @@ create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
 create table if not exists "better_supabase"."workflow_semaphores" (
-  "key" text not null check (length("key") between 1 and 200),
-  "holder" text not null check (length("holder") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
+  "holder" text not null check (length("holder") >= 1 and length("holder") <= 200),
   "acquired_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   primary key ("key", "holder")
@@ -6215,8 +6215,8 @@ grant all on "better_supabase"."workflow_semaphores" to service_role;
 -- its key is active (singleton).
 create table if not exists "better_supabase"."workflow_start_requests" (
   "id" uuid primary key default gen_random_uuid(),
-  "key" text not null check (length("key") between 1 and 200),
-  "workflow" text not null check (length("workflow") between 1 and 200),
+  "key" text not null check (length("key") >= 1 and length("key") <= 200),
+  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
   "org_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
@@ -6231,8 +6231,8 @@ create table if not exists "better_supabase"."workflow_start_requests" (
 create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
 create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 do $$
 begin
   if coalesce(obj_description((

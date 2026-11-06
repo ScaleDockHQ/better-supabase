@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:8e05ea94a635a2ca8951974d23d2c6f14b9915210385f29169acb431aeafb173
+-- @bsb-hash sha256:19c7470f9a5ef5e6262f3fee277e31e260c656950d50fcef66c40d7f10fbc457
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,8 +73,8 @@ create table if not exists "better_supabase"."checkout_sessions" (
   "cart_id" uuid not null,
   "protocol" text not null check ("protocol" in ('acp', 'ucp')),
   "status" text not null default 'open' check ("status" in ('open', 'ready', 'completed', 'canceled')),
-  "idempotency_key" text not null check (length("idempotency_key") between 1 and 255),
-  "request_hash" text not null check (length("request_hash") between 1 and 128),
+  "idempotency_key" text not null check (length("idempotency_key") >= 1 and length("idempotency_key") <= 255),
+  "request_hash" text not null check (length("request_hash") >= 1 and length("request_hash") <= 128),
   "buyer" jsonb,
   "order_id" uuid,
   "expires_at" timestamptz,
@@ -103,8 +103,8 @@ create table if not exists "better_supabase"."agent_mandates" (
   "session_id" uuid references "better_supabase"."checkout_sessions" ("id") on delete set null,
   "vct" text not null check ("vct" in ('mandate.checkout.open.1', 'mandate.checkout.1')),
   "status" text not null default 'active' check ("status" in ('active', 'consumed', 'revoked')),
-  "credential" text not null check (length("credential") between 1 and 16384),
-  "credential_hash" text not null check (length("credential_hash") between 1 and 128),
+  "credential" text not null check (length("credential") >= 1 and length("credential") <= 16384),
+  "credential_hash" text not null check (length("credential_hash") >= 1 and length("credential_hash") <= 128),
   "issuer_kid" text,
   "subject" text,
   "expires_at" timestamptz not null,
@@ -600,7 +600,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:957f6c56a586664d7184904b96d7c2d8b8d1d4661d72f20facdc646ebecc7d6e
+-- @bsb-hash sha256:412c0003bb230aa6b8d0a8b648b491ebac45d9fcdf01a561f9120cb510625c17
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -672,8 +672,8 @@ create table if not exists "better_supabase"."checkout_sessions" (
   "cart_id" uuid not null,
   "protocol" text not null check ("protocol" in ('acp', 'ucp')),
   "status" text not null default 'open' check ("status" in ('open', 'ready', 'completed', 'canceled')),
-  "idempotency_key" text not null check (length("idempotency_key") between 1 and 255),
-  "request_hash" text not null check (length("request_hash") between 1 and 128),
+  "idempotency_key" text not null check (length("idempotency_key") >= 1 and length("idempotency_key") <= 255),
+  "request_hash" text not null check (length("request_hash") >= 1 and length("request_hash") <= 128),
   "buyer" jsonb,
   "order_id" uuid,
   "expires_at" timestamptz,
@@ -702,8 +702,8 @@ create table if not exists "better_supabase"."agent_mandates" (
   "session_id" uuid references "better_supabase"."checkout_sessions" ("id") on delete set null,
   "vct" text not null check ("vct" in ('mandate.checkout.open.1', 'mandate.checkout.1')),
   "status" text not null default 'active' check ("status" in ('active', 'consumed', 'revoked')),
-  "credential" text not null check (length("credential") between 1 and 16384),
-  "credential_hash" text not null check (length("credential_hash") between 1 and 128),
+  "credential" text not null check (length("credential") >= 1 and length("credential") <= 16384),
+  "credential_hash" text not null check (length("credential_hash") >= 1 and length("credential_hash") <= 128),
   "issuer_kid" text,
   "subject" text,
   "expires_at" timestamptz not null,
@@ -1280,7 +1280,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:97dd2c4176816291bb3a38290eca23957e003287940e0afd669b744fe1bc0afa
+-- @bsb-hash sha256:a119c988d6c922c42210657c3ab2121c32da484a919b93452d788502894f660c
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1357,8 +1357,8 @@ create table if not exists "app_private"."checkout_sessions" (
   "cart_id" uuid not null,
   "protocol" text not null check ("protocol" in ('acp', 'ucp')),
   "status" text not null default 'open' check ("status" in ('open', 'ready', 'completed', 'canceled')),
-  "idempotency_key" text not null check (length("idempotency_key") between 1 and 255),
-  "request_hash" text not null check (length("request_hash") between 1 and 128),
+  "idempotency_key" text not null check (length("idempotency_key") >= 1 and length("idempotency_key") <= 255),
+  "request_hash" text not null check (length("request_hash") >= 1 and length("request_hash") <= 128),
   "buyer" jsonb,
   "order_id" uuid,
   "expires_at" timestamptz,
@@ -1387,8 +1387,8 @@ create table if not exists "app_private"."agent_mandates" (
   "session_id" uuid references "app_private"."checkout_sessions" ("id") on delete set null,
   "vct" text not null check ("vct" in ('mandate.checkout.open.1', 'mandate.checkout.1')),
   "status" text not null default 'active' check ("status" in ('active', 'consumed', 'revoked')),
-  "credential" text not null check (length("credential") between 1 and 16384),
-  "credential_hash" text not null check (length("credential_hash") between 1 and 128),
+  "credential" text not null check (length("credential") >= 1 and length("credential") <= 16384),
+  "credential_hash" text not null check (length("credential_hash") >= 1 and length("credential_hash") <= 128),
   "issuer_kid" text,
   "subject" text,
   "expires_at" timestamptz not null,
@@ -1884,7 +1884,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:4ad13b1637b72805a2a84060ee1e7c69a6e5bbe638a326fe4a5e3cf666a9eb79
+-- @bsb-hash sha256:093ff7ee4fc5479ea0f2a0035cdcc47f48767b5bdfcb5f2cff0cea5028156a27
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1956,8 +1956,8 @@ create table if not exists "better_supabase"."checkout_sessions" (
   "cart_id" uuid not null,
   "protocol" text not null check ("protocol" in ('acp', 'ucp')),
   "status" text not null default 'open' check ("status" in ('open', 'ready', 'completed', 'canceled')),
-  "idempotency_key" text not null check (length("idempotency_key") between 1 and 255),
-  "request_hash" text not null check (length("request_hash") between 1 and 128),
+  "idempotency_key" text not null check (length("idempotency_key") >= 1 and length("idempotency_key") <= 255),
+  "request_hash" text not null check (length("request_hash") >= 1 and length("request_hash") <= 128),
   "buyer" jsonb,
   "order_id" uuid,
   "expires_at" timestamptz,
@@ -1986,8 +1986,8 @@ create table if not exists "better_supabase"."agent_mandates" (
   "session_id" uuid references "better_supabase"."checkout_sessions" ("id") on delete set null,
   "vct" text not null check ("vct" in ('mandate.checkout.open.1', 'mandate.checkout.1')),
   "status" text not null default 'active' check ("status" in ('active', 'consumed', 'revoked')),
-  "credential" text not null check (length("credential") between 1 and 16384),
-  "credential_hash" text not null check (length("credential_hash") between 1 and 128),
+  "credential" text not null check (length("credential") >= 1 and length("credential") <= 16384),
+  "credential_hash" text not null check (length("credential_hash") >= 1 and length("credential_hash") <= 128),
   "issuer_kid" text,
   "subject" text,
   "expires_at" timestamptz not null,
@@ -2600,7 +2600,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:8970d9d86c8557c0f5206c547c247a3ecbc0ca9400f6b7e73f639e05116f4cdf
+-- @bsb-hash sha256:fa0724c722d025e7398ec9abcea5fb2f6284f2326e9d2d15fe2758af95b4fb61
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2672,8 +2672,8 @@ alter table "better_supabase"."checkout_sessions" add column if not exists "tena
 alter table "better_supabase"."checkout_sessions" add column if not exists "cart_id" uuid;
 alter table "better_supabase"."checkout_sessions" add column if not exists "protocol" text check ("protocol" in ('acp', 'ucp'));
 alter table "better_supabase"."checkout_sessions" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'ready', 'completed', 'canceled'));
-alter table "better_supabase"."checkout_sessions" add column if not exists "idempotency_key" text check (length("idempotency_key") between 1 and 255);
-alter table "better_supabase"."checkout_sessions" add column if not exists "request_hash" text check (length("request_hash") between 1 and 128);
+alter table "better_supabase"."checkout_sessions" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 255);
+alter table "better_supabase"."checkout_sessions" add column if not exists "request_hash" text check (length("request_hash") >= 1 and length("request_hash") <= 128);
 alter table "better_supabase"."checkout_sessions" add column if not exists "buyer" jsonb;
 alter table "better_supabase"."checkout_sessions" add column if not exists "order_id" uuid;
 alter table "better_supabase"."checkout_sessions" add column if not exists "expires_at" timestamptz;
@@ -2699,8 +2699,8 @@ alter table "better_supabase"."agent_mandates" add column if not exists "tenant_
 alter table "better_supabase"."agent_mandates" add column if not exists "session_id" uuid;
 alter table "better_supabase"."agent_mandates" add column if not exists "vct" text check ("vct" in ('mandate.checkout.open.1', 'mandate.checkout.1'));
 alter table "better_supabase"."agent_mandates" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'consumed', 'revoked'));
-alter table "better_supabase"."agent_mandates" add column if not exists "credential" text check (length("credential") between 1 and 16384);
-alter table "better_supabase"."agent_mandates" add column if not exists "credential_hash" text check (length("credential_hash") between 1 and 128);
+alter table "better_supabase"."agent_mandates" add column if not exists "credential" text check (length("credential") >= 1 and length("credential") <= 16384);
+alter table "better_supabase"."agent_mandates" add column if not exists "credential_hash" text check (length("credential_hash") >= 1 and length("credential_hash") <= 128);
 alter table "better_supabase"."agent_mandates" add column if not exists "issuer_kid" text;
 alter table "better_supabase"."agent_mandates" add column if not exists "subject" text;
 alter table "better_supabase"."agent_mandates" add column if not exists "expires_at" timestamptz;
@@ -3194,7 +3194,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:7247f6f8624c4bb3994089eb12608ca8f7d2f8a2e3298a72496b91ec0103a35f
+-- @bsb-hash sha256:92f09e5caa48e5436d8423bfaec2d7b72f72ca752f82138ac1e18252db34327d
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3266,8 +3266,8 @@ create table if not exists "better_supabase"."checkout_sessions" (
   "cart_id" uuid not null,
   "protocol" text not null check ("protocol" in ('acp', 'ucp')),
   "status" text not null default 'open' check ("status" in ('open', 'ready', 'completed', 'canceled')),
-  "idempotency_key" text not null check (length("idempotency_key") between 1 and 255),
-  "request_hash" text not null check (length("request_hash") between 1 and 128),
+  "idempotency_key" text not null check (length("idempotency_key") >= 1 and length("idempotency_key") <= 255),
+  "request_hash" text not null check (length("request_hash") >= 1 and length("request_hash") <= 128),
   "buyer" jsonb,
   "order_id" uuid,
   "expires_at" timestamptz,
@@ -3296,8 +3296,8 @@ create table if not exists "better_supabase"."agent_mandates" (
   "session_id" uuid references "better_supabase"."checkout_sessions" ("id") on delete set null,
   "vct" text not null check ("vct" in ('mandate.checkout.open.1', 'mandate.checkout.1')),
   "status" text not null default 'active' check ("status" in ('active', 'consumed', 'revoked')),
-  "credential" text not null check (length("credential") between 1 and 16384),
-  "credential_hash" text not null check (length("credential_hash") between 1 and 128),
+  "credential" text not null check (length("credential") >= 1 and length("credential") <= 16384),
+  "credential_hash" text not null check (length("credential_hash") >= 1 and length("credential_hash") <= 128),
   "issuer_kid" text,
   "subject" text,
   "expires_at" timestamptz not null,

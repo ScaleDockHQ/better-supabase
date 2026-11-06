@@ -1,6 +1,6 @@
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:e67dc7f30dbfe38950107ac5247573d55c564c46085b6147e7e816f2e6ac74ea
+-- @bsb-hash sha256:a8e5ad30ff7941ad785b027f6fd0b4e7d4fc0c8cd520b3761fdef877a7838347
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,12 +112,12 @@ create table if not exists "better_supabase"."care_alerts" (
   "subject_id" text not null,
   "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
   "severity" text not null check ("severity" in ('info', 'warning', 'critical')),
-  "source" text not null check (length("source") between 1 and 100),
+  "source" text not null check (length("source") >= 1 and length("source") <= 100),
   "rule_id" uuid,
   "order_ids" uuid[] not null default '{}',
-  "message" text not null check (length("message") between 1 and 1000),
+  "message" text not null check (length("message") >= 1 and length("message") <= 1000),
   "details" jsonb,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
   "decided_by" uuid,
   "decided_at" timestamptz,

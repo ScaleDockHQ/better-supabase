@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:f4f5ed849b7a1db5b1d9f80b369489551c53e5d765cf2fdaf02fe66599a1c604
+-- @bsb-hash sha256:ac346c013bee8e9609070cac1eeda7c018f067163de566d603ebd353d3921c82
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,7 +89,7 @@ create table if not exists "better_supabase"."pipelines" (
   "subject_type" text not null,
   "scope_id" text,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "rank" text collate "C" not null default 'V',
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
@@ -114,7 +114,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "color" text,
   "icon" text check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
@@ -791,7 +791,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:294eb3a454f0213fb8e2a9fbad8243224c5bcb07a6c71587985f52e4eb382b8b
+-- @bsb-hash sha256:3552b4aec87ca0e366091c6de4f50fd60b9575a2dedcb3f1aa094fe66c6350ea
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -896,7 +896,7 @@ create table if not exists "better_supabase"."pipelines" (
   "subject_type" text not null,
   "scope_id" text,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "rank" text collate "C" not null default 'V',
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
@@ -921,7 +921,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "color" text,
   "icon" text check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
@@ -2460,7 +2460,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:72835ee1f58e64d1f325bb81d33b7fa7dfa4335db2368cda8d6847577f7f9214
+-- @bsb-hash sha256:dd02cccd7bedfcc043c5c2cf9cd7e4c3e8aa80468dda5a58a24e7ede7cb7ea78
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2553,7 +2553,7 @@ create table if not exists "app_private"."pipelines" (
   "subject_type" text not null,
   "scope_id" text,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "rank" text collate "C" not null default 'V',
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
@@ -2578,7 +2578,7 @@ create table if not exists "app_private"."pipeline_stages" (
   "pipeline_id" uuid not null references "app_private"."pipelines" ("id") on delete cascade,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "color" text,
   "icon" text check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
@@ -3255,7 +3255,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:41a3cdf0d333c998ae0bcdc4f74bd166b31dc69862d1ab71abd5d98671dc04cc
+-- @bsb-hash sha256:6fe13ed3bc26ecfc7fb8c0bb07e35708be4b3e4519a8609f24a6cf9f39a4a3a8
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3343,7 +3343,7 @@ create table if not exists "better_supabase"."pipelines" (
   "subject_type" text not null,
   "scope_id" text,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "rank" text collate "C" not null default 'V',
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
@@ -3368,7 +3368,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "color" text,
   "icon" text check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
@@ -4175,7 +4175,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:0af1071bc1bfed31b849209732d8a28b89b1dc0166459186a9f04a71ece848f0
+-- @bsb-hash sha256:b58efadfcfe8c2ece7cfdc5d138d059409a35fd98743ad10d92467a61e96a3d8
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4279,7 +4279,7 @@ alter table "better_supabase"."pipelines" add column if not exists "tenant_id" u
 alter table "better_supabase"."pipelines" add column if not exists "subject_type" text;
 alter table "better_supabase"."pipelines" add column if not exists "scope_id" text;
 alter table "better_supabase"."pipelines" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."pipelines" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."pipelines" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."pipelines" add column if not exists "rank" text collate "C" not null default 'V';
 alter table "better_supabase"."pipelines" add column if not exists "is_default" boolean not null default false;
 alter table "better_supabase"."pipelines" add column if not exists "archived_at" timestamptz;
@@ -4302,7 +4302,7 @@ alter table "better_supabase"."pipeline_stages" add column if not exists "tenant
 alter table "better_supabase"."pipeline_stages" add column if not exists "pipeline_id" uuid references "better_supabase"."pipelines" ("id") on delete cascade;
 alter table "better_supabase"."pipeline_stages" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."pipeline_stages" add column if not exists "system_key" text;
-alter table "better_supabase"."pipeline_stages" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."pipeline_stages" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."pipeline_stages" add column if not exists "color" text;
 alter table "better_supabase"."pipeline_stages" add column if not exists "icon" text check (length("icon") <= 100);
 alter table "better_supabase"."pipeline_stages" add column if not exists "rank" text collate "C" not null default 'V';
@@ -4974,7 +4974,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:cc180a6482b795dd708425ecb8448912655c3462ef6550a38927d1c20f7aeead
+-- @bsb-hash sha256:d527fa8507a7237750d242dea5eac16de1472915e09a800120c58a0af1997664
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5062,7 +5062,7 @@ create table if not exists "better_supabase"."pipelines" (
   "subject_type" text not null,
   "scope_id" text,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "rank" text collate "C" not null default 'V',
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
@@ -5087,7 +5087,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "color" text,
   "icon" text check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',

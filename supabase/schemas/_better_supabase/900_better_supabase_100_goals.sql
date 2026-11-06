@@ -1,6 +1,6 @@
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:0bfbb33472ca640e36c908d50d34153cb76dddc50cc8a64401ad67e2f153a1da
+-- @bsb-hash sha256:b00d9d2587c0333de94fbb5fb4c0138dcf555a5404eb16a6ee128f6d9c86269c
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,7 +60,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
   "owner_user_id" uuid,
   "team_id" uuid,

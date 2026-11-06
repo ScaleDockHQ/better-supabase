@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:2ddb92c7a6a88dbbe1150a026c38a100aff0c55d7cc713aee3a47dac350b9b65
+-- @bsb-hash sha256:c9301c16af56285824a2a28955e9fa8bbc7bec675127493da7b6ce9d64242244
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,7 +26,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
 create table if not exists "better_supabase"."ai_cache_entries" (
-  "key" text primary key check (length("key") between 1 and 256),
+  "key" text primary key check (length("key") >= 1 and length("key") <= 256),
   "organization_id" uuid,
   "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other')),
   "model" text check (length("model") <= 200),
@@ -176,7 +176,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:2ddb92c7a6a88dbbe1150a026c38a100aff0c55d7cc713aee3a47dac350b9b65
+-- @bsb-hash sha256:c9301c16af56285824a2a28955e9fa8bbc7bec675127493da7b6ce9d64242244
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -201,7 +201,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
 create table if not exists "better_supabase"."ai_cache_entries" (
-  "key" text primary key check (length("key") between 1 and 256),
+  "key" text primary key check (length("key") >= 1 and length("key") <= 256),
   "organization_id" uuid,
   "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other')),
   "model" text check (length("model") <= 200),
@@ -351,7 +351,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:f31f0a7a10112902bf9794fdcd6985fb80ef25de7eeb3928b914d2831316c031
+-- @bsb-hash sha256:74a2e19be792743b767e151946ecb5d492bbe4f0d78b45cccf550358e4a6a0e1
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -381,7 +381,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
 create table if not exists "app_private"."ai_cache_entries" (
-  "key" text primary key check (length("key") between 1 and 256),
+  "key" text primary key check (length("key") >= 1 and length("key") <= 256),
   "organization_id" uuid,
   "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other')),
   "model" text check (length("model") <= 200),
@@ -531,7 +531,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:b88b269d165141c56fe96a352481f58d6eed03746558b1c32cdc76bdb722bbfe
+-- @bsb-hash sha256:5966a8085e19d42b5cf975654354f76edfed57db1dab119c8824d1ddedcf731a
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -556,7 +556,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
 create table if not exists "better_supabase"."ai_cache_entries" (
-  "key" text primary key check (length("key") between 1 and 256),
+  "key" text primary key check (length("key") >= 1 and length("key") <= 256),
   "organization_id" uuid,
   "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other')),
   "model" text check (length("model") <= 200),
@@ -746,7 +746,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:53bd171cd8efa18dca969817d52dbeacd4bb173f4c2ba72e0c86e124424d2484
+-- @bsb-hash sha256:50a4d3cb1afdc282b23ad973b189bc824be5ae5f2fa6b18b5b9e0b995e0059f1
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -786,7 +786,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
 -- better_supabase.ai_cache_entries is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."ai_cache_entries" add column if not exists "key" text check (length("key") between 1 and 256);
+alter table "better_supabase"."ai_cache_entries" add column if not exists "key" text check (length("key") >= 1 and length("key") <= 256);
 alter table "better_supabase"."ai_cache_entries" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_cache_entries" add column if not exists "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other'));
 alter table "better_supabase"."ai_cache_entries" add column if not exists "model" text check (length("model") <= 200);
@@ -935,7 +935,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:df0f7839589f382240e059fe357093940245eb898bdbb8ebf532d6f14b0e98ef
+-- @bsb-hash sha256:e3c8a402096023cab35e5a520e9e422ebddf1f214a314ceeb72eb69b7966a443
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -960,7 +960,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
 create table if not exists "better_supabase"."ai_cache_entries" (
-  "key" text primary key check (length("key") between 1 and 256),
+  "key" text primary key check (length("key") >= 1 and length("key") <= 256),
   "org_id" uuid,
   "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other')),
   "model" text check (length("model") <= 200),

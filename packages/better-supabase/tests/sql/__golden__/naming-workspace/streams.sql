@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:afb55142bb45cafbb1feae8f61af2d98f2865f897ceeea6e181bcb502d476cb6
+-- @bsb-hash sha256:eb4617187a19bce737b4d21cccac9d378d8892e6593982fd5f3d46bcd5a0fe33
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,10 +60,10 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
 create table if not exists "better_supabase"."streams" (
-  "id" text primary key check (length("id") between 1 and 200),
+  "id" text primary key check (length("id") >= 1 and length("id") <= 200),
   "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'default' check (length("kind") between 1 and 100),
+  "kind" text not null default 'default' check (length("kind") >= 1 and length("kind") <= 100),
   "wake" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "closed_at" timestamptz,
@@ -105,7 +105,7 @@ create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
 create table if not exists "better_supabase"."stream_kv" (
-  "key" text primary key check (length("key") between 1 and 400),
+  "key" text primary key check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );

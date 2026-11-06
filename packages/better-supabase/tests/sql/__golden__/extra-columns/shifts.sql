@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:58cafdd936dd6c81d3620bf16f93528c7e6fbb60001ee717f212167c1ba59384
+-- @bsb-hash sha256:fce5041845af9a853c4fc8c2d238e6d7be3c16c49e3a4b3a2420cca6213a8e04
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -97,7 +97,7 @@ create extension if not exists btree_gist with schema extensions;
 create table if not exists "better_supabase"."shift_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "team_id" uuid references "better_supabase"."teams" ("id") on delete set null,
   "location_id" uuid,
   -- An end at or before the start runs into the next day.

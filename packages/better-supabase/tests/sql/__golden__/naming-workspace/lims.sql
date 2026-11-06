@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_164_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:9a6d135f3336ae7bbdc3c3b83e63bdd72707cddba37041c42a572e39c9a868da
+-- @bsb-hash sha256:5cd3bb6b621365c18e23b432ac5039eb2cde70c94dd9a5c0889929cfc8c61815
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,7 +98,7 @@ create table if not exists "better_supabase"."lims_methods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "unit" text check ("unit" is null or length("unit") <= 40),
   "lower_limit" numeric,
   "upper_limit" numeric,
@@ -125,7 +125,7 @@ create table if not exists "better_supabase"."lims_samples" (
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "kind" text check ("kind" is null or length("kind") <= 100),
   "lot" text check ("lot" is null or length("lot") <= 100),
   "received_on" date not null default current_date,

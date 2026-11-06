@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:ea564ecd2e07248a6622a31fccf121e732e60416665ebe0fe3a0f66fb700870a
+-- @bsb-hash sha256:f4a2caa8e3ae9be6a1ec0c1983c246fe21ba1071c897e355af66cb656c81ebed
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -80,12 +80,12 @@ create table if not exists "better_supabase"."qualification_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 4000),
   -- The holders the type applies to: member, company or asset.
   "holder_types" text[] not null check (cardinality("holder_types") > 0),
   -- A holding expires this many months after it is granted; null never expires.
-  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240),
+  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240),
   "evidence_required" boolean not null default false,
   "course_id" uuid,
   "archived_at" timestamptz,
@@ -111,7 +111,7 @@ create table if not exists "better_supabase"."qualification_requirements" (
   -- Who must hold the type: a role, a team, a job title, an asset kind, a
   -- segment of companies, or one holder.
   "target_type" text not null check ("target_type" in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder')),
-  "target_value" text not null check (length("target_value") between 1 and 200),
+  "target_value" text not null check (length("target_value") >= 1 and length("target_value") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("type_id", "target_type", "target_value"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
@@ -131,7 +131,7 @@ create table if not exists "better_supabase"."qualifications" (
   "tenant_id" uuid not null,
   "type_id" uuid not null,
   "holder_type" text not null check ("holder_type" in ('member', 'company', 'asset')),
-  "holder_id" text not null check (length("holder_id") between 1 and 200),
+  "holder_id" text not null check (length("holder_id") >= 1 and length("holder_id") <= 200),
   "granted_on" date not null,
   "expires_on" date,
   "revoked_at" timestamptz,

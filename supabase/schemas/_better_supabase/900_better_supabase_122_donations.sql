@@ -1,6 +1,6 @@
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:ab9d23ae2e28852101619f030238b2f20db4515fae894068ae13de629cfe5b5a
+-- @bsb-hash sha256:b7fd22c428efa214dce3a0e5a91ba64938d7539fdc0d93661d9e286b79ca2013
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,7 @@ create table if not exists "better_supabase"."donation_funds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'fund' check ("kind" in ('fund', 'campaign')),
   "goal" bigint check ("goal" is null or "goal" > 0),
   "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),

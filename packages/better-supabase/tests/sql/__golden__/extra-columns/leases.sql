@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:ea0c922d3c5398b1a2e1e82f46e98dc8eef27c1f87cea702f72571d8944637bc
+-- @bsb-hash sha256:b1daff4c8f3cdd20e3947b1d95fd6156af791289d55fd1e3ef97bbd4797d8758
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,7 +74,7 @@ create table if not exists "better_supabase"."leases" (
   -- The party renting the unit: a registered subject such as a contact.
   "party_type" text not null,
   "party_id" text not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'active', 'ended', 'terminated')),
   "starts_on" date not null,
   -- Null runs the lease until it is terminated.

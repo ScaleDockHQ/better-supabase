@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:d3710ab4a44d4f12298c46b2731d9553d77f1b5b38cb2a867daeb5a8f67fe4bd
+-- @bsb-hash sha256:60ae308ea52807b0c9c4924418bb61b756de4156869003ae7f9c34d94107cbe3
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -250,7 +250,7 @@ create table if not exists "better_supabase"."products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "description" text,
   "kind" text not null default 'physical' check ("kind" in ('physical', 'digital', 'service')),
   "status" text not null default 'draft',
@@ -272,7 +272,7 @@ create table if not exists "better_supabase"."product_options" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
-  "name" text not null check (length("name") between 1 and 80),
+  "name" text not null check (length("name") >= 1 and length("name") <= 80),
   "rank" text collate "C" not null default 'V',
   unique ("product_id", "name")
 );
@@ -289,7 +289,7 @@ create table if not exists "better_supabase"."product_option_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "option_id" uuid not null references "better_supabase"."product_options" ("id") on delete cascade,
-  "value" text not null check (length("value") between 1 and 80),
+  "value" text not null check (length("value") >= 1 and length("value") <= 80),
   "rank" text collate "C" not null default 'V',
   unique ("option_id", "value")
 );
@@ -306,7 +306,7 @@ create table if not exists "better_supabase"."product_variants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
-  "sku" text not null check (length("sku") between 1 and 100),
+  "sku" text not null check (length("sku") >= 1 and length("sku") <= 100),
   "title" text,
   "barcode" text,
   "weight_grams" integer check ("weight_grams" >= 0),
@@ -346,7 +346,7 @@ create policy product_variant_values_read on "better_supabase"."product_variant_
 create table if not exists "better_supabase"."catalog_price_lists" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "customer_group" text,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "name")
@@ -388,7 +388,7 @@ create table if not exists "better_supabase"."catalog_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid references "better_supabase"."catalog_categories" ("id"),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   "description" text,
   "rank" text collate "C" not null default 'V',
@@ -425,7 +425,7 @@ create policy product_categories_read on "better_supabase"."product_categories"
 create table if not exists "better_supabase"."product_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   "kind" text not null default 'manual' check ("kind" in ('manual', 'rule')),
   "rule" jsonb,
@@ -477,7 +477,7 @@ create table if not exists "better_supabase"."catalog_channels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
   "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null,
   "active" boolean not null default true,
@@ -516,7 +516,7 @@ create table if not exists "better_supabase"."product_translations" (
   "tenant_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "description" text,
   "updated_at" timestamptz not null default now(),
   primary key ("product_id", "locale")
@@ -534,7 +534,7 @@ create table if not exists "better_supabase"."product_variant_translations" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "updated_at" timestamptz not null default now(),
   primary key ("variant_id", "locale")
 );
@@ -551,7 +551,7 @@ create table if not exists "better_supabase"."product_identifiers" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "type" text not null check ("type" in ('ean', 'supplier', 'manufacturer', 'other')),
-  "value" text not null check (length("value") between 1 and 100),
+  "value" text not null check (length("value") >= 1 and length("value") <= 100),
   -- The supplier or manufacturer the code belongs to; a soft reference, so the
   -- contacts block stays optional.
   "party_id" uuid,
@@ -596,7 +596,7 @@ create table if not exists "better_supabase"."supplier_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "supplier_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 100),
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
   "description" text,
   "price" bigint check ("price" >= 0),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
@@ -644,8 +644,8 @@ create table if not exists "better_supabase"."discount_groups" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('customer', 'product')),
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "code")
@@ -663,7 +663,7 @@ create policy discount_groups_read on "better_supabase"."discount_groups"
 create table if not exists "better_supabase"."discount_group_parties" (
   "tenant_id" uuid not null,
   "group_id" uuid not null references "better_supabase"."discount_groups" ("id") on delete cascade,
-  "party_id" text not null check (length("party_id") between 1 and 200),
+  "party_id" text not null check (length("party_id") >= 1 and length("party_id") <= 200),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "party_id")
 );
@@ -4082,7 +4082,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:d27453062b9dc9a673d4fcdae2ac6a7f2a603e9cf7445aae8d6d61911521df93
+-- @bsb-hash sha256:c523ccdd6b91e6e9d3580d82f65cdcd773b74ade67e0ad13efa7524d3d619b9d
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4339,7 +4339,7 @@ create table if not exists "better_supabase"."products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "description" text,
   "kind" text not null default 'physical' check ("kind" in ('physical', 'digital', 'service')),
   "status" text not null default 'draft',
@@ -4361,7 +4361,7 @@ create table if not exists "better_supabase"."product_options" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
-  "name" text not null check (length("name") between 1 and 80),
+  "name" text not null check (length("name") >= 1 and length("name") <= 80),
   "rank" text collate "C" not null default 'V',
   unique ("product_id", "name")
 );
@@ -4378,7 +4378,7 @@ create table if not exists "better_supabase"."product_option_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "option_id" uuid not null references "better_supabase"."product_options" ("id") on delete cascade,
-  "value" text not null check (length("value") between 1 and 80),
+  "value" text not null check (length("value") >= 1 and length("value") <= 80),
   "rank" text collate "C" not null default 'V',
   unique ("option_id", "value")
 );
@@ -4395,7 +4395,7 @@ create table if not exists "better_supabase"."product_variants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
-  "sku" text not null check (length("sku") between 1 and 100),
+  "sku" text not null check (length("sku") >= 1 and length("sku") <= 100),
   "title" text,
   "barcode" text,
   "weight_grams" integer check ("weight_grams" >= 0),
@@ -4435,7 +4435,7 @@ create policy product_variant_values_read on "better_supabase"."product_variant_
 create table if not exists "better_supabase"."catalog_price_lists" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "customer_group" text,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "name")
@@ -4477,7 +4477,7 @@ create table if not exists "better_supabase"."catalog_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid references "better_supabase"."catalog_categories" ("id"),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   "description" text,
   "rank" text collate "C" not null default 'V',
@@ -4514,7 +4514,7 @@ create policy product_categories_read on "better_supabase"."product_categories"
 create table if not exists "better_supabase"."product_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   "kind" text not null default 'manual' check ("kind" in ('manual', 'rule')),
   "rule" jsonb,
@@ -4566,7 +4566,7 @@ create table if not exists "better_supabase"."catalog_channels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
   "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null,
   "active" boolean not null default true,
@@ -4605,7 +4605,7 @@ create table if not exists "better_supabase"."product_translations" (
   "tenant_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "description" text,
   "updated_at" timestamptz not null default now(),
   primary key ("product_id", "locale")
@@ -4623,7 +4623,7 @@ create table if not exists "better_supabase"."product_variant_translations" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "updated_at" timestamptz not null default now(),
   primary key ("variant_id", "locale")
 );
@@ -4663,7 +4663,7 @@ create table if not exists "better_supabase"."product_identifiers" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "type" text not null check ("type" in ('ean', 'supplier', 'manufacturer', 'other')),
-  "value" text not null check (length("value") between 1 and 100),
+  "value" text not null check (length("value") >= 1 and length("value") <= 100),
   -- The supplier or manufacturer the code belongs to; a soft reference, so the
   -- contacts block stays optional.
   "party_id" uuid,
@@ -4708,7 +4708,7 @@ create table if not exists "better_supabase"."supplier_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "supplier_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 100),
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
   "description" text,
   "price" bigint check ("price" >= 0),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
@@ -4756,8 +4756,8 @@ create table if not exists "better_supabase"."discount_groups" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('customer', 'product')),
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "code")
@@ -4775,7 +4775,7 @@ create policy discount_groups_read on "better_supabase"."discount_groups"
 create table if not exists "better_supabase"."discount_group_parties" (
   "tenant_id" uuid not null,
   "group_id" uuid not null references "better_supabase"."discount_groups" ("id") on delete cascade,
-  "party_id" text not null check (length("party_id") between 1 and 200),
+  "party_id" text not null check (length("party_id") >= 1 and length("party_id") <= 200),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "party_id")
 );
@@ -8424,7 +8424,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:4da28f3c18efa05e87b1f16a55f8635cf0ed65824b6e1f3c7a14fd8e4e811bed
+-- @bsb-hash sha256:6a933941101b97ed28d14442937961ac4eb75479fb40902decca02ce11e9d595
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8678,7 +8678,7 @@ create table if not exists "app_private"."products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "description" text,
   "kind" text not null default 'physical' check ("kind" in ('physical', 'digital', 'service')),
   "status" text not null default 'draft',
@@ -8700,7 +8700,7 @@ create table if not exists "app_private"."product_options" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null references "app_private"."products" ("id") on delete cascade,
-  "name" text not null check (length("name") between 1 and 80),
+  "name" text not null check (length("name") >= 1 and length("name") <= 80),
   "rank" text collate "C" not null default 'V',
   unique ("product_id", "name")
 );
@@ -8717,7 +8717,7 @@ create table if not exists "app_private"."product_option_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "option_id" uuid not null references "app_private"."product_options" ("id") on delete cascade,
-  "value" text not null check (length("value") between 1 and 80),
+  "value" text not null check (length("value") >= 1 and length("value") <= 80),
   "rank" text collate "C" not null default 'V',
   unique ("option_id", "value")
 );
@@ -8734,7 +8734,7 @@ create table if not exists "app_private"."product_variants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null references "app_private"."products" ("id") on delete cascade,
-  "sku" text not null check (length("sku") between 1 and 100),
+  "sku" text not null check (length("sku") >= 1 and length("sku") <= 100),
   "title" text,
   "barcode" text,
   "weight_grams" integer check ("weight_grams" >= 0),
@@ -8774,7 +8774,7 @@ create policy product_variant_values_read on "app_private"."product_variant_valu
 create table if not exists "app_private"."catalog_price_lists" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "customer_group" text,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "name")
@@ -8816,7 +8816,7 @@ create table if not exists "app_private"."catalog_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid references "app_private"."catalog_categories" ("id"),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   "description" text,
   "rank" text collate "C" not null default 'V',
@@ -8853,7 +8853,7 @@ create policy product_categories_read on "app_private"."product_categories"
 create table if not exists "app_private"."product_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   "kind" text not null default 'manual' check ("kind" in ('manual', 'rule')),
   "rule" jsonb,
@@ -8905,7 +8905,7 @@ create table if not exists "app_private"."catalog_channels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
   "price_list_id" uuid references "app_private"."catalog_price_lists" ("id") on delete set null,
   "active" boolean not null default true,
@@ -8944,7 +8944,7 @@ create table if not exists "app_private"."product_translations" (
   "tenant_id" uuid not null,
   "product_id" uuid not null references "app_private"."products" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "description" text,
   "updated_at" timestamptz not null default now(),
   primary key ("product_id", "locale")
@@ -8962,7 +8962,7 @@ create table if not exists "app_private"."product_variant_translations" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "app_private"."product_variants" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "updated_at" timestamptz not null default now(),
   primary key ("variant_id", "locale")
 );
@@ -8979,7 +8979,7 @@ create table if not exists "app_private"."product_identifiers" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "app_private"."product_variants" ("id") on delete cascade,
   "type" text not null check ("type" in ('ean', 'supplier', 'manufacturer', 'other')),
-  "value" text not null check (length("value") between 1 and 100),
+  "value" text not null check (length("value") >= 1 and length("value") <= 100),
   -- The supplier or manufacturer the code belongs to; a soft reference, so the
   -- contacts block stays optional.
   "party_id" uuid,
@@ -9024,7 +9024,7 @@ create table if not exists "app_private"."supplier_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "supplier_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 100),
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
   "description" text,
   "price" bigint check ("price" >= 0),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
@@ -9072,8 +9072,8 @@ create table if not exists "app_private"."discount_groups" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('customer', 'product')),
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "code")
@@ -9091,7 +9091,7 @@ create policy discount_groups_read on "app_private"."discount_groups"
 create table if not exists "app_private"."discount_group_parties" (
   "tenant_id" uuid not null,
   "group_id" uuid not null references "app_private"."discount_groups" ("id") on delete cascade,
-  "party_id" text not null check (length("party_id") between 1 and 200),
+  "party_id" text not null check (length("party_id") >= 1 and length("party_id") <= 200),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "party_id")
 );
@@ -12510,7 +12510,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:441aeb653581bb6dc5b8e031bbcd9cd9ba0949d98d50551da76e3aad86e7b6e6
+-- @bsb-hash sha256:9be8e1d61f6ffa4cb9eeceb05e90d452121c74862d9ae2f4cc606e6a081909a1
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12759,7 +12759,7 @@ create table if not exists "better_supabase"."products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "description" text,
   "kind" text not null default 'physical' check ("kind" in ('physical', 'digital', 'service')),
   "status" text not null default 'draft',
@@ -12781,7 +12781,7 @@ create table if not exists "better_supabase"."product_options" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
-  "name" text not null check (length("name") between 1 and 80),
+  "name" text not null check (length("name") >= 1 and length("name") <= 80),
   "rank" text collate "C" not null default 'V',
   unique ("product_id", "name")
 );
@@ -12798,7 +12798,7 @@ create table if not exists "better_supabase"."product_option_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "option_id" uuid not null references "better_supabase"."product_options" ("id") on delete cascade,
-  "value" text not null check (length("value") between 1 and 80),
+  "value" text not null check (length("value") >= 1 and length("value") <= 80),
   "rank" text collate "C" not null default 'V',
   unique ("option_id", "value")
 );
@@ -12815,7 +12815,7 @@ create table if not exists "better_supabase"."product_variants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
-  "sku" text not null check (length("sku") between 1 and 100),
+  "sku" text not null check (length("sku") >= 1 and length("sku") <= 100),
   "title" text,
   "barcode" text,
   "weight_grams" integer check ("weight_grams" >= 0),
@@ -12855,7 +12855,7 @@ create policy product_variant_values_read on "better_supabase"."product_variant_
 create table if not exists "better_supabase"."catalog_price_lists" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "customer_group" text,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "name")
@@ -12897,7 +12897,7 @@ create table if not exists "better_supabase"."catalog_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid references "better_supabase"."catalog_categories" ("id"),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   "description" text,
   "rank" text collate "C" not null default 'V',
@@ -12934,7 +12934,7 @@ create policy product_categories_read on "better_supabase"."product_categories"
 create table if not exists "better_supabase"."product_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   "kind" text not null default 'manual' check ("kind" in ('manual', 'rule')),
   "rule" jsonb,
@@ -12986,7 +12986,7 @@ create table if not exists "better_supabase"."catalog_channels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
   "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null,
   "active" boolean not null default true,
@@ -13025,7 +13025,7 @@ create table if not exists "better_supabase"."product_translations" (
   "tenant_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "description" text,
   "updated_at" timestamptz not null default now(),
   primary key ("product_id", "locale")
@@ -13043,7 +13043,7 @@ create table if not exists "better_supabase"."product_variant_translations" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "updated_at" timestamptz not null default now(),
   primary key ("variant_id", "locale")
 );
@@ -13060,7 +13060,7 @@ create table if not exists "better_supabase"."product_identifiers" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "type" text not null check ("type" in ('ean', 'supplier', 'manufacturer', 'other')),
-  "value" text not null check (length("value") between 1 and 100),
+  "value" text not null check (length("value") >= 1 and length("value") <= 100),
   -- The supplier or manufacturer the code belongs to; a soft reference, so the
   -- contacts block stays optional.
   "party_id" uuid,
@@ -13105,7 +13105,7 @@ create table if not exists "better_supabase"."supplier_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "supplier_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 100),
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
   "description" text,
   "price" bigint check ("price" >= 0),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
@@ -13153,8 +13153,8 @@ create table if not exists "better_supabase"."discount_groups" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('customer', 'product')),
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "code")
@@ -13172,7 +13172,7 @@ create policy discount_groups_read on "better_supabase"."discount_groups"
 create table if not exists "better_supabase"."discount_group_parties" (
   "tenant_id" uuid not null,
   "group_id" uuid not null references "better_supabase"."discount_groups" ("id") on delete cascade,
-  "party_id" text not null check (length("party_id") between 1 and 200),
+  "party_id" text not null check (length("party_id") >= 1 and length("party_id") <= 200),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "party_id")
 );
@@ -17253,7 +17253,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:eca12090318bd73524103ebaf0685856d1ac4d95477a5465b975cff859cf19d7
+-- @bsb-hash sha256:9b2b8e0dfb404e48f18259fefa9c0df0bb95cfd2c3406652d67315ff55aae35c
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17518,7 +17518,7 @@ grant execute on function "better_supabase"."currency_minor_units"(text) to anon
 alter table "better_supabase"."products" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."products" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."products" add column if not exists "slug" text check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$');
-alter table "better_supabase"."products" add column if not exists "title" text check (length("title") between 1 and 500);
+alter table "better_supabase"."products" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 500);
 alter table "better_supabase"."products" add column if not exists "description" text;
 alter table "better_supabase"."products" add column if not exists "kind" text not null default 'physical' check ("kind" in ('physical', 'digital', 'service'));
 alter table "better_supabase"."products" add column if not exists "status" text not null default 'draft';
@@ -17537,7 +17537,7 @@ create policy bsb_products_select on "better_supabase"."products"
 alter table "better_supabase"."product_options" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."product_options" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."product_options" add column if not exists "product_id" uuid references "better_supabase"."products" ("id") on delete cascade;
-alter table "better_supabase"."product_options" add column if not exists "name" text check (length("name") between 1 and 80);
+alter table "better_supabase"."product_options" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 80);
 alter table "better_supabase"."product_options" add column if not exists "rank" text collate "C" not null default 'V';
 alter table "better_supabase"."product_options" enable row level security;
 grant select on "better_supabase"."product_options" to authenticated;
@@ -17551,7 +17551,7 @@ create policy bsb_product_options_select on "better_supabase"."product_options"
 alter table "better_supabase"."product_option_values" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."product_option_values" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."product_option_values" add column if not exists "option_id" uuid references "better_supabase"."product_options" ("id") on delete cascade;
-alter table "better_supabase"."product_option_values" add column if not exists "value" text check (length("value") between 1 and 80);
+alter table "better_supabase"."product_option_values" add column if not exists "value" text check (length("value") >= 1 and length("value") <= 80);
 alter table "better_supabase"."product_option_values" add column if not exists "rank" text collate "C" not null default 'V';
 alter table "better_supabase"."product_option_values" enable row level security;
 grant select on "better_supabase"."product_option_values" to authenticated;
@@ -17565,7 +17565,7 @@ create policy bsb_product_option_values_select on "better_supabase"."product_opt
 alter table "better_supabase"."product_variants" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."product_variants" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."product_variants" add column if not exists "product_id" uuid references "better_supabase"."products" ("id") on delete cascade;
-alter table "better_supabase"."product_variants" add column if not exists "sku" text check (length("sku") between 1 and 100);
+alter table "better_supabase"."product_variants" add column if not exists "sku" text check (length("sku") >= 1 and length("sku") <= 100);
 alter table "better_supabase"."product_variants" add column if not exists "title" text;
 alter table "better_supabase"."product_variants" add column if not exists "barcode" text;
 alter table "better_supabase"."product_variants" add column if not exists "weight_grams" integer check ("weight_grams" >= 0);
@@ -17599,7 +17599,7 @@ create policy bsb_product_variant_values_select on "better_supabase"."product_va
 -- better_supabase.catalog_price_lists is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."catalog_price_lists" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."catalog_price_lists" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."catalog_price_lists" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."catalog_price_lists" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."catalog_price_lists" add column if not exists "customer_group" text;
 alter table "better_supabase"."catalog_price_lists" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."catalog_price_lists" enable row level security;
@@ -17636,7 +17636,7 @@ create policy bsb_product_prices_select on "better_supabase"."product_prices"
 alter table "better_supabase"."catalog_categories" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."catalog_categories" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."catalog_categories" add column if not exists "parent_id" uuid references "better_supabase"."catalog_categories" ("id");
-alter table "better_supabase"."catalog_categories" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."catalog_categories" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."catalog_categories" add column if not exists "slug" text check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$');
 alter table "better_supabase"."catalog_categories" add column if not exists "description" text;
 alter table "better_supabase"."catalog_categories" add column if not exists "rank" text collate "C" not null default 'V';
@@ -17667,7 +17667,7 @@ create policy bsb_product_categories_select on "better_supabase"."product_catego
 -- better_supabase.product_collections is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."product_collections" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."product_collections" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."product_collections" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."product_collections" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."product_collections" add column if not exists "slug" text check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$');
 alter table "better_supabase"."product_collections" add column if not exists "kind" text not null default 'manual' check ("kind" in ('manual', 'rule'));
 alter table "better_supabase"."product_collections" add column if not exists "rule" jsonb;
@@ -17710,7 +17710,7 @@ create table if not exists "better_supabase"."catalog_channels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
   "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null,
   "active" boolean not null default true,
@@ -17749,7 +17749,7 @@ create table if not exists "better_supabase"."product_translations" (
   "tenant_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "description" text,
   "updated_at" timestamptz not null default now(),
   primary key ("product_id", "locale")
@@ -17767,7 +17767,7 @@ create table if not exists "better_supabase"."product_variant_translations" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "updated_at" timestamptz not null default now(),
   primary key ("variant_id", "locale")
 );
@@ -17784,7 +17784,7 @@ create table if not exists "better_supabase"."product_identifiers" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "type" text not null check ("type" in ('ean', 'supplier', 'manufacturer', 'other')),
-  "value" text not null check (length("value") between 1 and 100),
+  "value" text not null check (length("value") >= 1 and length("value") <= 100),
   -- The supplier or manufacturer the code belongs to; a soft reference, so the
   -- contacts block stays optional.
   "party_id" uuid,
@@ -17829,7 +17829,7 @@ create table if not exists "better_supabase"."supplier_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "supplier_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 100),
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
   "description" text,
   "price" bigint check ("price" >= 0),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
@@ -17877,8 +17877,8 @@ create table if not exists "better_supabase"."discount_groups" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('customer', 'product')),
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "code")
@@ -17896,7 +17896,7 @@ create policy discount_groups_read on "better_supabase"."discount_groups"
 create table if not exists "better_supabase"."discount_group_parties" (
   "tenant_id" uuid not null,
   "group_id" uuid not null references "better_supabase"."discount_groups" ("id") on delete cascade,
-  "party_id" text not null check (length("party_id") between 1 and 200),
+  "party_id" text not null check (length("party_id") >= 1 and length("party_id") <= 200),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "party_id")
 );
@@ -21302,7 +21302,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:088bc16bd9cb9c749d4774a210c814eb2de6489e1292b99896287689c384673a
+-- @bsb-hash sha256:b6f6b628ffc265e63804bd8ebb7608e32442f49c71f33ff03c47e6ae01b78aac
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21551,7 +21551,7 @@ create table if not exists "better_supabase"."products" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "description" text,
   "kind" text not null default 'physical' check ("kind" in ('physical', 'digital', 'service')),
   "status" text not null default 'draft',
@@ -21573,7 +21573,7 @@ create table if not exists "better_supabase"."product_options" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
-  "name" text not null check (length("name") between 1 and 80),
+  "name" text not null check (length("name") >= 1 and length("name") <= 80),
   "rank" text collate "C" not null default 'V',
   unique ("product_id", "name")
 );
@@ -21590,7 +21590,7 @@ create table if not exists "better_supabase"."product_option_values" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "option_id" uuid not null references "better_supabase"."product_options" ("id") on delete cascade,
-  "value" text not null check (length("value") between 1 and 80),
+  "value" text not null check (length("value") >= 1 and length("value") <= 80),
   "rank" text collate "C" not null default 'V',
   unique ("option_id", "value")
 );
@@ -21607,7 +21607,7 @@ create table if not exists "better_supabase"."product_variants" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
-  "sku" text not null check (length("sku") between 1 and 100),
+  "sku" text not null check (length("sku") >= 1 and length("sku") <= 100),
   "title" text,
   "barcode" text,
   "weight_grams" integer check ("weight_grams" >= 0),
@@ -21647,7 +21647,7 @@ create policy product_variant_values_read on "better_supabase"."product_variant_
 create table if not exists "better_supabase"."catalog_price_lists" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "customer_group" text,
   "created_at" timestamptz not null default now(),
   unique ("org_id", "name")
@@ -21689,7 +21689,7 @@ create table if not exists "better_supabase"."catalog_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "parent_id" uuid references "better_supabase"."catalog_categories" ("id"),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   "description" text,
   "rank" text collate "C" not null default 'V',
@@ -21726,7 +21726,7 @@ create policy product_categories_read on "better_supabase"."product_categories"
 create table if not exists "better_supabase"."product_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   "kind" text not null default 'manual' check ("kind" in ('manual', 'rule')),
   "rule" jsonb,
@@ -21778,7 +21778,7 @@ create table if not exists "better_supabase"."catalog_channels" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
   "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null,
   "active" boolean not null default true,
@@ -21817,7 +21817,7 @@ create table if not exists "better_supabase"."product_translations" (
   "org_id" uuid not null,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "description" text,
   "updated_at" timestamptz not null default now(),
   primary key ("product_id", "locale")
@@ -21835,7 +21835,7 @@ create table if not exists "better_supabase"."product_variant_translations" (
   "org_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "title" text check (length("title") between 1 and 500),
+  "title" text check (length("title") >= 1 and length("title") <= 500),
   "updated_at" timestamptz not null default now(),
   primary key ("variant_id", "locale")
 );
@@ -21852,7 +21852,7 @@ create table if not exists "better_supabase"."product_identifiers" (
   "org_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "type" text not null check ("type" in ('ean', 'supplier', 'manufacturer', 'other')),
-  "value" text not null check (length("value") between 1 and 100),
+  "value" text not null check (length("value") >= 1 and length("value") <= 100),
   -- The supplier or manufacturer the code belongs to; a soft reference, so the
   -- contacts block stays optional.
   "party_id" uuid,
@@ -21897,7 +21897,7 @@ create table if not exists "better_supabase"."supplier_items" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "supplier_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 100),
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
   "description" text,
   "price" bigint check ("price" >= 0),
   "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
@@ -21945,8 +21945,8 @@ create table if not exists "better_supabase"."discount_groups" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "kind" text not null check ("kind" in ('customer', 'product')),
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "kind", "code")
@@ -21964,7 +21964,7 @@ create policy discount_groups_read on "better_supabase"."discount_groups"
 create table if not exists "better_supabase"."discount_group_parties" (
   "org_id" uuid not null,
   "group_id" uuid not null references "better_supabase"."discount_groups" ("id") on delete cascade,
-  "party_id" text not null check (length("party_id") between 1 and 200),
+  "party_id" text not null check (length("party_id") >= 1 and length("party_id") <= 200),
   "created_at" timestamptz not null default now(),
   primary key ("org_id", "party_id")
 );

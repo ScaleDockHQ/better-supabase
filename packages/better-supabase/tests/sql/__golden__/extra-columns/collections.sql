@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:ffc5c1fe536b36064ad64c3a770655f4baca73e7a935ed1f975b765f9331998f
+-- @bsb-hash sha256:e8e0cf805aeb2013bfed6a6eb77d995f14919c3905a69337224db5b2f300039c
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,7 +91,7 @@ create table if not exists "better_supabase"."subject_collections" (
   "scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant')),
   "owner_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "description" text check (length("description") <= 2000),
   "archived_at" timestamptz,
   "created_by" uuid,

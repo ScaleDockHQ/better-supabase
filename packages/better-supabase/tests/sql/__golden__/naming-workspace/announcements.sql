@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:a306156743fe7fda8a4a4cff0cb8c220b8062467caf717245629f61cc3853dd7
+-- @bsb-hash sha256:bb853f09b26fbe6f7200970b3746e2aac6a6afe3034e168f7a04ba04ee08c7e8
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -47,7 +47,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
 create table if not exists "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "body" text not null default '' check (length("body") <= 10000),
   "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical')),
   "href" text check ("href" ~ '^(https://|/)'),

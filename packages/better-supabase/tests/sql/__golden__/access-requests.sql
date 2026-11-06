@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:3085c01879c866ed23e5a31f2e360f21bf2b1013a80e26c27a780661bce9a5d6
+-- @bsb-hash sha256:32ff58967aca9bc8344e3d938701464f34482afa3c4395aec07ecec34fa193e7
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,7 +60,7 @@ create table if not exists "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null check (length("role") between 1 and 200),
+  "role" text not null check (length("role") >= 1 and length("role") <= 200),
   "previous_role" text,
   "reason" text check ("reason" is null or length("reason") <= 2000),
   "duration" interval check ("duration" is null or "duration" > interval '0'),
@@ -422,7 +422,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:cdffcb907511684499f1e675a733eb4849dc9dcd59587571564f664db0d5e32c
+-- @bsb-hash sha256:dc5679ee34adf3526f5cde19506dfa67b6277aaad2eb617c3a1a13bc8836af0b
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -498,11 +498,11 @@ create table if not exists "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text check (length("role") between 1 and 200),
+  "role" text check (length("role") >= 1 and length("role") <= 200),
   "target" text not null default 'role' check ("target" in ('role', 'record')),
-  "subject_type" text check (length("subject_type") between 1 and 200),
-  "subject_id" text check (length("subject_id") between 1 and 200),
-  "action" text check (length("action") between 1 and 200),
+  "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 200),
+  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "action" text check (length("action") >= 1 and length("action") <= 200),
   "emergency" boolean not null default false,
   "member_id" uuid,
   "review_verdict" text check ("review_verdict" in ('justified', 'unjustified')),
@@ -523,9 +523,9 @@ create index if not exists "access_requests_approval_idx" on "better_supabase"."
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" alter column "role" drop not null;
 alter table "better_supabase"."access_requests" add column if not exists "target" text not null default 'role' check ("target" in ('role', 'record'));
-alter table "better_supabase"."access_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 200);
-alter table "better_supabase"."access_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
-alter table "better_supabase"."access_requests" add column if not exists "action" text check (length("action") between 1 and 200);
+alter table "better_supabase"."access_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 200);
+alter table "better_supabase"."access_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."access_requests" add column if not exists "action" text check (length("action") >= 1 and length("action") <= 200);
 alter table "better_supabase"."access_requests" add column if not exists "emergency" boolean not null default false;
 alter table "better_supabase"."access_requests" add column if not exists "member_id" uuid;
 alter table "better_supabase"."access_requests" add column if not exists "review_verdict" text check ("review_verdict" in ('justified', 'unjustified'));
@@ -1237,7 +1237,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:1218223c7dc862e1e60f43c3d56c016b0391198fa1dd80b1da3b810d9c0f5780
+-- @bsb-hash sha256:0ad1afc1814117e96256479fc2191c18de6d5b0835fe3927be766a79ef905dc2
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1301,7 +1301,7 @@ create table if not exists "app_private"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null check (length("role") between 1 and 200),
+  "role" text not null check (length("role") >= 1 and length("role") <= 200),
   "previous_role" text,
   "reason" text check ("reason" is null or length("reason") <= 2000),
   "duration" interval check ("duration" is null or "duration" > interval '0'),
@@ -1663,7 +1663,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:1a40052f30a85c8eae72e5fbcf3e73e7a4955ca4b3893626a4e36e2f23917f5b
+-- @bsb-hash sha256:354558682a3050a7e06547030fff9efae4464cdd3453624ec132002e96bd8d6c
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1722,7 +1722,7 @@ create table if not exists "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null check (length("role") between 1 and 200),
+  "role" text not null check (length("role") >= 1 and length("role") <= 200),
   "previous_role" text,
   "reason" text check ("reason" is null or length("reason") <= 2000),
   "duration" interval check ("duration" is null or "duration" > interval '0'),
@@ -2156,7 +2156,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:6b4b8041436bf2c588a9755c5b095a31feab2b0968e897491dccae2b5e63bde3
+-- @bsb-hash sha256:66cdece9797cab97bff0bdac90784b54aa533309df7ad9eca9072f60d51efba5
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2215,7 +2215,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."access_requests" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."access_requests" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."access_requests" add column if not exists "user_id" uuid;
-alter table "better_supabase"."access_requests" add column if not exists "role" text check (length("role") between 1 and 200);
+alter table "better_supabase"."access_requests" add column if not exists "role" text check (length("role") >= 1 and length("role") <= 200);
 alter table "better_supabase"."access_requests" add column if not exists "previous_role" text;
 alter table "better_supabase"."access_requests" add column if not exists "reason" text check ("reason" is null or length("reason") <= 2000);
 alter table "better_supabase"."access_requests" add column if not exists "duration" interval check ("duration" is null or "duration" > interval '0');
@@ -2575,7 +2575,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:28874bdc6c2bcb9efe3e8c38c132e47eb4cfcd270138a824049ae9a30e494045
+-- @bsb-hash sha256:3bcc4904d3f982b51fc349a7d7277f12c160fa7ee0baa356ea60130b30278bee
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2634,7 +2634,7 @@ create table if not exists "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null check (length("role") between 1 and 200),
+  "role" text not null check (length("role") >= 1 and length("role") <= 200),
   "previous_role" text,
   "reason" text check ("reason" is null or length("reason") <= 2000),
   "duration" interval check ("duration" is null or "duration" > interval '0'),

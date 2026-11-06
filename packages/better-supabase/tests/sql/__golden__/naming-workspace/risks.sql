@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:1cc154347de9a596f1fd4ea72e49377a446106a02e50b3c918c343da2bf4d5bb
+-- @bsb-hash sha256:293f66978fa62cc38e9b8543ba7a5fed51361e2eb4d3673f723f76e818ed777c
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -96,7 +96,7 @@ create table if not exists "better_supabase"."risk_matrices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- [{ value, label }] with values 1 to n; save_risk_matrix checks the shape.
   "likelihood_levels" jsonb not null check (jsonb_typeof("likelihood_levels") = 'array'),
   "impact_levels" jsonb not null check (jsonb_typeof("impact_levels") = 'array'),
@@ -123,31 +123,31 @@ create table if not exists "better_supabase"."risks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- RSK-0001, from the numbering block when it numbers risks.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "matrix_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "description" text check ("description" is null or length("description") <= 10000),
   -- One of options.categories; the functions check it.
-  "category" text not null check (length("category") between 1 and 63),
+  "category" text not null check (length("category") >= 1 and length("category") <= 63),
   "cause" text check ("cause" is null or length("cause") <= 4000),
   "consequence" text check ("consequence" is null or length("consequence") <= 4000),
   "owner_id" uuid,
   "status" text not null default 'identified' check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
   "treatment" text check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
   -- An assessment or a review moves next_review_on this many months ahead (12 when null).
-  "review_interval_months" integer check ("review_interval_months" is null or "review_interval_months" between 1 and 120),
+  "review_interval_months" integer check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
   "next_review_on" date,
   "reviewed_at" timestamptz,
   -- The review date notify_due_risk_reviews last reported, so each lapse notifies once.
   "review_notified_for" date,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" between 1 and 10),
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" between 1 and 10),
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" between 1 and 100),
+  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
+  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
+  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
   "inherent_band" text,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" between 1 and 10),
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" between 1 and 10),
-  "residual_score" integer check ("residual_score" is null or "residual_score" between 1 and 100),
+  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
+  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
+  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
   "residual_band" text,
   "current_assessment_id" uuid,
   "closed_at" timestamptz,
@@ -177,13 +177,13 @@ create table if not exists "better_supabase"."risk_assessments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "risk_id" uuid not null,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" between 1 and 10) not null,
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" between 1 and 10) not null,
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" between 1 and 100) not null,
+  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
+  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
+  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
   "inherent_band" text not null,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" between 1 and 10) not null,
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" between 1 and 10) not null,
-  "residual_score" integer check ("residual_score" is null or "residual_score" between 1 and 100) not null,
+  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
+  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
+  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
   "residual_band" text not null,
   "rationale" text check ("rationale" is null or length("rationale") <= 10000),
   "version_id" uuid references "better_supabase"."versions" ("id") on delete set null,

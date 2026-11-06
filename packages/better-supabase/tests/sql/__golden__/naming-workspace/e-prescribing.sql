@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:ee7b6dd79ff48d2a4a12b1f5caf7abe7a0c07b686474962c378c7de29ffba379
+-- @bsb-hash sha256:f76efa0cbeb18a279e2c4996d5f46c6c5d1839b16157e181d78df61f2aed7a44
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,7 +77,7 @@ create table if not exists "better_supabase"."prescriptions" (
   "snapshot" jsonb,
   "signed_by" uuid,
   "signed_at" timestamptz,
-  "gateway" text check ("gateway" is null or length("gateway") between 1 and 100),
+  "gateway" text check ("gateway" is null or length("gateway") >= 1 and length("gateway") <= 100),
   "gateway_reference" text check ("gateway_reference" is null or length("gateway_reference") <= 200),
   "sent_at" timestamptz,
   "delivery_error" text check ("delivery_error" is null or length("delivery_error") <= 1000),

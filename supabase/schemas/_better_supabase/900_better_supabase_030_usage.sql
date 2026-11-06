@@ -1,6 +1,6 @@
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:855beaf758d518455550d49f7da5c1665f355b6323c176469e66b38d6193e395
+-- @bsb-hash sha256:0b99b330031f236cde42003627ef4594f1dd9192afc98a0444de8f7a4c6011ae
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -810,7 +810,7 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- What one unit of a meter costs: unit_amount in minor units of currency
 -- (ADR 0024), and how many units each billing period includes for free.
 create table if not exists "better_supabase"."usage_meter_prices" (
-  "meter" text not null check (length("meter") between 1 and 100),
+  "meter" text not null check (length("meter") >= 1 and length("meter") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "unit_amount" bigint not null check ("unit_amount" >= 0),
   "included" numeric not null default 0 check ("included" >= 0),

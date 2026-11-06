@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:986890e078303f2ec502272ba9d6c679f1daf8c4c087d7a18843baa9d3bc9c78
+-- @bsb-hash sha256:a785ca6387ffef45abe04a204585056114c8d1bc48f68e85885c6a6b9e1b061b
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,12 +79,12 @@ create table if not exists "better_supabase"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
   "first_response_minutes" integer check ("first_response_minutes" > 0),
   "next_response_minutes" integer check ("next_response_minutes" > 0),
   "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
+  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
   "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
@@ -585,7 +585,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:ef22915f5ee5cad8aedb20b7f579dd7a3ad2e16969c57f63d3ea14604607884d
+-- @bsb-hash sha256:dcf808e58c75fab1965bd642837df56fd744addf0e3f97740466c9c0c8786562
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -680,12 +680,12 @@ create table if not exists "better_supabase"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
   "first_response_minutes" integer check ("first_response_minutes" > 0),
   "next_response_minutes" integer check ("next_response_minutes" > 0),
   "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
+  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
   "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
@@ -1235,7 +1235,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:67b7c32bdc2a2afc242cc23bfbfa731ba008220bf4fc2e538274fa64977f6561
+-- @bsb-hash sha256:053c37c2a404dde4b9645947b0c7d7ffa7d0af733503331e25af8ae9d3029080
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1318,12 +1318,12 @@ create table if not exists "app_private"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
   "first_response_minutes" integer check ("first_response_minutes" > 0),
   "next_response_minutes" integer check ("next_response_minutes" > 0),
   "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
+  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
   "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
@@ -1824,7 +1824,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:ca69ca4f12e469759ce1643a5d30e33fbf9272e00526a37f182d01f136bb2d73
+-- @bsb-hash sha256:565a049b4430ac205195acac4c2200460795da3d72b1da3fed046123ce1fd437
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1902,12 +1902,12 @@ create table if not exists "better_supabase"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
   "first_response_minutes" integer check ("first_response_minutes" > 0),
   "next_response_minutes" integer check ("next_response_minutes" > 0),
   "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
+  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
   "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
@@ -2487,7 +2487,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:3e32c51866185fa998c4dca19232b85c6f784432a5498d4418131aafa36e1067
+-- @bsb-hash sha256:54c8cd6d7d2271af65f822a448e7d0481fc556e3919df169c844bdc9403bebf9
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2581,12 +2581,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."sla_policies" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."sla_policies" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."sla_policies" add column if not exists "subject_type" text;
-alter table "better_supabase"."sla_policies" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."sla_policies" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."sla_policies" add column if not exists "priority" text;
 alter table "better_supabase"."sla_policies" add column if not exists "first_response_minutes" integer check ("first_response_minutes" > 0);
 alter table "better_supabase"."sla_policies" add column if not exists "next_response_minutes" integer check ("next_response_minutes" > 0);
 alter table "better_supabase"."sla_policies" add column if not exists "resolution_minutes" integer check ("resolution_minutes" > 0);
-alter table "better_supabase"."sla_policies" add column if not exists "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99);
+alter table "better_supabase"."sla_policies" add column if not exists "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99);
 alter table "better_supabase"."sla_policies" add column if not exists "business_hours" boolean not null default false;
 alter table "better_supabase"."sla_policies" add column if not exists "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array');
 alter table "better_supabase"."sla_policies" add column if not exists "archived_at" timestamptz;
@@ -3080,7 +3080,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:adc79a0f06da2fcbd9f4de9ba48dbbbcea916d1031fb8f26e02dddecb9947049
+-- @bsb-hash sha256:a881442dad0ef5b886e26ff5fd74eedfff9c8869fe61e3f71eb966a31f0396dd
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3158,12 +3158,12 @@ create table if not exists "better_supabase"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
   "first_response_minutes" integer check ("first_response_minutes" > 0),
   "next_response_minutes" integer check ("next_response_minutes" > 0),
   "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
+  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
   "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,

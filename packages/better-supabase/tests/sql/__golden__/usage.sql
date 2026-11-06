@@ -826,7 +826,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:5573c9294160adc856d899d6985510121980ba7cac015923d075c16b9c51ef13
+-- @bsb-hash sha256:a83ffa3586f0c6be6af6a7f79809fc222e2d730c36831f4fa9825218bec5e923
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1636,7 +1636,7 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- What one unit of a meter costs: unit_amount in minor units of currency
 -- (ADR 0024), and how many units each billing period includes for free.
 create table if not exists "better_supabase"."usage_meter_prices" (
-  "meter" text not null check (length("meter") between 1 and 100),
+  "meter" text not null check (length("meter") >= 1 and length("meter") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "unit_amount" bigint not null check ("unit_amount" >= 0),
   "included" numeric not null default 0 check ("included" >= 0),

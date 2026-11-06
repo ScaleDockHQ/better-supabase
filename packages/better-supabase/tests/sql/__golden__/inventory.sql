@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:5db4be87074b9330c0b7258d54524d22d91749fb8861fd53ab0cecfa3d0f1368
+-- @bsb-hash sha256:23f93a49eb8a5e8023ee0f09d19b9b71d2b9e735abbfe99e9cf9658c71db4e99
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -210,7 +210,7 @@ create table if not exists "better_supabase"."inventory_locations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'warehouse' check ("kind" in ('warehouse', 'store', 'virtual')),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -351,7 +351,7 @@ create table if not exists "better_supabase"."purchase_order_lines" (
   "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "quantity_ordered" numeric(20, 6) not null check ("quantity_ordered" > 0),
-  "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" between 0 and "quantity_ordered"),
+  "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered"),
   "unit_cost" bigint not null check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -460,7 +460,7 @@ create table if not exists "better_supabase"."stock_items" (
   "variant_id" uuid primary key references "better_supabase"."product_variants" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "unit" text not null default 'item' check ("unit" ~ '^[a-z][a-z0-9_]{0,31}$'),
-  "scale" smallint not null default 0 check ("scale" between 0 and 6),
+  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
   "tracking" text not null default 'none' check ("tracking" in ('none', 'lot', 'serial')),
   "tracks_expiry" boolean not null default false,
   "costing" text not null default 'none' check ("costing" in ('none', 'average')),
@@ -485,7 +485,7 @@ create table if not exists "better_supabase"."stock_bins" (
   "tenant_id" uuid not null,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$'),
-  "name" text check (length("name") between 1 and 200),
+  "name" text check (length("name") >= 1 and length("name") <= 200),
   "hold" boolean not null default false,
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -505,7 +505,7 @@ create table if not exists "better_supabase"."stock_lots" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "code" text not null check (length("code") between 1 and 100),
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
   "expires_on" date,
   "created_at" timestamptz not null default now(),
   unique ("variant_id", "code")
@@ -524,7 +524,7 @@ create table if not exists "better_supabase"."stock_serials" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "serial" text not null check (length("serial") between 1 and 100),
+  "serial" text not null check (length("serial") >= 1 and length("serial") <= 100),
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null,
   "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete set null,
   "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete set null,
@@ -578,7 +578,7 @@ create table if not exists "better_supabase"."stock_allocations" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "document_type" text not null check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "document_id" text not null check (length("document_id") between 1 and 200),
+  "document_id" text not null check (length("document_id") >= 1 and length("document_id") <= 200),
   "line_id" text,
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   "allocated" numeric(20, 6) not null default 0 check ("allocated" >= 0),
@@ -637,7 +637,7 @@ create table if not exists "better_supabase"."stock_count_lines" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check (length("serial") between 1 and 100),
+  "serial" text check (length("serial") >= 1 and length("serial") <= 100),
   "expected" numeric(20, 6) not null default 0 check ("expected" >= 0),
   "counted" numeric(20, 6) check ("counted" >= 0),
   "variance" numeric(20, 6) generated always as ("counted" - "expected") stored,
@@ -3549,7 +3549,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:2604949bc5fe08fae58498c3a5a521be78e777e19ae674e5db40cfb323792fab
+-- @bsb-hash sha256:e3b85c61fb95ad8bb5340fa47a421a9a13aa8cc09aa999e86f59251d7ce16da6
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3775,7 +3775,7 @@ create table if not exists "better_supabase"."inventory_locations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'warehouse' check ("kind" in ('warehouse', 'store', 'virtual')),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -3916,7 +3916,7 @@ create table if not exists "better_supabase"."purchase_order_lines" (
   "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "quantity_ordered" numeric(20, 6) not null check ("quantity_ordered" > 0),
-  "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" between 0 and "quantity_ordered"),
+  "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered"),
   "unit_cost" bigint not null check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -4025,7 +4025,7 @@ create table if not exists "better_supabase"."stock_items" (
   "variant_id" uuid primary key references "better_supabase"."product_variants" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "unit" text not null default 'item' check ("unit" ~ '^[a-z][a-z0-9_]{0,31}$'),
-  "scale" smallint not null default 0 check ("scale" between 0 and 6),
+  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
   "tracking" text not null default 'none' check ("tracking" in ('none', 'lot', 'serial')),
   "tracks_expiry" boolean not null default false,
   "costing" text not null default 'none' check ("costing" in ('none', 'average')),
@@ -4050,7 +4050,7 @@ create table if not exists "better_supabase"."stock_bins" (
   "tenant_id" uuid not null,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$'),
-  "name" text check (length("name") between 1 and 200),
+  "name" text check (length("name") >= 1 and length("name") <= 200),
   "hold" boolean not null default false,
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -4070,7 +4070,7 @@ create table if not exists "better_supabase"."stock_lots" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "code" text not null check (length("code") between 1 and 100),
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
   "expires_on" date,
   "created_at" timestamptz not null default now(),
   unique ("variant_id", "code")
@@ -4089,7 +4089,7 @@ create table if not exists "better_supabase"."stock_serials" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "serial" text not null check (length("serial") between 1 and 100),
+  "serial" text not null check (length("serial") >= 1 and length("serial") <= 100),
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null,
   "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete set null,
   "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete set null,
@@ -4143,7 +4143,7 @@ create table if not exists "better_supabase"."stock_allocations" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "document_type" text not null check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "document_id" text not null check (length("document_id") between 1 and 200),
+  "document_id" text not null check (length("document_id") >= 1 and length("document_id") <= 200),
   "line_id" text,
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   "allocated" numeric(20, 6) not null default 0 check ("allocated" >= 0),
@@ -4202,7 +4202,7 @@ create table if not exists "better_supabase"."stock_count_lines" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check (length("serial") between 1 and 100),
+  "serial" text check (length("serial") >= 1 and length("serial") <= 100),
   "expected" numeric(20, 6) not null default 0 check ("expected" >= 0),
   "counted" numeric(20, 6) check ("counted" >= 0),
   "variance" numeric(20, 6) generated always as ("counted" - "expected") stored,
@@ -7183,7 +7183,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:c4276a5982d3ab8ecc25b363c7608183ab8cd4e728324ddb29bc88687c94b51e
+-- @bsb-hash sha256:fcb47ffa838a58b92d011d6f7a308cc41a036d8304badc5e35d29b4ca8a396ab
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7397,7 +7397,7 @@ create table if not exists "app_private"."inventory_locations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'warehouse' check ("kind" in ('warehouse', 'store', 'virtual')),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -7538,7 +7538,7 @@ create table if not exists "app_private"."purchase_order_lines" (
   "purchase_order_id" uuid not null references "app_private"."purchase_orders" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "quantity_ordered" numeric(20, 6) not null check ("quantity_ordered" > 0),
-  "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" between 0 and "quantity_ordered"),
+  "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered"),
   "unit_cost" bigint not null check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -7647,7 +7647,7 @@ create table if not exists "app_private"."stock_items" (
   "variant_id" uuid primary key references "better_supabase"."product_variants" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "unit" text not null default 'item' check ("unit" ~ '^[a-z][a-z0-9_]{0,31}$'),
-  "scale" smallint not null default 0 check ("scale" between 0 and 6),
+  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
   "tracking" text not null default 'none' check ("tracking" in ('none', 'lot', 'serial')),
   "tracks_expiry" boolean not null default false,
   "costing" text not null default 'none' check ("costing" in ('none', 'average')),
@@ -7672,7 +7672,7 @@ create table if not exists "app_private"."stock_bins" (
   "tenant_id" uuid not null,
   "location_id" uuid not null references "app_private"."inventory_locations" ("id") on delete cascade,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$'),
-  "name" text check (length("name") between 1 and 200),
+  "name" text check (length("name") >= 1 and length("name") <= 200),
   "hold" boolean not null default false,
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -7692,7 +7692,7 @@ create table if not exists "app_private"."stock_lots" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "code" text not null check (length("code") between 1 and 100),
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
   "expires_on" date,
   "created_at" timestamptz not null default now(),
   unique ("variant_id", "code")
@@ -7711,7 +7711,7 @@ create table if not exists "app_private"."stock_serials" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "serial" text not null check (length("serial") between 1 and 100),
+  "serial" text not null check (length("serial") >= 1 and length("serial") <= 100),
   "lot_id" uuid references "app_private"."stock_lots" ("id") on delete set null,
   "location_id" uuid references "app_private"."inventory_locations" ("id") on delete set null,
   "bin_id" uuid references "app_private"."stock_bins" ("id") on delete set null,
@@ -7765,7 +7765,7 @@ create table if not exists "app_private"."stock_allocations" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "location_id" uuid not null references "app_private"."inventory_locations" ("id") on delete cascade,
   "document_type" text not null check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "document_id" text not null check (length("document_id") between 1 and 200),
+  "document_id" text not null check (length("document_id") >= 1 and length("document_id") <= 200),
   "line_id" text,
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   "allocated" numeric(20, 6) not null default 0 check ("allocated" >= 0),
@@ -7824,7 +7824,7 @@ create table if not exists "app_private"."stock_count_lines" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "bin_id" uuid references "app_private"."stock_bins" ("id") on delete restrict,
   "lot_id" uuid references "app_private"."stock_lots" ("id") on delete restrict,
-  "serial" text check (length("serial") between 1 and 100),
+  "serial" text check (length("serial") >= 1 and length("serial") <= 100),
   "expected" numeric(20, 6) not null default 0 check ("expected" >= 0),
   "counted" numeric(20, 6) check ("counted" >= 0),
   "variance" numeric(20, 6) generated always as ("counted" - "expected") stored,
@@ -10736,7 +10736,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:a686782b10628fd8f38456a1c198bd605241b2eb0c36fa8296c606305feb67e3
+-- @bsb-hash sha256:7a412f8d5d03eea3ae56c406371a69d2c0258a039279ecf29da1925f3585b841
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10945,7 +10945,7 @@ create table if not exists "better_supabase"."inventory_locations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'warehouse' check ("kind" in ('warehouse', 'store', 'virtual')),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -11086,7 +11086,7 @@ create table if not exists "better_supabase"."purchase_order_lines" (
   "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "quantity_ordered" numeric(20, 6) not null check ("quantity_ordered" > 0),
-  "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" between 0 and "quantity_ordered"),
+  "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered"),
   "unit_cost" bigint not null check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -11195,7 +11195,7 @@ create table if not exists "better_supabase"."stock_items" (
   "variant_id" uuid primary key references "better_supabase"."product_variants" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "unit" text not null default 'item' check ("unit" ~ '^[a-z][a-z0-9_]{0,31}$'),
-  "scale" smallint not null default 0 check ("scale" between 0 and 6),
+  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
   "tracking" text not null default 'none' check ("tracking" in ('none', 'lot', 'serial')),
   "tracks_expiry" boolean not null default false,
   "costing" text not null default 'none' check ("costing" in ('none', 'average')),
@@ -11220,7 +11220,7 @@ create table if not exists "better_supabase"."stock_bins" (
   "tenant_id" uuid not null,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$'),
-  "name" text check (length("name") between 1 and 200),
+  "name" text check (length("name") >= 1 and length("name") <= 200),
   "hold" boolean not null default false,
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -11240,7 +11240,7 @@ create table if not exists "better_supabase"."stock_lots" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "code" text not null check (length("code") between 1 and 100),
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
   "expires_on" date,
   "created_at" timestamptz not null default now(),
   unique ("variant_id", "code")
@@ -11259,7 +11259,7 @@ create table if not exists "better_supabase"."stock_serials" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "serial" text not null check (length("serial") between 1 and 100),
+  "serial" text not null check (length("serial") >= 1 and length("serial") <= 100),
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null,
   "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete set null,
   "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete set null,
@@ -11313,7 +11313,7 @@ create table if not exists "better_supabase"."stock_allocations" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "document_type" text not null check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "document_id" text not null check (length("document_id") between 1 and 200),
+  "document_id" text not null check (length("document_id") >= 1 and length("document_id") <= 200),
   "line_id" text,
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   "allocated" numeric(20, 6) not null default 0 check ("allocated" >= 0),
@@ -11372,7 +11372,7 @@ create table if not exists "better_supabase"."stock_count_lines" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check (length("serial") between 1 and 100),
+  "serial" text check (length("serial") >= 1 and length("serial") <= 100),
   "expected" numeric(20, 6) not null default 0 check ("expected" >= 0),
   "counted" numeric(20, 6) check ("counted" >= 0),
   "variance" numeric(20, 6) generated always as ("counted" - "expected") stored,
@@ -14698,7 +14698,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:6cde35088edfd1fd49a46daca8581bb20a995e42450cb990bb91c78d11ead99d
+-- @bsb-hash sha256:b30d8215a5b248ec1aa6fcce9da802dd06c2edaceecf8cf5ee15f88eb5ae352e
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14923,7 +14923,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."inventory_locations" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."inventory_locations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."inventory_locations" add column if not exists "code" text;
-alter table "better_supabase"."inventory_locations" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."inventory_locations" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."inventory_locations" add column if not exists "kind" text not null default 'warehouse' check ("kind" in ('warehouse', 'store', 'virtual'));
 alter table "better_supabase"."inventory_locations" add column if not exists "active" boolean not null default true;
 alter table "better_supabase"."inventory_locations" add column if not exists "created_at" timestamptz not null default now();
@@ -15046,7 +15046,7 @@ alter table "better_supabase"."purchase_order_lines" add column if not exists "t
 alter table "better_supabase"."purchase_order_lines" add column if not exists "purchase_order_id" uuid references "better_supabase"."purchase_orders" ("id") on delete cascade;
 alter table "better_supabase"."purchase_order_lines" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
 alter table "better_supabase"."purchase_order_lines" add column if not exists "quantity_ordered" numeric(20, 6) check ("quantity_ordered" > 0);
-alter table "better_supabase"."purchase_order_lines" add column if not exists "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" between 0 and "quantity_ordered");
+alter table "better_supabase"."purchase_order_lines" add column if not exists "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered");
 alter table "better_supabase"."purchase_order_lines" add column if not exists "unit_cost" bigint check ("unit_cost" >= 0);
 create index if not exists purchase_order_lines_variant_idx on "better_supabase"."purchase_order_lines" ("variant_id");
 alter table "better_supabase"."purchase_order_lines" enable row level security;
@@ -15142,7 +15142,7 @@ create policy bsb_inventory_receipt_lines_select on "better_supabase"."inventory
 alter table "better_supabase"."stock_items" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
 alter table "better_supabase"."stock_items" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."stock_items" add column if not exists "unit" text not null default 'item' check ("unit" ~ '^[a-z][a-z0-9_]{0,31}$');
-alter table "better_supabase"."stock_items" add column if not exists "scale" smallint not null default 0 check ("scale" between 0 and 6);
+alter table "better_supabase"."stock_items" add column if not exists "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6);
 alter table "better_supabase"."stock_items" add column if not exists "tracking" text not null default 'none' check ("tracking" in ('none', 'lot', 'serial'));
 alter table "better_supabase"."stock_items" add column if not exists "tracks_expiry" boolean not null default false;
 alter table "better_supabase"."stock_items" add column if not exists "costing" text not null default 'none' check ("costing" in ('none', 'average'));
@@ -15163,7 +15163,7 @@ alter table "better_supabase"."stock_bins" add column if not exists "id" uuid de
 alter table "better_supabase"."stock_bins" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."stock_bins" add column if not exists "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete cascade;
 alter table "better_supabase"."stock_bins" add column if not exists "code" text check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$');
-alter table "better_supabase"."stock_bins" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."stock_bins" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."stock_bins" add column if not exists "hold" boolean not null default false;
 alter table "better_supabase"."stock_bins" add column if not exists "active" boolean not null default true;
 alter table "better_supabase"."stock_bins" add column if not exists "created_at" timestamptz not null default now();
@@ -15180,7 +15180,7 @@ create policy bsb_stock_bins_select on "better_supabase"."stock_bins"
 alter table "better_supabase"."stock_lots" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."stock_lots" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."stock_lots" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
-alter table "better_supabase"."stock_lots" add column if not exists "code" text check (length("code") between 1 and 100);
+alter table "better_supabase"."stock_lots" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 100);
 alter table "better_supabase"."stock_lots" add column if not exists "expires_on" date;
 alter table "better_supabase"."stock_lots" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists stock_lots_expiry_idx on "better_supabase"."stock_lots" ("tenant_id", "expires_on") where "expires_on" is not null;
@@ -15196,7 +15196,7 @@ create policy bsb_stock_lots_select on "better_supabase"."stock_lots"
 alter table "better_supabase"."stock_serials" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."stock_serials" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."stock_serials" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
-alter table "better_supabase"."stock_serials" add column if not exists "serial" text check (length("serial") between 1 and 100);
+alter table "better_supabase"."stock_serials" add column if not exists "serial" text check (length("serial") >= 1 and length("serial") <= 100);
 alter table "better_supabase"."stock_serials" add column if not exists "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null;
 alter table "better_supabase"."stock_serials" add column if not exists "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete set null;
 alter table "better_supabase"."stock_serials" add column if not exists "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete set null;
@@ -15243,7 +15243,7 @@ alter table "better_supabase"."stock_allocations" add column if not exists "tena
 alter table "better_supabase"."stock_allocations" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
 alter table "better_supabase"."stock_allocations" add column if not exists "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete cascade;
 alter table "better_supabase"."stock_allocations" add column if not exists "document_type" text check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."stock_allocations" add column if not exists "document_id" text check (length("document_id") between 1 and 200);
+alter table "better_supabase"."stock_allocations" add column if not exists "document_id" text check (length("document_id") >= 1 and length("document_id") <= 200);
 alter table "better_supabase"."stock_allocations" add column if not exists "line_id" text;
 alter table "better_supabase"."stock_allocations" add column if not exists "quantity" numeric(20, 6) check ("quantity" > 0);
 alter table "better_supabase"."stock_allocations" add column if not exists "allocated" numeric(20, 6) not null default 0 check ("allocated" >= 0);
@@ -15297,7 +15297,7 @@ alter table "better_supabase"."stock_count_lines" add column if not exists "coun
 alter table "better_supabase"."stock_count_lines" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
 alter table "better_supabase"."stock_count_lines" add column if not exists "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete restrict;
 alter table "better_supabase"."stock_count_lines" add column if not exists "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict;
-alter table "better_supabase"."stock_count_lines" add column if not exists "serial" text check (length("serial") between 1 and 100);
+alter table "better_supabase"."stock_count_lines" add column if not exists "serial" text check (length("serial") >= 1 and length("serial") <= 100);
 alter table "better_supabase"."stock_count_lines" add column if not exists "expected" numeric(20, 6) not null default 0 check ("expected" >= 0);
 alter table "better_supabase"."stock_count_lines" add column if not exists "counted" numeric(20, 6) check ("counted" >= 0);
 alter table "better_supabase"."stock_count_lines" add column if not exists "variance" numeric(20, 6) generated always as ("counted" - "expected") stored;
@@ -18205,7 +18205,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:dff3fa1731d6f7643b00aed945145d3a70644c4d344a71178b9645cb067fd557
+-- @bsb-hash sha256:e092a58cf89c98e33f7497fb1a516cda3cc4e09db4e9c4b1d55e79c1540d8353
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18414,7 +18414,7 @@ create table if not exists "better_supabase"."inventory_locations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "code" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "kind" text not null default 'warehouse' check ("kind" in ('warehouse', 'store', 'virtual')),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -18555,7 +18555,7 @@ create table if not exists "better_supabase"."purchase_order_lines" (
   "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "quantity_ordered" numeric(20, 6) not null check ("quantity_ordered" > 0),
-  "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" between 0 and "quantity_ordered"),
+  "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered"),
   "unit_cost" bigint not null check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -18664,7 +18664,7 @@ create table if not exists "better_supabase"."stock_items" (
   "variant_id" uuid primary key references "better_supabase"."product_variants" ("id") on delete cascade,
   "org_id" uuid not null,
   "unit" text not null default 'item' check ("unit" ~ '^[a-z][a-z0-9_]{0,31}$'),
-  "scale" smallint not null default 0 check ("scale" between 0 and 6),
+  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
   "tracking" text not null default 'none' check ("tracking" in ('none', 'lot', 'serial')),
   "tracks_expiry" boolean not null default false,
   "costing" text not null default 'none' check ("costing" in ('none', 'average')),
@@ -18689,7 +18689,7 @@ create table if not exists "better_supabase"."stock_bins" (
   "org_id" uuid not null,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$'),
-  "name" text check (length("name") between 1 and 200),
+  "name" text check (length("name") >= 1 and length("name") <= 200),
   "hold" boolean not null default false,
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -18709,7 +18709,7 @@ create table if not exists "better_supabase"."stock_lots" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "code" text not null check (length("code") between 1 and 100),
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
   "expires_on" date,
   "created_at" timestamptz not null default now(),
   unique ("variant_id", "code")
@@ -18728,7 +18728,7 @@ create table if not exists "better_supabase"."stock_serials" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "serial" text not null check (length("serial") between 1 and 100),
+  "serial" text not null check (length("serial") >= 1 and length("serial") <= 100),
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null,
   "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete set null,
   "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete set null,
@@ -18782,7 +18782,7 @@ create table if not exists "better_supabase"."stock_allocations" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "document_type" text not null check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "document_id" text not null check (length("document_id") between 1 and 200),
+  "document_id" text not null check (length("document_id") >= 1 and length("document_id") <= 200),
   "line_id" text,
   "quantity" numeric(20, 6) not null check ("quantity" > 0),
   "allocated" numeric(20, 6) not null default 0 check ("allocated" >= 0),
@@ -18841,7 +18841,7 @@ create table if not exists "better_supabase"."stock_count_lines" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check (length("serial") between 1 and 100),
+  "serial" text check (length("serial") >= 1 and length("serial") <= 100),
   "expected" numeric(20, 6) not null default 0 check ("expected" >= 0),
   "counted" numeric(20, 6) check ("counted" >= 0),
   "variance" numeric(20, 6) generated always as ("counted" - "expected") stored,

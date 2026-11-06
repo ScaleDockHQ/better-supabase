@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:0f140ee8c1750a1e08b849b199c39f046fa8503a3644612c69f06e91d91dbfc6
+-- @bsb-hash sha256:397748688c70b91aff0ae91e904e5b9b11dacd07bc1e49b2709edfb943705086
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,9 +73,9 @@ create table if not exists "better_supabase"."payroll_runs" (
   "tenant_id" uuid not null,
   "period_from" date not null,
   "period_to" date not null,
-  "label" text check ("label" is null or length("label") between 1 and 200),
+  "label" text check ("label" is null or length("label") >= 1 and length("label") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'exported')),
-  "format" text check ("format" is null or length("format") between 1 and 100),
+  "format" text check ("format" is null or length("format") >= 1 and length("format") <= 100),
   -- The hex SHA-256 of the exported file.
   "checksum" text check ("checksum" is null or "checksum" ~ '^[0-9a-f]{64}$'),
   "exported_at" timestamptz,
@@ -108,7 +108,7 @@ create table if not exists "better_supabase"."payroll_lines" (
   "employee_name" text,
   "kind" text not null check ("kind" in ('worked', 'leave', 'scheduled')),
   -- The leave type's key; null for worked and scheduled time.
-  "code" text check ("code" is null or length("code") between 1 and 200),
+  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 200),
   "paid" boolean not null default true,
   "unit" text not null check ("unit" in ('hours', 'days')),
   "quantity" numeric(12, 2) not null check ("quantity" >= 0),
@@ -451,7 +451,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:537d80fec4bb52a228c7ed4e393789967ad824db079421309e23f398b78fee67
+-- @bsb-hash sha256:5a1f746a3edd82ce64497cd2791280bd2f0ed2e11cd8397dbb9ece1e31e5e17e
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -523,9 +523,9 @@ create table if not exists "better_supabase"."payroll_runs" (
   "tenant_id" uuid not null,
   "period_from" date not null,
   "period_to" date not null,
-  "label" text check ("label" is null or length("label") between 1 and 200),
+  "label" text check ("label" is null or length("label") >= 1 and length("label") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'exported')),
-  "format" text check ("format" is null or length("format") between 1 and 100),
+  "format" text check ("format" is null or length("format") >= 1 and length("format") <= 100),
   -- The hex SHA-256 of the exported file.
   "checksum" text check ("checksum" is null or "checksum" ~ '^[0-9a-f]{64}$'),
   "exported_at" timestamptz,
@@ -558,7 +558,7 @@ create table if not exists "better_supabase"."payroll_lines" (
   "employee_name" text,
   "kind" text not null check ("kind" in ('worked', 'leave', 'scheduled')),
   -- The leave type's key; null for worked and scheduled time.
-  "code" text check ("code" is null or length("code") between 1 and 200),
+  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 200),
   "paid" boolean not null default true,
   "unit" text not null check ("unit" in ('hours', 'days')),
   "quantity" numeric(12, 2) not null check ("quantity" >= 0),
@@ -959,7 +959,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:40f0bde65cd7d05e0b66fbc4c314851e93ae89d8c95d0311aa91bc49cf2bb35b
+-- @bsb-hash sha256:8cb7cddd81ab24774c510d514563008b9830e3f8aebfcceb53d3c65383d5f944
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1036,9 +1036,9 @@ create table if not exists "app_private"."payroll_runs" (
   "tenant_id" uuid not null,
   "period_from" date not null,
   "period_to" date not null,
-  "label" text check ("label" is null or length("label") between 1 and 200),
+  "label" text check ("label" is null or length("label") >= 1 and length("label") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'exported')),
-  "format" text check ("format" is null or length("format") between 1 and 100),
+  "format" text check ("format" is null or length("format") >= 1 and length("format") <= 100),
   -- The hex SHA-256 of the exported file.
   "checksum" text check ("checksum" is null or "checksum" ~ '^[0-9a-f]{64}$'),
   "exported_at" timestamptz,
@@ -1071,7 +1071,7 @@ create table if not exists "app_private"."payroll_lines" (
   "employee_name" text,
   "kind" text not null check ("kind" in ('worked', 'leave', 'scheduled')),
   -- The leave type's key; null for worked and scheduled time.
-  "code" text check ("code" is null or length("code") between 1 and 200),
+  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 200),
   "paid" boolean not null default true,
   "unit" text not null check ("unit" in ('hours', 'days')),
   "quantity" numeric(12, 2) not null check ("quantity" >= 0),
@@ -1414,7 +1414,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:bbe4b454ae62f38234fbb1e893fcfb45c9a6a411aa4286dc8d163b9e8e0a40b5
+-- @bsb-hash sha256:57e54c6797eb2c744c8652d02b24fba675eddacf1fbc5db5cf3e97ae2d72a907
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1486,9 +1486,9 @@ create table if not exists "better_supabase"."payroll_runs" (
   "tenant_id" uuid not null,
   "period_from" date not null,
   "period_to" date not null,
-  "label" text check ("label" is null or length("label") between 1 and 200),
+  "label" text check ("label" is null or length("label") >= 1 and length("label") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'exported')),
-  "format" text check ("format" is null or length("format") between 1 and 100),
+  "format" text check ("format" is null or length("format") >= 1 and length("format") <= 100),
   -- The hex SHA-256 of the exported file.
   "checksum" text check ("checksum" is null or "checksum" ~ '^[0-9a-f]{64}$'),
   "exported_at" timestamptz,
@@ -1521,7 +1521,7 @@ create table if not exists "better_supabase"."payroll_lines" (
   "employee_name" text,
   "kind" text not null check ("kind" in ('worked', 'leave', 'scheduled')),
   -- The leave type's key; null for worked and scheduled time.
-  "code" text check ("code" is null or length("code") between 1 and 200),
+  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 200),
   "paid" boolean not null default true,
   "unit" text not null check ("unit" in ('hours', 'days')),
   "quantity" numeric(12, 2) not null check ("quantity" >= 0),
@@ -1943,7 +1943,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:4ace293e3705716ed561baece19e99d46dee294e313aa7dd81c9fde2d37cf16e
+-- @bsb-hash sha256:d6562bd9e642a82800d6e7551f42d85c90bbf0ad465ee07a067707bddd3627a8
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2015,9 +2015,9 @@ alter table "better_supabase"."payroll_runs" add column if not exists "id" uuid 
 alter table "better_supabase"."payroll_runs" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."payroll_runs" add column if not exists "period_from" date;
 alter table "better_supabase"."payroll_runs" add column if not exists "period_to" date;
-alter table "better_supabase"."payroll_runs" add column if not exists "label" text check ("label" is null or length("label") between 1 and 200);
+alter table "better_supabase"."payroll_runs" add column if not exists "label" text check ("label" is null or length("label") >= 1 and length("label") <= 200);
 alter table "better_supabase"."payroll_runs" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'exported'));
-alter table "better_supabase"."payroll_runs" add column if not exists "format" text check ("format" is null or length("format") between 1 and 100);
+alter table "better_supabase"."payroll_runs" add column if not exists "format" text check ("format" is null or length("format") >= 1 and length("format") <= 100);
 alter table "better_supabase"."payroll_runs" add column if not exists "checksum" text check ("checksum" is null or "checksum" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."payroll_runs" add column if not exists "exported_at" timestamptz;
 alter table "better_supabase"."payroll_runs" add column if not exists "exported_by" uuid;
@@ -2041,7 +2041,7 @@ alter table "better_supabase"."payroll_lines" add column if not exists "user_id"
 alter table "better_supabase"."payroll_lines" add column if not exists "employee_id" uuid;
 alter table "better_supabase"."payroll_lines" add column if not exists "employee_name" text;
 alter table "better_supabase"."payroll_lines" add column if not exists "kind" text check ("kind" in ('worked', 'leave', 'scheduled'));
-alter table "better_supabase"."payroll_lines" add column if not exists "code" text check ("code" is null or length("code") between 1 and 200);
+alter table "better_supabase"."payroll_lines" add column if not exists "code" text check ("code" is null or length("code") >= 1 and length("code") <= 200);
 alter table "better_supabase"."payroll_lines" add column if not exists "paid" boolean not null default true;
 alter table "better_supabase"."payroll_lines" add column if not exists "unit" text check ("unit" in ('hours', 'days'));
 alter table "better_supabase"."payroll_lines" add column if not exists "quantity" numeric(12, 2) check ("quantity" >= 0);
@@ -2379,7 +2379,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:6c1ad8606dea255784cda79712af9ae4ed81ecfc25fea46a5dfd5606621350fa
+-- @bsb-hash sha256:1cc8418e40f5c74d0a83dba8e9bb610453ab948aa3a3a0a02fdf8b25c29ce694
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2451,9 +2451,9 @@ create table if not exists "better_supabase"."payroll_runs" (
   "org_id" uuid not null,
   "period_from" date not null,
   "period_to" date not null,
-  "label" text check ("label" is null or length("label") between 1 and 200),
+  "label" text check ("label" is null or length("label") >= 1 and length("label") <= 200),
   "status" text not null default 'draft' check ("status" in ('draft', 'exported')),
-  "format" text check ("format" is null or length("format") between 1 and 100),
+  "format" text check ("format" is null or length("format") >= 1 and length("format") <= 100),
   -- The hex SHA-256 of the exported file.
   "checksum" text check ("checksum" is null or "checksum" ~ '^[0-9a-f]{64}$'),
   "exported_at" timestamptz,
@@ -2486,7 +2486,7 @@ create table if not exists "better_supabase"."payroll_lines" (
   "employee_name" text,
   "kind" text not null check ("kind" in ('worked', 'leave', 'scheduled')),
   -- The leave type's key; null for worked and scheduled time.
-  "code" text check ("code" is null or length("code") between 1 and 200),
+  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 200),
   "paid" boolean not null default true,
   "unit" text not null check ("unit" in ('hours', 'days')),
   "quantity" numeric(12, 2) not null check ("quantity" >= 0),

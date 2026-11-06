@@ -1,6 +1,6 @@
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:b6d38efda2028170ce52f36e3fcf60a33c89bcdba113e06051cf1f8dd61e74bc
+-- @bsb-hash sha256:2f4feba86abe5ca3a25e1fd81939e5f2cd2b72a29d74745b4b6abf0c16406e9c
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,7 @@ create table if not exists "better_supabase"."deals" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   "company_type" text,
   "company_id" text,
   "motion" text,
@@ -892,7 +892,7 @@ create table if not exists "better_supabase"."deal_lines" (
   "parent_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
   "product_type" text,
   "product_id" text,
-  "description" text not null check (length("description") between 1 and 2000),
+  "description" text not null check (length("description") >= 1 and length("description") <= 2000),
   "quantity" numeric(18, 4) not null check ("quantity" > 0),
   "unit_amount" bigint not null,
   "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:3093e3abcbef4d2f9873b7b218a9c49170992d108c4b60d9e0c66d4fcd49dc96
+-- @bsb-hash sha256:3a8c5020a876ea636e6498bbba26e3c25901cdd3724d04696c3571c2ba189c2e
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -80,7 +80,7 @@ create table if not exists "better_supabase"."ai_provider_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "name" text not null default 'default' check (length("name") between 1 and 100),
+  "name" text not null default 'default' check (length("name") >= 1 and length("name") <= 100),
   "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "settings" jsonb not null default '{}' check (jsonb_typeof("settings") = 'object'),
   "enabled" boolean not null default true,
@@ -105,7 +105,7 @@ create table if not exists "better_supabase"."ai_batches" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'completed', 'failed', 'cancelled')),
   "raw_status" text check (length("raw_status") <= 100),
@@ -135,7 +135,7 @@ create policy ai_batches_read on "better_supabase"."ai_batches"
 
 create table if not exists "better_supabase"."ai_batch_items" (
   "batch_id" uuid not null references "better_supabase"."ai_batches" ("id") on delete cascade,
-  "request_id" text not null check (length("request_id") between 1 and 200),
+  "request_id" text not null check (length("request_id") >= 1 and length("request_id") <= 200),
   "organization_id" uuid not null,
   "status" text not null check ("status" in ('succeeded', 'failed', 'cancelled', 'expired')),
   "output" jsonb,
@@ -571,7 +571,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:a0d7360793a2fb95dd1a446db3f6e1685065947f8d50e6e7293263c7bbdc72e1
+-- @bsb-hash sha256:c0d9ba362fb37bd9d152a1b630780191b931aa19693ec875a65b8eff95bacf4a
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -650,7 +650,7 @@ create table if not exists "better_supabase"."ai_provider_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "name" text not null default 'default' check (length("name") between 1 and 100),
+  "name" text not null default 'default' check (length("name") >= 1 and length("name") <= 100),
   "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "settings" jsonb not null default '{}' check (jsonb_typeof("settings") = 'object'),
   "enabled" boolean not null default true,
@@ -675,7 +675,7 @@ create table if not exists "better_supabase"."ai_batches" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'completed', 'failed', 'cancelled')),
   "raw_status" text check (length("raw_status") <= 100),
@@ -705,7 +705,7 @@ create policy ai_batches_read on "better_supabase"."ai_batches"
 
 create table if not exists "better_supabase"."ai_batch_items" (
   "batch_id" uuid not null references "better_supabase"."ai_batches" ("id") on delete cascade,
-  "request_id" text not null check (length("request_id") between 1 and 200),
+  "request_id" text not null check (length("request_id") >= 1 and length("request_id") <= 200),
   "organization_id" uuid not null,
   "status" text not null check ("status" in ('succeeded', 'failed', 'cancelled', 'expired')),
   "output" jsonb,
@@ -1168,7 +1168,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:f05516c87f1eaf4031b7534b780af478114952a09ddc22e24c447fca20195617
+-- @bsb-hash sha256:b3c408835913dcf5e6dc9e5d114f2ae4147f9564744e89742d302572b32dd850
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1252,7 +1252,7 @@ create table if not exists "app_private"."ai_provider_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "name" text not null default 'default' check (length("name") between 1 and 100),
+  "name" text not null default 'default' check (length("name") >= 1 and length("name") <= 100),
   "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "settings" jsonb not null default '{}' check (jsonb_typeof("settings") = 'object'),
   "enabled" boolean not null default true,
@@ -1277,7 +1277,7 @@ create table if not exists "app_private"."ai_batches" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'completed', 'failed', 'cancelled')),
   "raw_status" text check (length("raw_status") <= 100),
@@ -1307,7 +1307,7 @@ create policy ai_batches_read on "app_private"."ai_batches"
 
 create table if not exists "app_private"."ai_batch_items" (
   "batch_id" uuid not null references "app_private"."ai_batches" ("id") on delete cascade,
-  "request_id" text not null check (length("request_id") between 1 and 200),
+  "request_id" text not null check (length("request_id") >= 1 and length("request_id") <= 200),
   "organization_id" uuid not null,
   "status" text not null check ("status" in ('succeeded', 'failed', 'cancelled', 'expired')),
   "output" jsonb,
@@ -1743,7 +1743,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:f30e74119bc827181d2d3adb8659a0d6df11b48fda5eb29b1bc2db9db76972d1
+-- @bsb-hash sha256:f6d13e2f157ad15355ed267d7c7fa21d32d5ff3865071c277f7a1a36760fac66
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1822,7 +1822,7 @@ create table if not exists "better_supabase"."ai_provider_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "name" text not null default 'default' check (length("name") between 1 and 100),
+  "name" text not null default 'default' check (length("name") >= 1 and length("name") <= 100),
   "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "settings" jsonb not null default '{}' check (jsonb_typeof("settings") = 'object'),
   "enabled" boolean not null default true,
@@ -1847,7 +1847,7 @@ create table if not exists "better_supabase"."ai_batches" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'completed', 'failed', 'cancelled')),
   "raw_status" text check (length("raw_status") <= 100),
@@ -1877,7 +1877,7 @@ create policy ai_batches_read on "better_supabase"."ai_batches"
 
 create table if not exists "better_supabase"."ai_batch_items" (
   "batch_id" uuid not null references "better_supabase"."ai_batches" ("id") on delete cascade,
-  "request_id" text not null check (length("request_id") between 1 and 200),
+  "request_id" text not null check (length("request_id") >= 1 and length("request_id") <= 200),
   "organization_id" uuid not null,
   "status" text not null check ("status" in ('succeeded', 'failed', 'cancelled', 'expired')),
   "output" jsonb,
@@ -2449,7 +2449,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:a48b045c7cf089c999eca6e28f5f39bc549584c48378bb02840a32ff532f274b
+-- @bsb-hash sha256:9c7b4c5d672a4f40936a6b36b1e6805074b7bc585a30d5c4f533f18e89e77f48
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2544,7 +2544,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."ai_provider_keys" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."ai_provider_keys" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_provider_keys" add column if not exists "provider" text check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$');
-alter table "better_supabase"."ai_provider_keys" add column if not exists "name" text not null default 'default' check (length("name") between 1 and 100);
+alter table "better_supabase"."ai_provider_keys" add column if not exists "name" text not null default 'default' check (length("name") >= 1 and length("name") <= 100);
 alter table "better_supabase"."ai_provider_keys" add column if not exists "credential_ref" jsonb check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider');
 alter table "better_supabase"."ai_provider_keys" add column if not exists "settings" jsonb not null default '{}' check (jsonb_typeof("settings") = 'object');
 alter table "better_supabase"."ai_provider_keys" add column if not exists "enabled" boolean not null default true;
@@ -2567,7 +2567,7 @@ create policy bsb_ai_provider_keys_select on "better_supabase"."ai_provider_keys
 alter table "better_supabase"."ai_batches" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."ai_batches" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_batches" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_batches" add column if not exists "provider" text check (length("provider") between 1 and 100);
+alter table "better_supabase"."ai_batches" add column if not exists "provider" text check (length("provider") >= 1 and length("provider") <= 100);
 alter table "better_supabase"."ai_batches" add column if not exists "reference" jsonb check (jsonb_typeof("reference") = 'object');
 alter table "better_supabase"."ai_batches" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'completed', 'failed', 'cancelled'));
 alter table "better_supabase"."ai_batches" add column if not exists "raw_status" text check (length("raw_status") <= 100);
@@ -2595,7 +2595,7 @@ create policy bsb_ai_batches_select on "better_supabase"."ai_batches"
 
 -- better_supabase.ai_batch_items is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_batch_items" add column if not exists "batch_id" uuid references "better_supabase"."ai_batches" ("id") on delete cascade;
-alter table "better_supabase"."ai_batch_items" add column if not exists "request_id" text check (length("request_id") between 1 and 200);
+alter table "better_supabase"."ai_batch_items" add column if not exists "request_id" text check (length("request_id") >= 1 and length("request_id") <= 200);
 alter table "better_supabase"."ai_batch_items" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_batch_items" add column if not exists "status" text check ("status" in ('succeeded', 'failed', 'cancelled', 'expired'));
 alter table "better_supabase"."ai_batch_items" add column if not exists "output" jsonb;
@@ -3029,7 +3029,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:ce5200837cb00eb0dcac1338dbd5912e439136e34b4fbc70ac4c262ece1971d5
+-- @bsb-hash sha256:09f70b128a421fa3d0cabd9e78839236d6f9a7479cdf2ae5245f027db3d71bf5
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3108,7 +3108,7 @@ create table if not exists "better_supabase"."ai_provider_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "name" text not null default 'default' check (length("name") between 1 and 100),
+  "name" text not null default 'default' check (length("name") >= 1 and length("name") <= 100),
   "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "settings" jsonb not null default '{}' check (jsonb_typeof("settings") = 'object'),
   "enabled" boolean not null default true,
@@ -3133,7 +3133,7 @@ create table if not exists "better_supabase"."ai_batches" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'completed', 'failed', 'cancelled')),
   "raw_status" text check (length("raw_status") <= 100),
@@ -3163,7 +3163,7 @@ create policy ai_batches_read on "better_supabase"."ai_batches"
 
 create table if not exists "better_supabase"."ai_batch_items" (
   "batch_id" uuid not null references "better_supabase"."ai_batches" ("id") on delete cascade,
-  "request_id" text not null check (length("request_id") between 1 and 200),
+  "request_id" text not null check (length("request_id") >= 1 and length("request_id") <= 200),
   "org_id" uuid not null,
   "status" text not null check ("status" in ('succeeded', 'failed', 'cancelled', 'expired')),
   "output" jsonb,

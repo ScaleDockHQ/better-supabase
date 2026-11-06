@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:1c31c53ac8005f28779569cb7d7e8c3b49fde7b3f15b069eaa05110a35062815
+-- @bsb-hash sha256:d8a35059ab061c4e68e1e19a479a7eb48581646b836756afd1da1e67fc3bc1e4
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,7 +91,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "tz" text not null default 'UTC',
   "color" text,
   "owner_type" text,
@@ -265,7 +265,7 @@ begin
     where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_offset_check'
   ) then
     alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
-      check ("offset_minutes" between -525600 and 525600) not valid;
+      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
     begin
       alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_offset_check";
     exception when check_violation then
@@ -334,7 +334,7 @@ create table if not exists "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   "tz" text not null default 'UTC',

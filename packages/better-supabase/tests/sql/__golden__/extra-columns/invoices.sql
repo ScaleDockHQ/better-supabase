@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:28de2cb106fe94695e2ef813eed5162b9b4becb7b15d6cc6936b3caf04605d27
+-- @bsb-hash sha256:16ff8e680df32068d39a3abfdf9140e9b37b922974b735d310dafcda63c077b3
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -196,7 +196,7 @@ create table if not exists "better_supabase"."invoices" (
   "number" bigint,
   "identifier" text,
   "original_id" uuid references "better_supabase"."invoices" ("id"),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "company_type" text,
   "company_id" text,
   "contact_type" text,
@@ -282,10 +282,10 @@ create policy invoice_charges_read on "better_supabase"."invoice_charges"
 create table if not exists "better_supabase"."invoice_dunning_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "level" integer not null check ("level" between 1 and 20),
+  "level" integer not null check ("level" >= 1 and "level" <= 20),
   "days_after_due" integer not null check ("days_after_due" >= 0),
-  "template_key" text not null check (length("template_key") between 1 and 200),
-  "text_key" text check (length("text_key") between 1 and 200),
+  "template_key" text not null check (length("template_key") >= 1 and length("template_key") <= 200),
+  "text_key" text check (length("text_key") >= 1 and length("text_key") <= 200),
   "fee" bigint not null default 0 check ("fee" >= 0),
   "final" boolean not null default false,
   "created_at" timestamptz not null default now(),
@@ -372,7 +372,7 @@ create policy invoice_dunning_history_read on "better_supabase"."invoice_dunning
 create table if not exists "better_supabase"."invoice_allocations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "reference" text not null check (length("reference") between 1 and 200),
+  "reference" text not null check (length("reference") >= 1 and length("reference") <= 200),
   "party_id" text not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
   "source" text not null default 'payment' check ("source" in ('payment', 'credit')),
@@ -443,10 +443,10 @@ create table if not exists "better_supabase"."invoice_e_endpoints" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_kind" text not null check ("party_kind" in ('organization', 'legal_entity', 'company')),
-  "party_id" text not null check (length("party_id") between 1 and 150),
+  "party_id" text not null check (length("party_id") >= 1 and length("party_id") <= 150),
   -- The Electronic Address Scheme code from the Peppol EAS list, such as 0106.
   "scheme" text not null check ("scheme" ~ '^[0-9]{4}$'),
-  "endpoint_id" text not null check (length("endpoint_id") between 1 and 200),
+  "endpoint_id" text not null check (length("endpoint_id") >= 1 and length("endpoint_id") <= 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -466,9 +466,9 @@ create table if not exists "better_supabase"."e_invoice_deliveries" (
   "tenant_id" uuid not null,
   "invoice_id" uuid references "better_supabase"."invoices" ("id") on delete set null,
   "direction" text not null check ("direction" in ('outbound', 'inbound')),
-  "format" text check ("format" is null or length("format") between 1 and 100),
-  "channel" text not null check (length("channel") between 1 and 100),
-  "message_id" text not null check (length("message_id") between 1 and 300),
+  "format" text check ("format" is null or length("format") >= 1 and length("format") <= 100),
+  "channel" text not null check (length("channel") >= 1 and length("channel") <= 100),
+  "message_id" text not null check (length("message_id") >= 1 and length("message_id") <= 300),
   "state" text not null check ("state" in ('pending', 'delivered', 'rejected', 'received', 'unmatched')),
   "reason" text check ("reason" is null or length("reason") <= 2000),
   "document_hash" text check ("document_hash" is null or "document_hash" ~ '^[0-9a-f]{64}$'),
@@ -698,7 +698,7 @@ create table if not exists "better_supabase"."invoice_lines" (
   "parent_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
   "product_type" text,
   "product_id" text,
-  "description" text not null check (length("description") between 1 and 2000),
+  "description" text not null check (length("description") >= 1 and length("description") <= 2000),
   "quantity" numeric(18, 4) not null check ("quantity" > 0),
   "unit_amount" bigint not null,
   "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),

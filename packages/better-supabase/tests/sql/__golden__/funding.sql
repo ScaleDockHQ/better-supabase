@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:6b46b37b5ee90381951895d78318547ae958a58c620633db1e67cc3f80f076a1
+-- @bsb-hash sha256:b36d57fc53cb9d4e8cdff499916788cc0a8014ef5c7b2ba9c19d5c3474e19b59
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -96,8 +96,8 @@ create table if not exists "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") between 1 and 50),
-  "title" text not null check (length("title") between 1 and 300),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
   "rate" bigint not null check ("rate" >= 0),
@@ -159,7 +159,7 @@ create table if not exists "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.
@@ -1234,7 +1234,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:2b698c3b41634bcd5cc7b1775a81af4439a9acb3c2d41ba995b044e6218bb9c9
+-- @bsb-hash sha256:6abbfae938e7f5903f9ac26eb644ffd0b58de923d77f076e7c33ef40f544182e
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1346,8 +1346,8 @@ create table if not exists "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") between 1 and 50),
-  "title" text not null check (length("title") between 1 and 300),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
   "rate" bigint not null check ("rate" >= 0),
@@ -1409,7 +1409,7 @@ create table if not exists "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.
@@ -2757,7 +2757,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:646067f3b59bac78523894ed47e5c4114216e0e1426dbe97b4029b5a30633c0c
+-- @bsb-hash sha256:b9cbeeb6e95c0499808d5b7b80f2a17c4d317294c43b6a65c132d999b453f82e
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2857,8 +2857,8 @@ create table if not exists "app_private"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") between 1 and 50),
-  "title" text not null check (length("title") between 1 and 300),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
   "rate" bigint not null check ("rate" >= 0),
@@ -2920,7 +2920,7 @@ create table if not exists "app_private"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.
@@ -3995,7 +3995,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:f64a7f44c234707c74c7fd8279b59bc15306f2fb8fe2722f52b973b6078ced4b
+-- @bsb-hash sha256:b0c0ab216e619d3cb6b85ebcc40dac9f66de990bdc6067cb3f19a649a1d47285
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4090,8 +4090,8 @@ create table if not exists "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") between 1 and 50),
-  "title" text not null check (length("title") between 1 and 300),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
   "rate" bigint not null check ("rate" >= 0),
@@ -4153,7 +4153,7 @@ create table if not exists "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.
@@ -5392,7 +5392,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:6350166097e3d73f1e93519b69e6a9cdff1fb33d26bb1c058822d6cfb34ab6c9
+-- @bsb-hash sha256:9d96055ff2c51d738d349dc2ea140de2604d0e9102fa1ac4b1a45d30b2e24655
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5486,8 +5486,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.funding_products is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."funding_products" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."funding_products" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."funding_products" add column if not exists "code" text check (length("code") between 1 and 50);
-alter table "better_supabase"."funding_products" add column if not exists "title" text check (length("title") between 1 and 300);
+alter table "better_supabase"."funding_products" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 50);
+alter table "better_supabase"."funding_products" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
 alter table "better_supabase"."funding_products" add column if not exists "unit" text check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece'));
 alter table "better_supabase"."funding_products" add column if not exists "rate" bigint check ("rate" >= 0);
 alter table "better_supabase"."funding_products" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
@@ -5537,7 +5537,7 @@ create policy bsb_funding_awards_read on "better_supabase"."funding_awards"
 alter table "better_supabase"."funding_claims" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."funding_claims" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."funding_claims" add column if not exists "funder_id" uuid;
-alter table "better_supabase"."funding_claims" add column if not exists "number" text check (length("number") between 1 and 100);
+alter table "better_supabase"."funding_claims" add column if not exists "number" text check (length("number") >= 1 and length("number") <= 100);
 alter table "better_supabase"."funding_claims" add column if not exists "period_start" date;
 alter table "better_supabase"."funding_claims" add column if not exists "period_end" date;
 alter table "better_supabase"."funding_claims" add column if not exists "format" text check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$');
@@ -6592,7 +6592,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:d18eea1ea0980a19103a6b4367a00a4b626f2ed2e10cbd5753b4617bc7f1b7c2
+-- @bsb-hash sha256:daab7a22bc7543332f881417a0229c96908ea661777ed6a87f548480ba536816
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6687,8 +6687,8 @@ create table if not exists "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") between 1 and 50),
-  "title" text not null check (length("title") between 1 and 300),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
   "rate" bigint not null check ("rate" >= 0),
@@ -6750,7 +6750,7 @@ create table if not exists "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.

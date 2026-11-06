@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:2f28be0d09d2df8c62ee097a40c090d3657d1135e7b4f6b91b45ce7c3de6aabb
+-- @bsb-hash sha256:779aa83f6b90effc4470f2afafeddf0b856cce1be88a5765e7522b4b1364797d
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -95,8 +95,8 @@ create table if not exists "better_supabase"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") between 1 and 63),
-  "title" text not null check (length("title") between 1 and 300),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "location" text check ("location" is null or length("location") <= 500),
   "starts_at" timestamptz not null,
   "ends_at" timestamptz,
@@ -163,7 +163,7 @@ create table if not exists "better_supabase"."meeting_agenda_items" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "ordinal" integer not null check ("ordinal" > 0),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "notes" text check ("notes" is null or length("notes") <= 10000),
   "presenter_id" uuid,
   -- Minutes of this item, in Markdown.
@@ -190,7 +190,7 @@ create table if not exists "better_supabase"."meeting_decisions" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "agenda_item_id" uuid,
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "body" text check ("body" is null or length("body") <= 10000),
   "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
   "decided_by" uuid,
@@ -1239,7 +1239,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:ce87026efe53e869c110aab02cf392a2eb0b705847288adda03a037afab29f9c
+-- @bsb-hash sha256:045b7ac50b0c92443ab21e0a8efb53b1df17ec2eb92ee75fcc7d1f6c44189aba
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1350,8 +1350,8 @@ create table if not exists "better_supabase"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") between 1 and 63),
-  "title" text not null check (length("title") between 1 and 300),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "location" text check ("location" is null or length("location") <= 500),
   "starts_at" timestamptz not null,
   "ends_at" timestamptz,
@@ -1418,7 +1418,7 @@ create table if not exists "better_supabase"."meeting_agenda_items" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "ordinal" integer not null check ("ordinal" > 0),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "notes" text check ("notes" is null or length("notes") <= 10000),
   "presenter_id" uuid,
   -- Minutes of this item, in Markdown.
@@ -1445,7 +1445,7 @@ create table if not exists "better_supabase"."meeting_decisions" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "agenda_item_id" uuid,
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "body" text check ("body" is null or length("body") <= 10000),
   "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
   "decided_by" uuid,
@@ -2627,7 +2627,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:70d9a524e72263095b554e3114664aba561aa129f58e3a72cda83c6f552cc748
+-- @bsb-hash sha256:6c60ed94ce03aa54ed02704e6260b109d12e47a0c54c8b0d2a5ee0180aba72f7
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2726,8 +2726,8 @@ create table if not exists "app_private"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") between 1 and 63),
-  "title" text not null check (length("title") between 1 and 300),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "location" text check ("location" is null or length("location") <= 500),
   "starts_at" timestamptz not null,
   "ends_at" timestamptz,
@@ -2794,7 +2794,7 @@ create table if not exists "app_private"."meeting_agenda_items" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "ordinal" integer not null check ("ordinal" > 0),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "notes" text check ("notes" is null or length("notes") <= 10000),
   "presenter_id" uuid,
   -- Minutes of this item, in Markdown.
@@ -2821,7 +2821,7 @@ create table if not exists "app_private"."meeting_decisions" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "agenda_item_id" uuid,
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "body" text check ("body" is null or length("body") <= 10000),
   "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
   "decided_by" uuid,
@@ -3870,7 +3870,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:82336caab559205a5d44e4eb9762823674652169b516952a2b2daad01f366ab6
+-- @bsb-hash sha256:f733866f5a5c0ffc71155d8ab785c4c8604e94be2179db0e0d8fbc65fbfc41fa
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3964,8 +3964,8 @@ create table if not exists "better_supabase"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") between 1 and 63),
-  "title" text not null check (length("title") between 1 and 300),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "location" text check ("location" is null or length("location") <= 500),
   "starts_at" timestamptz not null,
   "ends_at" timestamptz,
@@ -4032,7 +4032,7 @@ create table if not exists "better_supabase"."meeting_agenda_items" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "ordinal" integer not null check ("ordinal" > 0),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "notes" text check ("notes" is null or length("notes") <= 10000),
   "presenter_id" uuid,
   -- Minutes of this item, in Markdown.
@@ -4059,7 +4059,7 @@ create table if not exists "better_supabase"."meeting_decisions" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "agenda_item_id" uuid,
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "body" text check ("body" is null or length("body") <= 10000),
   "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
   "decided_by" uuid,
@@ -5285,7 +5285,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:aa3194f924d89cb4deb67972db1ff21fdb321a4328648386e3daae965027cc08
+-- @bsb-hash sha256:877e60a622cb85abc8997cefc143c0ae2232e072c6d1d8f83c3e20869fd0b537
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5378,8 +5378,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.meetings is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."meetings" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."meetings" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."meetings" add column if not exists "kind" text check (length("kind") between 1 and 63);
-alter table "better_supabase"."meetings" add column if not exists "title" text check (length("title") between 1 and 300);
+alter table "better_supabase"."meetings" add column if not exists "kind" text check (length("kind") >= 1 and length("kind") <= 63);
+alter table "better_supabase"."meetings" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
 alter table "better_supabase"."meetings" add column if not exists "location" text check ("location" is null or length("location") <= 500);
 alter table "better_supabase"."meetings" add column if not exists "starts_at" timestamptz;
 alter table "better_supabase"."meetings" add column if not exists "ends_at" timestamptz;
@@ -5440,7 +5440,7 @@ alter table "better_supabase"."meeting_agenda_items" add column if not exists "i
 alter table "better_supabase"."meeting_agenda_items" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."meeting_agenda_items" add column if not exists "meeting_id" uuid;
 alter table "better_supabase"."meeting_agenda_items" add column if not exists "ordinal" integer check ("ordinal" > 0);
-alter table "better_supabase"."meeting_agenda_items" add column if not exists "title" text check (length("title") between 1 and 300);
+alter table "better_supabase"."meeting_agenda_items" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
 alter table "better_supabase"."meeting_agenda_items" add column if not exists "notes" text check ("notes" is null or length("notes") <= 10000);
 alter table "better_supabase"."meeting_agenda_items" add column if not exists "presenter_id" uuid;
 alter table "better_supabase"."meeting_agenda_items" add column if not exists "minutes" text check ("minutes" is null or length("minutes") <= 50000);
@@ -5463,7 +5463,7 @@ alter table "better_supabase"."meeting_decisions" add column if not exists "id" 
 alter table "better_supabase"."meeting_decisions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."meeting_decisions" add column if not exists "meeting_id" uuid;
 alter table "better_supabase"."meeting_decisions" add column if not exists "agenda_item_id" uuid;
-alter table "better_supabase"."meeting_decisions" add column if not exists "title" text check (length("title") between 1 and 300);
+alter table "better_supabase"."meeting_decisions" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
 alter table "better_supabase"."meeting_decisions" add column if not exists "body" text check ("body" is null or length("body") <= 10000);
 alter table "better_supabase"."meeting_decisions" add column if not exists "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred'));
 alter table "better_supabase"."meeting_decisions" add column if not exists "decided_by" uuid;
@@ -6503,7 +6503,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:e11c65d52507903729481275d110c08333c073062d000a39f90e2c1d4746bc17
+-- @bsb-hash sha256:845f9c784cc1d72e98e90d0dd08ccb60e3f65ee1fe42901471fd02e1b25c041a
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6597,8 +6597,8 @@ create table if not exists "better_supabase"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") between 1 and 63),
-  "title" text not null check (length("title") between 1 and 300),
+  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "location" text check ("location" is null or length("location") <= 500),
   "starts_at" timestamptz not null,
   "ends_at" timestamptz,
@@ -6665,7 +6665,7 @@ create table if not exists "better_supabase"."meeting_agenda_items" (
   "org_id" uuid not null,
   "meeting_id" uuid not null,
   "ordinal" integer not null check ("ordinal" > 0),
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "notes" text check ("notes" is null or length("notes") <= 10000),
   "presenter_id" uuid,
   -- Minutes of this item, in Markdown.
@@ -6692,7 +6692,7 @@ create table if not exists "better_supabase"."meeting_decisions" (
   "org_id" uuid not null,
   "meeting_id" uuid not null,
   "agenda_item_id" uuid,
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "body" text check ("body" is null or length("body") <= 10000),
   "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
   "decided_by" uuid,

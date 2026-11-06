@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:d70181d1453b280793bc39d4b14e62ec6f3e596b6672b4b2ba963ff34a3c635a
+-- @bsb-hash sha256:322a52f8446f1bc78c2f4a52b320ddd91d056339628bd2536dea56cd454af3a9
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -50,7 +50,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."push_devices" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "token" text not null unique check (length("token") between 1 and 4096),
+  "token" text not null unique check (length("token") >= 1 and length("token") <= 4096),
   "platform" text not null check ("platform" in ('ios', 'android', 'web')),
   "provider" text not null default 'expo' check ("provider" in ('expo', 'fcm', 'apns', 'webpush')),
   "device_name" text check (length("device_name") <= 200),
@@ -251,7 +251,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:df44477af3986efad812522972d428679a504f082cb1b9a6a1b4487e08f3fb89
+-- @bsb-hash sha256:803f2d1a341d30700b2d124dfbb52a486bebe366408f602e9854f5c80de525dd
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -300,7 +300,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."push_devices" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "token" text not null unique check (length("token") between 1 and 4096),
+  "token" text not null unique check (length("token") >= 1 and length("token") <= 4096),
   "platform" text not null check ("platform" in ('ios', 'android', 'web')),
   "provider" text not null default 'expo' check ("provider" in ('expo', 'fcm', 'apns', 'webpush')),
   "device_name" text check (length("device_name") <= 200),
@@ -692,7 +692,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:fb49b4cb85bf8326400615ecf254c12869d7db69969d67be6b3e66d1c52cf8a1
+-- @bsb-hash sha256:a12914bfa87a78d841c125ffc90c80a094b1c36cd931985378f80067c542de46
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -746,7 +746,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."push_devices" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "token" text not null unique check (length("token") between 1 and 4096),
+  "token" text not null unique check (length("token") >= 1 and length("token") <= 4096),
   "platform" text not null check ("platform" in ('ios', 'android', 'web')),
   "provider" text not null default 'expo' check ("provider" in ('expo', 'fcm', 'apns', 'webpush')),
   "device_name" text check (length("device_name") <= 200),
@@ -947,7 +947,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:639169bf0150a2992c640921b835153b5d73b5c5f2504b706c01e30a06944a47
+-- @bsb-hash sha256:af5c322cf38a3e86551956a100a0c97995cb1a4e4dee52cfbd691e94732042da
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -996,7 +996,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."push_devices" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "token" text not null unique check (length("token") between 1 and 4096),
+  "token" text not null unique check (length("token") >= 1 and length("token") <= 4096),
   "platform" text not null check ("platform" in ('ios', 'android', 'web')),
   "provider" text not null default 'expo' check ("provider" in ('expo', 'fcm', 'apns', 'webpush')),
   "device_name" text check (length("device_name") <= 200),
@@ -1259,7 +1259,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:94b54b6c055a35560ff5b9f4522da1163751a43ae6b1ee2150f06f2a42eaaeb7
+-- @bsb-hash sha256:489abb7f7b062d5d153d67b2816a1d5b4f4d6dff6232e764b06f40e36abf0fba
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1324,7 +1324,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.push_devices is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."push_devices" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."push_devices" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."push_devices" add column if not exists "token" text check (length("token") between 1 and 4096);
+alter table "better_supabase"."push_devices" add column if not exists "token" text check (length("token") >= 1 and length("token") <= 4096);
 alter table "better_supabase"."push_devices" add column if not exists "platform" text check ("platform" in ('ios', 'android', 'web'));
 alter table "better_supabase"."push_devices" add column if not exists "provider" text not null default 'expo' check ("provider" in ('expo', 'fcm', 'apns', 'webpush'));
 alter table "better_supabase"."push_devices" add column if not exists "device_name" text check (length("device_name") <= 200);

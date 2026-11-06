@@ -80,7 +80,7 @@ describe("attachments module", () => {
     expect(sql).toContain(
       `"mime_type" like 'image/%' or "mime_type" = 'application/pdf'`,
     );
-    expect(sql).toContain("between 0 and 1024");
+    expect(sql).toContain(`"size" >= 0 and "size" <= 1024`);
     expect(sql).toContain(`a."status" in ('pending', 'clean', 'failed')`);
     expect(sql).toContain(`"status" = 'clean'\n  where`);
     expect(sql).toMatch(/emit_event\('attachment\.uploaded'/);

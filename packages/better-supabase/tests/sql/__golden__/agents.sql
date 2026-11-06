@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:e3db6144fdc3ea7bcd1d14a784d003360961654898703c6caad0da9f3234d0d8
+-- @bsb-hash sha256:cc41ff0c9441dd68e3c205acbb1c8be5a0175d81704ef11d6718c5ceca7b81ed
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,7 +72,7 @@ create table if not exists "better_supabase"."agents" (
   "organization_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text not null default '' check (length("description") <= 2000),
   "instructions" text not null default '' check (length("instructions") <= 100000),
   "model" text,
@@ -120,7 +120,7 @@ create policy agent_installs_read on "better_supabase"."agent_installs"
 create table if not exists "better_supabase"."agent_ratings" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "comment" text check (length("comment") <= 2000),
   "created_at" timestamptz not null default now(),
   primary key ("agent_id", "user_id")
@@ -139,7 +139,7 @@ create policy agent_ratings_read on "better_supabase"."agent_ratings"
 create table if not exists "better_supabase"."agent_skills" (
   "id" uuid primary key default gen_random_uuid(),
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   -- Skill files kept in Storage (a list of {path, object}), the hash of their
   -- bytes, and the reference each provider returned for that hash.
@@ -568,7 +568,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:9d733aa89b73a38b437157be81efa0fbe7bce4b0d5d0d57b7eae0e356a208f6e
+-- @bsb-hash sha256:beb828328e40a6828a263136f52d12ab945b866e62e93577ae65ed68cc08562c
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -639,7 +639,7 @@ create table if not exists "better_supabase"."agents" (
   "organization_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text not null default '' check (length("description") <= 2000),
   "instructions" text not null default '' check (length("instructions") <= 100000),
   "model" text,
@@ -687,7 +687,7 @@ create policy agent_installs_read on "better_supabase"."agent_installs"
 create table if not exists "better_supabase"."agent_ratings" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "comment" text check (length("comment") <= 2000),
   "created_at" timestamptz not null default now(),
   primary key ("agent_id", "user_id")
@@ -706,7 +706,7 @@ create policy agent_ratings_read on "better_supabase"."agent_ratings"
 create table if not exists "better_supabase"."agent_skills" (
   "id" uuid primary key default gen_random_uuid(),
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   -- Skill files kept in Storage (a list of {path, object}), the hash of their
   -- bytes, and the reference each provider returned for that hash.
@@ -1194,7 +1194,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:e1c7ebec787b1e0e17129ab6fae9934f4b5219fd9bc7933df2823b18b296f4c9
+-- @bsb-hash sha256:de6db60aa2596d65134061c4c2dd64468f70541250b907fff8b6e189cb10abd1
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1270,7 +1270,7 @@ create table if not exists "app_private"."agents" (
   "organization_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text not null default '' check (length("description") <= 2000),
   "instructions" text not null default '' check (length("instructions") <= 100000),
   "model" text,
@@ -1318,7 +1318,7 @@ create policy agent_installs_read on "app_private"."agent_installs"
 create table if not exists "app_private"."agent_ratings" (
   "agent_id" uuid not null references "app_private"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "comment" text check (length("comment") <= 2000),
   "created_at" timestamptz not null default now(),
   primary key ("agent_id", "user_id")
@@ -1337,7 +1337,7 @@ create policy agent_ratings_read on "app_private"."agent_ratings"
 create table if not exists "app_private"."agent_skills" (
   "id" uuid primary key default gen_random_uuid(),
   "agent_id" uuid not null references "app_private"."agents" ("id") on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   -- Skill files kept in Storage (a list of {path, object}), the hash of their
   -- bytes, and the reference each provider returned for that hash.
@@ -1766,7 +1766,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:e33241856b0ba19d7aa36681b0aae819f88e4f093e56366782a6daae4d3a121a
+-- @bsb-hash sha256:f903aaef45a588d9a0fc4101f4ac460b2c8645c945003cc674a0188d6ed5a6ca
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1837,7 +1837,7 @@ create table if not exists "better_supabase"."agents" (
   "organization_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text not null default '' check (length("description") <= 2000),
   "instructions" text not null default '' check (length("instructions") <= 100000),
   "model" text,
@@ -1885,7 +1885,7 @@ create policy agent_installs_read on "better_supabase"."agent_installs"
 create table if not exists "better_supabase"."agent_ratings" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "comment" text check (length("comment") <= 2000),
   "created_at" timestamptz not null default now(),
   primary key ("agent_id", "user_id")
@@ -1904,7 +1904,7 @@ create policy agent_ratings_read on "better_supabase"."agent_ratings"
 create table if not exists "better_supabase"."agent_skills" (
   "id" uuid primary key default gen_random_uuid(),
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   -- Skill files kept in Storage (a list of {path, object}), the hash of their
   -- bytes, and the reference each provider returned for that hash.
@@ -2439,7 +2439,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:c9ac7d4ac038fe95a8423f811cd7e4f2b431ae59fab2857addb4cb7cb16a44be
+-- @bsb-hash sha256:3c288b5fd99087c51d1f40bb9db9a3147bbe0d03d2ffe47f6a353c210a999bed
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2526,7 +2526,7 @@ alter table "better_supabase"."agents" add column if not exists "id" uuid defaul
 alter table "better_supabase"."agents" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."agents" add column if not exists "owner_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."agents" add column if not exists "slug" text check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64);
-alter table "better_supabase"."agents" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."agents" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."agents" add column if not exists "description" text not null default '' check (length("description") <= 2000);
 alter table "better_supabase"."agents" add column if not exists "instructions" text not null default '' check (length("instructions") <= 100000);
 alter table "better_supabase"."agents" add column if not exists "model" text;
@@ -2569,7 +2569,7 @@ create policy bsb_agent_installs_select on "better_supabase"."agent_installs"
 -- better_supabase.agent_ratings is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."agent_ratings" add column if not exists "agent_id" uuid references "better_supabase"."agents" ("id") on delete cascade;
 alter table "better_supabase"."agent_ratings" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."agent_ratings" add column if not exists "rating" smallint check ("rating" between 1 and 5);
+alter table "better_supabase"."agent_ratings" add column if not exists "rating" smallint check ("rating" >= 1 and "rating" <= 5);
 alter table "better_supabase"."agent_ratings" add column if not exists "comment" text check (length("comment") <= 2000);
 alter table "better_supabase"."agent_ratings" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists agent_ratings_user_idx on "better_supabase"."agent_ratings" ("user_id");
@@ -2585,7 +2585,7 @@ create policy bsb_agent_ratings_select on "better_supabase"."agent_ratings"
 -- better_supabase.agent_skills is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."agent_skills" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."agent_skills" add column if not exists "agent_id" uuid references "better_supabase"."agents" ("id") on delete cascade;
-alter table "better_supabase"."agent_skills" add column if not exists "provider" text check (length("provider") between 1 and 100);
+alter table "better_supabase"."agent_skills" add column if not exists "provider" text check (length("provider") >= 1 and length("provider") <= 100);
 alter table "better_supabase"."agent_skills" add column if not exists "reference" jsonb check (jsonb_typeof("reference") = 'object');
 alter table "better_supabase"."agent_skills" add column if not exists "name" text;
 alter table "better_supabase"."agent_skills" add column if not exists "files" jsonb not null default '[]' check (jsonb_typeof("files") = 'array');
@@ -3010,7 +3010,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:3e21329f3eb9717462b528174a53ad0e00046f75559c92fe34bc4900642ebab6
+-- @bsb-hash sha256:ab22ba2d58d4521929c83cb1bc6ae35aed81769ce1df69a8fb634e582e4581a2
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3081,7 +3081,7 @@ create table if not exists "better_supabase"."agents" (
   "org_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
   "slug" text not null check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text not null default '' check (length("description") <= 2000),
   "instructions" text not null default '' check (length("instructions") <= 100000),
   "model" text,
@@ -3129,7 +3129,7 @@ create policy agent_installs_read on "better_supabase"."agent_installs"
 create table if not exists "better_supabase"."agent_ratings" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" between 1 and 5),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
   "comment" text check (length("comment") <= 2000),
   "created_at" timestamptz not null default now(),
   primary key ("agent_id", "user_id")
@@ -3148,7 +3148,7 @@ create policy agent_ratings_read on "better_supabase"."agent_ratings"
 create table if not exists "better_supabase"."agent_skills" (
   "id" uuid primary key default gen_random_uuid(),
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   -- Skill files kept in Storage (a list of {path, object}), the hash of their
   -- bytes, and the reference each provider returned for that hash.

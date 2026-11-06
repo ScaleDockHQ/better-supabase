@@ -1,6 +1,6 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:f4f36401a605935b115087fe3c6a221c7ddb44553afb4ade6d69840fd5e8773c
+-- @bsb-hash sha256:de32a62c6d7d3ee7239fef7257a075410316e0eae25f9b0efd1536c8fd082ba4
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."job_openings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "team_id" uuid,
   "location" text,
   "employment_type" text,
@@ -143,7 +143,7 @@ create table if not exists "better_supabase"."application_scorecards" (
   "application_id" uuid not null references "better_supabase"."applications" ("id") on delete cascade,
   "stage_id" uuid,
   "reviewer_user_id" uuid not null,
-  "rating" smallint not null check ("rating" between 1 and 4),
+  "rating" smallint not null check ("rating" >= 1 and "rating" <= 4),
   "recommendation" text not null check ("recommendation" in ('strong_no', 'no', 'yes', 'strong_yes')),
   "notes" text,
   "submitted_at" timestamptz not null default now(),

@@ -1,6 +1,6 @@
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:b88b269d165141c56fe96a352481f58d6eed03746558b1c32cdc76bdb722bbfe
+-- @bsb-hash sha256:5966a8085e19d42b5cf975654354f76edfed57db1dab119c8824d1ddedcf731a
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
 create table if not exists "better_supabase"."ai_cache_entries" (
-  "key" text primary key check (length("key") between 1 and 256),
+  "key" text primary key check (length("key") >= 1 and length("key") <= 256),
   "organization_id" uuid,
   "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other')),
   "model" text check (length("model") <= 200),

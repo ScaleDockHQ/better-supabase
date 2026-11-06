@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:3dfb153c05355ff2496b945e40ce1a1f2d8ce8c63190b8d9b3c6585259808df3
+-- @bsb-hash sha256:d4f77d6a6e17d80202a31e30e172663c1a43f78afb921d1c0bf089305f4fdd84
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -126,7 +126,7 @@ create table if not exists "better_supabase"."scim_users" (
   "workspace_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete set null,
   "external_id" text,
-  "user_name" text not null check (length("user_name") between 1 and 320),
+  "user_name" text not null check (length("user_name") >= 1 and length("user_name") <= 320),
   "display_name" text,
   "given_name" text,
   "family_name" text,
@@ -149,7 +149,7 @@ grant all on "better_supabase"."scim_users" to service_role;
 create table if not exists "better_supabase"."scim_groups" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
-  "display_name" text not null check (length("display_name") between 1 and 256),
+  "display_name" text not null check (length("display_name") >= 1 and length("display_name") <= 256),
   "external_id" text,
   "role" text,
   "version" integer not null default 1,

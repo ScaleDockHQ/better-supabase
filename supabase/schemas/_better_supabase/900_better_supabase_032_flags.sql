@@ -1,6 +1,6 @@
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:c76c31bfb2e49daaf9e541aec6f1f6da2768f2c1b94498072a7ad4d5ec5d10dd
+-- @bsb-hash sha256:267c27f6d005523b529bc91f6a1368251562dfa30b4e1280810cffe0d96b51c8
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,7 +72,7 @@ create table if not exists "better_supabase"."flags" (
   "enabled" boolean not null default true,
   "archived" boolean not null default false,
   "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "rollout_percentage" numeric(5, 2) not null default 0 check ("rollout_percentage" between 0 and 100),
+  "rollout_percentage" numeric(5, 2) not null default 0 check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100),
   "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array'),
   "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object'),
   "created_at" timestamptz not null default now(),
@@ -95,7 +95,7 @@ create table if not exists "better_supabase"."flag_overrides" (
   "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
   "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "context_key" text check (length("context_key") between 1 and 200),
+  "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200),
   "variant" text not null,
   "created_at" timestamptz not null default now(),
   constraint flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
@@ -103,7 +103,7 @@ create table if not exists "better_supabase"."flag_overrides" (
 );
 alter table "better_supabase"."flags" add column if not exists "archived" boolean not null default false;
 alter table "better_supabase"."flag_overrides" add column if not exists "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."flag_overrides" add column if not exists "context_key" text check (length("context_key") between 1 and 200);
+alter table "better_supabase"."flag_overrides" add column if not exists "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200);
 do $$
 declare
   v_name name;

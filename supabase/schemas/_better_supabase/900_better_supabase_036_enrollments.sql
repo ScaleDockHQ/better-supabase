@@ -1,6 +1,6 @@
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:255ce73e5f1df748ca456c8f4fcc65cb8ae57e5a0c9e7bbd43bb6047c57db13b
+-- @bsb-hash sha256:f1b55da9c61a9ed311951c0457e31257c91fb3767385c1a19f2c9cb59a66e870
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,7 @@ create table if not exists "better_supabase"."enrollment_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   -- The subject types it enrolls; empty enrolls any.
   "subject_types" text[] not null default '{}',
@@ -94,10 +94,10 @@ create table if not exists "better_supabase"."enrollment_programs" (
 create table if not exists "better_supabase"."enrollments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "program" text not null check (length("program") between 1 and 200),
+  "program" text not null check (length("program") >= 1 and length("program") <= 200),
   "program_version" integer,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   -- The program's step ids when it enrolled or last changed.
   "steps" text[] not null default '{}',
@@ -110,7 +110,7 @@ create table if not exists "better_supabase"."enrollments" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "paused_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
+  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200),
   "updated_at" timestamptz not null default now(),
   check (("subject_type" = 'user') = ("user_id" is not null)),
   check ("user_id" is null or "subject_id" = "user_id"::text),

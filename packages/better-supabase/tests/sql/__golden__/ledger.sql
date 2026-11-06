@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:582dc15b84a90a825389d8d3f153f6fbc279bafeacad1fe6a150266b08cc9f5c
+-- @bsb-hash sha256:c7c34f014ddc2d6ab92f1935bcae8254718216f61235742e6a57ab0d29112235
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,12 +92,12 @@ create table if not exists "better_supabase"."ledger_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "code" text not null check (length("code") between 1 and 200),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- An ISO 4217 code for money, or a custom unit such as item, days or points.
   "unit" text not null check ("unit" ~ '^([A-Z]{3}|[a-z][a-z0-9_]{0,31})$'),
   -- Decimal places of a custom unit: amounts are integers, 150 at scale 2 is 1.5.
-  "scale" smallint not null default 0 check ("scale" between 0 and 6),
+  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
   "holder_type" text,
   "holder_id" text,
   -- The member the account belongs to, who can read it without a permission.
@@ -1058,7 +1058,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:514551fdac65361e6cdaad32dbacb234d83a040d3d90dfdacf69e096a64432e3
+-- @bsb-hash sha256:c20f2caec1590429fee32c786bcfa08a12d2ff0ed08a6be2018c428d87e92f44
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1149,12 +1149,12 @@ create table if not exists "better_supabase"."ledger_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "code" text not null check (length("code") between 1 and 200),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- An ISO 4217 code for money, or a custom unit such as item, days or points.
   "unit" text not null check ("unit" ~ '^([A-Z]{3}|[a-z][a-z0-9_]{0,31})$'),
   -- Decimal places of a custom unit: amounts are integers, 150 at scale 2 is 1.5.
-  "scale" smallint not null default 0 check ("scale" between 0 and 6),
+  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
   "holder_type" text,
   "holder_id" text,
   -- The member the account belongs to, who can read it without a permission.
@@ -2162,7 +2162,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:727ff92c6e079d436fb061ddb46787a8a17153164c2532e0815ad2fe4ac1436a
+-- @bsb-hash sha256:216857675d8a7f5d78bb43aead5dde741ff913ca85a8c56e8353b83b1b44cbd2
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2258,12 +2258,12 @@ create table if not exists "app_private"."ledger_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "code" text not null check (length("code") between 1 and 200),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- An ISO 4217 code for money, or a custom unit such as item, days or points.
   "unit" text not null check ("unit" ~ '^([A-Z]{3}|[a-z][a-z0-9_]{0,31})$'),
   -- Decimal places of a custom unit: amounts are integers, 150 at scale 2 is 1.5.
-  "scale" smallint not null default 0 check ("scale" between 0 and 6),
+  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
   "holder_type" text,
   "holder_id" text,
   -- The member the account belongs to, who can read it without a permission.
@@ -3224,7 +3224,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:5fc6a91af348533a8e9790cd5a76a19c0296ebd85c54fdbd40850c067a3ad7c7
+-- @bsb-hash sha256:fa1baf8f6c35c8bb22777df3e18ac685cc13de393fbeff64330add83d8c7d5cf
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3315,12 +3315,12 @@ create table if not exists "better_supabase"."ledger_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "code" text not null check (length("code") between 1 and 200),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- An ISO 4217 code for money, or a custom unit such as item, days or points.
   "unit" text not null check ("unit" ~ '^([A-Z]{3}|[a-z][a-z0-9_]{0,31})$'),
   -- Decimal places of a custom unit: amounts are integers, 150 at scale 2 is 1.5.
-  "scale" smallint not null default 0 check ("scale" between 0 and 6),
+  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
   "holder_type" text,
   "holder_id" text,
   -- The member the account belongs to, who can read it without a permission.
@@ -4409,7 +4409,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:6bcdd8f87d08c2dffe32b76b02c9c4bbb51606d5dda596c6dd43806b6167ce74
+-- @bsb-hash sha256:140a17e0b6082e25ff42bba37250d11606aec2fb4aacc1d14d7351c603fb1cf0
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4516,10 +4516,10 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."ledger_accounts" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."ledger_accounts" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."ledger_accounts" add column if not exists "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."ledger_accounts" add column if not exists "code" text check (length("code") between 1 and 200);
-alter table "better_supabase"."ledger_accounts" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."ledger_accounts" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 200);
+alter table "better_supabase"."ledger_accounts" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."ledger_accounts" add column if not exists "unit" text check ("unit" ~ '^([A-Z]{3}|[a-z][a-z0-9_]{0,31})$');
-alter table "better_supabase"."ledger_accounts" add column if not exists "scale" smallint not null default 0 check ("scale" between 0 and 6);
+alter table "better_supabase"."ledger_accounts" add column if not exists "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6);
 alter table "better_supabase"."ledger_accounts" add column if not exists "holder_type" text;
 alter table "better_supabase"."ledger_accounts" add column if not exists "holder_id" text;
 alter table "better_supabase"."ledger_accounts" add column if not exists "owner_id" uuid;
@@ -5465,7 +5465,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:81e63e2b1a8e12e699932cfede4dea561d4bb491a142f3709853173f1fc83c1b
+-- @bsb-hash sha256:6a9bd955c9655007c20912033f3585001226d276413ef86b04fe4eddc7c8c4ea
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5556,12 +5556,12 @@ create table if not exists "better_supabase"."ledger_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "code" text not null check (length("code") between 1 and 200),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- An ISO 4217 code for money, or a custom unit such as item, days or points.
   "unit" text not null check ("unit" ~ '^([A-Z]{3}|[a-z][a-z0-9_]{0,31})$'),
   -- Decimal places of a custom unit: amounts are integers, 150 at scale 2 is 1.5.
-  "scale" smallint not null default 0 check ("scale" between 0 and 6),
+  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
   "holder_type" text,
   "holder_id" text,
   -- The member the account belongs to, who can read it without a permission.

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:bd89c084de935896aabb03bbf1fc3ca25941a5227acb9eae11fb9e7ba1c43ba1
+-- @bsb-hash sha256:fbd37813cf5fa5980cef5057538aa7e2ff144d794cd1da3eb39d864bb1fa5a74
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,10 +73,10 @@ create table if not exists "better_supabase"."ai_scheduled_tasks" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "agent_id" uuid,
-  "title" text not null check (length("title") between 1 and 200),
-  "prompt" text not null check (length("prompt") between 1 and 20000),
-  "cron" text not null check (length("cron") between 1 and 200),
-  "timezone" text not null default 'UTC' check (length("timezone") between 1 and 64),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "prompt" text not null check (length("prompt") >= 1 and length("prompt") <= 20000),
+  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
+  "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64),
   "enabled" boolean not null default true,
   "next_run_at" timestamptz,
   "last_run_at" timestamptz,
@@ -458,7 +458,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:fb801db355c4e8054142a8095371104d43054da80efbd7117a16c593dcb8d95b
+-- @bsb-hash sha256:7311aaa70c399f0a8269508cdbe59b2171fe95d56b9c499360a4ac762a4e2e3f
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -530,10 +530,10 @@ create table if not exists "better_supabase"."ai_scheduled_tasks" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "agent_id" uuid references "better_supabase"."agents" ("id") on delete set null,
-  "title" text not null check (length("title") between 1 and 200),
-  "prompt" text not null check (length("prompt") between 1 and 20000),
-  "cron" text not null check (length("cron") between 1 and 200),
-  "timezone" text not null default 'UTC' check (length("timezone") between 1 and 64),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "prompt" text not null check (length("prompt") >= 1 and length("prompt") <= 20000),
+  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
+  "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64),
   "enabled" boolean not null default true,
   "next_run_at" timestamptz,
   "last_run_at" timestamptz,
@@ -923,7 +923,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:a6a1322baa417b1910739668f8bee87f475c2ad09a11154501a4d822d66f67d4
+-- @bsb-hash sha256:39ef1826a351e956d5ea98ecd7b26182bebb032ed00a8f5c8a195f576050239a
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1000,10 +1000,10 @@ create table if not exists "app_private"."ai_scheduled_tasks" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "agent_id" uuid,
-  "title" text not null check (length("title") between 1 and 200),
-  "prompt" text not null check (length("prompt") between 1 and 20000),
-  "cron" text not null check (length("cron") between 1 and 200),
-  "timezone" text not null default 'UTC' check (length("timezone") between 1 and 64),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "prompt" text not null check (length("prompt") >= 1 and length("prompt") <= 20000),
+  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
+  "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64),
   "enabled" boolean not null default true,
   "next_run_at" timestamptz,
   "last_run_at" timestamptz,
@@ -1385,7 +1385,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:6b29799b277717290a79daaf82d69f3a88b872cbe358ad8d9e344af0bf0c7d95
+-- @bsb-hash sha256:bc1ae561499c98548d1897854007a94a95b35d2297dab9519cd73088c1cff719
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1457,10 +1457,10 @@ create table if not exists "better_supabase"."ai_scheduled_tasks" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "agent_id" uuid,
-  "title" text not null check (length("title") between 1 and 200),
-  "prompt" text not null check (length("prompt") between 1 and 20000),
-  "cron" text not null check (length("cron") between 1 and 200),
-  "timezone" text not null default 'UTC' check (length("timezone") between 1 and 64),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "prompt" text not null check (length("prompt") >= 1 and length("prompt") <= 20000),
+  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
+  "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64),
   "enabled" boolean not null default true,
   "next_run_at" timestamptz,
   "last_run_at" timestamptz,
@@ -1939,7 +1939,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:4b426c118004aed6d7ccf2440cd67582f96803f916a74cfe8f169f1bf75feb27
+-- @bsb-hash sha256:d1099b449d026cdae457b88c633a3c02431e3954133e1fda5a913d8fb35b18a0
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2027,10 +2027,10 @@ alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "org
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "chat_id" uuid;
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "agent_id" uuid;
-alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "title" text check (length("title") between 1 and 200);
-alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "prompt" text check (length("prompt") between 1 and 20000);
-alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "cron" text check (length("cron") between 1 and 200);
-alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "timezone" text not null default 'UTC' check (length("timezone") between 1 and 64);
+alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "prompt" text check (length("prompt") >= 1 and length("prompt") <= 20000);
+alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "cron" text check (length("cron") >= 1 and length("cron") <= 200);
+alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64);
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "enabled" boolean not null default true;
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "next_run_at" timestamptz;
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "last_run_at" timestamptz;
@@ -2408,7 +2408,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:977d18bd2d70631414fd5f4536e2a87c0f52a56ee942f3d020f6f74cd7f64f3b
+-- @bsb-hash sha256:f9c0ed3b2101ab9824aa1458c5b92c1facc2e1cdcda9392685c61c918aca85eb
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2480,10 +2480,10 @@ create table if not exists "better_supabase"."ai_scheduled_tasks" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "agent_id" uuid,
-  "title" text not null check (length("title") between 1 and 200),
-  "prompt" text not null check (length("prompt") between 1 and 20000),
-  "cron" text not null check (length("cron") between 1 and 200),
-  "timezone" text not null default 'UTC' check (length("timezone") between 1 and 64),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "prompt" text not null check (length("prompt") >= 1 and length("prompt") <= 20000),
+  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
+  "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64),
   "enabled" boolean not null default true,
   "next_run_at" timestamptz,
   "last_run_at" timestamptz,

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:249eeb5e270762a7a6269bdfe36c863683d9ab6975561d13d3afa92878fbf53b
+-- @bsb-hash sha256:1866f04e04487e433b1d1c9c45df2b8f0581526f9f2dbfa79315743e09eceeb3
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,7 +91,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "tz" text not null default 'UTC',
   "color" text,
   "owner_type" text,
@@ -265,7 +265,7 @@ begin
     where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_offset_check'
   ) then
     alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
-      check ("offset_minutes" between -525600 and 525600) not valid;
+      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
     begin
       alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_offset_check";
     exception when check_violation then
@@ -334,7 +334,7 @@ create table if not exists "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   "tz" text not null default 'UTC',
@@ -2070,7 +2070,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:8418903d82fc5fa669f0d8df2702334aaf39cc64854390ec5cbb1f9d0aaf928d
+-- @bsb-hash sha256:dd69bc9b91413d4ab96bed39e8cadf777c13c485fadb66adf9a4237345bb71e6
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2160,7 +2160,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "tz" text not null default 'UTC',
   "color" text,
   "owner_type" text,
@@ -2334,7 +2334,7 @@ begin
     where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_offset_check'
   ) then
     alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
-      check ("offset_minutes" between -525600 and 525600) not valid;
+      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
     begin
       alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_offset_check";
     exception when check_violation then
@@ -2403,7 +2403,7 @@ create table if not exists "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   "tz" text not null default 'UTC',
@@ -4240,7 +4240,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:939304e12e28801709357413b3d81474c4b65c2da20978d2c568c1f7e3361b90
+-- @bsb-hash sha256:b013593440c8d63eced4f804736b2e9120a549e63991fc368bcf262fa01a620b
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4335,7 +4335,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "tz" text not null default 'UTC',
   "color" text,
   "owner_type" text,
@@ -4509,7 +4509,7 @@ begin
     where conrelid = '"app_private"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_offset_check'
   ) then
     alter table "app_private"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
-      check ("offset_minutes" between -525600 and 525600) not valid;
+      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
     begin
       alter table "app_private"."calendar_event_alarms" validate constraint "calendar_event_alarms_offset_check";
     exception when check_violation then
@@ -4578,7 +4578,7 @@ create table if not exists "app_private"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   "tz" text not null default 'UTC',
@@ -6314,7 +6314,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:0e657a2d4e819a56443600b36e81c7c4dc2bd76d0e1e278c8ff0e65e5d797eed
+-- @bsb-hash sha256:5a4f1509656e51b76ba6f80c94ea87ad4b2df0a236e2f3865f44ab5a8a539c0a
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6404,7 +6404,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "tz" text not null default 'UTC',
   "color" text,
   "owner_type" text,
@@ -6578,7 +6578,7 @@ begin
     where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_offset_check'
   ) then
     alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
-      check ("offset_minutes" between -525600 and 525600) not valid;
+      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
     begin
       alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_offset_check";
     exception when check_violation then
@@ -6647,7 +6647,7 @@ create table if not exists "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   "tz" text not null default 'UTC',
@@ -8576,7 +8576,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:ca9ef14aa5f35ec4c3c5d147b4fb559a0fae9d4274afb8c33258cc41fbfd156e
+-- @bsb-hash sha256:142fda5a47f8de8fc96f9b1c57dea2d752bccad737764fcfabc095d6a61392e8
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8682,7 +8682,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.calendars is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."calendars" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."calendars" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."calendars" add column if not exists "name" text check (length("name") between 1 and 120);
+alter table "better_supabase"."calendars" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 120);
 alter table "better_supabase"."calendars" add column if not exists "tz" text not null default 'UTC';
 alter table "better_supabase"."calendars" add column if not exists "color" text;
 alter table "better_supabase"."calendars" add column if not exists "owner_type" text;
@@ -8820,7 +8820,7 @@ create policy bsb_calendar_event_alarms_select on "better_supabase"."calendar_ev
 alter table "better_supabase"."calendar_working_hours" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."calendar_working_hours" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."calendar_working_hours" add column if not exists "user_id" uuid;
-alter table "better_supabase"."calendar_working_hours" add column if not exists "weekday" smallint check ("weekday" between 1 and 7);
+alter table "better_supabase"."calendar_working_hours" add column if not exists "weekday" smallint check ("weekday" >= 1 and "weekday" <= 7);
 alter table "better_supabase"."calendar_working_hours" add column if not exists "starts_at" time;
 alter table "better_supabase"."calendar_working_hours" add column if not exists "ends_at" time;
 alter table "better_supabase"."calendar_working_hours" add column if not exists "tz" text not null default 'UTC';
@@ -10552,7 +10552,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:ac3cb3b665f5805bf8be3a53b76892ffa477247fcfb92126a13bea58576bf384
+-- @bsb-hash sha256:d841ed3a01c2879803e1fe6f625a89cf62558b6f0e7350e05a0352ffcdcb84df
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10642,7 +10642,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null check (length("name") >= 1 and length("name") <= 120),
   "tz" text not null default 'UTC',
   "color" text,
   "owner_type" text,
@@ -10816,7 +10816,7 @@ begin
     where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_offset_check'
   ) then
     alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
-      check ("offset_minutes" between -525600 and 525600) not valid;
+      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
     begin
       alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_offset_check";
     exception when check_violation then
@@ -10885,7 +10885,7 @@ create table if not exists "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid not null,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   "tz" text not null default 'UTC',

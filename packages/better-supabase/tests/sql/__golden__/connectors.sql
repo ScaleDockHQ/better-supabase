@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:47242c0731140532a426df09b44d0d6dd54aced3a3fdba826157f9612a39d6e5
+-- @bsb-hash sha256:40d1e4d03eaf4e95de86ad4bdca3043a218c406c5d7ab6509763366b8e194223
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -70,7 +70,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
   "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
   "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
@@ -146,7 +146,7 @@ create policy connector_sessions_read on "better_supabase"."connector_sessions"
 -- admin before an assistant may call it.
 create table if not exists "better_supabase"."connector_tool_fingerprints" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,
@@ -617,7 +617,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:c20ff6e27cf38d33a1a36b6b818171cac7507c440613908039e0642c40c4f41f
+-- @bsb-hash sha256:48ebf036a5ceac12c05869ef0d280bfb39c01c9a8feabbe076dd5d4c82f2918d
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -686,7 +686,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
   "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
   "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
@@ -762,7 +762,7 @@ create policy connector_sessions_read on "better_supabase"."connector_sessions"
 -- admin before an assistant may call it.
 create table if not exists "better_supabase"."connector_tool_fingerprints" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,
@@ -1292,7 +1292,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:794053e8dee6ec31aa0481b1e5bf5b53824dd55cb448ac5ed7eb3850d2586c24
+-- @bsb-hash sha256:bd86a1ddedd4017f1b5cfc9348897726a093c4b6262fc72fb3df80e7d8a5385a
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1366,7 +1366,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
   "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
   "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
@@ -1442,7 +1442,7 @@ create policy connector_sessions_read on "app_private"."connector_sessions"
 -- admin before an assistant may call it.
 create table if not exists "app_private"."connector_tool_fingerprints" (
   "server_id" uuid not null references "app_private"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,
@@ -1913,7 +1913,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:19ce12114534dc46482f9effbd63a38a4c5b38f92d3df6884ac360b08e1a3454
+-- @bsb-hash sha256:8ee16050c09ebbeea7349c65abae394dcf5555bae7f82430d0ca789e9292fdc2
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1982,7 +1982,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
   "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
   "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
@@ -2058,7 +2058,7 @@ create policy connector_sessions_read on "better_supabase"."connector_sessions"
 -- admin before an assistant may call it.
 create table if not exists "better_supabase"."connector_tool_fingerprints" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,
@@ -2673,7 +2673,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:eccdfaf34d1f7ee192b22f87cde5c1f176c122fe019adf96c06d84027259d6f1
+-- @bsb-hash sha256:44d116835e4a5258080ac2469fabfe857eacabc9d9798bfabae5fe1242c195eb
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2758,7 +2758,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.connector_servers is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."connector_servers" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."connector_servers" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."connector_servers" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."connector_servers" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."connector_servers" add column if not exists "url" text check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000);
 alter table "better_supabase"."connector_servers" add column if not exists "transport" text not null default 'http' check ("transport" in ('http', 'sse'));
 alter table "better_supabase"."connector_servers" add column if not exists "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header'));
@@ -2827,7 +2827,7 @@ create policy bsb_connector_sessions_select on "better_supabase"."connector_sess
 -- admin before an assistant may call it.
 -- better_supabase.connector_tool_fingerprints is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "server_id" uuid references "better_supabase"."connector_servers" ("id") on delete cascade;
-alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "fingerprint" text check (length("fingerprint") between 1 and 200);
+alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "fingerprint" text check (length("fingerprint") >= 1 and length("fingerprint") <= 200);
 alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object');
 alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected'));
 alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "approved_by" uuid references auth.users (id) on delete set null;
@@ -3296,7 +3296,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:7bfc29276e204e6ca982c7d914eb896405d1fe61dd0d6e0a415ae73b39c7a0c9
+-- @bsb-hash sha256:5d9915115e67e54f07749827b280d72dc815b90dc9e5232f3d2a998b739961d5
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3365,7 +3365,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
   "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
   "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
@@ -3441,7 +3441,7 @@ create policy connector_sessions_read on "better_supabase"."connector_sessions"
 -- admin before an assistant may call it.
 create table if not exists "better_supabase"."connector_tool_fingerprints" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
+  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,

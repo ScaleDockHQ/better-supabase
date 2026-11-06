@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:fbc237bbd74964f130f396a7a1ae5d93cf1ff68074d26747150e6f0fe4b69d0b
+-- @bsb-hash sha256:0fbbc5544943678a147c2edc71ef7238a362c22d860472d7be9585708630c604
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,8 +73,8 @@ create table if not exists "better_supabase"."checkout_sessions" (
   "cart_id" uuid not null,
   "protocol" text not null check ("protocol" in ('acp', 'ucp')),
   "status" text not null default 'open' check ("status" in ('open', 'ready', 'completed', 'canceled')),
-  "idempotency_key" text not null check (length("idempotency_key") between 1 and 255),
-  "request_hash" text not null check (length("request_hash") between 1 and 128),
+  "idempotency_key" text not null check (length("idempotency_key") >= 1 and length("idempotency_key") <= 255),
+  "request_hash" text not null check (length("request_hash") >= 1 and length("request_hash") <= 128),
   "buyer" jsonb,
   "order_id" uuid,
   "expires_at" timestamptz,
@@ -103,8 +103,8 @@ create table if not exists "better_supabase"."agent_mandates" (
   "session_id" uuid references "better_supabase"."checkout_sessions" ("id") on delete set null,
   "vct" text not null check ("vct" in ('mandate.checkout.open.1', 'mandate.checkout.1')),
   "status" text not null default 'active' check ("status" in ('active', 'consumed', 'revoked')),
-  "credential" text not null check (length("credential") between 1 and 16384),
-  "credential_hash" text not null check (length("credential_hash") between 1 and 128),
+  "credential" text not null check (length("credential") >= 1 and length("credential") <= 16384),
+  "credential_hash" text not null check (length("credential_hash") >= 1 and length("credential_hash") <= 128),
   "issuer_kid" text,
   "subject" text,
   "expires_at" timestamptz not null,

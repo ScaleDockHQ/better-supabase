@@ -1,6 +1,6 @@
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:2d401273778c2795a4b3a4586f64cfeb517085920bcb056ea95e9b3ee859b0cc
+-- @bsb-hash sha256:1a2012e7ea75e5d69bddc9899866ae55b72233328e251180c6595090a0b1aa41
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,7 +49,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."push_devices" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "token" text not null unique check (length("token") between 1 and 4096),
+  "token" text not null unique check (length("token") >= 1 and length("token") <= 4096),
   "platform" text not null check ("platform" in ('ios', 'android', 'web')),
   "provider" text not null default 'expo' check ("provider" in ('expo', 'fcm', 'apns', 'webpush')),
   "device_name" text check (length("device_name") <= 200),

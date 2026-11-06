@@ -38,7 +38,7 @@ describe("prompts module", () => {
 
   it("caps the template size", () => {
     expect(body({ prompts: { options: { maxBytes: 2048 } } })).toContain(
-      "between 1 and 2048",
+      "<= 2048",
     );
     expect(() => body({ prompts: { options: { maxBytes: 0 } } })).toThrow(
       /maxBytes/,

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:26b3f57629a7894c6308ef7b074dc16deabfb809d442c3cfce32e37ce3f595de
+-- @bsb-hash sha256:5e3d7ee07339b891d1e71b8d5fc6feacf6a4341a4ed8b34c89560c10fadf4462
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,7 +72,7 @@ create table if not exists "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") between 1 and 200),
+  "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
@@ -104,7 +104,7 @@ create table if not exists "better_supabase"."guest_grants" (
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
@@ -580,7 +580,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:e82be57b68c3be4f247d2e6f2cd59cdd8488ecae3185f52b6a84928da7c178c7
+-- @bsb-hash sha256:06bafc47cee6ace6a8cdeb12bb0c7641b6a35e6fea852716cda4f13fabc21863
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -651,7 +651,7 @@ create table if not exists "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") between 1 and 200),
+  "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
@@ -683,7 +683,7 @@ create table if not exists "better_supabase"."guest_grants" (
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
@@ -1223,7 +1223,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:11e81d806cf46c9ef5eb4c1868fcbf999ae5aa4a3e7d5899bd6f930a64346572
+-- @bsb-hash sha256:9995c1d12b1bd860170ef3a2138fc6d68f0e6b47282f4b22d712a867d3761717
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1299,7 +1299,7 @@ create table if not exists "app_private"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") between 1 and 200),
+  "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
@@ -1331,7 +1331,7 @@ create table if not exists "app_private"."guest_grants" (
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "app_private"."guests" ("id") on delete cascade,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
@@ -1807,7 +1807,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:56ede8fd661eec87586357cc4d3b8d91ba10e3146d02143f9b9696b7d33f589a
+-- @bsb-hash sha256:5f8c1dbb6f1a164fc8d084cf1df40e2c3ad61fcfce1e68c0cee1853038b5c2f6
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1878,7 +1878,7 @@ create table if not exists "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") between 1 and 200),
+  "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
@@ -1910,7 +1910,7 @@ create table if not exists "better_supabase"."guest_grants" (
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
@@ -2514,7 +2514,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:d42568c54ddc560577913fcf7a3c84f6b71cd7191561e789e8ba3d8a3f460e19
+-- @bsb-hash sha256:2512877f267a1ef8fea075e69769ab8aadfc8482da7fe17da32695abd6c791b6
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2601,7 +2601,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."guests" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."guests" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."guests" add column if not exists "email" text check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1);
-alter table "better_supabase"."guests" add column if not exists "name" text check ("name" is null or length("name") between 1 and 200);
+alter table "better_supabase"."guests" add column if not exists "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."guests" add column if not exists "user_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."guests" add column if not exists "party_type" text;
 alter table "better_supabase"."guests" add column if not exists "party_id" text;
@@ -2629,7 +2629,7 @@ alter table "better_supabase"."guest_grants" add column if not exists "id" uuid 
 alter table "better_supabase"."guest_grants" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."guest_grants" add column if not exists "guest_id" uuid references "better_supabase"."guests" ("id") on delete cascade;
 alter table "better_supabase"."guest_grants" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."guest_grants" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."guest_grants" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."guest_grants" add column if not exists "actions" text[] check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions"));
 alter table "better_supabase"."guest_grants" add column if not exists "granted_by" uuid;
 alter table "better_supabase"."guest_grants" add column if not exists "expires_at" timestamptz;
@@ -3103,7 +3103,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:d705fd084acb19bbf951c2059a977bddeae70766e681938793bbcdafdcd9cd5b
+-- @bsb-hash sha256:6487a562b6043087f1b2228940a13750652a8393f74745dd6c0ca9a0cfe304e2
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3174,7 +3174,7 @@ create table if not exists "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") between 1 and 200),
+  "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
@@ -3206,7 +3206,7 @@ create table if not exists "better_supabase"."guest_grants" (
   "org_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,

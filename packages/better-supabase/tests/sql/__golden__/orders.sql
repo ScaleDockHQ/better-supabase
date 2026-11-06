@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:c3b47d34e5766957b441dc27065823f29b345130c7887944a78b8eea5bbed55a
+-- @bsb-hash sha256:f4594efb85ab72831142c769bb626438fa43e1a8a7002c6ca0f447dc135f575f
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -159,7 +159,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "countries" text[] not null default '{}',
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "kind" text not null default 'flat' check ("kind" in ('flat', 'weight')),
@@ -213,7 +213,7 @@ create table if not exists "better_supabase"."cart_lines" (
   "tenant_id" uuid not null,
   "cart_id" uuid not null references "better_supabase"."carts" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" between 1 and 10000),
+  "quantity" integer not null check ("quantity" >= 1 and "quantity" <= 10000),
   "unit_amount" bigint check ("unit_amount" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -263,7 +263,7 @@ create table if not exists "better_supabase"."orders" (
   "cancelled_at" timestamptz,
   "cancel_reason" text,
   "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "origin_id" text check (length("origin_id") between 1 and 200),
+  "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
   "variant_label" text check (length("variant_label") <= 200),
@@ -311,8 +311,8 @@ create table if not exists "better_supabase"."order_lines" (
   "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" between 0 and "quantity"),
-  "quantity_returned" integer not null default 0 check ("quantity_returned" between 0 and "quantity"),
+  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index if not exists order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
@@ -2657,7 +2657,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:6c7ed7b59382c2fe9e8ed9d7e5dd2fc8adfc23e591942c982679ea0e7204e2ff
+-- @bsb-hash sha256:3b31336998a8f446484dadef73a68b823f9a2d69d8ce5660fe304c3c059640d7
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2815,7 +2815,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "countries" text[] not null default '{}',
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "kind" text not null default 'flat' check ("kind" in ('flat', 'weight')),
@@ -2869,7 +2869,7 @@ create table if not exists "better_supabase"."cart_lines" (
   "tenant_id" uuid not null,
   "cart_id" uuid not null references "better_supabase"."carts" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" between 1 and 10000),
+  "quantity" integer not null check ("quantity" >= 1 and "quantity" <= 10000),
   "unit_amount" bigint check ("unit_amount" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2919,7 +2919,7 @@ create table if not exists "better_supabase"."orders" (
   "cancelled_at" timestamptz,
   "cancel_reason" text,
   "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "origin_id" text check (length("origin_id") between 1 and 200),
+  "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
   "variant_label" text check (length("variant_label") <= 200),
@@ -2967,8 +2967,8 @@ create table if not exists "better_supabase"."order_lines" (
   "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" between 0 and "quantity"),
-  "quantity_returned" integer not null default 0 check ("quantity_returned" between 0 and "quantity"),
+  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index if not exists order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
@@ -5548,7 +5548,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:c7e5a2d00e26deba1584573890ccc880cb5e240ee3c56fad673aced6695faa9a
+-- @bsb-hash sha256:8c713522c903ca1cde8bbf7a8710498486e0afa6ae4854affa2e0695173c55d8
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5711,7 +5711,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "countries" text[] not null default '{}',
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "kind" text not null default 'flat' check ("kind" in ('flat', 'weight')),
@@ -5765,7 +5765,7 @@ create table if not exists "app_private"."cart_lines" (
   "tenant_id" uuid not null,
   "cart_id" uuid not null references "app_private"."carts" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" between 1 and 10000),
+  "quantity" integer not null check ("quantity" >= 1 and "quantity" <= 10000),
   "unit_amount" bigint check ("unit_amount" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -5815,7 +5815,7 @@ create table if not exists "app_private"."orders" (
   "cancelled_at" timestamptz,
   "cancel_reason" text,
   "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "origin_id" text check (length("origin_id") between 1 and 200),
+  "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
   "variant_of" uuid references "app_private"."orders" ("id") on delete set null,
   "variant_label" text check (length("variant_label") <= 200),
@@ -5863,8 +5863,8 @@ create table if not exists "app_private"."order_lines" (
   "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" between 0 and "quantity"),
-  "quantity_returned" integer not null default 0 check ("quantity_returned" between 0 and "quantity"),
+  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index if not exists order_lines_order_idx on "app_private"."order_lines" ("order_id");
@@ -8209,7 +8209,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:b0c1d902c4a3d81aed3f2692ec3a2dcc8ed2a777112545b1fdae8c1c0d5cdaf4
+-- @bsb-hash sha256:7f0ad189235b3de8f205b9ecf39368bc500bfa5006872143ff098b1a062b40d5
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8367,7 +8367,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "countries" text[] not null default '{}',
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "kind" text not null default 'flat' check ("kind" in ('flat', 'weight')),
@@ -8421,7 +8421,7 @@ create table if not exists "better_supabase"."cart_lines" (
   "tenant_id" uuid not null,
   "cart_id" uuid not null references "better_supabase"."carts" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" between 1 and 10000),
+  "quantity" integer not null check ("quantity" >= 1 and "quantity" <= 10000),
   "unit_amount" bigint check ("unit_amount" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -8471,7 +8471,7 @@ create table if not exists "better_supabase"."orders" (
   "cancelled_at" timestamptz,
   "cancel_reason" text,
   "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "origin_id" text check (length("origin_id") between 1 and 200),
+  "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
   "variant_label" text check (length("variant_label") <= 200),
@@ -8519,8 +8519,8 @@ create table if not exists "better_supabase"."order_lines" (
   "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" between 0 and "quantity"),
-  "quantity_returned" integer not null default 0 check ("quantity_returned" between 0 and "quantity"),
+  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index if not exists order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
@@ -11201,7 +11201,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:ad45556f3e91b624096831b7cec90c805907a78fb7449fa873ddb34c40dd0d09
+-- @bsb-hash sha256:b30997bd570c776251493a3c6e5e66c0434864002bf23ea17d02124598c59e09
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11374,7 +11374,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.order_shipping_rates is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."order_shipping_rates" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."order_shipping_rates" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."order_shipping_rates" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."order_shipping_rates" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."order_shipping_rates" add column if not exists "countries" text[] not null default '{}';
 alter table "better_supabase"."order_shipping_rates" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."order_shipping_rates" add column if not exists "kind" text not null default 'flat' check ("kind" in ('flat', 'weight'));
@@ -11424,7 +11424,7 @@ alter table "better_supabase"."cart_lines" add column if not exists "id" uuid de
 alter table "better_supabase"."cart_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."cart_lines" add column if not exists "cart_id" uuid references "better_supabase"."carts" ("id") on delete cascade;
 alter table "better_supabase"."cart_lines" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
-alter table "better_supabase"."cart_lines" add column if not exists "quantity" integer check ("quantity" between 1 and 10000);
+alter table "better_supabase"."cart_lines" add column if not exists "quantity" integer check ("quantity" >= 1 and "quantity" <= 10000);
 alter table "better_supabase"."cart_lines" add column if not exists "unit_amount" bigint check ("unit_amount" >= 0);
 alter table "better_supabase"."cart_lines" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."cart_lines" add column if not exists "updated_at" timestamptz not null default now();
@@ -11472,7 +11472,7 @@ alter table "better_supabase"."orders" add column if not exists "completed_at" t
 alter table "better_supabase"."orders" add column if not exists "cancelled_at" timestamptz;
 alter table "better_supabase"."orders" add column if not exists "cancel_reason" text;
 alter table "better_supabase"."orders" add column if not exists "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."orders" add column if not exists "origin_id" text check (length("origin_id") between 1 and 200);
+alter table "better_supabase"."orders" add column if not exists "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200);
 alter table "better_supabase"."orders" add column if not exists "buyer" jsonb;
 alter table "better_supabase"."orders" add column if not exists "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null;
 alter table "better_supabase"."orders" add column if not exists "variant_label" text check (length("variant_label") <= 200);
@@ -11516,8 +11516,8 @@ alter table "better_supabase"."order_lines" add column if not exists "bin_id" uu
 alter table "better_supabase"."order_lines" add column if not exists "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account'));
 alter table "better_supabase"."order_lines" add column if not exists "billing_party_id" text;
 alter table "better_supabase"."order_lines" add column if not exists "billing_account_id" uuid;
-alter table "better_supabase"."order_lines" add column if not exists "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" between 0 and "quantity");
-alter table "better_supabase"."order_lines" add column if not exists "quantity_returned" integer not null default 0 check ("quantity_returned" between 0 and "quantity");
+alter table "better_supabase"."order_lines" add column if not exists "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity");
+alter table "better_supabase"."order_lines" add column if not exists "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity");
 alter table "better_supabase"."order_lines" add column if not exists "backordered" boolean not null default false;
 create index if not exists order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
 create index if not exists order_lines_variant_idx on "better_supabase"."order_lines" ("variant_id");
@@ -13848,7 +13848,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:1498a115ec6ed87b2f1e75c5c546072c25012ce01899f3bcba30a2526276d682
+-- @bsb-hash sha256:2fef43324c03c701412623b530a7eade1630fd998c90cd517d640f5e39576186
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14006,7 +14006,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "countries" text[] not null default '{}',
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "kind" text not null default 'flat' check ("kind" in ('flat', 'weight')),
@@ -14060,7 +14060,7 @@ create table if not exists "better_supabase"."cart_lines" (
   "org_id" uuid not null,
   "cart_id" uuid not null references "better_supabase"."carts" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" between 1 and 10000),
+  "quantity" integer not null check ("quantity" >= 1 and "quantity" <= 10000),
   "unit_amount" bigint check ("unit_amount" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -14110,7 +14110,7 @@ create table if not exists "better_supabase"."orders" (
   "cancelled_at" timestamptz,
   "cancel_reason" text,
   "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "origin_id" text check (length("origin_id") between 1 and 200),
+  "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
   "variant_label" text check (length("variant_label") <= 200),
@@ -14158,8 +14158,8 @@ create table if not exists "better_supabase"."order_lines" (
   "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" between 0 and "quantity"),
-  "quantity_returned" integer not null default 0 check ("quantity_returned" between 0 and "quantity"),
+  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index if not exists order_lines_order_idx on "better_supabase"."order_lines" ("order_id");

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:f7cf0dcff9fb1ac972e87e8e34350fd4299e8d54f92d2d3c648ba994be8e568c
+-- @bsb-hash sha256:3abb1410b6ba63347a094943e7934974bbf06621626dd44fb0e236e796dfcc8e
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,23 +94,23 @@ create table if not exists "better_supabase"."courses" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "summary" text check ("summary" is null or length("summary") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
   "issues_certificate" boolean not null default true,
-  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240),
+  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
-alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240);
 
 create table if not exists "better_supabase"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "course_id" uuid not null references "better_supabase"."courses" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- A fractional rank key (ADR 0021): modules sort by it within the course.
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
@@ -123,7 +123,7 @@ create table if not exists "better_supabase"."course_lessons" (
   "tenant_id" uuid not null,
   "course_id" uuid not null references "better_supabase"."courses" ("id") on delete cascade,
   "module_id" uuid not null references "better_supabase"."course_modules" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "kind" text not null default 'content' check ("kind" in ('content', 'video', 'quiz')),
   -- The lesson's content, such as a rich-text document; only enrolled
   -- learners and the course's managers read it.
@@ -133,7 +133,7 @@ create table if not exists "better_supabase"."course_lessons" (
   "form_id" uuid,
   -- Required lessons are the steps of the course's enrollment program.
   "required" boolean not null default true,
-  "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" between 1 and 10000),
+  "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" >= 1 and "duration_minutes" <= 10000),
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1325,7 +1325,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:bb21b4115e1e7846e3c94ee5021a1d32ad25511bbf256720136c4d239a3c1117
+-- @bsb-hash sha256:a4cd3c1958137138f644714a6b505e817a84cd8483cf6bb1b3ee60efae3a91c6
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1418,23 +1418,23 @@ create table if not exists "better_supabase"."courses" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "summary" text check ("summary" is null or length("summary") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
   "issues_certificate" boolean not null default true,
-  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240),
+  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
-alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240);
 
 create table if not exists "better_supabase"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "course_id" uuid not null references "better_supabase"."courses" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- A fractional rank key (ADR 0021): modules sort by it within the course.
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
@@ -1447,7 +1447,7 @@ create table if not exists "better_supabase"."course_lessons" (
   "tenant_id" uuid not null,
   "course_id" uuid not null references "better_supabase"."courses" ("id") on delete cascade,
   "module_id" uuid not null references "better_supabase"."course_modules" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "kind" text not null default 'content' check ("kind" in ('content', 'video', 'quiz')),
   -- The lesson's content, such as a rich-text document; only enrolled
   -- learners and the course's managers read it.
@@ -1457,7 +1457,7 @@ create table if not exists "better_supabase"."course_lessons" (
   "form_id" uuid,
   -- Required lessons are the steps of the course's enrollment program.
   "required" boolean not null default true,
-  "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" between 1 and 10000),
+  "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" >= 1 and "duration_minutes" <= 10000),
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2792,7 +2792,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:9eb7a040baafee190003e83da1682e5ad9fd07e5b1b670ca6952903dbbddbeb6
+-- @bsb-hash sha256:de4160ac8229cf942db5e0efb5735d4fbdc76f75f4f10d9654a3b5b6a798cd0d
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2890,23 +2890,23 @@ create table if not exists "app_private"."courses" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "summary" text check ("summary" is null or length("summary") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
   "issues_certificate" boolean not null default true,
-  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240),
+  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
-alter table "app_private"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
+alter table "app_private"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240);
 
 create table if not exists "app_private"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "course_id" uuid not null references "app_private"."courses" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- A fractional rank key (ADR 0021): modules sort by it within the course.
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
@@ -2919,7 +2919,7 @@ create table if not exists "app_private"."course_lessons" (
   "tenant_id" uuid not null,
   "course_id" uuid not null references "app_private"."courses" ("id") on delete cascade,
   "module_id" uuid not null references "app_private"."course_modules" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "kind" text not null default 'content' check ("kind" in ('content', 'video', 'quiz')),
   -- The lesson's content, such as a rich-text document; only enrolled
   -- learners and the course's managers read it.
@@ -2929,7 +2929,7 @@ create table if not exists "app_private"."course_lessons" (
   "form_id" uuid,
   -- Required lessons are the steps of the course's enrollment program.
   "required" boolean not null default true,
-  "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" between 1 and 10000),
+  "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" >= 1 and "duration_minutes" <= 10000),
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -4121,7 +4121,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:2b0d69ad180665600a973825eb1d029433a06532385c5c6bd36446cc1637ea5d
+-- @bsb-hash sha256:025db92be63085d99f04070d349336ed5c0099545a7ab3d9832bc042d55c6ee6
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4214,23 +4214,23 @@ create table if not exists "better_supabase"."courses" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "summary" text check ("summary" is null or length("summary") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
   "issues_certificate" boolean not null default true,
-  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240),
+  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
-alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240);
 
 create table if not exists "better_supabase"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "course_id" uuid not null references "better_supabase"."courses" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- A fractional rank key (ADR 0021): modules sort by it within the course.
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
@@ -4243,7 +4243,7 @@ create table if not exists "better_supabase"."course_lessons" (
   "tenant_id" uuid not null,
   "course_id" uuid not null references "better_supabase"."courses" ("id") on delete cascade,
   "module_id" uuid not null references "better_supabase"."course_modules" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "kind" text not null default 'content' check ("kind" in ('content', 'video', 'quiz')),
   -- The lesson's content, such as a rich-text document; only enrolled
   -- learners and the course's managers read it.
@@ -4253,7 +4253,7 @@ create table if not exists "better_supabase"."course_lessons" (
   "form_id" uuid,
   -- Required lessons are the steps of the course's enrollment program.
   "required" boolean not null default true,
-  "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" between 1 and 10000),
+  "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" >= 1 and "duration_minutes" <= 10000),
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -5627,7 +5627,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:084a0083467368c16e602a1f773dc199b2874724e070d9e161899435520435dc
+-- @bsb-hash sha256:5ef3fa721edb9ddf521b386f8038cfa8c8cc738c7a5aa8b5d99a1828c66d38da
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5736,22 +5736,22 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."courses" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."courses" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."courses" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9-]{0,62}$');
-alter table "better_supabase"."courses" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."courses" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."courses" add column if not exists "summary" text check ("summary" is null or length("summary") <= 2000);
 alter table "better_supabase"."courses" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived'));
 alter table "better_supabase"."courses" add column if not exists "issues_certificate" boolean not null default true;
-alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240);
 alter table "better_supabase"."courses" add column if not exists "created_by" uuid;
 alter table "better_supabase"."courses" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."courses" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_courses_key_key" on "better_supabase"."courses" ("tenant_id", "key");
-alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240);
 
 -- better_supabase.course_modules is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."course_modules" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."course_modules" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."course_modules" add column if not exists "course_id" uuid references "better_supabase"."courses" ("id") on delete cascade;
-alter table "better_supabase"."course_modules" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."course_modules" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."course_modules" add column if not exists "rank" text collate "C";
 alter table "better_supabase"."course_modules" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."course_modules" add column if not exists "updated_at" timestamptz not null default now();
@@ -5762,13 +5762,13 @@ alter table "better_supabase"."course_lessons" add column if not exists "id" uui
 alter table "better_supabase"."course_lessons" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."course_lessons" add column if not exists "course_id" uuid references "better_supabase"."courses" ("id") on delete cascade;
 alter table "better_supabase"."course_lessons" add column if not exists "module_id" uuid references "better_supabase"."course_modules" ("id") on delete cascade;
-alter table "better_supabase"."course_lessons" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."course_lessons" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."course_lessons" add column if not exists "kind" text not null default 'content' check ("kind" in ('content', 'video', 'quiz'));
 alter table "better_supabase"."course_lessons" add column if not exists "body" jsonb;
 alter table "better_supabase"."course_lessons" add column if not exists "media_url" text check ("media_url" is null or ("media_url" ~ '^https?://' and length("media_url") <= 2000));
 alter table "better_supabase"."course_lessons" add column if not exists "form_id" uuid;
 alter table "better_supabase"."course_lessons" add column if not exists "required" boolean not null default true;
-alter table "better_supabase"."course_lessons" add column if not exists "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" between 1 and 10000);
+alter table "better_supabase"."course_lessons" add column if not exists "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" >= 1 and "duration_minutes" <= 10000);
 alter table "better_supabase"."course_lessons" add column if not exists "rank" text collate "C";
 alter table "better_supabase"."course_lessons" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."course_lessons" add column if not exists "updated_at" timestamptz not null default now();
@@ -6951,7 +6951,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:5261565c20a2341e2782f4f0f879eb4f113c9918ce58476ce14f4ed2bb164af5
+-- @bsb-hash sha256:376116a83519c1d96807de2ca8ca6778dcd30f8a575863f5c01731ede299a7ce
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7044,23 +7044,23 @@ create table if not exists "better_supabase"."courses" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "summary" text check ("summary" is null or length("summary") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
   "issues_certificate" boolean not null default true,
-  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240),
+  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "key")
 );
-alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240);
 
 create table if not exists "better_supabase"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "course_id" uuid not null references "better_supabase"."courses" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   -- A fractional rank key (ADR 0021): modules sort by it within the course.
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
@@ -7073,7 +7073,7 @@ create table if not exists "better_supabase"."course_lessons" (
   "org_id" uuid not null,
   "course_id" uuid not null references "better_supabase"."courses" ("id") on delete cascade,
   "module_id" uuid not null references "better_supabase"."course_modules" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "kind" text not null default 'content' check ("kind" in ('content', 'video', 'quiz')),
   -- The lesson's content, such as a rich-text document; only enrolled
   -- learners and the course's managers read it.
@@ -7083,7 +7083,7 @@ create table if not exists "better_supabase"."course_lessons" (
   "form_id" uuid,
   -- Required lessons are the steps of the course's enrollment program.
   "required" boolean not null default true,
-  "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" between 1 and 10000),
+  "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" >= 1 and "duration_minutes" <= 10000),
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),

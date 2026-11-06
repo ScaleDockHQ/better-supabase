@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:139ad5744c9f1db41930708ed73565a690934437a7bbe5f0f43edfe4551bca2b
+-- @bsb-hash sha256:56e7c7089922cb0d34678d0dfc83c3cbe608d8f22a5723bdf9c191aa4de3c3d9
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,12 +79,12 @@ create table if not exists "better_supabase"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
   "first_response_minutes" integer check ("first_response_minutes" > 0),
   "next_response_minutes" integer check ("next_response_minutes" > 0),
   "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
+  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
   "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,

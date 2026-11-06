@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:bc6fae6ead116fd89fcf48972fe3d536041efdf94b2d967c55c69c9a9cfdafe9
+-- @bsb-hash sha256:bca887311861e4511e2ca5ff8d142b54adbdbf8be01d18f04f42a6efaaae72f1
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,13 +79,13 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
   "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") between 1 and 100),
+  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100),
   "form" text check ("form" is null or length("form") <= 100),
   "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") between 1 and 50),
+  "unit" text not null check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -108,7 +108,7 @@ create table if not exists "better_supabase"."medication_orders" (
   "subject_id" text not null,
   "medication_id" uuid not null,
   "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") between 1 and 50),
+  "dose_unit" text not null check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
   "route" text check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
@@ -1430,7 +1430,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:e1e4dc390f4caa06a16319bf4a99ed66bdfb0442d0da96d298d5b4b189e8534f
+-- @bsb-hash sha256:6213e19d683f77a547f00403e0600c55f5a43cb0a98136abe755f379c8ff411f
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1525,13 +1525,13 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
   "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") between 1 and 100),
+  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100),
   "form" text check ("form" is null or length("form") <= 100),
   "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") between 1 and 50),
+  "unit" text not null check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -1554,7 +1554,7 @@ create table if not exists "better_supabase"."medication_orders" (
   "subject_id" text not null,
   "medication_id" uuid not null,
   "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") between 1 and 50),
+  "dose_unit" text not null check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
   "route" text check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
@@ -3010,7 +3010,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:1998b173c4e96b1dad2e678b7ce72608332bbcff97cbdc5fd7922c070f323924
+-- @bsb-hash sha256:ca8de18e9f057b8dc4fb6e793729515032da33cd9a46a01356824bcebd318257
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3093,13 +3093,13 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
   "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") between 1 and 100),
+  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100),
   "form" text check ("form" is null or length("form") <= 100),
   "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") between 1 and 50),
+  "unit" text not null check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -3122,7 +3122,7 @@ create table if not exists "app_private"."medication_orders" (
   "subject_id" text not null,
   "medication_id" uuid not null,
   "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") between 1 and 50),
+  "dose_unit" text not null check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
   "route" text check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
@@ -4444,7 +4444,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:ab259475ce6b55401b32cd1db67c9b418896b32a64ea14f3f663fdb38845a530
+-- @bsb-hash sha256:212a4094ca00bef9f411a79529e6c030aea93e02b5cb758923538abf3b693587
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4522,13 +4522,13 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
   "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") between 1 and 100),
+  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100),
   "form" text check ("form" is null or length("form") <= 100),
   "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") between 1 and 50),
+  "unit" text not null check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -4551,7 +4551,7 @@ create table if not exists "better_supabase"."medication_orders" (
   "subject_id" text not null,
   "medication_id" uuid not null,
   "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") between 1 and 50),
+  "dose_unit" text not null check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
   "route" text check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
@@ -6049,7 +6049,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:107406d733b7352daef048dcac8bc247b5cedd72448508dca6bda6dd38f96f01
+-- @bsb-hash sha256:6e5003dc1ad2f9489e44df35f3ebb7bdfbf685426af7070d6a0ae53757a11959
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6127,12 +6127,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.medications is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."medications" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."medications" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."medications" add column if not exists "name" text check (length("name") between 1 and 300);
+alter table "better_supabase"."medications" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 300);
 alter table "better_supabase"."medications" add column if not exists "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom'));
-alter table "better_supabase"."medications" add column if not exists "code" text check ("code" is null or length("code") between 1 and 100);
+alter table "better_supabase"."medications" add column if not exists "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100);
 alter table "better_supabase"."medications" add column if not exists "form" text check ("form" is null or length("form") <= 100);
 alter table "better_supabase"."medications" add column if not exists "strength" text check ("strength" is null or length("strength") <= 100);
-alter table "better_supabase"."medications" add column if not exists "unit" text check (length("unit") between 1 and 50);
+alter table "better_supabase"."medications" add column if not exists "unit" text check (length("unit") >= 1 and length("unit") <= 50);
 alter table "better_supabase"."medications" add column if not exists "high_risk" boolean not null default false;
 alter table "better_supabase"."medications" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."medications" add column if not exists "created_at" timestamptz not null default now();
@@ -6151,7 +6151,7 @@ alter table "better_supabase"."medication_orders" add column if not exists "subj
 alter table "better_supabase"."medication_orders" add column if not exists "subject_id" text;
 alter table "better_supabase"."medication_orders" add column if not exists "medication_id" uuid;
 alter table "better_supabase"."medication_orders" add column if not exists "dose" numeric check ("dose" > 0);
-alter table "better_supabase"."medication_orders" add column if not exists "dose_unit" text check (length("dose_unit") between 1 and 50);
+alter table "better_supabase"."medication_orders" add column if not exists "dose_unit" text check (length("dose_unit") >= 1 and length("dose_unit") <= 50);
 alter table "better_supabase"."medication_orders" add column if not exists "route" text check ("route" is null or length("route") <= 100);
 alter table "better_supabase"."medication_orders" add column if not exists "schedule" jsonb;
 alter table "better_supabase"."medication_orders" add column if not exists "as_needed" boolean not null default false;
@@ -7458,7 +7458,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:a46b54b3386033c7edb26a7bcdfff9c8a17e07c13c4f4936cf4204cb5bb9b1e5
+-- @bsb-hash sha256:b890de534c9fdddf8c6090dcbc505d17ac116bf3ddc796d5ab9479327612fff4
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7536,13 +7536,13 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
   "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") between 1 and 100),
+  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100),
   "form" text check ("form" is null or length("form") <= 100),
   "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") between 1 and 50),
+  "unit" text not null check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -7565,7 +7565,7 @@ create table if not exists "better_supabase"."medication_orders" (
   "subject_id" text not null,
   "medication_id" uuid not null,
   "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") between 1 and 50),
+  "dose_unit" text not null check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
   "route" text check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.

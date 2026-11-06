@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:4451a25428fe6452599265316085638a037f259004b0bfa40fb2e9c2614c8794
+-- @bsb-hash sha256:295b309a658ab846a8c5ebecb8ea1d0508ca8b4e898c72c7c5151e8d2984f516
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -71,7 +71,7 @@ create table if not exists "better_supabase"."signature_requests" (
   "subject_id" text not null,
   "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
   "content_hash" text not null,
-  "signers" uuid[] not null check (cardinality("signers") between 1 and 20 and array_position("signers", null) is null),
+  "signers" uuid[] not null check (cardinality("signers") >= 1 and cardinality("signers") <= 20 and array_position("signers", null) is null),
   "sign_order" text not null default 'parallel' check ("sign_order" in ('parallel', 'sequential')),
   "status" text not null default 'pending' check ("status" in ('pending', 'completed', 'declined', 'cancelled')),
   "approval_request_id" uuid,
@@ -101,7 +101,7 @@ create table if not exists "better_supabase"."signatures" (
   "tenant_id" uuid not null,
   "signer" uuid not null,
   "method" text not null check ("method" in ('drawn', 'typed', 'click')),
-  "typed_name" text check ("typed_name" is null or length("typed_name") between 1 and 200),
+  "typed_name" text check ("typed_name" is null or length("typed_name") >= 1 and length("typed_name") <= 200),
   "image_attachment_id" uuid,
   "signed_hash" text not null,
   "ip" text check ("ip" is null or length("ip") <= 64),

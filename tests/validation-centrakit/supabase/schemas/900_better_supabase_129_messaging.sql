@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:dcd2d4a5db834849ad5df05d719e1972a1b9c8998f6f8b5dd770a0cfbd4c8406
+-- @bsb-hash sha256:2b89ef2587af8e4a3dd6f8d55b6a96870d1a84128c893c7c1c10a81b70822078
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -132,7 +132,7 @@ create table if not exists "better_supabase"."conversations" (
   "access" text not null default 'members' check ("access" in ('members', 'tenant', 'subject')),
   "subject_type" text,
   "subject_id" text,
-  "title" text check ("title" is null or length("title") between 1 and 200),
+  "title" text check ("title" is null or length("title") >= 1 and length("title") <= 200),
   "member_key" text,
   "created_by" uuid,
   "last_message_at" timestamptz,
@@ -323,7 +323,7 @@ create table if not exists "better_supabase"."thread_summaries" (
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
   "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
-  "summary" text not null check (char_length("summary") between 1 and 20000),
+  "summary" text not null check (char_length("summary") >= 1 and char_length("summary") <= 20000),
   "model" text check (char_length("model") <= 200),
   "message_count" integer not null default 0 check ("message_count" >= 0),
   "through_at" timestamptz not null,

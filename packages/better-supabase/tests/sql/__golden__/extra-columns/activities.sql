@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:ba11321fb021c6c10215bb1339fab0b8b251d564044274e6c7a3449455a158c3
+-- @bsb-hash sha256:370d2c365b5b275a09d326c66137bd0f9e98c022644749a6db8f5de19969b15d
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,7 +69,7 @@ create table if not exists "better_supabase"."activities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type" text not null,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "outcome" text,
   "owner_user_id" uuid,
@@ -89,13 +89,13 @@ alter table "better_supabase"."activities" add column if not exists "app_note" t
 -- in-error flag.
 alter table "better_supabase"."activities" add column if not exists "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'));
 alter table "better_supabase"."activities" add column if not exists "restricted_roles" text[];
-alter table "better_supabase"."activities" add column if not exists "category" text check (length("category") between 1 and 63);
+alter table "better_supabase"."activities" add column if not exists "category" text check (length("category") >= 1 and length("category") <= 63);
 alter table "better_supabase"."activities" add column if not exists "locked_at" timestamptz;
 alter table "better_supabase"."activities" add column if not exists "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade;
 alter table "better_supabase"."activities" add column if not exists "goal_id" uuid;
 alter table "better_supabase"."activities" add column if not exists "marked_error_at" timestamptz;
 alter table "better_supabase"."activities" add column if not exists "marked_error_by" uuid;
-alter table "better_supabase"."activities" add column if not exists "marked_error_reason" text check (length("marked_error_reason") between 1 and 2000);
+alter table "better_supabase"."activities" add column if not exists "marked_error_reason" text check (length("marked_error_reason") >= 1 and length("marked_error_reason") <= 2000);
 create index if not exists "activities_amends_idx" on "better_supabase"."activities" ("amends_id");
 alter table "better_supabase"."activities" enable row level security;
 revoke all on "better_supabase"."activities" from public, anon, authenticated;

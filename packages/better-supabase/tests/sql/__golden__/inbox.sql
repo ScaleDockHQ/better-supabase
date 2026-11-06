@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:5ff9d5ef2b3f1da7ebf9fe6f9d6e4d958b497a372ecb4acc26fa5d873069e7c3
+-- @bsb-hash sha256:cb5934cf311bb6a8e96d45d17c330433afafce98dbf7d736dce564363e8c5c7d
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -134,7 +134,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."inboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
   "channel_address" text,
   "installation_id" uuid,
@@ -302,7 +302,7 @@ create policy inbox_message_deliveries_staff_read on "better_supabase"."inbox_me
 create table if not exists "better_supabase"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "adapter" text not null check (length("adapter") between 1 and 100),
+  "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
   "external_id" text,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete set null,
   "headers" jsonb not null default '{}'::jsonb,
@@ -328,7 +328,7 @@ create table if not exists "better_supabase"."inbox_message_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null,
   "language" text not null default 'en',
   "body" text not null,
@@ -2588,7 +2588,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:ff563ddedc54b41aaa3598d36ade6b3e11935826a4cfd67bc265fd23b7709fbf
+-- @bsb-hash sha256:5511286db0ad79dbff128132dcff1df0b8f6e34579872f920ed13b89b9dac2ce
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2738,7 +2738,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."inboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
   "channel_address" text,
   "installation_id" uuid,
@@ -2906,7 +2906,7 @@ create policy inbox_message_deliveries_staff_read on "better_supabase"."inbox_me
 create table if not exists "better_supabase"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "adapter" text not null check (length("adapter") between 1 and 100),
+  "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
   "external_id" text,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete set null,
   "headers" jsonb not null default '{}'::jsonb,
@@ -2932,7 +2932,7 @@ create table if not exists "better_supabase"."inbox_message_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null,
   "language" text not null default 'en',
   "body" text not null,
@@ -5335,7 +5335,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:c36e000d4d80557b47e92fa1d829bb461323d7e3d8dae325749bdfb855d81116
+-- @bsb-hash sha256:95c23b3b3352346ddeb32033e2c814e53c959268aa639d578731c93b0f9afb3d
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5473,7 +5473,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table if not exists "app_private"."inboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
   "channel_address" text,
   "installation_id" uuid,
@@ -5641,7 +5641,7 @@ create policy inbox_message_deliveries_staff_read on "app_private"."inbox_messag
 create table if not exists "app_private"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "adapter" text not null check (length("adapter") between 1 and 100),
+  "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
   "external_id" text,
   "inbox_id" uuid references "app_private"."inboxes" ("id") on delete set null,
   "headers" jsonb not null default '{}'::jsonb,
@@ -5667,7 +5667,7 @@ create table if not exists "app_private"."inbox_message_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "inbox_id" uuid references "app_private"."inboxes" ("id") on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null,
   "language" text not null default 'en',
   "body" text not null,
@@ -7927,7 +7927,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:07013d2e45bacde491c937561c0e3b18c1024501d6755f1e4045ce59f753712c
+-- @bsb-hash sha256:eca33c62df5b8057b558f0eab10de24385a283c7701e32a430874c6b3a011ab4
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8060,7 +8060,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."inboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
   "channel_address" text,
   "installation_id" uuid,
@@ -8228,7 +8228,7 @@ create policy inbox_message_deliveries_staff_read on "better_supabase"."inbox_me
 create table if not exists "better_supabase"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "adapter" text not null check (length("adapter") between 1 and 100),
+  "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
   "external_id" text,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete set null,
   "headers" jsonb not null default '{}'::jsonb,
@@ -8254,7 +8254,7 @@ create table if not exists "better_supabase"."inbox_message_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null,
   "language" text not null default 'en',
   "body" text not null,
@@ -10963,7 +10963,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:95135a8e21438e6811bb063d4b4dcd2e4eabf2fcee1b4038d5217b7da2e4c7c4
+-- @bsb-hash sha256:317607e5c34e92bf50074912d473dffdd8a06e922050af5bd180e86a9d991543
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11112,7 +11112,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.inboxes is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."inboxes" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."inboxes" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."inboxes" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."inboxes" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."inboxes" add column if not exists "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other'));
 alter table "better_supabase"."inboxes" add column if not exists "channel_address" text;
 alter table "better_supabase"."inboxes" add column if not exists "installation_id" uuid;
@@ -11268,7 +11268,7 @@ create policy bsb_inbox_message_deliveries_select on "better_supabase"."inbox_me
 -- better_supabase.inbox_inbound_events is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."inbox_inbound_events" add column if not exists "adapter" text check (length("adapter") between 1 and 100);
+alter table "better_supabase"."inbox_inbound_events" add column if not exists "adapter" text check (length("adapter") >= 1 and length("adapter") <= 100);
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "external_id" text;
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete set null;
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "headers" jsonb not null default '{}'::jsonb;
@@ -11292,7 +11292,7 @@ grant all on "better_supabase"."inbox_inbound_events" to service_role;
 alter table "better_supabase"."inbox_message_templates" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."inbox_message_templates" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."inbox_message_templates" add column if not exists "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade;
-alter table "better_supabase"."inbox_message_templates" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."inbox_message_templates" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."inbox_message_templates" add column if not exists "channel" text;
 alter table "better_supabase"."inbox_message_templates" add column if not exists "language" text not null default 'en';
 alter table "better_supabase"."inbox_message_templates" add column if not exists "body" text;
@@ -13550,7 +13550,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:d7822fa9539828e815126b3bdf6e46ebf8fd0457d9d13d4bca11f1bee9496993
+-- @bsb-hash sha256:420f9f931077eee158ceed68f499e72459ea43eb174d509fc1a3d70c1ac2ccc3
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13683,7 +13683,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."inboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
   "channel_address" text,
   "installation_id" uuid,
@@ -13851,7 +13851,7 @@ create policy inbox_message_deliveries_staff_read on "better_supabase"."inbox_me
 create table if not exists "better_supabase"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
-  "adapter" text not null check (length("adapter") between 1 and 100),
+  "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
   "external_id" text,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete set null,
   "headers" jsonb not null default '{}'::jsonb,
@@ -13877,7 +13877,7 @@ create table if not exists "better_supabase"."inbox_message_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null,
   "language" text not null default 'en',
   "body" text not null,

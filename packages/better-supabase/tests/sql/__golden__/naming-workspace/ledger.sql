@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:ef12df9b64d886a906a1ff9f20f2891dbd1254feb1ff126dd352f6f241709fc2
+-- @bsb-hash sha256:775dc8d73d01db905b0b11d2037c14bea5c7898855db52c33fe61639fa638209
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,12 +92,12 @@ create table if not exists "better_supabase"."ledger_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "code" text not null check (length("code") between 1 and 200),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   -- An ISO 4217 code for money, or a custom unit such as item, days or points.
   "unit" text not null check ("unit" ~ '^([A-Z]{3}|[a-z][a-z0-9_]{0,31})$'),
   -- Decimal places of a custom unit: amounts are integers, 150 at scale 2 is 1.5.
-  "scale" smallint not null default 0 check ("scale" between 0 and 6),
+  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
   "holder_type" text,
   "holder_id" text,
   -- The member the account belongs to, who can read it without a permission.

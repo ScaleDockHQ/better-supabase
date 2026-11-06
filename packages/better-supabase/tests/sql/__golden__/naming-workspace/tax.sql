@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:1e68af3e356547502fb25ff61fe8dbe5491f59849ca78770e6ea5df8674dff03
+-- @bsb-hash sha256:ad19cc8eeac714743caf9af03242395b9128104bd18617f03086ad087b85940d
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -101,8 +101,8 @@ create table if not exists "better_supabase"."tax_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 200),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "type" text not null check ("type" in ('sales', 'purchase', 'exempt', 'zero', 'reverse_charge', 'intra_eu_goods', 'intra_eu_services', 'export', 'margin')),
   "sales_account_id" uuid,
   "purchase_account_id" uuid,
@@ -181,7 +181,7 @@ create table if not exists "better_supabase"."tax_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "period" text not null check (length("period") between 1 and 50),
+  "period" text not null check (length("period") >= 1 and length("period") <= 50),
   "period_start" date not null,
   "period_end" date not null,
   "status" text not null default 'draft' check ("status" in ('draft', 'filed')),
@@ -211,7 +211,7 @@ create table if not exists "better_supabase"."eu_sales_list_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "tax_return_id" uuid not null references "better_supabase"."tax_returns" ("id") on delete cascade,
-  "customer_vat_number" text not null check (length("customer_vat_number") between 4 and 20),
+  "customer_vat_number" text not null check (length("customer_vat_number") >= 4 and length("customer_vat_number") <= 20),
   "country" char(2) not null check ("country" ~ '^[A-Z]{2}$'),
   "kind" text not null check ("kind" in ('goods', 'services')),
   "amount" bigint not null,

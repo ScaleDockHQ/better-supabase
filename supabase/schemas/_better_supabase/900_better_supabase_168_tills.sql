@@ -1,6 +1,6 @@
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:6d06ceff0d0ef39d3877c468be07ad526985d471b5cf7da3234210e77841e7a3
+-- @bsb-hash sha256:9e90c7bd157b704943c9fec2a4b714e474485aa793adf9aa4c0f2ce036666b15
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -113,7 +113,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."tills" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "account_id" uuid,
   "location" text check ("location" is null or length("location") <= 200),

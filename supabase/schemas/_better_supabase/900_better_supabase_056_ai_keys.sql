@@ -1,6 +1,6 @@
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:13df2d17a09099521c731fa15c3aaa4733b7b7e9fdb8b31fc9d28d3abc0d9235
+-- @bsb-hash sha256:1411e678f655e4048edc9558fb968db7b7717893bff0f8c4a72b6b06a7fb36f6
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,7 +79,7 @@ create table if not exists "better_supabase"."ai_provider_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "name" text not null default 'default' check (length("name") between 1 and 100),
+  "name" text not null default 'default' check (length("name") >= 1 and length("name") <= 100),
   "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "settings" jsonb not null default '{}' check (jsonb_typeof("settings") = 'object'),
   "enabled" boolean not null default true,
@@ -104,7 +104,7 @@ create table if not exists "better_supabase"."ai_batches" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "provider" text not null check (length("provider") between 1 and 100),
+  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
   "status" text not null default 'pending' check ("status" in ('pending', 'completed', 'failed', 'cancelled')),
   "raw_status" text check (length("raw_status") <= 100),
@@ -134,7 +134,7 @@ create policy ai_batches_read on "better_supabase"."ai_batches"
 
 create table if not exists "better_supabase"."ai_batch_items" (
   "batch_id" uuid not null references "better_supabase"."ai_batches" ("id") on delete cascade,
-  "request_id" text not null check (length("request_id") between 1 and 200),
+  "request_id" text not null check (length("request_id") >= 1 and length("request_id") <= 200),
   "organization_id" uuid not null,
   "status" text not null check ("status" in ('succeeded', 'failed', 'cancelled', 'expired')),
   "output" jsonb,

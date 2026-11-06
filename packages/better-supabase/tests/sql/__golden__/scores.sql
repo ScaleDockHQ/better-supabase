@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:e1e16253e985c7352032d45c903db9c4348aebcefb570e82f736becad7d133e1
+-- @bsb-hash sha256:b1b1cbd5c1042c96f1f40c6d7de712a9c968297a5ec34af0ae58bc5e8805cc76
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,7 +77,7 @@ create table if not exists "better_supabase"."score_models" (
   "tenant_id" uuid not null,
   -- lead, health, or the app's own key.
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
@@ -659,7 +659,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:6fbe37c7b330d864d5c482b761283bd8f939cd12fc88d3c764f897761f1bd510
+-- @bsb-hash sha256:349901e3facbd69e7e26b673f473a3b3e57ca3d0acff79b8b60d89fc7992c2ed
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -735,7 +735,7 @@ create table if not exists "better_supabase"."score_models" (
   "tenant_id" uuid not null,
   -- lead, health, or the app's own key.
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
@@ -1354,7 +1354,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:ecf86a553f16ba16f056ec5fb1ec4c73dc7e1f07d11d6f83f357ece8c05057e6
+-- @bsb-hash sha256:0c8fab59eba082827cfc14dcbea14cabbb0e1201c4f29fcb4c3dfc6754049219
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1435,7 +1435,7 @@ create table if not exists "app_private"."score_models" (
   "tenant_id" uuid not null,
   -- lead, health, or the app's own key.
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
@@ -2017,7 +2017,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:05317a197ab2d99cda379ada8e72eb04eb1004b6c8b269b9d3ab74fac3ce0206
+-- @bsb-hash sha256:955738e399e300785ceca620a741b432200d31f5dfd7e2d3afc456b8ff78db5e
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2093,7 +2093,7 @@ create table if not exists "better_supabase"."score_models" (
   "tenant_id" uuid not null,
   -- lead, health, or the app's own key.
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
@@ -2775,7 +2775,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:266828d4f850d9750ef45b0798fc03557464cd8606abb31a82ea19682910ad3a
+-- @bsb-hash sha256:936c0ee77bd7699da4797dfbf24307e396f777d0f3f68ac8e391e7b8202fa19f
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2850,7 +2850,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "better_supabase"."score_models" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."score_models" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."score_models" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."score_models" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."score_models" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."score_models" add column if not exists "description" text check ("description" is null or length("description") <= 2000);
 alter table "better_supabase"."score_models" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."score_models" add column if not exists "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array');
@@ -3420,7 +3420,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:ba8b9494b0b5f10a04e03c4df71a735c58793396c2aa3872967ff6ad57d3b4f9
+-- @bsb-hash sha256:68b07edb08d289efef23a4aeae8a26164d83f45988696aa4dd4cbba891c6fa5f
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3496,7 +3496,7 @@ create table if not exists "better_supabase"."score_models" (
   "org_id" uuid not null,
   -- lead, health, or the app's own key.
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
   "description" text check ("description" is null or length("description") <= 2000),
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field

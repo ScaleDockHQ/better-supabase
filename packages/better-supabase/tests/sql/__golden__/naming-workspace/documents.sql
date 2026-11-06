@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:93ab5fe08d1f0c978c14b18d5ed89cb61dd48b566915e022ed5a44fa9883da00
+-- @bsb-hash sha256:c465703865882afc5596ff17b170539b2321baf1c400236bba028317b09d703e
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -130,13 +130,13 @@ create table if not exists "better_supabase"."document_suggestions" (
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "payload" bytea not null,
-  "summary" text check (length("summary") between 1 and 500),
+  "summary" text check (length("summary") >= 1 and length("summary") <= 500),
   "status" text not null default 'open' check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "note" text check (length("note") between 1 and 500)
+  "note" text check (length("note") >= 1 and length("note") <= 500)
 );
 create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:096434045656035add60f0ace3066e41b71071f01c0e697b2528e1e027019b8f
+-- @bsb-hash sha256:4ada412647e0f968967099bb05b41bd2b1a4b4c57021128704f078610eece7d7
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -96,8 +96,8 @@ create table if not exists "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") between 1 and 50),
-  "title" text not null check (length("title") between 1 and 300),
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null check (length("title") >= 1 and length("title") <= 300),
   "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
   "rate" bigint not null check ("rate" >= 0),
@@ -159,7 +159,7 @@ create table if not exists "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.

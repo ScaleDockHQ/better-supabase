@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:9c3db130d8c6b657a6e3e4eef1beb9ffe77fbfbfb5b147d13edeced21215b734
+-- @bsb-hash sha256:69812d3113f49f6d4143f8366ac7515e55bf9eb0626c490b6ef7b7fe1f924b24
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,7 @@ create table if not exists "better_supabase"."referral_codes" (
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
   "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") between 1 and 32),
+  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
   "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
@@ -487,7 +487,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:9fbef5c2051d23a7507998810c16e90294135dc7e622ff5aae70331943f7cd4d
+-- @bsb-hash sha256:4851213d982647bc89fc584edd4880f3f97ebd3050382973a3fe4ac20cd3ff26
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -561,7 +561,7 @@ create table if not exists "better_supabase"."referral_codes" (
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
   "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") between 1 and 32),
+  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
   "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
@@ -1027,7 +1027,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:afac800207eac1ee830859b51973c87281579d43a9b4a6b3610d1491157f96f4
+-- @bsb-hash sha256:4217af17dbb8a569d8a003930c07c5002f6028548d06f92417b3ccd78608266b
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1106,7 +1106,7 @@ create table if not exists "app_private"."referral_codes" (
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
   "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") between 1 and 32),
+  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
   "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
@@ -1518,7 +1518,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:afb92f997e6372ba0312fe555085017a81ac97e011582a7511bc35ef774f28a0
+-- @bsb-hash sha256:16c320bc96aac839c4b460198bc178b870c08b0bd3421f05b69e2226c26a8878
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1592,7 +1592,7 @@ create table if not exists "better_supabase"."referral_codes" (
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
   "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") between 1 and 32),
+  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
   "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
@@ -2092,7 +2092,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:5906a99086984d52936a2202240cf4f62946a664e29e3f190d1e4617080522f0
+-- @bsb-hash sha256:54fdd4230fe25a84fcee280ebbf22f91464c94b7e0f81665956f706261332a3b
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2165,7 +2165,7 @@ alter table "better_supabase"."referral_codes" add column if not exists "code" t
 alter table "better_supabase"."referral_codes" add column if not exists "referrer_id" uuid;
 alter table "better_supabase"."referral_codes" add column if not exists "invitation_id" uuid;
 alter table "better_supabase"."referral_codes" add column if not exists "reward_amount" bigint not null default 0 check ("reward_amount" >= 0);
-alter table "better_supabase"."referral_codes" add column if not exists "reward_unit" text check ("reward_unit" is null or length("reward_unit") between 1 and 32);
+alter table "better_supabase"."referral_codes" add column if not exists "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32);
 alter table "better_supabase"."referral_codes" add column if not exists "max_uses" integer check ("max_uses" is null or "max_uses" > 0);
 alter table "better_supabase"."referral_codes" add column if not exists "uses" integer not null default 0;
 alter table "better_supabase"."referral_codes" add column if not exists "active" boolean not null default true;
@@ -2567,7 +2567,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:22807f7c76603deff3aa032c011c5bca68f91dbf32a6472a42635cd23374f778
+-- @bsb-hash sha256:582dfc2ce248fb020879afb19d23f0a17697870b3ee5f79dbd47f3143d545efc
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2641,7 +2641,7 @@ create table if not exists "better_supabase"."referral_codes" (
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
   "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") between 1 and 32),
+  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
   "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
