@@ -9,6 +9,17 @@ export { isBlockSqlIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
 
 export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
 
+export {
+  buildModel,
+  conflicts,
+  type Declaration,
+  type SchemaModel,
+} from "./pipeline/model.ts";
+
+export { renderKey } from "./pipeline/render-key.ts";
+
+export { splitStatements, type SqlStatement } from "./pipeline/split.ts";
+
 export { entityRenamePlan } from "./entity-upgrade.ts";
 
 export { moduleDataDir, moduleFilePaths } from "./paths.ts";

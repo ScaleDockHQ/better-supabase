@@ -13,7 +13,6 @@ import {
   APP_TABLES_MARKER,
   APP_TABLES_MODULE,
   moduleTopics,
-  renderBlocks,
   resolveBlocks,
   sameBlockFile,
 } from "../../sql/index.ts";
@@ -40,6 +39,7 @@ import {
   writeLatestMigration,
 } from "./module-migration.ts";
 import { orphanedBlockFiles } from "./orphans.ts";
+import { cacheOf, renderBlocksCached } from "./render-cache.ts";
 
 const MODULE_TEST_MARKER =
   /^-- @(?:bsb-block-test|bs-module-test) ([a-z0-9-]+)$/m;
@@ -152,7 +152,13 @@ export async function write(
   const migrations = workflow === "migrations";
   const lines: string[] = [];
   const dryRun = args["dry-run"] === true;
-  const rendered = renderBlocks(names, sqlLayout);
+
+  const rendered = await renderBlocksCached(
+    config,
+    names,
+    sqlLayout,
+    cacheOf(args),
+  );
 
   const files = rendered.filter(
     (file) => only === undefined || only.includes(file.module),
@@ -283,7 +289,7 @@ export async function unlistedModuleFiles(
   const listed = new Set(order.files.filter((path) => !unlisted.has(path)));
   const dir = `${config.sql.dir.replace(/\/$/, "")}/`;
 
-  const missing = renderBlocks(names, sqlLayout)
+  const missing = (await renderBlocksCached(config, names, sqlLayout))
     .filter((file) => file.kind !== "data")
     .map((file) => file.path)
     .filter((path) => path.startsWith(dir) && !listed.has(path));

@@ -6,11 +6,12 @@ import type { BlockSqlExtension, BlockSqlFile } from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
-import { moduleSchemaExtensions, renderBlocks } from "../../sql/index.ts";
+import { moduleSchemaExtensions } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
 import { layoutFor } from "./providers.ts";
+import { renderBlocksCached } from "./render-cache.ts";
 
 /** The clock the migration stamps read, injected so tests pin it. */
 export type Now = () => Date;
@@ -171,7 +172,8 @@ export async function dataMigration(
     };
   }
 
-  const rendered = renderBlocks(
+  const rendered = await renderBlocksCached(
+    config,
     config.blockNames,
     await layoutFor(config, args, config.blockNames),
   );

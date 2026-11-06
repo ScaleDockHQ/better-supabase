@@ -1,7 +1,8 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
+import { splitStatements } from "../../sql/index.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
-import { splitStatements } from "./shared.ts";
+import { OWNERSHIP_RULES } from "./ownership.ts";
 
 /** The statements of the app's own schema files, each with its file. */
 function appStatements(
@@ -33,7 +34,7 @@ const tableOfPolicy = (text: string): string =>
   /\bon ((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/i.exec(text)?.[1] ?? "";
 
 /** The Supabase and Postgres practices held against the app's own SQL. */
-export const PRACTICE_RULES: readonly Rule[] = [
+const SQL_PRACTICES: readonly Rule[] = [
   {
     code: "BS365",
     severity: "warning",
@@ -123,4 +124,10 @@ export const PRACTICE_RULES: readonly Rule[] = [
           location: { file: statement.path, line: statement.line },
         })),
   },
+];
+
+/** The practice rules and the ownership rules over the app's schema files. */
+export const PRACTICE_RULES: readonly Rule[] = [
+  ...SQL_PRACTICES,
+  ...OWNERSHIP_RULES,
 ];

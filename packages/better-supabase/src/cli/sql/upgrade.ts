@@ -16,7 +16,6 @@ import {
   entityRenamePlan,
   moduleFileVersion,
   moduleTopics,
-  renderBlocks,
   sameBlockFile,
   SQL_MODULES,
   upgradePlan,
@@ -37,6 +36,7 @@ import {
   writesMigrations,
 } from "./module-migration.ts";
 import { layoutFor } from "./providers.ts";
+import { cacheOf, renderBlocksCached } from "./render-cache.ts";
 import { nextStep, write } from "./write.ts";
 
 /**
@@ -59,7 +59,14 @@ export async function upgrade(
   }
 
   const sqlLayout = await layoutFor(config, args, config.blockNames);
-  const files = renderBlocks(config.blockNames, sqlLayout);
+
+  const files = await renderBlocksCached(
+    config,
+    config.blockNames,
+    sqlLayout,
+    cacheOf(args),
+  );
+
   const migrations = await writesMigrations(config);
 
   const { installed, stale, diffs, text } = migrations

@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import type { BlockSqlFile } from "../../sql/index.ts";
 import type { DoctorContext } from "./rules.ts";
 
-import { moduleFileVersion, renderBlocks } from "../../sql/index.ts";
+import { moduleFileVersion } from "../../sql/index.ts";
 import { migrationsDir, moduleLayoutFor } from "../sql-layout.ts";
 import {
   latestMigration,
@@ -12,6 +12,7 @@ import {
   migrationModules,
   MODULES_SUFFIX,
 } from "../sql/module-migration.ts";
+import { renderBlocksCached } from "../sql/render-cache.ts";
 import { accessModule } from "./app-tables.ts";
 import { entitlementsModule } from "./authorization.ts";
 import { permissionCatalogKeys, workflowOf } from "./shared.ts";
@@ -58,7 +59,8 @@ export async function moduleFiles(
   let rendered: BlockSqlFile[];
 
   try {
-    rendered = renderBlocks(
+    rendered = await renderBlocksCached(
+      context.config,
       context.config.blockNames,
       await moduleLayoutFor(context.config, {
         names: context.config.blockNames,

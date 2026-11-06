@@ -18,6 +18,11 @@ export const SQL_ARGS = {
     type: "boolean",
     description: "Overwrite or remove block files that were edited by hand",
   },
+  "no-cache": {
+    type: "boolean",
+    description:
+      "Render every module again instead of reading the render cache",
+  },
   "allow-hook-overlap": {
     type: "boolean",
     description:

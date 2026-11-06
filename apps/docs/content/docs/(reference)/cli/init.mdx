@@ -378,7 +378,11 @@ versions into a migration stamped before the next schema migration, then
 the files. Run it after you bump `better-supabase` or change a block's
 options. `--check` exits 1 when a file differs and is the CI check,
 `--dry-run` prints the diff, and `--tests-dir <dir>` writes the pgTAP files
-somewhere other than `database.sql.testsDir`.
+somewhere other than `database.sql.testsDir`. Rendered modules are cached in
+`node_modules/.cache/better-supabase/render-blocks.json`, keyed on the block
+names, the layout and the CLI version, and a file whose hash line no longer
+matches is never read from it. `--no-cache` renders every module again and
+leaves the cache alone.
 
 Each block file carries a `-- @bsb-hash sha256:...` line over its SQL. When
 the SQL no longer matches the hash, the file was edited by hand: `upgrade`

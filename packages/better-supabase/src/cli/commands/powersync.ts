@@ -10,7 +10,7 @@ import type { CommandResult } from "../core/io.ts";
 import type { PowerSyncInstance } from "../powersync/streams.ts";
 import type { Now } from "../sql/migrations.ts";
 
-import { blockReadRoles, renderBlocks } from "../../sql/index.ts";
+import { blockReadRoles } from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { applyPlan, PLAN_ARGS, planResult } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
@@ -23,6 +23,7 @@ import {
 import { migrationsDir, snapshotColumnTypes } from "../sql-layout.ts";
 import { stampAfter } from "../sql/migrations.ts";
 import { layoutFor } from "../sql/providers.ts";
+import { renderBlocksCached } from "../sql/render-cache.ts";
 
 const ARGS = {
   instance: {
@@ -255,7 +256,7 @@ export async function runPowerSync(
 
   try {
     output = powersyncOutput({
-      files: renderBlocks(config.blockNames, layout),
+      files: await renderBlocksCached(config, config.blockNames, layout),
       instances,
       own,
       readRoles: readRolesOf(config, layout, instances),

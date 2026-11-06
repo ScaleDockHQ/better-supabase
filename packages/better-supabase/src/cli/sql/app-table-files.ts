@@ -4,11 +4,12 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { FilePlan } from "../core/files.ts";
 import type { FormatDomain } from "./format-domains.ts";
 
-import { APP_TABLES_MODULE, renderBlocks } from "../../sql/index.ts";
+import { APP_TABLES_MODULE } from "../../sql/index.ts";
 import { CliError } from "../core/errors.ts";
 import { declarativeSchemasDir, readSupabaseToml } from "../supabase-toml.ts";
 import { DOMAIN_SCHEMA, withFormatDomains } from "./format-domains.ts";
 import { layoutFor } from "./providers.ts";
+import { renderBlocksCached } from "./render-cache.ts";
 import { splitAppTables } from "./schema-first.ts";
 
 /**
@@ -76,7 +77,7 @@ export async function appTablePlan(
     config.blockNames,
   );
 
-  const rendered = renderBlocks(config.blockNames, layout);
+  const rendered = await renderBlocksCached(config, config.blockNames, layout);
 
   const source = rendered.find(
     (file) => file.module === APP_TABLES_MODULE && file.kind === "schema",

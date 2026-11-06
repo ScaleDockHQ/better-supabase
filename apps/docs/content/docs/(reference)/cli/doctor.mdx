@@ -1705,6 +1705,21 @@ caller's policies would hide. Create the view `with (security_invoker = true)`.
 `serial` is the legacy form of an identity column. Use `timestamptz` and
 `generated always as identity`.
 
+### BS369
+
+**Warning: an app file declares an object a block module declares.** A table,
+view, function or type that both a block module file and one of the app's files
+create is defined twice, so the declarative diff keeps whichever file it reads
+last. Declare the object once: let the app file alter the block's table, or map
+the block to another name.
+
+### BS370
+
+**Error: a schema file asks for `transaction=false`.** The line
+`-- pg-delta: transaction=false` runs a file's statements outside a transaction,
+so a failure halfway leaves the schema partly applied. Create the index
+concurrently in a hand migration with a `lock_timeout` instead.
+
 ## Auth config
 
 ### BS353

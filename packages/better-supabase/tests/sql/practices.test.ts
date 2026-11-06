@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { splitStatements } from "../../src/cli/doctor/shared.ts";
+import { splitStatements } from "../../src/sql/pipeline/split.ts";
 
 /**
  * The Supabase and Postgres practices the generated SQL is held to (plan Part

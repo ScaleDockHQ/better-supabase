@@ -358,6 +358,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0245: Upgrades start at 0.53, and removed names have no alias.
 - 0246: One naming convention from api/naming.json.
 - 0247: Measure upgrade before splitting it, and hold SQL to the naming and Supabase practices.
+- 0248: Split the generator into stages and cache renders.
 
 ## Pre-release pins
 
