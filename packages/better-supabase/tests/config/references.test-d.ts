@@ -11,10 +11,10 @@ import { defineConfig } from "../../src/config/resolve.ts";
 describe("defineConfig", () => {
   it("returns the literal config", () => {
     const config = defineConfig({
-      blocks: { tasks: { names: { work_item: "task" } } },
+      blocks: { tasks: { names: { task: "task" } } },
     });
 
-    expectTypeOf(config.blocks.tasks.names.work_item).toEqualTypeOf<"task">();
+    expectTypeOf(config.blocks.tasks.names.task).toEqualTypeOf<"task">();
   });
 
   it("types the roles other blocks name from blocks.permissions.roles", () => {

@@ -456,7 +456,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:4d252e606e7d1c977a243372a1f8ad778e51cea6e7b538aa71be19478c5399c8
+-- @bsb-hash sha256:056fc643972182fcd358c80dcd0ffc78b3f7427f1b731d8484aa057ea89610d8
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -595,7 +595,6 @@ as $$
     when 'agents.moderate' then 'agents.moderate'
     when 'agents.publish' then 'agents.publish'
     when 'agents.read' then 'agents.read'
-    when 'ai-chat.admin' then 'ai_chat.manage'
     when 'ai-chat.create' then 'ai_chat.create'
     when 'ai-chat.manage' then 'ai_chat.manage'
     when 'ai-chat.moderate' then 'ai_chat.moderate'
@@ -628,10 +627,6 @@ as $$
     when 'audit.read' then 'audit.read'
     when 'audit.readAll' then 'audit.read'
     when 'audit.revert' then 'audit.revert'
-    when 'audit.view' then 'audit.read'
-    when 'audit.viewAll' then 'audit.read'
-    when 'automations.admin' then 'automations.manage'
-    when 'automations.edit' then 'automations.write'
     when 'automations.manage' then 'automations.manage'
     when 'automations.publish' then 'automations.publish'
     when 'automations.read' then 'automations.read'
@@ -646,7 +641,6 @@ as $$
     when 'billing.manage' then 'billing.manage'
     when 'billing.read' then 'billing.read'
     when 'billing.readAll' then 'billing.read'
-    when 'billing.viewAll' then 'billing.read'
     when 'bookings.create' then 'bookings.create'
     when 'bookings.manage' then 'bookings.manage'
     when 'bookings.read' then 'bookings.read'
@@ -739,7 +733,6 @@ as $$
     when 'e-prescribing.write' then 'e_prescribing.write'
     when 'employees.read' then 'employees.read'
     when 'employees.readSensitive' then 'employees.read_sensitive'
-    when 'employees.viewSensitive' then 'employees.read_sensitive'
     when 'employees.write' then 'employees.write'
     when 'enrichment.read' then 'enrichment.read'
     when 'enrichment.run' then 'enrichment.run'
@@ -774,7 +767,6 @@ as $$
     when 'impersonation.read' then 'impersonation.read'
     when 'impersonation.revoke' then 'impersonation.revoke'
     when 'impersonation.start' then 'impersonation.start'
-    when 'impersonation.view' then 'impersonation.read'
     when 'imports.manage' then 'imports.manage'
     when 'inbox.assign' then 'inbox.assign'
     when 'inbox.manage' then 'inbox.manage'
@@ -794,7 +786,6 @@ as $$
     when 'invitations.invitePlatform' then 'platform.invite'
     when 'invitations.read' then 'members.invite'
     when 'invitations.revoke' then 'members.invite'
-    when 'invitations.view' then 'members.invite'
     when 'invoices.approve' then 'invoices.approve'
     when 'invoices.collect' then 'invoices.collect'
     when 'invoices.manage' then 'invoices.manage'
@@ -919,7 +910,6 @@ as $$
     when 'scores.manage' then 'scores.manage'
     when 'scores.read' then 'scores.read'
     when 'search.read' then 'search.read'
-    when 'segments.edit' then 'segments.write'
     when 'segments.read' then 'segments.read'
     when 'segments.write' then 'segments.write'
     when 'sequences.enroll' then 'sequences.enroll'
@@ -985,18 +975,13 @@ as $$
     when 'webhooks-in.delete' then 'webhooks.manage'
     when 'webhooks-in.read' then 'webhooks.read'
     when 'webhooks-in.update' then 'webhooks.manage'
-    when 'webhooks-in.view' then 'webhooks.read'
     when 'webhooks-out.manage' then 'webhooks.manage'
     when 'webhooks-out.read' then 'webhooks.read'
-    when 'webhooks-out.view' then 'webhooks.read'
-    when 'workflow-editor.admin' then 'workflow_editor.manage'
-    when 'workflow-editor.edit' then 'workflow_editor.write'
     when 'workflow-editor.manage' then 'workflow_editor.manage'
     when 'workflow-editor.publish' then 'workflow_editor.publish'
     when 'workflow-editor.read' then 'workflow_editor.read'
     when 'workflow-editor.run' then 'workflow_editor.run'
     when 'workflow-editor.write' then 'workflow_editor.write'
-    when 'workflows.admin' then 'workflows.manage'
     when 'workflows.manage' then 'workflows.manage'
     when 'workflows.read' then 'workflows.read'
     when 'workflows.run' then 'workflows.run'

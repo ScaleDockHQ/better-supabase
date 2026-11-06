@@ -20,7 +20,6 @@ import {
   SUBJECT_TYPE,
   TRIGGER,
 } from "./automations-tables.ts";
-import { storedTypesData } from "./event-type-renames.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
@@ -1038,11 +1037,6 @@ export const RULES: BlockSqlDefinition = {
   modes: ["managed", "custom"],
   version: 2,
   names: NAMES,
-  data: (ctx) =>
-    storedTypesData(ctx, [
-      ["rules", "trigger"],
-      ["defaults", "trigger"],
-    ]),
   contract,
   build,
 };

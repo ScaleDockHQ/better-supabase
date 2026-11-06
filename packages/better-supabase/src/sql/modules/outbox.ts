@@ -16,11 +16,6 @@ import {
   schemaPreamble,
   triggerGrant,
 } from "../shared.ts";
-import {
-  eventTypeData,
-  storedTypeRenames,
-  typeListRenames,
-} from "./event-type-renames.ts";
 
 const NAMES: BlockSqlNames = {
   options: [
@@ -845,20 +840,6 @@ export const OUTBOX: BlockSqlDefinition = {
   version: 5,
   integrates: ["data-lifecycle"],
   names: NAMES,
-  data: (ctx) =>
-    eventTypeData([
-      storedTypeRenames(ctx, ctx.table("events"), ctx.col("events", "type")),
-      storedTypeRenames(
-        ctx,
-        ctx.table("deadLetters"),
-        ctx.col("deadLetters", "type"),
-      ),
-      typeListRenames(
-        ctx,
-        ctx.table("consumers"),
-        ctx.col("consumers", "types"),
-      ),
-    ]),
   upgrades: [
     {
       from: 1,

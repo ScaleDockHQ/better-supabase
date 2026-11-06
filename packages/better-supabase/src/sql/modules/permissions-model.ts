@@ -1,7 +1,6 @@
 import type { AccessBlockConfig } from "../../config/blocks.ts";
 import type { BlockSqlContext } from "../context.ts";
 
-import { currentPermissionKeys } from "../../core/renames.ts";
 import { sqlString } from "../../core/template.ts";
 
 export type AccessModel = NonNullable<AccessBlockConfig["model"]>;
@@ -294,8 +293,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
  * verb is `read`, `write`, `delete`, `manage` or a domain verb, never `view`,
  * `edit` or `admin`. `messaging`, `comments` and `channels` share `messages.*`;
  * `organizations` owns `organization.*`, `members.*` and `platform.*` (or a key
- * `is_platform()` checks). Renamed keys go in `PERMISSION_KEY_RENAMES`
- * (`src/core/renames.ts`) for one minor.
+ * `is_platform()` checks).
  */
 export const OPERATIONS = {
   "organizations.update": "organization.update",
@@ -773,7 +771,7 @@ export function rolesOf(
     return Object.fromEntries(
       Object.entries(configured).map(([role, keys]) => [
         role,
-        [...new Set(keys.flatMap((k) => [k, ...currentPermissionKeys(k)]))],
+        [...new Set(keys)],
       ]),
     );
   }

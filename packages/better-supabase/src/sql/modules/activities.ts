@@ -41,7 +41,6 @@ import {
   recordingsSql,
 } from "./activities-recordings.ts";
 import { moduleOperations } from "./permissions-model.ts";
-import { subjectTypeRenames } from "./subject-type-renames.ts";
 
 /** The engagement types `options.types` falls back to. */
 const ACTIVITY_TYPES = ["call", "email", "meeting", "note", "task"] as const;
@@ -772,5 +771,4 @@ export const ENGAGEMENTS: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
-  data: subjectTypeRenames,
 };

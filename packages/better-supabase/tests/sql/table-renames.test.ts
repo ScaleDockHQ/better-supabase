@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { TABLE_RENAMES } from "../../src/core/renames.ts";
 import { moduleContext } from "../../src/sql/module-context.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renameTableObjects } from "../../src/sql/rename-sql.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
-import { freesTableName, tableMoves } from "../../src/sql/table-renames.ts";
+import {
+  freesTableName,
+  TABLE_RENAMES,
+  tableMoves,
+} from "../../src/sql/table-renames.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { liteStack } from "../../src/testing/lite.ts";
 

@@ -37,9 +37,13 @@ last three. A codemod chain from 0.4 would test paths nobody takes.
 
 ## Consequences
 
-The 0.46 and 0.47 stored-name migration modules, `core/renames.ts`,
-`legacyHintOf`, `spec.formerly`, `entity-upgrade.ts`, the `formerKeys` types
-and doctor BS423 to BS425 are still in the tree. They share the table-move and
-subject-type paths of the SQL modules, so removing them changes generated SQL
-and needs its own golden and migration review. The plan's later stages remove
-them.
+The permission key, event type, hint and subject type maps, the stored-name
+migration modules, the entity key aliases, `legacyHintOf` and doctor BS422 to
+BS425 are removed. The table moves (`TABLE_RENAMES` and the `tableMoves`
+migrations), the entity `formerly` noun and the function noun mapping stay.
+They decide the names of a renamed install, and the TypeScript clients of nine
+blocks still use the old nouns (`WorkItem`, `Engagement`, `Rule`). Removing
+them means renaming those clients and the literal SQL names, so it moves to
+the SQL and TypeScript rename step of Part 13. `entity-upgrade.ts` stays too:
+it renames installed objects when `blocks.<name>.entities` changes, which is a
+feature, and only its 0.47 key mapping is gone.

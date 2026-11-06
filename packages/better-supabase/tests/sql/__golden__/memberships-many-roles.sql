@@ -321,7 +321,7 @@ on conflict (name) do update
 -- ==== permissions
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:15d13b32f647d893fb13854adfb5e595fe5514094f5afadd5b865b5a882f3ebf
+-- @bsb-hash sha256:86be5b063b038b494dcec897d75ab9af20585794c80e7de2cc33b3be9be75578
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -437,7 +437,6 @@ as $$
     when 'invitations.invitePlatform' then 'platform.invite'
     when 'invitations.read' then 'members.invite'
     when 'invitations.revoke' then 'members.invite'
-    when 'invitations.view' then 'members.invite'
     when 'organizations.delete' then 'organization.delete'
     when 'organizations.listMembers' then 'members.read'
     when 'organizations.removeMember' then 'members.remove'

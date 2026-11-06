@@ -1,4 +1,3 @@
-/* oxlint-disable eslint/max-lines -- the template column on a subject adds one line past the limit. 1 finding. */
 import type {
   BlockMode,
   AnyBlocksConfig,
@@ -25,7 +24,6 @@ import { resolveBlock } from "../config/blocks.ts";
 import { instancePrefix } from "../config/instances.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
-import { configuredAction } from "../core/renames.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { tableOwnership } from "./app-owned.ts";
 import { liveStatement } from "./audit-actions.ts";
@@ -348,11 +346,6 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
    * such as the permission keys in the default roles.
    */
   blockNaming(): EntityNames;
-  /**
-   * Every configured block's event type renames as one (`eventNaming`), for the
-   * stored event types.
-   */
-  blockEventNaming(): EntityNames;
   /**
    * The entity renames of each block installed under another name, such as
    * `tickets` from `tasks`, for the permission keys each instance adds.
@@ -814,7 +807,7 @@ export function createModuleContext(
       : `${prefix}_${written}`;
 
   const permissionKey = (action: string, fallback: string): string =>
-    configuredAction(config.permissions, module, action) ?? ownKey(fallback);
+    config.permissions[action] ?? ownKey(fallback);
 
   const ownKey = (key: string): string =>
     instanceArea(
@@ -1226,17 +1219,6 @@ export function createModuleContext(
           return known === undefined
             ? []
             : [resolveNames(name, known, modules).entityNaming];
-        }),
-      ),
-    blockEventNaming: () =>
-      composeNames(
-        ...Object.entries(modules).flatMap(([name, block]) => {
-          const known =
-            block?.entities === undefined ? undefined : namesOf(name);
-
-          return known === undefined
-            ? []
-            : [resolveNames(name, known, modules).eventNaming];
         }),
       ),
     contributions: (block) =>

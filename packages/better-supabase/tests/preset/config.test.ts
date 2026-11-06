@@ -258,9 +258,9 @@ describe("preset instances", () => {
     expect(
       expandPreset({
         preset: "care",
-        blocks: { contacts: { names: "client" } },
+        blocks: { contacts: { names: { person: "client" } } },
       }).blocks,
-    ).toMatchObject({ contacts: { names: "client" } });
+    ).toMatchObject({ contacts: { names: { person: { name: "client" } } } });
   });
 
   it("names a name and its subject settings together", () => {

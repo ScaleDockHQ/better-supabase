@@ -1162,7 +1162,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     await sql(["sync"], { blocks: ["tasks"] });
 
     const config: ResolveInput = {
-      blocks: { tasks: { names: { work_item: "task" } } },
+      blocks: { tasks: { names: { task: "task" } } },
     };
 
     const check = await sql(["upgrade", "--check"], config);

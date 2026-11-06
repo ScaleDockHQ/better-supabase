@@ -36,7 +36,6 @@ import {
   FRAMEWORK_KINDS,
 } from "./compliance-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
-import { subjectTypeRenames } from "./subject-type-renames.ts";
 
 const EVENTS: BlockSqlEvents<ComplianceEvents> = {
   "control.created": {
@@ -581,8 +580,5 @@ export const COMPLIANCE: BlockSqlDefinition = {
   contract,
   build,
   contributes: CONTRIBUTES,
-  data: (ctx, layout) =>
-    [subjectTypeRenames(ctx, layout), widenPolicyAssignments(ctx)]
-      .filter((part) => part !== "")
-      .join("\n\n"),
+  data: widenPolicyAssignments,
 };

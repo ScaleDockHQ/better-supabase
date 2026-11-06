@@ -29,7 +29,7 @@ import {
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
-import { tasksData } from "./tasks-data.ts";
+import { backfillProjectDimensions } from "./tasks-data.ts";
 import { checklistTable, workItemExtrasContract } from "./tasks-extras.ts";
 import { workItemFunctions } from "./tasks-functions.ts";
 
@@ -803,5 +803,5 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
-  data: tasksData,
+  data: backfillProjectDimensions,
 };

@@ -25,7 +25,7 @@ const overApp = (
 describe("impersonation module", () => {
   it("owns its table and gates starts with is_platform", () => {
     const sql = support({
-      permissions: { start: "system.users.manage", view: "system.audit.read" },
+      permissions: { start: "system.users.manage", read: "system.audit.read" },
     });
 
     expect(sql).toContain(

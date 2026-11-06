@@ -50,7 +50,6 @@ describe("operation_permission", () => {
     );
 
     expect(sql).toContain("when 'audit.read' then 'logs.read'");
-    expect(sql).toContain("when 'audit.view' then 'logs.read'");
     expect(sql).toContain("when 'audit.revert' then 'audit.revert'");
     expect(sql).not.toContain("'billing.read'");
   });

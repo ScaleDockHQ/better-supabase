@@ -47,7 +47,6 @@ import { MIGRATION_RULES } from "./migration-rules.ts";
 import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
 import { moduleFiles } from "./module-files.ts";
 import { MODULE_RULES } from "./modules.ts";
-import { NAMING_RULES } from "./naming.ts";
 import { NEXT_CACHE_RULES } from "./next-cache.ts";
 import { NOT_VALID_RULES } from "./not-valid.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
@@ -1145,7 +1144,6 @@ export const RULES: readonly Rule[] = [
   ...ROUND_TRIP_RULES,
   ...CLAIM_RULES,
   ...MIGRATION_RULES,
-  ...NAMING_RULES,
   ...AUTHORIZATION_RULES,
   ...LIVE_RULES,
   ...MODULE_RULES,

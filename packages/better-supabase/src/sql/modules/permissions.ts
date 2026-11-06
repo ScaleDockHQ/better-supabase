@@ -35,7 +35,6 @@ import {
 } from "./permissions-model.ts";
 import { operationsSql } from "./permissions-operations.ts";
 import { hasPlatformRoles } from "./permissions-platform.ts";
-import { catalogKeyRenames } from "./permissions-renames.ts";
 import {
   catalogRoleFunctions,
   rendersRoleFunctions,
@@ -1142,9 +1141,6 @@ export const ACCESS: BlockSqlDefinition = {
   ],
   unusedPermissions: (ctx) =>
     rendersRoleFunctions(ctx) ? [] : ["listRoles", "setOverride"],
-  data: (ctx) =>
-    [catalogRoles(ctx), catalogKeyRenames(ctx)]
-      .filter((part) => part !== "")
-      .join("\n\n"),
+  data: catalogRoles,
   build: accessSql,
 };

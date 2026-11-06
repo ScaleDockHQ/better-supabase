@@ -81,13 +81,10 @@ describe("resolveNames", () => {
     expect(entityType(resolved, "task")).toBe("ticket");
   });
 
-  it("reads an entity key from before 0.47 as the new key", () => {
-    const resolved = resolve("tasks", {
-      tasks: { entities: { work_item: "ticket" } },
-    });
-
-    expect(resolved.entities["task"]?.to.singular).toBe("ticket");
-    expect(resolved.naming.rename("work_items")).toBe("tickets");
+  it("refuses an entity key from before 0.47", () => {
+    expect(() =>
+      resolve("tasks", { tasks: { entities: { work_item: "ticket" } } }),
+    ).toThrow(/unknown entity "work_item"/);
   });
 
   it("renames the primary entity from the string shorthand", () => {

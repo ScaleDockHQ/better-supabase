@@ -2,12 +2,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
-import {
-  currentEventTypes,
-  EVENT_TYPE_RENAMES,
-  EVENT_TYPE_SPLITS,
-  isOldEventType,
-} from "../../src/core/renames.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
@@ -129,21 +123,6 @@ describe("SQL module event catalog", () => {
         (type) =>
           !typeName.test(type) || !past.test(type) || type.includes("canceled"),
       ),
-    ).toEqual([]);
-  });
-
-  it("emits no type the 0.47 naming convention renamed", () => {
-    const recorded = [...RECORDED.values()].flatMap((types) => [...types]);
-    expect([...MAP_TYPES, ...recorded].filter(isOldEventType)).toEqual([]);
-  });
-
-  it("renames every old type to a type some block emits", () => {
-    const known = new Set(MAP_TYPES);
-    expect(
-      Object.keys({ ...EVENT_TYPE_RENAMES, ...EVENT_TYPE_SPLITS })
-        .filter((old) => !old.endsWith(".*"))
-        .flatMap(currentEventTypes)
-        .filter((type) => !known.has(type)),
     ).toEqual([]);
   });
 

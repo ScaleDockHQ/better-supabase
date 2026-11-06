@@ -574,7 +574,7 @@ describe("dispatcher and sink", () => {
     ).not.toHaveProperty("subjectId");
   });
 
-  it("runs legacy triggers, passes the time zone and skips unmatched events", async () => {
+  it("runs the event trigger, passes the time zone and skips unmatched events", async () => {
     const runs: Record<string, unknown>[] = [];
     const seen: unknown[] = [];
     const match: RuleMatch = { rule: rule(["echo"]), results: {} };
@@ -605,7 +605,6 @@ describe("dispatcher and sink", () => {
 
     expect(runs.map((input) => input["trigger"])).toEqual([
       "agent.created",
-      "agent.saved",
       "widget.created",
     ]);
     expect(runs[0]).toMatchObject({

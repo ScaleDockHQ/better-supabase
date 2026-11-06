@@ -128,7 +128,7 @@ describe("audit module", () => {
         restricted: true,
         eventRoles: ["service_role", "authenticated"],
       },
-      permissions: { view: "audit.read", viewAll: "platform.audit.read" },
+      permissions: { read: "audit.read", readAll: "platform.audit.read" },
     });
 
     expect(sql).toContain(

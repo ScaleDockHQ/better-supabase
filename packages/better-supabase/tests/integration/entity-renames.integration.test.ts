@@ -99,7 +99,7 @@ const config = resolveConfig(
       subjects: { schema: SCRATCH },
       pipelines: { schema: SCRATCH },
       outbox: { schema: SCRATCH },
-      tasks: { schema: SCRATCH, names: { work_item: "task" } },
+      tasks: { schema: SCRATCH, names: { task: "task" } },
       attachments: { schema: SCRATCH, options: { requireScan: false } },
     },
   },

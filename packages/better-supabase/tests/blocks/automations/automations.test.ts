@@ -761,37 +761,6 @@ describe("createRuleDispatcher", () => {
     ]);
   });
 
-  it("runs the rules that still name a type from before 0.46", async () => {
-    const triggers: string[] = [];
-    const seen: unknown[] = [];
-    const legacy = { rule: rule([{ kind: "ok" }]), results: {} };
-
-    const sink = automationSink({
-      rules: {
-        run: ({ input }) => {
-          triggers.push(input.trigger);
-
-          return AsyncResult.ok(
-            input.trigger === "agent.saved" ? [legacy] : [],
-          );
-        },
-      },
-      dispatcher: registry(test("ok", ({ context }) => ok(context.eventId))),
-      load: () => ({ organizationId: "org-1", subjectId: "a1", subject: {} }),
-      onOutcomes: (event, outcomes) => seen.push([event.id, outcomes]),
-    });
-
-    await sink([
-      { id: "e1", type: "agent.updated", payload: {} },
-      { id: "e2", type: "member.joined", payload: {} },
-    ]);
-
-    expect(triggers).toEqual(["agent.updated", "agent.saved", "member.joined"]);
-    expect(seen).toEqual([
-      ["e1", [{ ruleId: "r1", kind: "ok", ok: true, value: "e1" }]],
-    ]);
-  });
-
   it("falls back to the event for the automations blocks ship", async () => {
     const runs: unknown[] = [];
     const seen: unknown[] = [];

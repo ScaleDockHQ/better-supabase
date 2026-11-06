@@ -1140,16 +1140,11 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:7b8d34bbec12828dbfe87101d74fbe1c5f9ba06722e95a2b20b1b6b2bc0ac431
+-- @bsb-hash sha256:30d4fdc921a2a04fab7a2e774ebaabc405d9c286090c292a5bcbc56b25540d84
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Subject types renamed in 0.47 (`codemod 0.47`).
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."subject_members"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."subject_members" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."pipelines"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."pipelines" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."pipeline_stage_history"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."pipeline_stage_history" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('tasks', 5, 'managed')

@@ -22,7 +22,6 @@ import {
   entityNoun,
   tenantRename,
 } from "../core/entity-naming.ts";
-import { ENTITY_KEY_RENAMES, ENTITY_RENAMES_CODEMOD } from "../core/renames.ts";
 
 /** One of a module's entities with the name the config gives it. */
 export interface ResolvedEntity {
@@ -104,28 +103,6 @@ function primaryOf(
   return primary[0];
 }
 
-const warnedKeys = new Set<string>();
-
-/** The current key of `key`, an entity key from before 0.47, or undefined. */
-function currentKey(
-  where: string,
-  key: string,
-  entities: Readonly<Record<string, BlockSqlEntitySpec>>,
-): string | undefined {
-  const next = Object.values(ENTITY_KEY_RENAMES)
-    .map((keys) => (Object.hasOwn(keys, key) ? keys[key] : undefined))
-    .find((each) => each !== undefined && each in entities);
-
-  if (next !== undefined && !warnedKeys.has(`${where}.${key}`)) {
-    warnedKeys.add(`${where}.${key}`);
-    console.warn(
-      `better-supabase: ${where}.${key} is now ${where}.${next}. Old keys work until the next minor; run \`better-supabase codemod ${ENTITY_RENAMES_CODEMOD}\` to rename them.`,
-    );
-  }
-
-  return next;
-}
-
 /** `blocks.<name>.entities` as entity key to its config, shorthand expanded. */
 function configured(
   where: string,
@@ -147,15 +124,13 @@ function configured(
       continue;
     }
 
-    const current = key in entities ? key : currentKey(where, key, entities);
-
-    if (current === undefined) {
+    if (!(key in entities)) {
       throw new TypeError(
         `${where}: unknown entity "${key}". Entities: ${Object.keys(entities).join(", ") || "none"}`,
       );
     }
 
-    found.set(current, typeof value === "string" ? { name: value } : value);
+    found.set(key, typeof value === "string" ? { name: value } : value);
   }
 
   return found;

@@ -19,7 +19,6 @@ import {
   schemaPreamble,
   updatedAt,
 } from "../shared.ts";
-import { eventTypeData, typeListRenames } from "./event-type-renames.ts";
 import { endpointFunctions } from "./webhooks-out-endpoints.ts";
 import {
   ADDED_COLUMNS,
@@ -554,14 +553,6 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
   modes: ["managed", "custom"],
   version: 6,
   names: NAMES,
-  data: (ctx) =>
-    eventTypeData([
-      typeListRenames(
-        ctx,
-        ctx.table("endpoints"),
-        ctx.col("endpoints", "eventTypes"),
-      ),
-    ]),
   contract,
   upgrades: [
     {

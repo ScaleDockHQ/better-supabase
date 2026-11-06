@@ -1,8 +1,3 @@
-import {
-  currentPermissionKeys,
-  upgradePermissionKey,
-} from "../../core/renames.ts";
-
 /**
  * The caller's permission keys in one tenant, as `my_permissions` returned
  * them. It is plain data, so a Server Component can pass it to the client.
@@ -30,15 +25,10 @@ const grants = (granted: string, wanted: string): boolean =>
 /**
  * Whether a granted key covers a wanted one: the same rule as the SQL
  * `permission_matches`, where `*` grants every key and `prefix.*` every key
- * under `prefix`. A key the 0.46 convention renamed matches as its new keys on
- * either side until the next minor, and a wanted one is logged once.
+ * under `prefix`.
  */
 export function permissionMatches(granted: string, wanted: string): boolean {
-  const wants = upgradePermissionKey(wanted);
-
-  return currentPermissionKeys(granted).some((each) =>
-    wants.some((key) => grants(each, key)),
-  );
+  return grants(granted, wanted);
 }
 
 /**

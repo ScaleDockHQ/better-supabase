@@ -26,7 +26,6 @@ import type { RuleField, RuleFieldCatalog } from "./fields.ts";
 import { actionKey } from "../../core/automation.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { legacyEventType } from "../../core/renames.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { evaluateFilterQuery } from "../../list/filter-evaluate.ts";
 import { FILTER_OPERATORS } from "../../list/filter-query.ts";
@@ -782,31 +781,22 @@ export function automationSink(
         continue;
       }
 
-      const legacy = legacyEventType(event.type, event.payload);
-      const matches: RuleMatch[] = [];
-
-      for (const trigger of legacy === event.type
-        ? [event.type]
-        : [event.type, legacy]) {
-        matches.push(
-          ...(await options.rules
-            .run({
-              organizationId: target.organizationId,
-              input: {
-                subjectType: target.subjectType ?? null,
-                trigger,
-                subject: target.subject,
-                ...(target.subjectId === undefined
-                  ? {}
-                  : { subjectId: target.subjectId }),
-                ...(target.timeZone === undefined
-                  ? {}
-                  : { timeZone: target.timeZone }),
-              },
-            })
-            .orThrow()),
-        );
-      }
+      const matches: readonly RuleMatch[] = await options.rules
+        .run({
+          organizationId: target.organizationId,
+          input: {
+            subjectType: target.subjectType ?? null,
+            trigger: event.type,
+            subject: target.subject,
+            ...(target.subjectId === undefined
+              ? {}
+              : { subjectId: target.subjectId }),
+            ...(target.timeZone === undefined
+              ? {}
+              : { timeZone: target.timeZone }),
+          },
+        })
+        .orThrow();
 
       if (matches.length === 0) {
         continue;

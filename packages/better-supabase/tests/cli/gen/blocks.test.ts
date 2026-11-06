@@ -233,7 +233,7 @@ describe("blocks.generated.ts", () => {
         blocks: {
           memberships: {},
           permissions: {},
-          tasks: { names: { work_item: "task" } },
+          tasks: { names: { task: "task" } },
         },
       },
       "/project",
@@ -360,7 +360,7 @@ describe("blocks.generated.ts", () => {
           memberships: {},
           permissions: { roles: { owner: ["*"], editor: ["tasks.write"] } },
           notifications: {},
-          tasks: { names: { work_item: "task" } },
+          tasks: { names: { task: "task" } },
           settings: {
             options: { schemas: { user: { theme: { type: "string" } } } },
           },
@@ -459,7 +459,7 @@ describe("blocks.generated.ts", () => {
         blocks: {
           memberships: {},
           subjects: {},
-          tasks: { names: { work_item: { name: "task", url: "/tasks/{id}" } } },
+          tasks: { names: { task: { name: "task", url: "/tasks/{id}" } } },
           deals: { names: { deal: { url: "/crm/deals" } } },
         },
       },
