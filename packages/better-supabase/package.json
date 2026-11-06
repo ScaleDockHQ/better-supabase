@@ -33,7 +33,6 @@
   },
   "files": [
     "bin",
-    "codemods",
     "dist",
     "schemas",
     "skills",
@@ -1063,7 +1062,6 @@
       "default": "./dist/testing/index.js"
     },
     "./schemas/*.json": "./schemas/*.json",
-    "./codemods/*.json": "./codemods/*.json",
     "./testing/act-cases.json": "./testing/act-cases.json",
     "./sqlite": {
       "@better-supabase/source": "./src/sqlite/index.ts",
@@ -2240,7 +2238,6 @@
         "default": "./dist/testing/index.js"
       },
       "./schemas/*.json": "./schemas/*.json",
-      "./codemods/*.json": "./codemods/*.json",
       "./testing/act-cases.json": "./testing/act-cases.json",
       "./sqlite": {
         "types": "./dist/sqlite/index.d.ts",

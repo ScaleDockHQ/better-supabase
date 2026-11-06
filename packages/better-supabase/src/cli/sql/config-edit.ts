@@ -95,7 +95,7 @@ export function closingIndex(code: string, open: number): number {
   return -1;
 }
 
-export const skipSpace = (code: string, from: number): number => {
+const skipSpace = (code: string, from: number): number => {
   let index = from;
 
   while (index < code.length && /\s/.test(code[index]!)) {
@@ -224,7 +224,7 @@ export function configObject(code: string): number | undefined {
   return literal ? literal.index + literal[0].length - 1 : undefined;
 }
 
-export const indentAt = (source: string, index: number): string =>
+const indentAt = (source: string, index: number): string =>
   /^[ \t]*/.exec(source.slice(source.lastIndexOf("\n", index - 1) + 1))?.[0] ??
   "";
 
