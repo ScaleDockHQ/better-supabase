@@ -12,6 +12,7 @@ export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
 export {
   buildModel,
   conflicts,
+  ownerOf,
   type Declaration,
   type SchemaModel,
 } from "./pipeline/model.ts";
@@ -62,7 +63,11 @@ export {
   appTablesFiles,
 } from "./modules/app-tables.ts";
 
-export { PRELUDE_MODULE } from "./pipeline/prelude.ts";
+export {
+  BLOCK_OVERLAPS,
+  PRELUDE_FUNCTIONS,
+  PRELUDE_MODULE,
+} from "./pipeline/prelude.ts";
 
 export { resolveBlock } from "../config/blocks.ts";
 

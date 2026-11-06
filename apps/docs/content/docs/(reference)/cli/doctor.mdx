@@ -1720,6 +1720,36 @@ the block to another name.
 so a failure halfway leaves the schema partly applied. Create the index
 concurrently in a hand migration with a `lock_timeout` instead.
 
+### BS371
+
+**Warning: two schema files declare the same object.** A function, policy,
+trigger, index, table, view, type or sequence that two schema files both create
+has two definitions, and the declarative diff keeps whichever file it reads
+last. The helpers every block calls (`actor_may_write`, `import_run`, the memo
+functions and the rest) live once in the prelude file, so a copy of one in a
+module file means the file is older than the prelude: run
+`better-supabase upgrade`, which `upgrade --check` also reports.
+
+### BS372
+
+**Warning: a `do` block in an app file creates objects.** A `do` block that
+runs `create` or `execute` builds objects at run time, so a schema diff can't
+see them and reports them missing. Write the statements out as plain DDL.
+
+### BS373
+
+**Warning: an app file creates an object with `if not exists`.** `create table
+if not exists` and `create index if not exists` skip the statement when an
+object of that name exists, so a changed definition never applies. Write
+`create table` and let the diff change the table.
+
+### BS374
+
+**Warning: a block module file inserts rows.** A schema diff reads tables, not
+rows, so a top-level `insert` in a block module file never reaches the database
+from the sync. Rows belong in the module's data file, which `upgrade` writes into
+a migration. The generator writes none; this finds a hand edit.
+
 ## Auth config
 
 ### BS353

@@ -1210,6 +1210,27 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(check.output).toContain("-- edited");
   });
 
+  it("fails upgrade --check when a module file still pastes a prelude function", async () => {
+    const config: ResolveInput = { blocks: ["mfa"] };
+    await sql(["sync"], config);
+
+    const file = renderBlocks(
+      ["mfa"],
+      moduleLayout(resolveConfig(config, root)),
+    ).find((entry) => entry.module === "mfa");
+
+    await writeFile(
+      join(root, file!.path),
+      `${await readFile(join(root, file!.path), "utf-8")}\ncreate or replace function better_supabase.actor_may_write() returns boolean language sql as 'select true';\n`,
+    );
+
+    const check = await sql(["upgrade", "--check"], config);
+    expect(check.code).toBe(1);
+    expect(check.error).toContain(
+      "better_supabase.actor_may_write, which the prelude defines",
+    );
+  });
+
   it("leaves a block file edited by hand alone until --force", async () => {
     const config: ResolveInput = { blocks: ["mfa"] };
     await sql(["sync"], config);

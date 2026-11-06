@@ -13,9 +13,13 @@ import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
 
 import {
+  buildModel,
+  conflicts,
   entityRenamePlan,
   moduleFileVersion,
   moduleTopics,
+  PRELUDE_FUNCTIONS,
+  PRELUDE_MODULE,
   sameBlockFile,
   SQL_MODULES,
   upgradePlan,
@@ -69,7 +73,13 @@ export async function upgrade(
 
   const migrations = await writesMigrations(config);
 
-  const { installed, stale, diffs, text } = migrations
+  const {
+    installed,
+    stale,
+    diffs,
+    text,
+    files: installedFiles,
+  } = migrations
     ? await installedFromMigration(config, sqlLayout, files, paint)
     : await installedFromFiles(config, files, paint);
 
@@ -91,14 +101,20 @@ export async function upgrade(
   const plan = upgradePlan(installed, sqlLayout);
   const renamed = [...new Set(renames.steps.map((step) => step.module))];
 
+  const duplicated = duplicatedPreludeFunctions(installedFiles);
+
   const data = {
     upgrades: plan.map(({ module, from, to }) => ({ module, from, to })),
     ...(renamed.length > 0 ? { renames: renamed } : {}),
     stale,
+    ...(duplicated.length > 0 ? { duplicated } : {}),
   };
 
   const current =
-    plan.length === 0 && stale.length === 0 && renamed.length === 0;
+    plan.length === 0 &&
+    stale.length === 0 &&
+    renamed.length === 0 &&
+    duplicated.length === 0;
 
   const behind = plan.map(
     (entry) =>
@@ -125,6 +141,7 @@ export async function upgrade(
           (module) => `${module} has entity renames to apply to its tables`,
         ),
         ...(stale.length > 0 ? [`Out of date: ${stale.join(", ")}.`] : []),
+        ...duplicated,
         "Run `better-supabase upgrade`.",
       ].join("\n"),
     };
@@ -217,6 +234,8 @@ interface Installed {
   readonly diffs: string[];
   /** The installed files or migration, for their `@bsb-names` lines. */
   readonly text: string;
+  /** The installed files with their paths; empty for a migration. */
+  readonly files: readonly { readonly path: string; readonly text: string }[];
   /** Files a block wrote under its 0.14 name, which `upgrade` removes. */
 }
 
@@ -230,6 +249,7 @@ async function installedFromFiles(
   const stale: string[] = [];
   const diffs: string[] = [];
   const texts: string[] = [];
+  const paths: { path: string; text: string }[] = [];
 
   const read = (path: string): Promise<string | undefined> =>
     readFile(resolve(config.root, path), "utf-8").catch(() => undefined);
@@ -252,6 +272,7 @@ async function installedFromFiles(
     const current = found;
 
     texts.push(found);
+    paths.push({ path: file.path, text: found });
     installed.push({
       module: file.instance ?? file.module,
       ...(file.instance === undefined ? {} : { block: file.module }),
@@ -265,7 +286,7 @@ async function installedFromFiles(
     }
   }
 
-  return { installed, stale, diffs, text: texts.join("\n") };
+  return { installed, stale, diffs, text: texts.join("\n"), files: paths };
 }
 
 /**
@@ -281,7 +302,7 @@ async function installedFromMigration(
   const latest = await latestMigration(config, MODULES_SUFFIX);
 
   if (latest === undefined) {
-    return { installed: [], stale: [], diffs: [], text: "" };
+    return { installed: [], stale: [], diffs: [], text: "", files: [] };
   }
 
   const text = latest.text;
@@ -305,11 +326,46 @@ async function installedFromMigration(
   });
 
   return sameModuleMigration(latest.text, expected)
-    ? { installed, stale: [], diffs: [], text: latest.text }
+    ? { installed, stale: [], diffs: [], text: latest.text, files: [] }
     : {
         installed,
         stale: [latest.path],
         diffs: [fileDiff(latest.path, latest.text, expected, paint)],
         text: latest.text,
+        files: [],
       };
+}
+
+/**
+ * A line for each function of the prelude that a second installed file also
+ * creates: a module file written before the prelude existed pastes the helpers
+ * it calls, so a schema diff finds each of them twice.
+ */
+function duplicatedPreludeFunctions(
+  files: readonly { readonly path: string; readonly text: string }[],
+): string[] {
+  const model = buildModel(files);
+
+  return conflicts(model).flatMap(({ declarations }) => {
+    const first = declarations[0];
+
+    if (
+      first?.kind !== "function" ||
+      !PRELUDE_FUNCTIONS.has(
+        first.name.slice(first.name.indexOf(".") + 1).replace(/\/\d+$/, ""),
+      )
+    ) {
+      return [];
+    }
+
+    return declarations
+      .filter(
+        (each) =>
+          each.owner.kind === "module" && each.owner.name !== PRELUDE_MODULE,
+      )
+      .map(
+        (each) =>
+          `${each.file} declares ${first.name.replace(/\/\d+$/, "")}, which the prelude defines. Run \`better-supabase upgrade\`.`,
+      );
+  });
 }
