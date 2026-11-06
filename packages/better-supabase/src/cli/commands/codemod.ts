@@ -17,7 +17,7 @@ import {
   planResult,
 } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { migrationsDir } from "../sql-layout.ts";
+import { migrationsDir, writtenByBlocks } from "../sql-layout.ts";
 import { stampAfter } from "../sql/migrations.ts";
 import { plain } from "../style.ts";
 
@@ -103,7 +103,11 @@ async function sourceFiles(path: string): Promise<string[]> {
   return files.toSorted();
 }
 
-/** The text of the project's `.sql` files under `supabase/`, joined. */
+/**
+ * The text of the project's `.sql` files under `supabase/`, joined. Files the
+ * blocks wrote (`@bsb-block` modules, data and tests) stay out: `upgrade`
+ * rewrites them, so a codemod neither reads their names nor edits them.
+ */
 async function projectSql(root: string): Promise<string> {
   const base = resolve(root, "supabase");
 
@@ -112,13 +116,20 @@ async function projectSql(root: string): Promise<string> {
     withFileTypes: true,
   }).catch(() => []);
 
-  const texts = await Promise.all(
+  const sources = await Promise.all(
     entries
       .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
-      .map((entry) => readFile(join(entry.parentPath, entry.name), "utf-8")),
+      .map(async (entry) => {
+        const path = join(entry.parentPath, entry.name);
+
+        return { path, text: await readFile(path, "utf-8") };
+      }),
   );
 
-  return texts.join("\n");
+  return sources
+    .filter((source) => !writtenByBlocks(source))
+    .map((source) => source.text)
+    .join("\n");
 }
 
 export async function runCodemod(

@@ -156,6 +156,18 @@ describe("runCodemod", () => {
     expect(sql).not.toContain("bsb.uid()");
   });
 
+  it("leaves the files the blocks wrote out of the names it moves", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/schemas/900_better_supabase_001_notes.sql"),
+      "-- better-supabase module: notes\n-- @bsb-block notes@1 managed\n\ncreate policy p on notes using (bsb.owns(owner_id));\n",
+    );
+
+    await codemod(["naming"]);
+
+    expect(await readdir(join(root, "supabase"))).not.toContain("migrations");
+  });
+
   it("writes no SQL migration while the table has no SQL renames", async () => {
     await codemod(["naming"]);
     expect(await readdir(root)).not.toContain("supabase");
