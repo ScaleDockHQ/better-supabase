@@ -1,9 +1,17 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { configIssues } from "../../src/cli/config-schema.ts";
+import { configIssues, configSchemas } from "../../src/cli/config-schema.ts";
 import { loadConfig } from "../../src/cli/config.ts";
 import { stubProvider } from "../fixtures/authorization-provider.ts";
+
+describe("configSchemas", () => {
+  it("hands out the schemas the JSON Schema files are rendered from", () => {
+    expect(Object.keys(configSchemas())).toEqual(
+      expect.arrayContaining(["config", "environment", "design"]),
+    );
+  });
+});
 
 const repo = join(import.meta.dirname, "../../../..");
 

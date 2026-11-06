@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   applyEnvironment,
   databaseUrl,
+  defaultConfig,
   discoverConfig,
   loadConfig,
 } from "../../src/cli/config.ts";
@@ -13,6 +14,22 @@ import { run } from "../../src/cli/core/run.ts";
 import { configEnvironment } from "../../src/cli/env.ts";
 import { findRepoRoot } from "../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
+
+describe("defaultConfig", () => {
+  it("resolves the defaults at the directory and names the environment", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "better-supabase-default-"));
+
+    try {
+      expect(defaultConfig(dir)).toMatchObject({ root: dir });
+      expect(defaultConfig(dir, undefined, "production")).toMatchObject({
+        root: dir,
+        environment: "production",
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("config discovery", () => {
   let repo: string;
