@@ -83,7 +83,7 @@ const NAMES: BlockSqlNames = {
     "before_pipeline_stage_change",
     "after_pipeline_stage_change",
   ],
-  options: ["extraColumns"],
+  options: ["extraColumns", "brand"],
   tables: {
     pipelines: {
       name: "pipelines",
@@ -111,6 +111,7 @@ const NAMES: BlockSqlNames = {
       optional: [
         "systemKey",
         "color",
+        "icon",
         "probability",
         "rottingAfterDays",
         "wipLimit",
@@ -126,6 +127,7 @@ const NAMES: BlockSqlNames = {
         systemKey: "system_key",
         name: "name",
         color: "color",
+        icon: "icon",
         rank: "rank",
         category: "category",
         outcome: "outcome",
@@ -258,14 +260,14 @@ create table if not exists ${t("stages")} (
   ${c("stages", "tenant")} ${ctx.idType} not null,
   ${c("stages", "pipeline")} uuid not null references ${t("pipelines")} (${c("pipelines", "id")}) on delete cascade,
   ${c("stages", "key")} text not null check (${c("stages", "key")} ~ '^[a-z][a-z0-9_-]{0,62}$'),${optional("stages", "systemKey", (x) => `${x} text`)}
-  ${c("stages", "name")} text not null check (length(${c("stages", "name")}) between 1 and 200),${optional("stages", "color", (x) => `${x} text`)}
+  ${c("stages", "name")} text not null check (length(${c("stages", "name")}) between 1 and 200),${optional("stages", "color", (x) => `${x} text`)}${optional("stages", "icon", (x) => `${x} text check (length(${x}) <= 100)`)}
   ${c("stages", "rank")} text collate "C" not null default 'V',
   ${c("stages", "category")} text not null,
   ${c("stages", "outcome")} text not null check (${c("stages", "outcome")} in ('open', 'success', 'failure')),${optional("stages", "probability", (x) => `${x} smallint check (${x} >= 0 and ${x} <= 100)`)}${optional("stages", "rottingAfterDays", (x) => `${x} integer check (${x} > 0)`)}${optional("stages", "wipLimit", (x) => `${x} integer check (${x} > 0)`)}
   ${c("stages", "archivedAt")} timestamptz,${stamps("stages")}
   unique (${c("stages", "pipeline")}, ${c("stages", "key")})
 );${key("stages", "key_key", `${c("stages", "pipeline")}, ${c("stages", "key")}`)}
-create index if not exists ${ctx.naming.rename("pipeline_stages_pipeline_idx")} on ${t("stages")} (${c("stages", "pipeline")}, ${c("stages", "rank")});
+${ctx.owns("stages") || !ctx.has("stages", "icon") ? "" : `alter table ${t("stages")} add column if not exists ${c("stages", "icon")} text check (length(${c("stages", "icon")}) <= 100);\n`}create index if not exists ${ctx.naming.rename("pipeline_stages_pipeline_idx")} on ${t("stages")} (${c("stages", "pipeline")}, ${c("stages", "rank")});
 ${lockTable(t("stages"), { read: true })}
 ${read("stages")}
 ${transitions}
@@ -372,11 +374,16 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "integer",
         "integer",
         "text",
+        "text",
       ],
       returns: "jsonb",
     },
     { name: "rank_pipeline_stage", args: ["uuid", "text"], returns: "boolean" },
-    { name: "archive_pipeline_stage", args: ["uuid"], returns: "boolean" },
+    {
+      name: "archive_pipeline_stage",
+      args: ["uuid", "uuid"],
+      returns: "boolean",
+    },
     ...(ctx.hasTable("transitions")
       ? [
           {

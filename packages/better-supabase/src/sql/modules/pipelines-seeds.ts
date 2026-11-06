@@ -19,12 +19,16 @@ const DEFAULT_KEY = "default";
  * The bindings whose pipeline can be declared: one without `scope` has exactly
  * one default pipeline per organization. A scoped binding (a job, a case kind)
  * needs a pipeline per scope value, which only exists once the first record
- * names it, so `default_pipeline` still creates those on first use.
+ * names it, so `default_pipeline` still creates those on first use. A binding
+ * with per-brand stages is created on first use too, where the brand is read.
  */
 export function seedableBindings(
   bindings: readonly PipelineBinding[],
 ): readonly PipelineBinding[] {
-  return bindings.filter((binding) => binding.scope === undefined);
+  return bindings.filter(
+    (binding) =>
+      binding.scope === undefined && Object.keys(binding.brands).length === 0,
+  );
 }
 
 function pipelineRows(
@@ -108,6 +112,12 @@ function pipelineRows(
 
         if (ctx.has("stages", "probability")) {
           values[s("probability")] = stage.probability ?? null;
+        }
+
+        for (const field of ["color", "icon"] as const) {
+          if (ctx.has("stages", field) && stage[field] !== undefined) {
+            values[s(field)] = stage[field];
+          }
         }
 
         return { values };

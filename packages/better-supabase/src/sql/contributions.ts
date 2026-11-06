@@ -16,6 +16,7 @@ export interface BlockContributions {
   readonly housekeeping: HousekeepingContribution;
   readonly imports: ImportTargetContribution;
   readonly numbering: NumberingContribution;
+  readonly "option-sets": OptionSetContribution;
   readonly periods: PeriodContribution;
   readonly pipelines: PipelineContribution;
   readonly relations: RelationContribution;
@@ -236,6 +237,18 @@ export interface NumberingContribution {
   readonly entity: string;
   /** The default entry: `{ period, format }` and the other entity keys. */
   readonly entry: Readonly<Record<string, unknown>>;
+}
+
+/** A record table of the contributing block with fields that run on option sets. */
+export interface OptionSetContribution {
+  /** The subject type, after the instance's entity names. */
+  readonly type: string;
+  /** The qualified table its records live in. */
+  readonly table: string;
+  /** Its tenant column, unquoted, as the block names it. */
+  readonly tenant: string;
+  /** One binding per field; an app's own `on` entry is merged over each. */
+  readonly fields: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 }
 
 /** A record table of the contributing block that runs on pipelines. */

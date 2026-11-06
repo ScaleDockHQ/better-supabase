@@ -160,6 +160,7 @@
   "blocks/oauth-server",
   "blocks/observations",
   "blocks/onboarding",
+  "blocks/option-sets",
   "blocks/orders",
   "blocks/organizations",
   "blocks/outbox",

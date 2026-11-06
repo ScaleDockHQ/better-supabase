@@ -217,6 +217,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "create_organization delete_organization leave_organization list_members list_my_organizations mark_used organization_overview organization_slug_problem remove_member resume_member suspend_member switch_organization transfer_ownership update_member_role update_organization",
   outbox:
     "emit_event outbox_ack outbox_claim outbox_dead_letters outbox_fail outbox_history outbox_register outbox_unregister purge_outbox",
+  "option-sets":
+    "archive_option_set_item ensure_option_set list_option_sets rank_option_set_item save_option_set save_option_set_item",
   passes:
     "check_in_pass get_pass issue_pass list_pass_check_ins list_passes my_passes revoke_pass",
   permissions: "can list_roles my_permissions set_permission_override",

@@ -8145,6 +8145,37 @@
       "TemplateWorkflowInput"
     ]
   },
+  "./blocks/option-sets": {
+    "values": [
+      "createOptionSets",
+      "createOptionSetsController",
+      "dbTransport",
+      "extendBlock",
+      "optionSetsBlock",
+      "optionSetsEvents",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "OptionSet",
+      "OptionSetInput",
+      "OptionSetItem",
+      "OptionSetItemInput",
+      "OptionSets",
+      "OptionSetsActions",
+      "OptionSetsController",
+      "OptionSetsControllerOptions",
+      "OptionSetsEvents",
+      "OptionSetsOptions",
+      "OptionSetsSnapshot",
+      "RpcClient"
+    ]
+  },
   "./blocks/pipelines": {
     "values": [
       "createPipelines",

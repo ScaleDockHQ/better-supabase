@@ -1792,6 +1792,20 @@ export interface BlockNameRegistry {
     readonly primary: never;
     readonly formerKeys: never;
   };
+  readonly "option-sets": {
+    readonly tables: {
+      readonly "sets": "id" | "tenant" | "subjectType" | "field" | "scope" | "key" | "name" | "isDefault" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "items": "id" | "tenant" | "set" | "key" | "systemKey" | "label" | "color" | "icon" | "rank" | "level" | "description" | "archivedAt" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "archive_option_set_item" | "default_option_set" | "ensure_option_set" | "list_option_sets" | "rank_option_set_item" | "save_option_set" | "save_option_set_item";
+    readonly actions: "read" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "optionSet": "id" | "tenant_id" | "subject_type" | "field" | "scope_id" | "key" | "name" | "is_default" | "archived_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "optionSet";
+    readonly formerKeys: never;
+  };
   readonly "orders": {
     readonly tables: {
       readonly "carts": "id" | "tenant" | "user" | "currency" | "priceList" | "status" | "email" | "shippingAddress" | "billingAddress" | "shippingRate" | "createdAt" | "updatedAt" | "convertedAt";
@@ -1913,7 +1927,7 @@ export interface BlockNameRegistry {
   readonly "pipelines": {
     readonly tables: {
       readonly "pipelines": "id" | "tenant" | "subjectType" | "scope" | "key" | "name" | "rank" | "isDefault" | "archivedAt" | "createdAt" | "updatedAt";
-      readonly "stages": "id" | "tenant" | "pipeline" | "key" | "systemKey" | "name" | "color" | "rank" | "category" | "outcome" | "probability" | "rottingAfterDays" | "wipLimit" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "stages": "id" | "tenant" | "pipeline" | "key" | "systemKey" | "name" | "color" | "icon" | "rank" | "category" | "outcome" | "probability" | "rottingAfterDays" | "wipLimit" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "transitions": "tenant" | "pipeline" | "from" | "to";
       readonly "history": "id" | "tenant" | "subjectType" | "subjectId" | "pipeline" | "fromStage" | "toStage" | "stageName" | "category" | "outcome" | "amount" | "currency" | "actor" | "enteredAt" | "exitedAt";
     };

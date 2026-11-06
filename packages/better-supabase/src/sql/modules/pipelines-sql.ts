@@ -15,6 +15,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
+import { brandSourceOf } from "./brand-source.ts";
 import { byType, outcomeCase } from "./pipelines-bindings.ts";
 import { seedableBindings } from "./pipelines-seeds.ts";
 
@@ -67,18 +68,26 @@ export function defaultPipeline(
   const p = (column: string): string => c("pipelines", column);
   const self = fn("default_pipeline");
 
-  const seeded = present(names, "stages", [
-    ["tenant", "default_pipeline.tenant"],
-    ["pipeline", "v_id"],
-    ["key", "x.key"],
-    ["systemKey", "x.key"],
-    ["name", "x.name"],
-    ["category", ctx.cast("stages", "category", "x.category")],
-    ["outcome", ctx.cast("stages", "outcome", "x.outcome")],
-    ["probability", "x.probability"],
-    ["rank", "x.rank"],
-  ]);
+  const seededFor = (styled: boolean) =>
+    present(names, "stages", [
+      ["tenant", "default_pipeline.tenant"],
+      ["pipeline", "v_id"],
+      ["key", "x.key"],
+      ["systemKey", "x.key"],
+      ["name", "x.name"],
+      ["category", ctx.cast("stages", "category", "x.category")],
+      ["outcome", ctx.cast("stages", "outcome", "x.outcome")],
+      ["probability", "x.probability"],
+      ["rank", "x.rank"],
+      ...(styled
+        ? ([
+            ["color", "x.color"],
+            ["icon", "x.icon"],
+          ] as const)
+        : []),
+    ]);
 
+  const brand = brandSourceOf(ctx, `blocks.${ctx.instance}.options.brand`);
   const declaredBindings = new Set(seedableBindings(bindings));
 
   // An unscoped binding's pipeline is declared in `pipelines.seeds`; the first
@@ -102,14 +111,53 @@ export function defaultPipeline(
       return declared(binding);
     }
 
-    const ranks = rankKeys(binding.stages.length);
+    const brands = Object.entries(binding.brands);
 
-    const rows = binding.stages
-      .map(
-        (stage, index) =>
-          `(${sqlString(stage.key)}, ${sqlString(stage.name)}, ${sqlString(stage.category)}, ${sqlString(binding.categories[stage.category] ?? "open")}, ${stage.probability === undefined ? "null::smallint" : `${String(stage.probability)}::smallint`}, ${sqlString(ranks[index] ?? "V")})`,
-      )
-      .join(",\n          ");
+    if (brands.length > 0 && brand === undefined) {
+      throw new TypeError(
+        `blocks.${ctx.instance}.on.${binding.type}.brands needs blocks.${ctx.instance}.options.brand`,
+      );
+    }
+
+    const styled = [binding.stages, ...brands.map(([, list]) => list)].some(
+      (list) =>
+        list.some(
+          (stage) => stage.color !== undefined || stage.icon !== undefined,
+        ),
+    );
+
+    const insertStages = (list: PipelineBinding["stages"]): string => {
+      const ranks = rankKeys(list.length);
+      const seeded = seededFor(styled);
+
+      const rows = list
+        .map(
+          (stage, index) =>
+            `(${sqlString(stage.key)}, ${sqlString(stage.name)}, ${sqlString(stage.category)}, ${sqlString(binding.categories[stage.category] ?? "open")}, ${stage.probability === undefined ? "null::smallint" : `${String(stage.probability)}::smallint`}, ${sqlString(ranks[index] ?? "V")}${styled ? `, ${stage.color === undefined ? "null::text" : sqlString(stage.color)}, ${stage.icon === undefined ? "null::text" : sqlString(stage.icon)}` : ""})`,
+        )
+        .join(",\n          ");
+
+      return `insert into ${t("stages")} (${columnsOf(names, "stages", seeded)})
+      select ${valuesOf(seeded)}
+      from (values
+          ${rows}
+      ) x(key, name, category, outcome, probability, rank${styled ? ", color, icon" : ""});`;
+    };
+
+    const stages =
+      brand === undefined || brands.length === 0
+        ? `      ${insertStages(binding.stages)}`
+        : `      v_brand := (select b.${brand.column}::text from ${brand.table} b where b.${brand.tenant}::text = default_pipeline.tenant::text limit 1);
+      ${brands
+        .map(
+          ([name, list], index) =>
+            `${index === 0 ? "if" : "elsif"} v_brand = ${sqlString(name)} then
+      ${insertStages(list)}`,
+        )
+        .join("\n      ")}
+      else
+      ${insertStages(binding.stages)}
+      end if;`;
 
     return `      insert into ${t("pipelines")} (${p("tenant")}, ${p("subjectType")}, ${p("scope")}, ${p("key")}, ${p("name")}, ${p("isDefault")})
       values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
@@ -118,11 +166,7 @@ export function defaultPipeline(
       if v_id is null then
         return ${self}(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
       end if;
-      insert into ${t("stages")} (${columnsOf(names, "stages", seeded)})
-      select ${valuesOf(seeded)}
-      from (values
-          ${rows}
-      ) x(key, name, category, outcome, probability, rank);`;
+${stages}`;
   };
 
   return `
@@ -135,7 +179,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid;
+  v_id uuid;${brand === undefined ? "" : "\n  v_brand text;"}
 begin
   select x.${p("id")} into v_id from ${t("pipelines")} x
   where x.${p("tenant")} = default_pipeline.tenant
@@ -220,6 +264,7 @@ export function stageTrigger(
   const transitions = ctx.hasTable("transitions")
     ? `
     if tg_op = 'UPDATE' and old.${stage} is not null
+      and coalesce(current_setting('bsb.lane_move', true), '') <> old.${stage}::text || ':' || new.${stage}::text
       and exists (select 1 from ${t("transitions")} x where x.${c("transitions", "pipeline")} = new.${pipeline})
       and not exists (
         select 1 from ${t("transitions")} x
@@ -517,6 +562,7 @@ export function manageFunctions(
     ["rottingAfterDays", "save_pipeline_stage.rotting_after_days"],
     ["wipLimit", "save_pipeline_stage.wip_limit"],
     ["color", "save_pipeline_stage.color"],
+    ["icon", "save_pipeline_stage.icon"],
   ]);
 
   const guard = (
@@ -535,6 +581,14 @@ export function manageFunctions(
       "this subject type has no pipeline binding",
       "22023",
     ),
+  );
+
+  const moveRecords = byType(
+    "v_subject_type",
+    bindings,
+    (binding) =>
+      `      update ${binding.subject.qualified} r set ${sqlIdent(binding.stage)} = archive_pipeline_stage.move_to where r.${sqlIdent(binding.stage)} = archive_pipeline_stage.stage;`,
+    "null;",
   );
 
   const occupied = (
@@ -711,7 +765,8 @@ ${userGrant(`${fn("archive_pipeline")}(uuid)`)}
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-create or replace function ${fn("save_pipeline_stage")}(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text)
+drop function if exists ${fn("save_pipeline_stage")}(uuid, uuid, text, text, text, integer, integer, integer, text);
+create or replace function ${fn("save_pipeline_stage")}(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -772,7 +827,7 @@ begin
   return (select ${names.json("stages", "x")} from ${t("stages")} x where x.${s("id")} = v_stage);
 end;
 $$;
-${userGrant(`${fn("save_pipeline_stage")}(uuid, uuid, text, text, text, integer, integer, integer, text)`)}
+${userGrant(`${fn("save_pipeline_stage")}(uuid, uuid, text, text, text, integer, integer, integer, text, text)`)}
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function ${fn("rank_pipeline_stage")}(stage uuid, rank text)
@@ -799,8 +854,11 @@ end;
 $$;
 ${userGrant(`${fn("rank_pipeline_stage")}(uuid, text)`)}
 
--- Archives an empty stage. The last open stage of a pipeline stays.
-create or replace function ${fn("archive_pipeline_stage")}(stage uuid)
+-- Archives a stage. Records in it move to move_to, a stage of the same
+-- pipeline; without move_to a stage that holds records is refused. The last
+-- open stage of a pipeline stays.
+drop function if exists ${fn("archive_pipeline_stage")}(uuid);
+create or replace function ${fn("archive_pipeline_stage")}(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
 security definer
@@ -813,6 +871,7 @@ declare
   v_outcome text;
   v_used boolean;
   v_stage uuid := archive_pipeline_stage.stage;
+  v_to uuid := archive_pipeline_stage.move_to;
 begin
   select x.${s("tenant")}, x.${s("pipeline")}, x.${s("outcome")}, y.${p("subjectType")}
     into v_tenant, v_pipeline, v_outcome, v_subject_type
@@ -823,14 +882,29 @@ begin
   end if;
   ${guard("v_tenant")}
   ${occupied((binding) => `r.${sqlIdent(binding.stage)} = archive_pipeline_stage.stage`)}
-  if v_used then
-    ${fail("PIPELINE_STAGE_IN_USE", "records are in this stage; move them first", "23503")}
+  if archive_pipeline_stage.move_to is not null then
+    if archive_pipeline_stage.move_to = archive_pipeline_stage.stage or not exists (
+      select 1 from ${t("stages")} x
+      where x.${s("id")} = archive_pipeline_stage.move_to and x.${s("pipeline")} = v_pipeline and x.${s("archivedAt")} is null
+    ) then
+      ${fail("PIPELINE_STAGE_REPLACEMENT_INVALID", "move_to must be another active stage of the same pipeline", "22023")}
+    end if;
+  end if;
+  if v_used and archive_pipeline_stage.move_to is null then
+    ${fail("PIPELINE_STAGE_IN_USE", "records are in this stage; move them first or name a stage to move them to", "23503")}
   end if;
   if v_outcome = 'open' and not exists (
     select 1 from ${t("stages")} x where x.${s("pipeline")} = v_pipeline and x.${s("outcome")} = 'open'
       and x.${s("archivedAt")} is null and x.${s("id")} <> archive_pipeline_stage.stage
   ) then
     ${fail("PIPELINE_LAST_OPEN_STAGE", "a pipeline keeps at least one open stage", "23514")}
+  end if;
+  if v_used then
+    -- The stage trigger lets this one change through even where the allowed
+    -- stage changes would not.
+    perform set_config('bsb.lane_move', v_stage::text || ':' || v_to::text, true);
+    ${moveRecords}
+    perform set_config('bsb.lane_move', '', true);
   end if;
   update ${t("stages")} x set ${s("archivedAt")} = now()${touched(names, "stages")} where x.${s("id")} = archive_pipeline_stage.stage;
   ${ctx.record({
@@ -849,7 +923,7 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${fn("archive_pipeline_stage")}(uuid)`)}
+${userGrant(`${fn("archive_pipeline_stage")}(uuid, uuid)`)}
 ${transitions}`;
 }
 
@@ -899,7 +973,7 @@ export function readFunctions(
           group by stage_id
         )
         select coalesce(jsonb_agg(jsonb_build_object(
-          'stageId', st.${s("id")}, 'key', st.${s("key")}, 'name', st.${s("name")}, 'color', ${stage("color")},
+          'stageId', st.${s("id")}, 'key', st.${s("key")}, 'name', st.${s("name")}, 'color', ${stage("color")}, 'icon', ${stage("icon")},
           'category', st.${s("category")}, 'outcome', st.${s("outcome")}, 'probability', ${stage("probability")},
           'wipLimit', ${stage("wipLimit")}, 'count', coalesce(n.n, 0),
           'overLimit', ${stage("wipLimit")} is not null and coalesce(n.n, 0) > ${stage("wipLimit")},

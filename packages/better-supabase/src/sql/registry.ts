@@ -119,6 +119,7 @@ import { NUMBER_SEQUENCES } from "./modules/numbering.ts";
 import { OAUTH_SERVER } from "./modules/oauth-server.ts";
 import { OBSERVATIONS } from "./modules/observations.ts";
 import { ONBOARDING } from "./modules/onboarding.ts";
+import { OPTION_SETS } from "./modules/option-sets.ts";
 import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
@@ -473,6 +474,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(PROMPTS),
       built(AI_EVALS),
       built(AI_GUARDRAILS),
+      built(OPTION_SETS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

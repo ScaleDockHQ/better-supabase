@@ -153,6 +153,8 @@ const NO_FIELDS: readonly string[] = [
   // Clients, grants and codes are protocol state; RFC 7591 metadata beyond the columns goes in metadata.
   "oauth-server",
   // An event log; the app's data goes in each event's payload.
+  // Option sets are fixed records; app data goes on the subject.
+  "option-sets",
   "outbox",
   // A pass is an admission credential; what it admits to lives on its booking or record.
   "passes",

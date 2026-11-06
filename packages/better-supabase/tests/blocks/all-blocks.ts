@@ -114,6 +114,7 @@ import type { numberingBlock } from "../../src/blocks/numbering/manifest.ts";
 import type { oauthServerBlock } from "../../src/blocks/oauth-server/manifest.ts";
 import type { observationsBlock } from "../../src/blocks/observations/manifest.ts";
 import type { onboardingBlock } from "../../src/blocks/onboarding/manifest.ts";
+import type { optionSetsBlock } from "../../src/blocks/option-sets/manifest.ts";
 import type { ordersBlock } from "../../src/blocks/orders/manifest.ts";
 import type { organizationsBlock } from "../../src/blocks/organizations/manifest.ts";
 import type { outboxBlock } from "../../src/blocks/outbox/manifest.ts";
@@ -349,6 +350,7 @@ export type AllBlocks = {
   readonly outbox: typeof outboxBlock;
   readonly parties: typeof contactsBlock;
   readonly pgtap: typeof pgtapBlock;
+  readonly "option-sets": typeof optionSetsBlock;
   readonly pipelines: typeof pipelinesBlock;
   readonly profiles: typeof profilesBlock;
   readonly promotions: typeof promotionsBlock;

@@ -145,3 +145,4 @@ advisories
 prompts
 ai-evals
 ai-guardrails
+option-sets

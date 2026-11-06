@@ -613,7 +613,30 @@ const workItemPipeline = (
   ],
 });
 
+/** The default priority: the five levels the column has always held. */
+const PRIORITY_ITEMS = [
+  { key: "none", label: "None", level: 0 },
+  { key: "low", label: "Low", level: 1 },
+  { key: "medium", label: "Medium", level: 2 },
+  { key: "high", label: "High", level: 3 },
+  { key: "urgent", label: "Urgent", level: 4 },
+] as const;
+
 const CONTRIBUTES: BlockContributes = {
+  "option-sets": (own) => [
+    {
+      type: taskType(own),
+      table: `${own.tableName("items").schema}.${own.tableName("items").name}`,
+      tenant: own.colName("items", "tenant"),
+      fields: {
+        priority: {
+          column: own.colName("items", "priority"),
+          levels: { min: 0, max: 4 },
+          items: PRIORITY_ITEMS,
+        },
+      },
+    },
+  ],
   pipelines: (own) => {
     const { schema, name } = own.tableName("items");
 

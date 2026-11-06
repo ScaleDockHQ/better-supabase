@@ -594,6 +594,9 @@ may be your own enum or domain.
 - `observations`
   - `better_supabase.observation_definitions`: `id`, `tenant_id`, `key`, `title`, `value_type`, `unit`, `code_system`, `code`, `components`, `decimals`, `valid_low`, `valid_high`, `reference_low`, `reference_high`, `critical_low`, `critical_high`, `archived_at`
   - `better_supabase.observations`: `id`, `tenant_id`, `definition_id`, `subject_type`, `subject_id`, `observed_at`, `value_number`, `value_text`, `value_code`, `components`, `flag`, `status`, `replaces_id`, `source`, `external_id`, `submission_id`, `performer_id`, `created_at`
+- `option-sets`
+  - `better_supabase.option_sets`: `id`, `tenant_id`, `subject_type`, `field`, `scope_id`, `key`, `name`, `is_default`, `archived_at`, `created_at`, `updated_at`
+  - `better_supabase.option_set_items`: `id`, `tenant_id`, `option_set_id`, `key`, `system_key`, `label`, `color`, `icon`, `rank`, `level`, `description`, `archived_at`, `created_at`, `updated_at`
 - `orders`
   - `better_supabase.carts`: `id`, `tenant_id`, `user_id`, `currency`, `price_list_id`, `status`, `shipping_address`, `shipping_rate_id`, `created_at`, `updated_at`, `converted_at`; typed: `status`
   - `better_supabase.cart_lines`: `id`, `tenant_id`, `cart_id`, `variant_id`, `quantity`, `unit_amount`, `created_at`, `updated_at`

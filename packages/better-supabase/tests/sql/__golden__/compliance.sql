@@ -2446,7 +2446,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:ac1a219a355c6d43fd47402494579f977b7d3818f8e51e7e7ac97d3442ca9be1
+-- @bsb-hash sha256:214473158718bd7d9af4896b8dc673ee955ea471d936c7e8578d61fa44d0db11
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2545,6 +2545,7 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."commission_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."commission_assignments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."commissions"') and attname = 'source_type' and not attisdropped) then update "better_supabase"."commissions" set "source_type" = 'compliance_policy' where "source_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."prescriptions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."prescriptions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."option_sets"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."option_sets" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 -- Policies assigned to the member role reach every member.
 do $$

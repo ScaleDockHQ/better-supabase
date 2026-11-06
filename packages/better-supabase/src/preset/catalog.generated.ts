@@ -4328,6 +4328,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "attachments",
         "reminders",
         "accounting",
+        "option-sets",
         "pipelines",
         "subjects"
       ],
@@ -4336,6 +4337,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
+        "option-sets",
         "pipelines",
         "subjects"
       ],
@@ -12162,6 +12164,55 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit"
       ],
       "manifest": "ai-guardrails"
+    },
+    {
+      "name": "option-sets",
+      "title": "Option sets",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "option-sets",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "optionSet": {
+            "table": "sets",
+            "singular": "option_set",
+            "primary": true
+          }
+        },
+        "tables": {
+          "sets": {
+            "name": "option_sets",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "field": "field",
+              "scope": "scope_id",
+              "key": "key",
+              "name": "name",
+              "isDefault": "is_default",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "option_sets.read",
+          "manage": "option_sets.manage"
+        }
+      }
     },
     {
       "name": "rls-guard",
@@ -32014,6 +32065,64 @@ export const PRESET_CATALOG: PresetCatalog = {
       "client": null,
       "consumes": {},
       "provides": []
+    },
+    {
+      "name": "option-sets",
+      "sql": [
+        "option-sets"
+      ],
+      "category": "work",
+      "client": {
+        "export": "optionSetsBlock",
+        "subpath": "better-supabase/blocks/option-sets"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "OptionSet"
+        },
+        {
+          "name": "OptionSetInput"
+        },
+        {
+          "name": "OptionSetItem"
+        },
+        {
+          "name": "OptionSetItemInput"
+        },
+        {
+          "name": "OptionSets"
+        },
+        {
+          "name": "OptionSetsActions"
+        },
+        {
+          "name": "OptionSetsController"
+        },
+        {
+          "name": "OptionSetsControllerOptions"
+        },
+        {
+          "name": "OptionSetsEvents"
+        },
+        {
+          "name": "OptionSetsOptions"
+        },
+        {
+          "name": "OptionSetsSnapshot"
+        }
+      ],
+      "events": {
+        "type": "OptionSetsEvents",
+        "types": [
+          "option_set.created",
+          "option_set.updated",
+          "option_set_item.created",
+          "option_set_item.updated",
+          "option_set_item.archived"
+        ]
+      }
     },
     {
       "name": "pipelines",
