@@ -7,6 +7,7 @@ import type { BlockSqlFile, BlockSqlLayout } from "../../sql/index.ts";
 import { blockFileState, renderBlocks, renderKey } from "../../sql/index.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
 import { VERSION } from "../version.ts";
+import { generatorHash } from "./generator-hash.ts";
 
 interface Entry {
   readonly key: string;
@@ -62,10 +63,11 @@ export interface RenderCacheOptions {
 
 /**
  * `renderBlocks` behind a content-addressed cache. The key covers the block
- * names, the layout and the CLI version, so any change to the input renders
- * fresh. The disk entry is one file, overwritten in place, and is dropped when
- * a file's hash line no longer matches its body. A layout with a function in it
- * can't be keyed and always renders fresh.
+ * names, the layout, the CLI version and a hash of the generator's files, so
+ * any change to the input renders fresh. The disk entry is one file,
+ * overwritten in place, and is dropped when a file's hash line no longer
+ * matches its body. A layout with a function in it can't be keyed and always
+ * renders fresh.
  */
 export async function renderBlocksCached(
   config: ResolvedConfig,
@@ -74,7 +76,9 @@ export async function renderBlocksCached(
   options: RenderCacheOptions = {},
 ): Promise<BlockSqlFile[]> {
   const key =
-    options.cache === false ? undefined : renderKey(names, layout, VERSION);
+    options.cache === false
+      ? undefined
+      : renderKey(names, layout, `${VERSION}:${await generatorHash()}`);
 
   if (key === undefined) {
     renderStats.fresh += 1;
