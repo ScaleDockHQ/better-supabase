@@ -27,9 +27,7 @@ describe("forms module", () => {
     const sql = sqlOf(["forms"]);
 
     for (const table of ["forms", "form_versions", "form_submissions"]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}"`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}"`);
     }
 
     expect(sql).toContain("extensions.jsonschema_validation_errors(");
@@ -165,16 +163,14 @@ describe("forms module", () => {
   it("scores submissions against an answer key no client can read", () => {
     const sql = sqlOf(["forms"]);
 
-    expect(sql).toContain(
-      `create table if not exists "better_supabase"."form_answer_keys"`,
-    );
+    expect(sql).toContain(`create table "better_supabase"."form_answer_keys"`);
     expect(sql).not.toMatch(
       /grant select on "better_supabase"\."form_answer_keys"/,
     );
     expect(sql).toContain(`"better_supabase"."form_answer_split"(`);
     expect(sql).toContain(`v_grade := "better_supabase"."form_score"(`);
     expect(sql).toContain(
-      `alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric`,
+      `alter table "better_supabase"."form_submissions" add column "max_score" numeric`,
     );
     expect(sqlOf(["outbox", "forms"])).toContain("'score', v_row.\"score\"");
     expect(sql).toContain(`"better_supabase"."form_nps"(form_id uuid`);
@@ -207,7 +203,7 @@ describe("forms module", () => {
       `alter table "app"."survey_answers" add column if not exists "max_score" numeric;`,
     );
     expect(plain).toContain(
-      `create table if not exists "better_supabase"."form_answer_keys"`,
+      `create table "better_supabase"."form_answer_keys"`,
     );
     expect(plain).toContain("v_grade :=");
 

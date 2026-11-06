@@ -1,33 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:e26ddd59be652bd1d97ffd1202d33fecf162fadb9d6bb33422c8063473108fce
+-- @bsb-hash sha256:6dbf1aab238977a558865d06e66120b592b4edf30f0f750768d08bd30d4769d8
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."passes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pass_check_ins";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Passes: QR and NFC admission signed with the signing-keys block, with a
 -- log of every scan and capacity counted against bookings.
@@ -35,7 +12,7 @@ end $$;
 -- Admission passes: a ticket for one booking, or a pass for a resource (a gym,
 -- a venue) with a number of uses. The nonce goes in the signed token on the
 -- QR code or NFC tag; only the functions read it.
-create table if not exists "better_supabase"."passes" (
+create table "better_supabase"."passes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null default 'ticket' check ("kind" ~ '^[a-z][a-z0-9_-]{0,39}$'),
@@ -60,17 +37,17 @@ create table if not exists "better_supabase"."passes" (
   check ("uses_allowed" is null or "uses" <= "uses_allowed"),
   check ("valid_until" is null or "valid_until" > "valid_from")
 );
-create index if not exists "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
-create index if not exists "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
-create index if not exists "passes_booking_idx" on "better_supabase"."passes" ("booking_id");
-create index if not exists "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
-create index if not exists "passes_subject_idx" on "better_supabase"."passes" ("tenant_id", "subject_type", "subject_id");
+create index "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
+create index "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
+create index "passes_booking_idx" on "better_supabase"."passes" ("booking_id");
+create index "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
+create index "passes_subject_idx" on "better_supabase"."passes" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."passes" enable row level security;
 revoke all on "better_supabase"."passes" from public, anon, authenticated;
 grant all on "better_supabase"."passes" to service_role;
 
 -- Every scan, admitted or not, for the door log and the drop-in count.
-create table if not exists "better_supabase"."pass_check_ins" (
+create table "better_supabase"."pass_check_ins" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pass_id" uuid not null references "better_supabase"."passes" ("id") on delete cascade,
@@ -84,8 +61,8 @@ create table if not exists "better_supabase"."pass_check_ins" (
   "created_at" timestamptz not null default now(),
   check ("admitted" = ("reason" is null))
 );
-create index if not exists "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
-create index if not exists "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
+create index "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
+create index "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
 alter table "better_supabase"."pass_check_ins" enable row level security;
 revoke all on "better_supabase"."pass_check_ins" from public, anon, authenticated;
 grant all on "better_supabase"."pass_check_ins" to service_role;
@@ -346,33 +323,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:393168c0033b696da4afe92e78a5bb99cade85a8cc32568ba3a765ae91f2cd10
+-- @bsb-hash sha256:4f2c8de50b9e4b76686c8ad09352ce0c5e507623e788e94f2f3b5c89e98589f0
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."passes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pass_check_ins";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Passes: QR and NFC admission signed with the signing-keys block, with a
 -- log of every scan and capacity counted against bookings.
@@ -380,7 +334,7 @@ end $$;
 -- Admission passes: a ticket for one booking, or a pass for a resource (a gym,
 -- a venue) with a number of uses. The nonce goes in the signed token on the
 -- QR code or NFC tag; only the functions read it.
-create table if not exists "better_supabase"."passes" (
+create table "better_supabase"."passes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null default 'ticket' check ("kind" ~ '^[a-z][a-z0-9_-]{0,39}$'),
@@ -405,50 +359,20 @@ create table if not exists "better_supabase"."passes" (
   check ("uses_allowed" is null or "uses" <= "uses_allowed"),
   check ("valid_until" is null or "valid_until" > "valid_from")
 );
-create index if not exists "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
-create index if not exists "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
-create index if not exists "passes_booking_idx" on "better_supabase"."passes" ("booking_id");
-create index if not exists "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
-create index if not exists "passes_subject_idx" on "better_supabase"."passes" ("tenant_id", "subject_type", "subject_id");
+create index "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
+create index "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
+create index "passes_booking_idx" on "better_supabase"."passes" ("booking_id");
+create index "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
+create index "passes_subject_idx" on "better_supabase"."passes" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."passes" enable row level security;
 revoke all on "better_supabase"."passes" from public, anon, authenticated;
 grant all on "better_supabase"."passes" to service_role;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."passes"'::regclass and conname = 'passes_booking_fkey'
-  ) then
-    alter table "better_supabase"."passes" add constraint "passes_booking_fkey"
-      foreign key ("booking_id") references "better_supabase"."bookings" ("id") on delete cascade not valid;
-    begin
-      alter table "better_supabase"."passes" validate constraint "passes_booking_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."passes"', '"better_supabase"."passes"', 'passes_booking_fkey';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."passes"'::regclass and conname = 'passes_resource_fkey'
-  ) then
-    alter table "better_supabase"."passes" add constraint "passes_resource_fkey"
-      foreign key ("resource_id") references "better_supabase"."booking_resources" ("id") on delete cascade not valid;
-    begin
-      alter table "better_supabase"."passes" validate constraint "passes_resource_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."passes"', '"better_supabase"."passes"', 'passes_resource_fkey';
-    end;
-  end if;
-end;
-$$;
+alter table "better_supabase"."passes" add constraint "passes_booking_fkey"
+  foreign key ("booking_id") references "better_supabase"."bookings" ("id") on delete cascade;
+alter table "better_supabase"."passes" add constraint "passes_resource_fkey"
+  foreign key ("resource_id") references "better_supabase"."booking_resources" ("id") on delete cascade;
 -- Every scan, admitted or not, for the door log and the drop-in count.
-create table if not exists "better_supabase"."pass_check_ins" (
+create table "better_supabase"."pass_check_ins" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pass_id" uuid not null references "better_supabase"."passes" ("id") on delete cascade,
@@ -462,8 +386,8 @@ create table if not exists "better_supabase"."pass_check_ins" (
   "created_at" timestamptz not null default now(),
   check ("admitted" = ("reason" is null))
 );
-create index if not exists "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
-create index if not exists "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
+create index "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
+create index "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
 alter table "better_supabase"."pass_check_ins" enable row level security;
 revoke all on "better_supabase"."pass_check_ins" from public, anon, authenticated;
 grant all on "better_supabase"."pass_check_ins" to service_role;
@@ -830,32 +754,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:3b31ad5f27209a88a4f4dbff260b7003ddb7ad75dac0937a95d4f20311d4222b
+-- @bsb-hash sha256:9b07ae988152450e7cbd1411fb5d7281127aa850f72d167c6d3c53ffdb516a39
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."passes";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."passes";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."passes";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."passes";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."passes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."pass_check_ins";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -868,7 +770,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Admission passes: a ticket for one booking, or a pass for a resource (a gym,
 -- a venue) with a number of uses. The nonce goes in the signed token on the
 -- QR code or NFC tag; only the functions read it.
-create table if not exists "app_private"."passes" (
+create table "app_private"."passes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null default 'ticket' check ("kind" ~ '^[a-z][a-z0-9_-]{0,39}$'),
@@ -893,17 +795,17 @@ create table if not exists "app_private"."passes" (
   check ("uses_allowed" is null or "uses" <= "uses_allowed"),
   check ("valid_until" is null or "valid_until" > "valid_from")
 );
-create index if not exists "passes_tenant_idx" on "app_private"."passes" ("tenant_id", "created_at" desc);
-create index if not exists "passes_holder_idx" on "app_private"."passes" ("holder_user_id");
-create index if not exists "passes_booking_idx" on "app_private"."passes" ("booking_id");
-create index if not exists "passes_resource_idx" on "app_private"."passes" ("resource_id");
-create index if not exists "passes_subject_idx" on "app_private"."passes" ("tenant_id", "subject_type", "subject_id");
+create index "passes_tenant_idx" on "app_private"."passes" ("tenant_id", "created_at" desc);
+create index "passes_holder_idx" on "app_private"."passes" ("holder_user_id");
+create index "passes_booking_idx" on "app_private"."passes" ("booking_id");
+create index "passes_resource_idx" on "app_private"."passes" ("resource_id");
+create index "passes_subject_idx" on "app_private"."passes" ("tenant_id", "subject_type", "subject_id");
 alter table "app_private"."passes" enable row level security;
 revoke all on "app_private"."passes" from public, anon, authenticated;
 grant all on "app_private"."passes" to service_role;
 
 -- Every scan, admitted or not, for the door log and the drop-in count.
-create table if not exists "app_private"."pass_check_ins" (
+create table "app_private"."pass_check_ins" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pass_id" uuid not null references "app_private"."passes" ("id") on delete cascade,
@@ -917,8 +819,8 @@ create table if not exists "app_private"."pass_check_ins" (
   "created_at" timestamptz not null default now(),
   check ("admitted" = ("reason" is null))
 );
-create index if not exists "pass_check_ins_log_idx" on "app_private"."pass_check_ins" ("pass_id", "created_at" desc);
-create index if not exists "pass_check_ins_drop_in_idx" on "app_private"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
+create index "pass_check_ins_log_idx" on "app_private"."pass_check_ins" ("pass_id", "created_at" desc);
+create index "pass_check_ins_drop_in_idx" on "app_private"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
 alter table "app_private"."pass_check_ins" enable row level security;
 revoke all on "app_private"."pass_check_ins" from public, anon, authenticated;
 grant all on "app_private"."pass_check_ins" to service_role;
@@ -1179,33 +1081,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:0871010ec9fe33d092cc737f75fc0b40af1389e0b11ed709f2aae4d3b5469fbd
+-- @bsb-hash sha256:108f35122d471631d60c5e52a0416ded7787ee8e7aade41d08cb7781453ddfa1
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."passes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pass_check_ins";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Passes: QR and NFC admission signed with the signing-keys block, with a
 -- log of every scan and capacity counted against bookings.
@@ -1213,7 +1092,7 @@ end $$;
 -- Admission passes: a ticket for one booking, or a pass for a resource (a gym,
 -- a venue) with a number of uses. The nonce goes in the signed token on the
 -- QR code or NFC tag; only the functions read it.
-create table if not exists "better_supabase"."passes" (
+create table "better_supabase"."passes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null default 'ticket' check ("kind" ~ '^[a-z][a-z0-9_-]{0,39}$'),
@@ -1238,17 +1117,17 @@ create table if not exists "better_supabase"."passes" (
   check ("uses_allowed" is null or "uses" <= "uses_allowed"),
   check ("valid_until" is null or "valid_until" > "valid_from")
 );
-create index if not exists "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
-create index if not exists "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
-create index if not exists "passes_booking_idx" on "better_supabase"."passes" ("booking_id");
-create index if not exists "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
-create index if not exists "passes_subject_idx" on "better_supabase"."passes" ("tenant_id", "subject_type", "subject_id");
+create index "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
+create index "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
+create index "passes_booking_idx" on "better_supabase"."passes" ("booking_id");
+create index "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
+create index "passes_subject_idx" on "better_supabase"."passes" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."passes" enable row level security;
 revoke all on "better_supabase"."passes" from public, anon, authenticated;
 grant all on "better_supabase"."passes" to service_role;
 
 -- Every scan, admitted or not, for the door log and the drop-in count.
-create table if not exists "better_supabase"."pass_check_ins" (
+create table "better_supabase"."pass_check_ins" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pass_id" uuid not null references "better_supabase"."passes" ("id") on delete cascade,
@@ -1262,8 +1141,8 @@ create table if not exists "better_supabase"."pass_check_ins" (
   "created_at" timestamptz not null default now(),
   check ("admitted" = ("reason" is null))
 );
-create index if not exists "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
-create index if not exists "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
+create index "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
+create index "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
 alter table "better_supabase"."pass_check_ins" enable row level security;
 revoke all on "better_supabase"."pass_check_ins" from public, anon, authenticated;
 grant all on "better_supabase"."pass_check_ins" to service_role;
@@ -1595,33 +1474,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:6e161c895c67d5825661af1af3942c01a89825b3c7f4e81fa9e30b6cebcbc331
+-- @bsb-hash sha256:83116f45bc890ae185830350dd47709b1e25498e65be93be8803fa95e90f7b1b
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."passes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pass_check_ins";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Passes: QR and NFC admission signed with the signing-keys block, with a
 -- log of every scan and capacity counted against bookings.
@@ -1932,33 +1788,10 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:c2c5998694bfd99ba462550b8512e3e887540f699dcfa8d3d5697af01bad155e
+-- @bsb-hash sha256:49cf9dd5c6655c61d09e3064df8ee2cf45ad4d21efcd9a8fa3020d92e158ab06
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."passes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pass_check_ins";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Passes: QR and NFC admission signed with the signing-keys block, with a
 -- log of every scan and capacity counted against bookings.
@@ -1966,7 +1799,7 @@ end $$;
 -- Admission passes: a ticket for one booking, or a pass for a resource (a gym,
 -- a venue) with a number of uses. The nonce goes in the signed token on the
 -- QR code or NFC tag; only the functions read it.
-create table if not exists "better_supabase"."passes" (
+create table "better_supabase"."passes" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "kind" text not null default 'ticket' check ("kind" ~ '^[a-z][a-z0-9_-]{0,39}$'),
@@ -1991,17 +1824,17 @@ create table if not exists "better_supabase"."passes" (
   check ("uses_allowed" is null or "uses" <= "uses_allowed"),
   check ("valid_until" is null or "valid_until" > "valid_from")
 );
-create index if not exists "passes_tenant_idx" on "better_supabase"."passes" ("org_id", "created_at" desc);
-create index if not exists "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
-create index if not exists "passes_booking_idx" on "better_supabase"."passes" ("booking_id");
-create index if not exists "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
-create index if not exists "passes_subject_idx" on "better_supabase"."passes" ("org_id", "subject_type", "subject_id");
+create index "passes_tenant_idx" on "better_supabase"."passes" ("org_id", "created_at" desc);
+create index "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
+create index "passes_booking_idx" on "better_supabase"."passes" ("booking_id");
+create index "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
+create index "passes_subject_idx" on "better_supabase"."passes" ("org_id", "subject_type", "subject_id");
 alter table "better_supabase"."passes" enable row level security;
 revoke all on "better_supabase"."passes" from public, anon, authenticated;
 grant all on "better_supabase"."passes" to service_role;
 
 -- Every scan, admitted or not, for the door log and the drop-in count.
-create table if not exists "better_supabase"."pass_check_ins" (
+create table "better_supabase"."pass_check_ins" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "pass_id" uuid not null references "better_supabase"."passes" ("id") on delete cascade,
@@ -2015,8 +1848,8 @@ create table if not exists "better_supabase"."pass_check_ins" (
   "created_at" timestamptz not null default now(),
   check ("admitted" = ("reason" is null))
 );
-create index if not exists "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
-create index if not exists "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
+create index "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
+create index "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
 alter table "better_supabase"."pass_check_ins" enable row level security;
 revoke all on "better_supabase"."pass_check_ins" from public, anon, authenticated;
 grant all on "better_supabase"."pass_check_ins" to service_role;

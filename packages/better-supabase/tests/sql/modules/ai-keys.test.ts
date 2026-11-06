@@ -13,9 +13,7 @@ describe("ai-keys module", () => {
     const sql = body();
 
     for (const table of ["ai_provider_keys", "ai_batches", "ai_batch_items"]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}" (`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}" (`);
     }
 
     expect(sql).not.toContain("ai_sandboxes");

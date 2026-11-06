@@ -151,7 +151,7 @@ ${lockTable(t, { read: true })}
 -- membership like any member. Organization-owned workflow versions and
 -- service webhook endpoints run as the tenant's default principal.
 ${tables}
-${renderPolicy(makePolicy({ table: t, name: "service_principals_read", command: "select", roles: ["authenticated"], using: `${c("tenant")} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: "service_principals_read", command: "select", roles: ["authenticated"], using: `${c("tenant")} in (select ${ctx.scope.ids(read)})` }), { target: t })}
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry

@@ -1,13 +1,13 @@
 -- ==== schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:962eb85bbc35fea863157548fbacf6d3200a75cf10b53a3d7da90ad7d01d9050
+-- @bsb-hash sha256:a5acaad6fbdafdee746a05b7abc7628f4f24c0b34456b7ad29f6e6f7bf650c57
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- The activity feed: one row per outbox event, written by activitySink().
-create table if not exists "better_supabase"."timeline_entries" (
+create table "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "event_id" text not null unique,
@@ -19,19 +19,16 @@ create table if not exists "better_supabase"."timeline_entries" (
   "data" jsonb not null default '{}'::jsonb,
   "occurred_at" timestamptz not null default now()
 );
-create index if not exists "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
-create index if not exists "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("organization_id", "subject_type", "subject_id");
-create index if not exists "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
+create index "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
+create index "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("organization_id", "subject_type", "subject_id");
+create index "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
 alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
 grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
-drop policy if exists timeline_entries_read on "better_supabase"."timeline_entries";
 create policy timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
   using (((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true'));
-drop function if exists "better_supabase"."activity_subject_readable"(text, text);
-drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen

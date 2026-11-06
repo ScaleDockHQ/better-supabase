@@ -1,4 +1,4 @@
-import type { Policy, PolicyInput } from "./policy.ts";
+import type { Policy, PolicyInput, RenderPolicyOptions } from "./policy.ts";
 
 import { maskSql, policy, readPolicies, renderPolicy } from "./policy.ts";
 
@@ -221,7 +221,7 @@ export function rulePolicy(input: RulePolicyInput): RulePolicy {
  */
 export function renderRulePolicy(
   built: RulePolicy,
-  options: { readonly drop?: boolean } = {},
+  options: RenderPolicyOptions = {},
 ): string {
   const meta = JSON.stringify({ using: built.using, check: built.check });
 

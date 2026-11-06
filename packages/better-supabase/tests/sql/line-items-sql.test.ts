@@ -27,7 +27,7 @@ describe("line item totals", () => {
     expect(sql).toContain(
       `create trigger ${trigger}_delete after delete on ${table}\nreferencing old table as old_rows\nfor each statement execute function better_supabase.${trigger}();`,
     );
-    expect(sql).toContain(`drop trigger if exists ${trigger} on ${table};`);
+    expect(sql).not.toContain(`drop trigger if exists ${trigger} on ${table};`);
     expect(sql).not.toContain(
       `for each row execute function better_supabase.${trigger}();`,
     );
@@ -82,7 +82,7 @@ describe("line tables of the app's", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."quote_lines" add column if not exists "sku" text;`,
+      `alter table "better_supabase"."quote_lines" add column "sku" text;`,
     );
     expect(sql).not.toContain("for v_line in select");
     expect(sql).toContain(`"position", "sku")`);

@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:63a8b2a89b4b56e265d2ebb3a14fdf1bf0f3b62d4f78d95a860d40148e1198f7
+-- @bsb-hash sha256:468418c9ade3cafe5088be759bc6cdf2d0e3372748b6484ef40878d3fa48ce3e
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,11 +15,9 @@ exception when check_violation then
 end;
 $$;
 alter table "centrakit"."profiles" enable row level security;
-drop policy if exists bsb_profiles_read on "centrakit"."profiles";
 create policy bsb_profiles_read on "centrakit"."profiles"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists bsb_profiles_update on "centrakit"."profiles";
 create policy bsb_profiles_update on "centrakit"."profiles"
   for update to authenticated
   using (("user_id" = (select auth.uid())) and (select centrakit.authz_actor_may_write()))
@@ -52,7 +50,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_guard" on "centrakit"."profiles";
 create trigger "bsb_profile_guard" before update on "centrakit"."profiles"
   for each row execute function "better_supabase"."guard_profile"();
 
@@ -155,8 +152,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."backfill_profiles"() from public, anon, authenticated;
 grant execute on function "better_supabase"."backfill_profiles"() to service_role;
-
-drop function if exists "better_supabase"."my_profile"();
 create or replace function "better_supabase"."my_profile"()
 returns jsonb
 language sql
@@ -211,7 +206,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."update_my_profile"(jsonb) from public, anon;
 grant execute on function "better_supabase"."update_my_profile"(jsonb) to authenticated, service_role;
-drop trigger if exists "bsb_profile_sync" on auth.users;
 
 -- Keeps the profile's email equal to the confirmed address in auth.users,
 -- lowercased so lookups and unique indexes match regardless of case.
@@ -227,6 +221,5 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_email" on auth.users;
 create trigger "bsb_profile_email" after update of email on auth.users
   for each row execute function "better_supabase"."mirror_profile_email"();

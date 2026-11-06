@@ -219,7 +219,7 @@ export function membershipRolesPolicy(tenant: BlockSqlContext): string {
   const u = tenant.col("memberships", "user");
 
   return `
-${renderPolicy(makePolicy({ table: mr, name: "bsb_membership_roles_read", command: "select", roles: ["authenticated"], using: `${u} = (select auth.uid()) or ${t} in (select ${tenant.scope.members()})` }), { drop: true, target: mr })}
+${renderPolicy(makePolicy({ table: mr, name: "bsb_membership_roles_read", command: "select", roles: ["authenticated"], using: `${u} = (select auth.uid()) or ${t} in (select ${tenant.scope.members()})` }), { target: mr })}
 `;
 }
 

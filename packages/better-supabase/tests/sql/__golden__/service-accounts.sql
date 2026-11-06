@@ -1,32 +1,17 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:e7c3bddb81849c111d4b8a9c4ce86108eaf99af1eb3e47bf2d0281ad7b66b67c
+-- @bsb-hash sha256:b4b8ec9f5a2445eb3f3da04840a13defcbcdd0fdddc8b9a2010e0ea22d429cfb
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Non-human members of a tenant. Each row is an auth.users row that can't
 -- sign in (no password, banned, app_metadata.bsb_service_principal),
 -- created through the Auth admin API, and holds its role through a tenant
 -- membership like any member. Organization-owned workflow versions and
 -- service webhook endpoints run as the tenant's default principal.
-create table if not exists "better_supabase"."service_principals" (
+create table "better_supabase"."service_principals" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 120),
@@ -37,16 +22,15 @@ create table if not exists "better_supabase"."service_principals" (
   "disabled_at" timestamptz,
   unique ("tenant_id", "name")
 );
-create index if not exists service_principals_tenant_idx on "better_supabase"."service_principals" ("tenant_id");
-create index if not exists service_principals_created_by_idx on "better_supabase"."service_principals" ("created_by");
-create unique index if not exists service_principals_default_idx on "better_supabase"."service_principals" ("tenant_id")
+create index service_principals_tenant_idx on "better_supabase"."service_principals" ("tenant_id");
+create index service_principals_created_by_idx on "better_supabase"."service_principals" ("created_by");
+create unique index service_principals_default_idx on "better_supabase"."service_principals" ("tenant_id")
   where "is_default" and "disabled_at" is null;
 alter table "better_supabase"."service_principals" enable row level security;
 revoke all on "better_supabase"."service_principals" from public, anon, authenticated;
 grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
-drop policy if exists service_principals_read on "better_supabase"."service_principals";
 create policy service_principals_read on "better_supabase"."service_principals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
@@ -56,7 +40,7 @@ create policy service_principals_read on "better_supabase"."service_principals"
 -- app_metadata.bsb_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
-drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
+
 create or replace function "better_supabase"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language plpgsql
@@ -212,24 +196,19 @@ grant execute on function "better_supabase"."service_principals_list"(uuid) to a
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_select on "better_supabase"."service_principals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_update on "better_supabase"."service_principals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_delete on "better_supabase"."service_principals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -251,32 +230,17 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:c5b2fcb690529bd842a73a4463cb6450db1cd6c59f4e03d8c83054d61d3d1fa4
+-- @bsb-hash sha256:6efdf7e621a6b328a4aa75ea022b712e272ac6bc7dc86ba980450f0404cbdffc
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Non-human members of a tenant. Each row is an auth.users row that can't
 -- sign in (no password, banned, app_metadata.bsb_service_principal),
 -- created through the Auth admin API, and holds its role through a tenant
 -- membership like any member. Organization-owned workflow versions and
 -- service webhook endpoints run as the tenant's default principal.
-create table if not exists "better_supabase"."service_principals" (
+create table "better_supabase"."service_principals" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 120),
@@ -287,16 +251,15 @@ create table if not exists "better_supabase"."service_principals" (
   "disabled_at" timestamptz,
   unique ("tenant_id", "name")
 );
-create index if not exists service_principals_tenant_idx on "better_supabase"."service_principals" ("tenant_id");
-create index if not exists service_principals_created_by_idx on "better_supabase"."service_principals" ("created_by");
-create unique index if not exists service_principals_default_idx on "better_supabase"."service_principals" ("tenant_id")
+create index service_principals_tenant_idx on "better_supabase"."service_principals" ("tenant_id");
+create index service_principals_created_by_idx on "better_supabase"."service_principals" ("created_by");
+create unique index service_principals_default_idx on "better_supabase"."service_principals" ("tenant_id")
   where "is_default" and "disabled_at" is null;
 alter table "better_supabase"."service_principals" enable row level security;
 revoke all on "better_supabase"."service_principals" from public, anon, authenticated;
 grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
-drop policy if exists service_principals_read on "better_supabase"."service_principals";
 create policy service_principals_read on "better_supabase"."service_principals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
@@ -306,7 +269,7 @@ create policy service_principals_read on "better_supabase"."service_principals"
 -- app_metadata.bsb_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
-drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
+
 create or replace function "better_supabase"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language plpgsql
@@ -492,24 +455,19 @@ grant execute on function "better_supabase"."service_principals_list"(uuid) to a
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_select on "better_supabase"."service_principals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_update on "better_supabase"."service_principals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_delete on "better_supabase"."service_principals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -531,24 +489,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:049ff838217a2ce87c641789ff04f6f35bd207d066f5dc795f9526d67f1405cb
+-- @bsb-hash sha256:5b2a29fbe8e66b3d1168e7c4ff0e6f6b372ef35e47695daea629e8457a48fbdb
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."service_principals";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."service_principals";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."service_principals";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."service_principals";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."service_principals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -560,7 +504,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- created through the Auth admin API, and holds its role through a tenant
 -- membership like any member. Organization-owned workflow versions and
 -- service webhook endpoints run as the tenant's default principal.
-create table if not exists "app_private"."service_principals" (
+create table "app_private"."service_principals" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 120),
@@ -571,16 +515,15 @@ create table if not exists "app_private"."service_principals" (
   "disabled_at" timestamptz,
   unique ("tenant_id", "name")
 );
-create index if not exists service_principals_tenant_idx on "app_private"."service_principals" ("tenant_id");
-create index if not exists service_principals_created_by_idx on "app_private"."service_principals" ("created_by");
-create unique index if not exists service_principals_default_idx on "app_private"."service_principals" ("tenant_id")
+create index service_principals_tenant_idx on "app_private"."service_principals" ("tenant_id");
+create index service_principals_created_by_idx on "app_private"."service_principals" ("created_by");
+create unique index service_principals_default_idx on "app_private"."service_principals" ("tenant_id")
   where "is_default" and "disabled_at" is null;
 alter table "app_private"."service_principals" enable row level security;
 revoke all on "app_private"."service_principals" from public, anon, authenticated;
 grant select on "app_private"."service_principals" to authenticated;
 grant all on "app_private"."service_principals" to service_role;
 
-drop policy if exists service_principals_read on "app_private"."service_principals";
 create policy service_principals_read on "app_private"."service_principals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
@@ -590,7 +533,7 @@ create policy service_principals_read on "app_private"."service_principals"
 -- app_metadata.bsb_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
-drop function if exists "app_private"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
+
 create or replace function "app_private"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language plpgsql
@@ -746,24 +689,19 @@ grant execute on function "app_private"."service_principals_list"(uuid) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."service_principals";
-drop policy if exists bsb_tenant_scope_select on "app_private"."service_principals";
 create policy bsb_tenant_scope_select on "app_private"."service_principals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."service_principals";
 create policy bsb_tenant_scope_insert on "app_private"."service_principals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."service_principals";
 create policy bsb_tenant_scope_update on "app_private"."service_principals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."service_principals";
 create policy bsb_tenant_scope_delete on "app_private"."service_principals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -785,32 +723,17 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:7862e4d6c55a46e8ca874cd064fed5f0d781de92d8497f1bd29f846fab3babf5
+-- @bsb-hash sha256:66b3a2febd01693c9ed018faf513f580c8f8fe28fda68b0d492ba8d144226d3a
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Non-human members of a tenant. Each row is an auth.users row that can't
 -- sign in (no password, banned, app_metadata.bsb_service_principal),
 -- created through the Auth admin API, and holds its role through a tenant
 -- membership like any member. Organization-owned workflow versions and
 -- service webhook endpoints run as the tenant's default principal.
-create table if not exists "better_supabase"."service_principals" (
+create table "better_supabase"."service_principals" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 120),
@@ -821,16 +744,15 @@ create table if not exists "better_supabase"."service_principals" (
   "disabled_at" timestamptz,
   unique ("tenant_id", "name")
 );
-create index if not exists service_principals_tenant_idx on "better_supabase"."service_principals" ("tenant_id");
-create index if not exists service_principals_created_by_idx on "better_supabase"."service_principals" ("created_by");
-create unique index if not exists service_principals_default_idx on "better_supabase"."service_principals" ("tenant_id")
+create index service_principals_tenant_idx on "better_supabase"."service_principals" ("tenant_id");
+create index service_principals_created_by_idx on "better_supabase"."service_principals" ("created_by");
+create unique index service_principals_default_idx on "better_supabase"."service_principals" ("tenant_id")
   where "is_default" and "disabled_at" is null;
 alter table "better_supabase"."service_principals" enable row level security;
 revoke all on "better_supabase"."service_principals" from public, anon, authenticated;
 grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
-drop policy if exists service_principals_read on "better_supabase"."service_principals";
 create policy service_principals_read on "better_supabase"."service_principals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
@@ -840,7 +762,7 @@ create policy service_principals_read on "better_supabase"."service_principals"
 -- app_metadata.bsb_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
-drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
+
 create or replace function "better_supabase"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language plpgsql
@@ -996,24 +918,19 @@ grant execute on function "better_supabase"."service_principals_list"(uuid) to a
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_select on "better_supabase"."service_principals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_update on "better_supabase"."service_principals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_delete on "better_supabase"."service_principals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1021,8 +938,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."service_principals" 
 -- blocks.service-accounts.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
 
 create or replace function "api"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
@@ -1088,25 +1003,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:6cb6d347c626477e3fafe09a7bb6b339b1f9e465cd2d820af3da491dac4ff9b0
+-- @bsb-hash sha256:3b2b5a08956ad60debb20e433f91e5ae6ecce185f765df85a34ad22dc91838f5
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Non-human members of a tenant. Each row is an auth.users row that can't
 -- sign in (no password, banned, app_metadata.bsb_service_principal),
@@ -1130,7 +1030,6 @@ alter table "better_supabase"."service_principals" enable row level security;
 grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
-drop policy if exists bsb_service_principals_select on "better_supabase"."service_principals";
 create policy bsb_service_principals_select on "better_supabase"."service_principals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
@@ -1140,7 +1039,7 @@ create policy bsb_service_principals_select on "better_supabase"."service_princi
 -- app_metadata.bsb_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
-drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
+
 create or replace function "better_supabase"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language plpgsql
@@ -1296,24 +1195,19 @@ grant execute on function "better_supabase"."service_principals_list"(uuid) to a
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_select on "better_supabase"."service_principals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_update on "better_supabase"."service_principals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_delete on "better_supabase"."service_principals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1335,32 +1229,17 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:8267b659264409daf2d01b61ad3634956bae7dd4d9882b61ac5e8ec69637c7ca
+-- @bsb-hash sha256:41f5c1148b9107a1fdd9f1fc749f564c841a0b76edcc28b99d41bd032fd411b9
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Non-human members of a tenant. Each row is an auth.users row that can't
 -- sign in (no password, banned, app_metadata.bsb_service_principal),
 -- created through the Auth admin API, and holds its role through a tenant
 -- membership like any member. Organization-owned workflow versions and
 -- service webhook endpoints run as the tenant's default principal.
-create table if not exists "better_supabase"."service_principals" (
+create table "better_supabase"."service_principals" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "org_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 120),
@@ -1371,16 +1250,15 @@ create table if not exists "better_supabase"."service_principals" (
   "disabled_at" timestamptz,
   unique ("org_id", "name")
 );
-create index if not exists service_principals_tenant_idx on "better_supabase"."service_principals" ("org_id");
-create index if not exists service_principals_created_by_idx on "better_supabase"."service_principals" ("created_by");
-create unique index if not exists service_principals_default_idx on "better_supabase"."service_principals" ("org_id")
+create index service_principals_tenant_idx on "better_supabase"."service_principals" ("org_id");
+create index service_principals_created_by_idx on "better_supabase"."service_principals" ("created_by");
+create unique index service_principals_default_idx on "better_supabase"."service_principals" ("org_id")
   where "is_default" and "disabled_at" is null;
 alter table "better_supabase"."service_principals" enable row level security;
 revoke all on "better_supabase"."service_principals" from public, anon, authenticated;
 grant select on "better_supabase"."service_principals" to authenticated;
 grant all on "better_supabase"."service_principals" to service_role;
 
-drop policy if exists service_principals_read on "better_supabase"."service_principals";
 create policy service_principals_read on "better_supabase"."service_principals"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
@@ -1390,7 +1268,7 @@ create policy service_principals_read on "better_supabase"."service_principals"
 -- app_metadata.bsb_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
-drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
+
 create or replace function "better_supabase"."register_service_principal"(principal uuid, tenant uuid, name text, role text, is_default boolean default false, created_by uuid default null)
 returns jsonb
 language plpgsql
@@ -1546,24 +1424,19 @@ grant execute on function "better_supabase"."service_principals_list"(uuid) to a
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."service_principals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_select on "better_supabase"."service_principals" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_update on "better_supabase"."service_principals" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_delete on "better_supabase"."service_principals" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

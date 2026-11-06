@@ -18,10 +18,10 @@ describe("knowledge module", () => {
   it("owns the document and chunk tables with an hnsw and a gin index", () => {
     const sql = body();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."knowledge_documents" (',
+      'create table "better_supabase"."knowledge_documents" (',
     );
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."knowledge_chunks" (',
+      'create table "better_supabase"."knowledge_chunks" (',
     );
     expect(sql).toContain('"embedding" extensions.vector(1536)');
     expect(sql).toContain("using hnsw");
@@ -140,10 +140,10 @@ describe("knowledge module", () => {
     const sql = body();
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."knowledge_collections" (',
+      'create table "better_supabase"."knowledge_collections" (',
     );
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."knowledge_collection_grants" (',
+      'create table "better_supabase"."knowledge_collection_grants" (',
     );
     expect(sql).toContain("('automatic', 'restricted', 'disabled')");
     expect(sql).toContain('"collection_id" uuid');
@@ -167,9 +167,6 @@ describe("knowledge module", () => {
 
     expect(sql).toContain("knowledge_documents_system_check");
     expect(sql).toContain('"organization_id" is null');
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."create_knowledge_document"(',
-    );
     expect(sql).toContain("collections uuid[] default null");
     expect(sql).toContain("<> 'disabled'");
     expect(sql).toContain('"priority"');
@@ -238,14 +235,9 @@ describe("knowledge module", () => {
     expect(sql).toContain('"team_id" uuid,');
     expect(sql).toContain('tm."team_id" = x."team_id"');
     expect(sql).toContain(
-      'drop function if exists "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, text, boolean);',
-    );
-    expect(sql).toContain(
       '"set_knowledge_collection_grant"(uuid, uuid, uuid, boolean)',
     );
-    expect(sql).toContain(
-      'alter table "better_supabase"."knowledge_collection_grants" add column if not exists "organization_id" uuid;',
-    );
+    expect(sql).toContain('"organization_id" uuid');
     expect(sql).toContain('values (v_row."id", v_row."organization_id",');
 
     const bigint = rendered(["teams"], {

@@ -1,44 +1,28 @@
 -- ==== memberships
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:3c7da64ae6379c5113b9848e4de47dc335280ebca55c2dfef1560610c0892c57
+-- @bsb-hash sha256:3d7fcee7af1c7598dd8e35ab8dd66d63d0621e39ba6458d342a9d00d39b39b36
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 grant usage on schema better_supabase to supabase_auth_admin;
 set check_function_bodies = off;
 
-create table if not exists "better_supabase"."memberships" (
+create table "better_supabase"."memberships" (
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "role" text not null default 'member',
   "created_at" timestamptz not null default now(),
   primary key ("organization_id", "user_id")
 );
-create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
-alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
+create index memberships_user_idx on "better_supabase"."memberships" ("user_id");
+alter table "better_supabase"."memberships" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."memberships"
-  for each row execute function better_supabase.set_updated_at('updated_at');
-alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
-alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;
-alter table "better_supabase"."memberships" drop constraint if exists memberships_role_check;
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."memberships" add column "last_used_at" timestamptz;
+alter table "better_supabase"."memberships" add column "disabled_at" timestamptz;
 alter table "better_supabase"."memberships"
   add constraint memberships_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
@@ -49,7 +33,7 @@ grant all on "better_supabase"."memberships" to service_role;
 -- blocks.memberships.options.roles.many: every membership holds a set of
 -- roles. "better_supabase"."memberships"."role" keeps the highest-ranked one (the order of
 -- blocks.permissions.roles), so readers of the single role keep working.
-create table if not exists "better_supabase"."membership_roles" (
+create table "better_supabase"."membership_roles" (
   "organization_id" uuid not null,
   "user_id" uuid not null,
   "role" text not null,
@@ -57,8 +41,7 @@ create table if not exists "better_supabase"."membership_roles" (
   primary key ("organization_id", "user_id", "role"),
   foreign key ("organization_id", "user_id") references "better_supabase"."memberships" ("organization_id", "user_id") on delete cascade
 );
-create index if not exists membership_roles_user_idx on "better_supabase"."membership_roles" ("user_id");
-alter table "better_supabase"."membership_roles" drop constraint if exists membership_roles_role_check;
+create index membership_roles_user_idx on "better_supabase"."membership_roles" ("user_id");
 alter table "better_supabase"."membership_roles"
   add constraint membership_roles_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 alter table "better_supabase"."membership_roles" enable row level security;
@@ -94,7 +77,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."membership_roles_from_role"() from public, anon, authenticated;
-drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
 create trigger "bsb_membership_roles" after insert or update of "role" on "better_supabase"."memberships"
   for each row execute function "better_supabase"."membership_roles_from_role"();
 
@@ -128,7 +110,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."membership_role_from_roles"() from public, anon, authenticated;
-drop trigger if exists "bsb_membership_role_primary" on "better_supabase"."membership_roles";
 create trigger "bsb_membership_role_primary" after insert or delete on "better_supabase"."membership_roles"
   for each row execute function "better_supabase"."membership_role_from_roles"();
 
@@ -220,12 +201,10 @@ $$;
 revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
 
-drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
 create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
-drop policy if exists bsb_membership_roles_read on "better_supabase"."membership_roles";
 create policy bsb_membership_roles_read on "better_supabase"."membership_roles"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
@@ -269,24 +248,19 @@ reset check_function_bodies;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
 create policy bsb_tenant_scope_select on "better_supabase"."memberships" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
 create policy bsb_tenant_scope_insert on "better_supabase"."memberships" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
 create policy bsb_tenant_scope_update on "better_supabase"."memberships" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
 create policy bsb_tenant_scope_delete on "better_supabase"."memberships" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -307,7 +281,7 @@ on conflict (name) do update
 -- ==== permissions
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:7ea799ee692ba11f24d9278a7951a9b082ece5c543f511449ca286a6e6186b46
+-- @bsb-hash sha256:3069857411921b9a1ffb92f40e42f0f47588ec32207c92085c26687f70a2c792
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -694,8 +668,6 @@ as $$
     ), '{}'::text[])
   end
 $$;
-drop function if exists "better_supabase"."list_roles"(uuid);
-drop function if exists "better_supabase"."set_permission_override"(uuid, text, text, boolean);
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -762,12 +734,12 @@ on conflict (name) do update
 -- ==== organizations
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:a15dafa056bcee6f03bd130501ca5d398181fd504fc3a37229bef8589744d590
+-- @bsb-hash sha256:62e6053357b6d8254faba644046533210d0c2f82217b5793ca809a1b2ae5bd96
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists "better_supabase"."organizations" (
+create table "better_supabase"."organizations" (
   "id" uuid primary key default gen_random_uuid(),
   "name" text not null check (length(btrim("name")) > 0),
   "slug" text not null,
@@ -776,55 +748,24 @@ create table if not exists "better_supabase"."organizations" (
   "disabled_at" timestamptz,
   "deleted_at" timestamptz
 );
-create unique index if not exists organizations_slug_idx on "better_supabase"."organizations" (lower("slug"::text)) where "deleted_at" is null;
-create index if not exists organizations_created_by_idx on "better_supabase"."organizations" ("created_by");
-alter table "better_supabase"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
+create unique index organizations_slug_idx on "better_supabase"."organizations" (lower("slug"::text)) where "deleted_at" is null;
+create index organizations_created_by_idx on "better_supabase"."organizations" ("created_by");
+alter table "better_supabase"."organizations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."organizations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."organizations" enable row level security;
 revoke all on "better_supabase"."organizations" from public, anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
-drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
 create policy bsb_organizations_read on "better_supabase"."organizations"
   for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."memberships"'::regclass and conname = 'memberships_organization_fkey'
-  ) then
-    alter table "better_supabase"."memberships" add constraint "memberships_organization_fkey"
-      foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade not valid;
-    begin
-      alter table "better_supabase"."memberships" validate constraint "memberships_organization_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."memberships"', '"better_supabase"."memberships"', 'memberships_organization_fkey';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."invitations"'::regclass and conname = 'invitations_organization_fkey'
-  ) then
-    alter table "better_supabase"."invitations" add constraint "invitations_organization_fkey"
-      foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade not valid;
-    begin
-      alter table "better_supabase"."invitations" validate constraint "invitations_organization_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."invitations"', '"better_supabase"."invitations"', 'invitations_organization_fkey';
-    end;
-  end if;
-end;
-$$;
+alter table "better_supabase"."memberships" add constraint "memberships_organization_fkey"
+  foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade;
+alter table "better_supabase"."invitations" add constraint "invitations_organization_fkey"
+  foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade;
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
 -- blocks.organizations.options), 'reserved' or 'taken'. except_organization skips the
@@ -1005,7 +946,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
 create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
@@ -1058,7 +998,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
 create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
@@ -1499,8 +1438,6 @@ begin
   return jsonb_build_object('organization_id', organization, 'refresh', false);
 end;
 $$;
-
-drop function if exists "better_supabase"."list_my_organizations"();
 create or replace function "better_supabase"."list_my_organizations"()
 returns table (
   id uuid,
@@ -1522,8 +1459,6 @@ as $$
     and not better_supabase.tenant_disabled(o."id")
   order by o."name"
 $$;
-
-drop function if exists "better_supabase"."list_members"(uuid);
 create or replace function "better_supabase"."list_members"(organization uuid)
 returns table (user_id uuid, role text, roles text[], disabled_at timestamptz)
 language plpgsql
@@ -1664,28 +1599,12 @@ on conflict (name) do update
 -- ==== invitations
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:829203268ef902d6177b7e40950caccae03d40f51d57a47858baf556a8d33265
+-- @bsb-hash sha256:92fdaf4d06d356dd4f0691f07b5310abca2a1158242e983571c799b09e910003
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-
-create table if not exists "better_supabase"."invitations" (
+create table "better_supabase"."invitations" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "email" text not null,
@@ -1696,26 +1615,22 @@ create table if not exists "better_supabase"."invitations" (
 );
 alter table "better_supabase"."invitations" alter column "organization_id" set not null;
 alter table "better_supabase"."invitations" alter column "role" drop default;
-alter table "better_supabase"."invitations" add column if not exists "invited_by" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."invitations" add column if not exists "created_at" timestamptz not null default now();
-alter table "better_supabase"."invitations" add column if not exists "accepted_by" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."invitations" add column if not exists "declined_at" timestamptz;
-alter table "better_supabase"."invitations" add column if not exists "revoked_at" timestamptz;
-alter table "better_supabase"."invitations" add column if not exists "extra_roles" text[] not null default '{}';
-alter table "better_supabase"."invitations" add column if not exists "team_ids" uuid[] not null default '{}';
-
-drop index if exists "better_supabase".invitations_open_idx;
-create unique index if not exists invitations_open_email_idx
+alter table "better_supabase"."invitations" add column "invited_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."invitations" add column "created_at" timestamptz not null default now();
+alter table "better_supabase"."invitations" add column "accepted_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."invitations" add column "declined_at" timestamptz;
+alter table "better_supabase"."invitations" add column "revoked_at" timestamptz;
+alter table "better_supabase"."invitations" add column "extra_roles" text[] not null default '{}';
+alter table "better_supabase"."invitations" add column "team_ids" uuid[] not null default '{}';
+create unique index invitations_open_email_idx
   on "better_supabase"."invitations" ("organization_id", lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;
-create index if not exists invitations_tenant_created_idx on "better_supabase"."invitations" ("organization_id", "created_at");
-alter table "better_supabase"."invitations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."invitations";
+create index invitations_tenant_created_idx on "better_supabase"."invitations" ("organization_id", "created_at");
+alter table "better_supabase"."invitations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."invitations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
-create index if not exists invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
-create index if not exists invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
-
-alter table "better_supabase"."invitations" drop constraint if exists invitations_role_check;
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
+create index invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
+create index invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
 alter table "better_supabase"."invitations"
   add constraint invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
@@ -1739,7 +1654,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."invitation_tenant_ids"() from public, anon;
 grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
-drop policy if exists bsb_invitations_read on "better_supabase"."invitations";
 create policy bsb_invitations_read on "better_supabase"."invitations"
   for select to authenticated
   using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()));
@@ -1772,7 +1686,7 @@ revoke execute on function "better_supabase"."invitation_extra"(uuid) from publi
 -- role id or key under blocks.permissions.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
-drop function if exists "better_supabase"."invite_member"(uuid, text, text, interval, jsonb, jsonb);
+
 create or replace function "better_supabase"."invite_member"(
   tenant uuid,
   invitee_email text,
@@ -1880,7 +1794,7 @@ end;
 $$;
 
 -- The 0.4 signature: returns the token only.
-drop function if exists "better_supabase"."create_invitation"(uuid, text, text, interval);
+
 create or replace function "better_supabase"."create_invitation"(
   organization uuid,
   invitee_email text,
@@ -2416,24 +2330,19 @@ grant execute on function "better_supabase"."accepting_invitation"() to authenti
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
 create policy bsb_tenant_scope_select on "better_supabase"."invitations" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
 create policy bsb_tenant_scope_insert on "better_supabase"."invitations" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
 create policy bsb_tenant_scope_update on "better_supabase"."invitations" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
 create policy bsb_tenant_scope_delete on "better_supabase"."invitations" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));

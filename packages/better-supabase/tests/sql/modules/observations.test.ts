@@ -73,9 +73,7 @@ describe("observations module", () => {
   it("partitions by month and drops the keys a partition can't hold", () => {
     const plain = sqlOf();
     expect(plain).toMatch(/"replaces_id" uuid references/);
-    expect(plain).toMatch(
-      /create unique index if not exists "observations_external_key"/,
-    );
+    expect(plain).toMatch(/create unique index "observations_external_key"/);
 
     const sql = sqlOf(BASE, {
       modules: { observations: { options: { partitioned: true } } },

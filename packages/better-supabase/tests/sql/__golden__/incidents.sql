@@ -1,96 +1,17 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:c8d91c552e014954f2e904713a625e0b9b1a20bd8540ef6494ce7dff2dffafad
+-- @bsb-hash sha256:c4e2e16b88cb83580a59bf30bf4f08e9664d45409ea94fdb408d8fd58f741573
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incidents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_impacts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Incidents: severity, a status timeline, affected components, postmortems,
 -- and a public status page read through one narrow function.
 
 -- The services a status page reports on. status follows the worst impact of
 -- the open incidents on the component; nothing else writes it.
-create table if not exists "better_supabase"."incident_status_components" (
+create table "better_supabase"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -104,18 +25,17 @@ create table if not exists "better_supabase"."incident_status_components" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "incident_status_components_tenant_idx" on "better_supabase"."incident_status_components" ("tenant_id", "position");
+create index "incident_status_components_tenant_idx" on "better_supabase"."incident_status_components" ("tenant_id", "position");
 alter table "better_supabase"."incident_status_components" enable row level security;
 revoke all on "better_supabase"."incident_status_components" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_components" to authenticated;
 grant all on "better_supabase"."incident_status_components" to service_role;
-drop policy if exists incident_status_components_read on "better_supabase"."incident_status_components";
 create policy incident_status_components_read on "better_supabase"."incident_status_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per status a component held, for the uptime history.
-create table if not exists "better_supabase"."incident_status_component_history" (
+create table "better_supabase"."incident_status_component_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "component_id" uuid not null,
@@ -125,18 +45,17 @@ create table if not exists "better_supabase"."incident_status_component_history"
   check ("ended_at" is null or "ended_at" >= "started_at"),
   foreign key ("tenant_id", "component_id") references "better_supabase"."incident_status_components" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_status_component_history_component_idx" on "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "started_at");
-create unique index if not exists "incident_status_component_history_open_idx" on "better_supabase"."incident_status_component_history" ("component_id") where "ended_at" is null;
+create index "incident_status_component_history_component_idx" on "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "started_at");
+create unique index "incident_status_component_history_open_idx" on "better_supabase"."incident_status_component_history" ("component_id") where "ended_at" is null;
 alter table "better_supabase"."incident_status_component_history" enable row level security;
 revoke all on "better_supabase"."incident_status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_component_history" to authenticated;
 grant all on "better_supabase"."incident_status_component_history" to service_role;
-drop policy if exists incident_status_component_history_read on "better_supabase"."incident_status_component_history";
 create policy incident_status_component_history_read on "better_supabase"."incident_status_component_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incidents" (
+create table "better_supabase"."incidents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
@@ -156,20 +75,19 @@ create table if not exists "better_supabase"."incidents" (
   check (("status" = 'resolved') = ("resolved_at" is not null)),
   unique ("tenant_id", "id")
 );
-create index if not exists "incidents_tenant_idx" on "better_supabase"."incidents" ("tenant_id", "started_at" desc);
-create index if not exists "incidents_open_idx" on "better_supabase"."incidents" ("tenant_id") where "status" <> 'resolved';
-create index if not exists "incidents_commander_idx" on "better_supabase"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
+create index "incidents_tenant_idx" on "better_supabase"."incidents" ("tenant_id", "started_at" desc);
+create index "incidents_open_idx" on "better_supabase"."incidents" ("tenant_id") where "status" <> 'resolved';
+create index "incidents_commander_idx" on "better_supabase"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
 alter table "better_supabase"."incidents" enable row level security;
 revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
-drop policy if exists incidents_read on "better_supabase"."incidents";
 create policy incidents_read on "better_supabase"."incidents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- The status timeline: each update sets the incident's status.
-create table if not exists "better_supabase"."incident_updates" (
+create table "better_supabase"."incident_updates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
@@ -182,17 +100,16 @@ create table if not exists "better_supabase"."incident_updates" (
   "created_at" timestamptz not null default clock_timestamp(),
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("tenant_id", "incident_id", "created_at");
+create index "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("tenant_id", "incident_id", "created_at");
 alter table "better_supabase"."incident_updates" enable row level security;
 revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
-drop policy if exists incident_updates_read on "better_supabase"."incident_updates";
 create policy incident_updates_read on "better_supabase"."incident_updates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incident_impacts" (
+create table "better_supabase"."incident_impacts" (
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
   "component_id" uuid not null,
@@ -201,18 +118,17 @@ create table if not exists "better_supabase"."incident_impacts" (
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "component_id") references "better_supabase"."incident_status_components" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("tenant_id", "incident_id");
-create index if not exists "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("tenant_id", "component_id");
+create index "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("tenant_id", "incident_id");
+create index "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("tenant_id", "component_id");
 alter table "better_supabase"."incident_impacts" enable row level security;
 revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
-drop policy if exists incident_impacts_read on "better_supabase"."incident_impacts";
 create policy incident_impacts_read on "better_supabase"."incident_impacts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incident_postmortems" (
+create table "better_supabase"."incident_postmortems" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null unique,
@@ -228,19 +144,18 @@ create table if not exists "better_supabase"."incident_postmortems" (
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("tenant_id", "incident_id");
+create index "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("tenant_id", "incident_id");
 alter table "better_supabase"."incident_postmortems" enable row level security;
 revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
-drop policy if exists incident_postmortems_read on "better_supabase"."incident_postmortems";
 create policy incident_postmortems_read on "better_supabase"."incident_postmortems"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One status page per organization. Anonymous visitors read it only through
 -- public_status_page(slug), never through these tables.
-create table if not exists "better_supabase"."incident_status_pages" (
+create table "better_supabase"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null unique,
   "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
@@ -254,14 +169,13 @@ alter table "better_supabase"."incident_status_pages" enable row level security;
 revoke all on "better_supabase"."incident_status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_pages" to authenticated;
 grant all on "better_supabase"."incident_status_pages" to service_role;
-drop policy if exists incident_status_pages_read on "better_supabase"."incident_status_pages";
 create policy incident_status_pages_read on "better_supabase"."incident_status_pages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- The regulatory reporting profile of an incident: which regimes apply, when
 -- the organization became aware, and the facts that move a deadline.
-create table if not exists "better_supabase"."incident_regulatory_profiles" (
+create table "better_supabase"."incident_regulatory_profiles" (
   "incident_id" uuid primary key references "better_supabase"."incidents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "regimes" text[] not null default '{}' check ("regimes" <@ array['nis2', 'dora', 'cra']),
@@ -274,19 +188,18 @@ create table if not exists "better_supabase"."incident_regulatory_profiles" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "incident_regulatory_profiles_tenant_idx" on "better_supabase"."incident_regulatory_profiles" ("tenant_id");
+create index "incident_regulatory_profiles_tenant_idx" on "better_supabase"."incident_regulatory_profiles" ("tenant_id");
 alter table "better_supabase"."incident_regulatory_profiles" enable row level security;
 revoke all on "better_supabase"."incident_regulatory_profiles" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_profiles" to authenticated;
 grant all on "better_supabase"."incident_regulatory_profiles" to service_role;
-drop policy if exists "incident_regulatory_profiles_read" on "better_supabase"."incident_regulatory_profiles";
 create policy incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per deadline. A submission fills submitted_at and the reference the
 -- authority gave; reminder_id is the reminder that warns the commander.
-create table if not exists "better_supabase"."incident_regulatory_filings" (
+create table "better_supabase"."incident_regulatory_filings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null references "better_supabase"."incidents" ("id") on delete cascade,
@@ -301,12 +214,11 @@ create table if not exists "better_supabase"."incident_regulatory_filings" (
   "created_at" timestamptz not null default now(),
   unique ("incident_id", "regime", "stage")
 );
-create index if not exists "incident_regulatory_filings_tenant_idx" on "better_supabase"."incident_regulatory_filings" ("tenant_id", "due_at") where "submitted_at" is null;
+create index "incident_regulatory_filings_tenant_idx" on "better_supabase"."incident_regulatory_filings" ("tenant_id", "due_at") where "submitted_at" is null;
 alter table "better_supabase"."incident_regulatory_filings" enable row level security;
 revoke all on "better_supabase"."incident_regulatory_filings" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_filings" to authenticated;
 grant all on "better_supabase"."incident_regulatory_filings" to service_role;
-drop policy if exists "incident_regulatory_filings_read" on "better_supabase"."incident_regulatory_filings";
 create policy incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -477,7 +389,7 @@ grant execute on function "better_supabase"."list_status_components"(uuid) to au
 -- Opens an incident. attrs: title (required), description, severity (sev1
 -- to sev4, default sev3), public, commanderId, message (the first timeline
 -- update) and impacts ([{ componentId, impact }]).
-drop function if exists "better_supabase"."open_incident"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."open_incident"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -530,7 +442,7 @@ grant execute on function "better_supabase"."open_incident"(uuid, jsonb) to auth
 -- Changes an incident. attrs: title, description, severity, public and
 -- commanderId; a key left out keeps its value. The status moves only
 -- through post_incident_update.
-drop function if exists "better_supabase"."update_incident"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."update_incident"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -1184,192 +1096,147 @@ grant execute on function "better_supabase"."public_status_page"(text, integer) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_components" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_components" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_components" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_components" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_component_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_component_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incidents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incidents";
 create policy bsb_tenant_scope_select on "better_supabase"."incidents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incidents";
 create policy bsb_tenant_scope_insert on "better_supabase"."incidents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incidents";
 create policy bsb_tenant_scope_update on "better_supabase"."incidents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incidents";
 create policy bsb_tenant_scope_delete on "better_supabase"."incidents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_updates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_updates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_updates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_updates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_updates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_impacts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_impacts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_impacts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_impacts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_impacts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortems";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_postmortems" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_postmortems" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_postmortems" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_postmortems" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_pages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_pages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_pages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_pages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1391,104 +1258,17 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:7155383697d695beaac30dc2055120f41bb71899b77206aedc447b287edd68d3
+-- @bsb-hash sha256:107f79482667e7fd431cbe0fa788766cd60d34abdc6071bbb73178cd59651769
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incidents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_impacts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortem_actions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortem_actions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortem_actions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortem_actions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortem_actions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Incidents: severity, a status timeline, affected components, postmortems,
 -- and a public status page read through one narrow function.
 
 -- The services a status page reports on. status follows the worst impact of
 -- the open incidents on the component; nothing else writes it.
-create table if not exists "better_supabase"."incident_status_components" (
+create table "better_supabase"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -1502,18 +1282,17 @@ create table if not exists "better_supabase"."incident_status_components" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "incident_status_components_tenant_idx" on "better_supabase"."incident_status_components" ("tenant_id", "position");
+create index "incident_status_components_tenant_idx" on "better_supabase"."incident_status_components" ("tenant_id", "position");
 alter table "better_supabase"."incident_status_components" enable row level security;
 revoke all on "better_supabase"."incident_status_components" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_components" to authenticated;
 grant all on "better_supabase"."incident_status_components" to service_role;
-drop policy if exists incident_status_components_read on "better_supabase"."incident_status_components";
 create policy incident_status_components_read on "better_supabase"."incident_status_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per status a component held, for the uptime history.
-create table if not exists "better_supabase"."incident_status_component_history" (
+create table "better_supabase"."incident_status_component_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "component_id" uuid not null,
@@ -1523,18 +1302,17 @@ create table if not exists "better_supabase"."incident_status_component_history"
   check ("ended_at" is null or "ended_at" >= "started_at"),
   foreign key ("tenant_id", "component_id") references "better_supabase"."incident_status_components" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_status_component_history_component_idx" on "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "started_at");
-create unique index if not exists "incident_status_component_history_open_idx" on "better_supabase"."incident_status_component_history" ("component_id") where "ended_at" is null;
+create index "incident_status_component_history_component_idx" on "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "started_at");
+create unique index "incident_status_component_history_open_idx" on "better_supabase"."incident_status_component_history" ("component_id") where "ended_at" is null;
 alter table "better_supabase"."incident_status_component_history" enable row level security;
 revoke all on "better_supabase"."incident_status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_component_history" to authenticated;
 grant all on "better_supabase"."incident_status_component_history" to service_role;
-drop policy if exists incident_status_component_history_read on "better_supabase"."incident_status_component_history";
 create policy incident_status_component_history_read on "better_supabase"."incident_status_component_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incidents" (
+create table "better_supabase"."incidents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
@@ -1554,20 +1332,19 @@ create table if not exists "better_supabase"."incidents" (
   check (("status" = 'resolved') = ("resolved_at" is not null)),
   unique ("tenant_id", "id")
 );
-create index if not exists "incidents_tenant_idx" on "better_supabase"."incidents" ("tenant_id", "started_at" desc);
-create index if not exists "incidents_open_idx" on "better_supabase"."incidents" ("tenant_id") where "status" <> 'resolved';
-create index if not exists "incidents_commander_idx" on "better_supabase"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
+create index "incidents_tenant_idx" on "better_supabase"."incidents" ("tenant_id", "started_at" desc);
+create index "incidents_open_idx" on "better_supabase"."incidents" ("tenant_id") where "status" <> 'resolved';
+create index "incidents_commander_idx" on "better_supabase"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
 alter table "better_supabase"."incidents" enable row level security;
 revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
-drop policy if exists incidents_read on "better_supabase"."incidents";
 create policy incidents_read on "better_supabase"."incidents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- The status timeline: each update sets the incident's status.
-create table if not exists "better_supabase"."incident_updates" (
+create table "better_supabase"."incident_updates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
@@ -1580,17 +1357,16 @@ create table if not exists "better_supabase"."incident_updates" (
   "created_at" timestamptz not null default clock_timestamp(),
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("tenant_id", "incident_id", "created_at");
+create index "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("tenant_id", "incident_id", "created_at");
 alter table "better_supabase"."incident_updates" enable row level security;
 revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
-drop policy if exists incident_updates_read on "better_supabase"."incident_updates";
 create policy incident_updates_read on "better_supabase"."incident_updates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incident_impacts" (
+create table "better_supabase"."incident_impacts" (
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
   "component_id" uuid not null,
@@ -1599,18 +1375,17 @@ create table if not exists "better_supabase"."incident_impacts" (
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "component_id") references "better_supabase"."incident_status_components" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("tenant_id", "incident_id");
-create index if not exists "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("tenant_id", "component_id");
+create index "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("tenant_id", "incident_id");
+create index "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("tenant_id", "component_id");
 alter table "better_supabase"."incident_impacts" enable row level security;
 revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
-drop policy if exists incident_impacts_read on "better_supabase"."incident_impacts";
 create policy incident_impacts_read on "better_supabase"."incident_impacts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incident_postmortems" (
+create table "better_supabase"."incident_postmortems" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null unique,
@@ -1626,19 +1401,18 @@ create table if not exists "better_supabase"."incident_postmortems" (
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("tenant_id", "incident_id");
+create index "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("tenant_id", "incident_id");
 alter table "better_supabase"."incident_postmortems" enable row level security;
 revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
-drop policy if exists incident_postmortems_read on "better_supabase"."incident_postmortems";
 create policy incident_postmortems_read on "better_supabase"."incident_postmortems"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- A postmortem's action items: each one is a task, so it is assigned, due
 -- and closed in the tasks block.
-create table if not exists "better_supabase"."incident_postmortem_actions" (
+create table "better_supabase"."incident_postmortem_actions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "postmortem_id" uuid not null references "better_supabase"."incident_postmortems" ("id") on delete cascade,
@@ -1646,20 +1420,19 @@ create table if not exists "better_supabase"."incident_postmortem_actions" (
   "created_at" timestamptz not null default now(),
   unique ("postmortem_id", "task_id")
 );
-create index if not exists "incident_postmortem_actions_task_idx" on "better_supabase"."incident_postmortem_actions" ("task_id");
-create index if not exists "incident_postmortem_actions_tenant_idx" on "better_supabase"."incident_postmortem_actions" ("tenant_id");
+create index "incident_postmortem_actions_task_idx" on "better_supabase"."incident_postmortem_actions" ("task_id");
+create index "incident_postmortem_actions_tenant_idx" on "better_supabase"."incident_postmortem_actions" ("tenant_id");
 alter table "better_supabase"."incident_postmortem_actions" enable row level security;
 revoke all on "better_supabase"."incident_postmortem_actions" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortem_actions" to authenticated;
 grant all on "better_supabase"."incident_postmortem_actions" to service_role;
-drop policy if exists incident_postmortem_actions_read on "better_supabase"."incident_postmortem_actions";
 create policy incident_postmortem_actions_read on "better_supabase"."incident_postmortem_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One status page per organization. Anonymous visitors read it only through
 -- public_status_page(slug), never through these tables.
-create table if not exists "better_supabase"."incident_status_pages" (
+create table "better_supabase"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null unique,
   "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
@@ -1673,14 +1446,13 @@ alter table "better_supabase"."incident_status_pages" enable row level security;
 revoke all on "better_supabase"."incident_status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_pages" to authenticated;
 grant all on "better_supabase"."incident_status_pages" to service_role;
-drop policy if exists incident_status_pages_read on "better_supabase"."incident_status_pages";
 create policy incident_status_pages_read on "better_supabase"."incident_status_pages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- The regulatory reporting profile of an incident: which regimes apply, when
 -- the organization became aware, and the facts that move a deadline.
-create table if not exists "better_supabase"."incident_regulatory_profiles" (
+create table "better_supabase"."incident_regulatory_profiles" (
   "incident_id" uuid primary key references "better_supabase"."incidents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "regimes" text[] not null default '{}' check ("regimes" <@ array['nis2', 'dora', 'cra']),
@@ -1693,19 +1465,18 @@ create table if not exists "better_supabase"."incident_regulatory_profiles" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "incident_regulatory_profiles_tenant_idx" on "better_supabase"."incident_regulatory_profiles" ("tenant_id");
+create index "incident_regulatory_profiles_tenant_idx" on "better_supabase"."incident_regulatory_profiles" ("tenant_id");
 alter table "better_supabase"."incident_regulatory_profiles" enable row level security;
 revoke all on "better_supabase"."incident_regulatory_profiles" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_profiles" to authenticated;
 grant all on "better_supabase"."incident_regulatory_profiles" to service_role;
-drop policy if exists "incident_regulatory_profiles_read" on "better_supabase"."incident_regulatory_profiles";
 create policy incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per deadline. A submission fills submitted_at and the reference the
 -- authority gave; reminder_id is the reminder that warns the commander.
-create table if not exists "better_supabase"."incident_regulatory_filings" (
+create table "better_supabase"."incident_regulatory_filings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null references "better_supabase"."incidents" ("id") on delete cascade,
@@ -1720,12 +1491,11 @@ create table if not exists "better_supabase"."incident_regulatory_filings" (
   "created_at" timestamptz not null default now(),
   unique ("incident_id", "regime", "stage")
 );
-create index if not exists "incident_regulatory_filings_tenant_idx" on "better_supabase"."incident_regulatory_filings" ("tenant_id", "due_at") where "submitted_at" is null;
+create index "incident_regulatory_filings_tenant_idx" on "better_supabase"."incident_regulatory_filings" ("tenant_id", "due_at") where "submitted_at" is null;
 alter table "better_supabase"."incident_regulatory_filings" enable row level security;
 revoke all on "better_supabase"."incident_regulatory_filings" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_filings" to authenticated;
 grant all on "better_supabase"."incident_regulatory_filings" to service_role;
-drop policy if exists "incident_regulatory_filings_read" on "better_supabase"."incident_regulatory_filings";
 create policy incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -1923,7 +1693,7 @@ grant execute on function "better_supabase"."list_status_components"(uuid) to au
 -- Opens an incident. attrs: title (required), description, severity (sev1
 -- to sev4, default sev3), public, commanderId, message (the first timeline
 -- update) and impacts ([{ componentId, impact }]).
-drop function if exists "better_supabase"."open_incident"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."open_incident"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -2000,7 +1770,7 @@ grant execute on function "better_supabase"."open_incident"(uuid, jsonb) to auth
 -- Changes an incident. attrs: title, description, severity, public and
 -- commanderId; a key left out keeps its value. The status moves only
 -- through post_incident_update.
-drop function if exists "better_supabase"."update_incident"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."update_incident"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -2799,213 +2569,163 @@ grant execute on function "better_supabase"."public_status_page"(text, integer) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_components" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_components" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_components" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_components" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_component_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_component_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incidents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incidents";
 create policy bsb_tenant_scope_select on "better_supabase"."incidents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incidents";
 create policy bsb_tenant_scope_insert on "better_supabase"."incidents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incidents";
 create policy bsb_tenant_scope_update on "better_supabase"."incidents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incidents";
 create policy bsb_tenant_scope_delete on "better_supabase"."incidents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_updates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_updates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_updates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_updates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_updates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_impacts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_impacts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_impacts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_impacts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_impacts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortems";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_postmortems" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_postmortems" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_postmortems" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_postmortems" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortem_actions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortem_actions";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_postmortem_actions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortem_actions";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_postmortem_actions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortem_actions";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_postmortem_actions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortem_actions";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_postmortem_actions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_pages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_pages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_pages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_pages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3037,88 +2757,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:91b58c597d6600b81d13db9aaa2e88b8ffe8ff010765b9b63e2c681219ba0033
+-- @bsb-hash sha256:e203d454395e158252428913532e7150162f479d8a10b59b7a4947527154f533
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_status_components";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_status_component_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."incidents";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."incidents";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."incidents";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."incidents";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."incidents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."incident_updates";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."incident_updates";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_updates";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."incident_updates";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_impacts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_postmortems";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_regulatory_profiles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_regulatory_filings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_status_pages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -3130,7 +2772,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 
 -- The services a status page reports on. status follows the worst impact of
 -- the open incidents on the component; nothing else writes it.
-create table if not exists "app_private"."incident_status_components" (
+create table "app_private"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -3144,18 +2786,17 @@ create table if not exists "app_private"."incident_status_components" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "incident_status_components_tenant_idx" on "app_private"."incident_status_components" ("tenant_id", "position");
+create index "incident_status_components_tenant_idx" on "app_private"."incident_status_components" ("tenant_id", "position");
 alter table "app_private"."incident_status_components" enable row level security;
 revoke all on "app_private"."incident_status_components" from public, anon, authenticated;
 grant select on "app_private"."incident_status_components" to authenticated;
 grant all on "app_private"."incident_status_components" to service_role;
-drop policy if exists incident_status_components_read on "app_private"."incident_status_components";
 create policy incident_status_components_read on "app_private"."incident_status_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per status a component held, for the uptime history.
-create table if not exists "app_private"."incident_status_component_history" (
+create table "app_private"."incident_status_component_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "component_id" uuid not null,
@@ -3165,18 +2806,17 @@ create table if not exists "app_private"."incident_status_component_history" (
   check ("ended_at" is null or "ended_at" >= "started_at"),
   foreign key ("tenant_id", "component_id") references "app_private"."incident_status_components" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_status_component_history_component_idx" on "app_private"."incident_status_component_history" ("tenant_id", "component_id", "started_at");
-create unique index if not exists "incident_status_component_history_open_idx" on "app_private"."incident_status_component_history" ("component_id") where "ended_at" is null;
+create index "incident_status_component_history_component_idx" on "app_private"."incident_status_component_history" ("tenant_id", "component_id", "started_at");
+create unique index "incident_status_component_history_open_idx" on "app_private"."incident_status_component_history" ("component_id") where "ended_at" is null;
 alter table "app_private"."incident_status_component_history" enable row level security;
 revoke all on "app_private"."incident_status_component_history" from public, anon, authenticated;
 grant select on "app_private"."incident_status_component_history" to authenticated;
 grant all on "app_private"."incident_status_component_history" to service_role;
-drop policy if exists incident_status_component_history_read on "app_private"."incident_status_component_history";
 create policy incident_status_component_history_read on "app_private"."incident_status_component_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "app_private"."incidents" (
+create table "app_private"."incidents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
@@ -3196,20 +2836,19 @@ create table if not exists "app_private"."incidents" (
   check (("status" = 'resolved') = ("resolved_at" is not null)),
   unique ("tenant_id", "id")
 );
-create index if not exists "incidents_tenant_idx" on "app_private"."incidents" ("tenant_id", "started_at" desc);
-create index if not exists "incidents_open_idx" on "app_private"."incidents" ("tenant_id") where "status" <> 'resolved';
-create index if not exists "incidents_commander_idx" on "app_private"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
+create index "incidents_tenant_idx" on "app_private"."incidents" ("tenant_id", "started_at" desc);
+create index "incidents_open_idx" on "app_private"."incidents" ("tenant_id") where "status" <> 'resolved';
+create index "incidents_commander_idx" on "app_private"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
 alter table "app_private"."incidents" enable row level security;
 revoke all on "app_private"."incidents" from public, anon, authenticated;
 grant select on "app_private"."incidents" to authenticated;
 grant all on "app_private"."incidents" to service_role;
-drop policy if exists incidents_read on "app_private"."incidents";
 create policy incidents_read on "app_private"."incidents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- The status timeline: each update sets the incident's status.
-create table if not exists "app_private"."incident_updates" (
+create table "app_private"."incident_updates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
@@ -3222,17 +2861,16 @@ create table if not exists "app_private"."incident_updates" (
   "created_at" timestamptz not null default clock_timestamp(),
   foreign key ("tenant_id", "incident_id") references "app_private"."incidents" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_updates_parent_idx" on "app_private"."incident_updates" ("tenant_id", "incident_id", "created_at");
+create index "incident_updates_parent_idx" on "app_private"."incident_updates" ("tenant_id", "incident_id", "created_at");
 alter table "app_private"."incident_updates" enable row level security;
 revoke all on "app_private"."incident_updates" from public, anon, authenticated;
 grant select on "app_private"."incident_updates" to authenticated;
 grant all on "app_private"."incident_updates" to service_role;
-drop policy if exists incident_updates_read on "app_private"."incident_updates";
 create policy incident_updates_read on "app_private"."incident_updates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "app_private"."incident_impacts" (
+create table "app_private"."incident_impacts" (
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
   "component_id" uuid not null,
@@ -3241,18 +2879,17 @@ create table if not exists "app_private"."incident_impacts" (
   foreign key ("tenant_id", "incident_id") references "app_private"."incidents" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "component_id") references "app_private"."incident_status_components" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_impacts_parent_idx" on "app_private"."incident_impacts" ("tenant_id", "incident_id");
-create index if not exists "incident_impacts_component_idx" on "app_private"."incident_impacts" ("tenant_id", "component_id");
+create index "incident_impacts_parent_idx" on "app_private"."incident_impacts" ("tenant_id", "incident_id");
+create index "incident_impacts_component_idx" on "app_private"."incident_impacts" ("tenant_id", "component_id");
 alter table "app_private"."incident_impacts" enable row level security;
 revoke all on "app_private"."incident_impacts" from public, anon, authenticated;
 grant select on "app_private"."incident_impacts" to authenticated;
 grant all on "app_private"."incident_impacts" to service_role;
-drop policy if exists incident_impacts_read on "app_private"."incident_impacts";
 create policy incident_impacts_read on "app_private"."incident_impacts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "app_private"."incident_postmortems" (
+create table "app_private"."incident_postmortems" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null unique,
@@ -3268,19 +2905,18 @@ create table if not exists "app_private"."incident_postmortems" (
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "incident_id") references "app_private"."incidents" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_postmortems_tenant_idx" on "app_private"."incident_postmortems" ("tenant_id", "incident_id");
+create index "incident_postmortems_tenant_idx" on "app_private"."incident_postmortems" ("tenant_id", "incident_id");
 alter table "app_private"."incident_postmortems" enable row level security;
 revoke all on "app_private"."incident_postmortems" from public, anon, authenticated;
 grant select on "app_private"."incident_postmortems" to authenticated;
 grant all on "app_private"."incident_postmortems" to service_role;
-drop policy if exists incident_postmortems_read on "app_private"."incident_postmortems";
 create policy incident_postmortems_read on "app_private"."incident_postmortems"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One status page per organization. Anonymous visitors read it only through
 -- public_status_page(slug), never through these tables.
-create table if not exists "app_private"."incident_status_pages" (
+create table "app_private"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null unique,
   "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
@@ -3294,14 +2930,13 @@ alter table "app_private"."incident_status_pages" enable row level security;
 revoke all on "app_private"."incident_status_pages" from public, anon, authenticated;
 grant select on "app_private"."incident_status_pages" to authenticated;
 grant all on "app_private"."incident_status_pages" to service_role;
-drop policy if exists incident_status_pages_read on "app_private"."incident_status_pages";
 create policy incident_status_pages_read on "app_private"."incident_status_pages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- The regulatory reporting profile of an incident: which regimes apply, when
 -- the organization became aware, and the facts that move a deadline.
-create table if not exists "app_private"."incident_regulatory_profiles" (
+create table "app_private"."incident_regulatory_profiles" (
   "incident_id" uuid primary key references "app_private"."incidents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "regimes" text[] not null default '{}' check ("regimes" <@ array['nis2', 'dora', 'cra']),
@@ -3314,19 +2949,18 @@ create table if not exists "app_private"."incident_regulatory_profiles" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "incident_regulatory_profiles_tenant_idx" on "app_private"."incident_regulatory_profiles" ("tenant_id");
+create index "incident_regulatory_profiles_tenant_idx" on "app_private"."incident_regulatory_profiles" ("tenant_id");
 alter table "app_private"."incident_regulatory_profiles" enable row level security;
 revoke all on "app_private"."incident_regulatory_profiles" from public, anon, authenticated;
 grant select on "app_private"."incident_regulatory_profiles" to authenticated;
 grant all on "app_private"."incident_regulatory_profiles" to service_role;
-drop policy if exists "incident_regulatory_profiles_read" on "app_private"."incident_regulatory_profiles";
 create policy incident_regulatory_profiles_read on "app_private"."incident_regulatory_profiles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per deadline. A submission fills submitted_at and the reference the
 -- authority gave; reminder_id is the reminder that warns the commander.
-create table if not exists "app_private"."incident_regulatory_filings" (
+create table "app_private"."incident_regulatory_filings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null references "app_private"."incidents" ("id") on delete cascade,
@@ -3341,12 +2975,11 @@ create table if not exists "app_private"."incident_regulatory_filings" (
   "created_at" timestamptz not null default now(),
   unique ("incident_id", "regime", "stage")
 );
-create index if not exists "incident_regulatory_filings_tenant_idx" on "app_private"."incident_regulatory_filings" ("tenant_id", "due_at") where "submitted_at" is null;
+create index "incident_regulatory_filings_tenant_idx" on "app_private"."incident_regulatory_filings" ("tenant_id", "due_at") where "submitted_at" is null;
 alter table "app_private"."incident_regulatory_filings" enable row level security;
 revoke all on "app_private"."incident_regulatory_filings" from public, anon, authenticated;
 grant select on "app_private"."incident_regulatory_filings" to authenticated;
 grant all on "app_private"."incident_regulatory_filings" to service_role;
-drop policy if exists "incident_regulatory_filings_read" on "app_private"."incident_regulatory_filings";
 create policy incident_regulatory_filings_read on "app_private"."incident_regulatory_filings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -3517,7 +3150,7 @@ grant execute on function "app_private"."list_status_components"(uuid) to authen
 -- Opens an incident. attrs: title (required), description, severity (sev1
 -- to sev4, default sev3), public, commanderId, message (the first timeline
 -- update) and impacts ([{ componentId, impact }]).
-drop function if exists "app_private"."open_incident"(uuid, jsonb, jsonb);
+
 create or replace function "app_private"."open_incident"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -3570,7 +3203,7 @@ grant execute on function "app_private"."open_incident"(uuid, jsonb) to authenti
 -- Changes an incident. attrs: title, description, severity, public and
 -- commanderId; a key left out keeps its value. The status moves only
 -- through post_incident_update.
-drop function if exists "app_private"."update_incident"(uuid, jsonb, jsonb);
+
 create or replace function "app_private"."update_incident"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -4224,192 +3857,147 @@ grant execute on function "app_private"."public_status_page"(text, integer) to a
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."incident_status_components";
-drop policy if exists bsb_tenant_scope_select on "app_private"."incident_status_components";
 create policy bsb_tenant_scope_select on "app_private"."incident_status_components" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_status_components";
 create policy bsb_tenant_scope_insert on "app_private"."incident_status_components" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."incident_status_components";
 create policy bsb_tenant_scope_update on "app_private"."incident_status_components" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_status_components";
 create policy bsb_tenant_scope_delete on "app_private"."incident_status_components" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."incident_status_component_history";
-drop policy if exists bsb_tenant_scope_select on "app_private"."incident_status_component_history";
 create policy bsb_tenant_scope_select on "app_private"."incident_status_component_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_status_component_history";
 create policy bsb_tenant_scope_insert on "app_private"."incident_status_component_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."incident_status_component_history";
 create policy bsb_tenant_scope_update on "app_private"."incident_status_component_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_status_component_history";
 create policy bsb_tenant_scope_delete on "app_private"."incident_status_component_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."incidents";
-drop policy if exists bsb_tenant_scope_select on "app_private"."incidents";
 create policy bsb_tenant_scope_select on "app_private"."incidents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."incidents";
 create policy bsb_tenant_scope_insert on "app_private"."incidents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."incidents";
 create policy bsb_tenant_scope_update on "app_private"."incidents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."incidents";
 create policy bsb_tenant_scope_delete on "app_private"."incidents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."incident_updates";
-drop policy if exists bsb_tenant_scope_select on "app_private"."incident_updates";
 create policy bsb_tenant_scope_select on "app_private"."incident_updates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_updates";
 create policy bsb_tenant_scope_insert on "app_private"."incident_updates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."incident_updates";
 create policy bsb_tenant_scope_update on "app_private"."incident_updates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_updates";
 create policy bsb_tenant_scope_delete on "app_private"."incident_updates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."incident_impacts";
-drop policy if exists bsb_tenant_scope_select on "app_private"."incident_impacts";
 create policy bsb_tenant_scope_select on "app_private"."incident_impacts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_impacts";
 create policy bsb_tenant_scope_insert on "app_private"."incident_impacts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."incident_impacts";
 create policy bsb_tenant_scope_update on "app_private"."incident_impacts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_impacts";
 create policy bsb_tenant_scope_delete on "app_private"."incident_impacts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."incident_postmortems";
-drop policy if exists bsb_tenant_scope_select on "app_private"."incident_postmortems";
 create policy bsb_tenant_scope_select on "app_private"."incident_postmortems" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_postmortems";
 create policy bsb_tenant_scope_insert on "app_private"."incident_postmortems" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."incident_postmortems";
 create policy bsb_tenant_scope_update on "app_private"."incident_postmortems" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_postmortems";
 create policy bsb_tenant_scope_delete on "app_private"."incident_postmortems" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."incident_regulatory_profiles";
-drop policy if exists bsb_tenant_scope_select on "app_private"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_select on "app_private"."incident_regulatory_profiles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_insert on "app_private"."incident_regulatory_profiles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_update on "app_private"."incident_regulatory_profiles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_delete on "app_private"."incident_regulatory_profiles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."incident_regulatory_filings";
-drop policy if exists bsb_tenant_scope_select on "app_private"."incident_regulatory_filings";
 create policy bsb_tenant_scope_select on "app_private"."incident_regulatory_filings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_regulatory_filings";
 create policy bsb_tenant_scope_insert on "app_private"."incident_regulatory_filings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."incident_regulatory_filings";
 create policy bsb_tenant_scope_update on "app_private"."incident_regulatory_filings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_regulatory_filings";
 create policy bsb_tenant_scope_delete on "app_private"."incident_regulatory_filings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."incident_status_pages";
-drop policy if exists bsb_tenant_scope_select on "app_private"."incident_status_pages";
 create policy bsb_tenant_scope_select on "app_private"."incident_status_pages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."incident_status_pages";
 create policy bsb_tenant_scope_insert on "app_private"."incident_status_pages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."incident_status_pages";
 create policy bsb_tenant_scope_update on "app_private"."incident_status_pages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."incident_status_pages";
 create policy bsb_tenant_scope_delete on "app_private"."incident_status_pages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4431,96 +4019,17 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:594384b1fa78147ed191b3a2f6571b591819358ed9a3219025afc2b20e45b487
+-- @bsb-hash sha256:fdd67396d0839f46a1e4769931de1a330aa0febe99a329f3fbb92e2bde600364
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incidents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_impacts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Incidents: severity, a status timeline, affected components, postmortems,
 -- and a public status page read through one narrow function.
 
 -- The services a status page reports on. status follows the worst impact of
 -- the open incidents on the component; nothing else writes it.
-create table if not exists "better_supabase"."incident_status_components" (
+create table "better_supabase"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -4534,18 +4043,17 @@ create table if not exists "better_supabase"."incident_status_components" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "incident_status_components_tenant_idx" on "better_supabase"."incident_status_components" ("tenant_id", "position");
+create index "incident_status_components_tenant_idx" on "better_supabase"."incident_status_components" ("tenant_id", "position");
 alter table "better_supabase"."incident_status_components" enable row level security;
 revoke all on "better_supabase"."incident_status_components" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_components" to authenticated;
 grant all on "better_supabase"."incident_status_components" to service_role;
-drop policy if exists incident_status_components_read on "better_supabase"."incident_status_components";
 create policy incident_status_components_read on "better_supabase"."incident_status_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per status a component held, for the uptime history.
-create table if not exists "better_supabase"."incident_status_component_history" (
+create table "better_supabase"."incident_status_component_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "component_id" uuid not null,
@@ -4555,18 +4063,17 @@ create table if not exists "better_supabase"."incident_status_component_history"
   check ("ended_at" is null or "ended_at" >= "started_at"),
   foreign key ("tenant_id", "component_id") references "better_supabase"."incident_status_components" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_status_component_history_component_idx" on "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "started_at");
-create unique index if not exists "incident_status_component_history_open_idx" on "better_supabase"."incident_status_component_history" ("component_id") where "ended_at" is null;
+create index "incident_status_component_history_component_idx" on "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "started_at");
+create unique index "incident_status_component_history_open_idx" on "better_supabase"."incident_status_component_history" ("component_id") where "ended_at" is null;
 alter table "better_supabase"."incident_status_component_history" enable row level security;
 revoke all on "better_supabase"."incident_status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_component_history" to authenticated;
 grant all on "better_supabase"."incident_status_component_history" to service_role;
-drop policy if exists incident_status_component_history_read on "better_supabase"."incident_status_component_history";
 create policy incident_status_component_history_read on "better_supabase"."incident_status_component_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incidents" (
+create table "better_supabase"."incidents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
@@ -4586,20 +4093,19 @@ create table if not exists "better_supabase"."incidents" (
   check (("status" = 'resolved') = ("resolved_at" is not null)),
   unique ("tenant_id", "id")
 );
-create index if not exists "incidents_tenant_idx" on "better_supabase"."incidents" ("tenant_id", "started_at" desc);
-create index if not exists "incidents_open_idx" on "better_supabase"."incidents" ("tenant_id") where "status" <> 'resolved';
-create index if not exists "incidents_commander_idx" on "better_supabase"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
+create index "incidents_tenant_idx" on "better_supabase"."incidents" ("tenant_id", "started_at" desc);
+create index "incidents_open_idx" on "better_supabase"."incidents" ("tenant_id") where "status" <> 'resolved';
+create index "incidents_commander_idx" on "better_supabase"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;
 alter table "better_supabase"."incidents" enable row level security;
 revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
-drop policy if exists incidents_read on "better_supabase"."incidents";
 create policy incidents_read on "better_supabase"."incidents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- The status timeline: each update sets the incident's status.
-create table if not exists "better_supabase"."incident_updates" (
+create table "better_supabase"."incident_updates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
@@ -4612,17 +4118,16 @@ create table if not exists "better_supabase"."incident_updates" (
   "created_at" timestamptz not null default clock_timestamp(),
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("tenant_id", "incident_id", "created_at");
+create index "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("tenant_id", "incident_id", "created_at");
 alter table "better_supabase"."incident_updates" enable row level security;
 revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
-drop policy if exists incident_updates_read on "better_supabase"."incident_updates";
 create policy incident_updates_read on "better_supabase"."incident_updates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incident_impacts" (
+create table "better_supabase"."incident_impacts" (
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
   "component_id" uuid not null,
@@ -4631,18 +4136,17 @@ create table if not exists "better_supabase"."incident_impacts" (
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "component_id") references "better_supabase"."incident_status_components" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("tenant_id", "incident_id");
-create index if not exists "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("tenant_id", "component_id");
+create index "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("tenant_id", "incident_id");
+create index "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("tenant_id", "component_id");
 alter table "better_supabase"."incident_impacts" enable row level security;
 revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
-drop policy if exists incident_impacts_read on "better_supabase"."incident_impacts";
 create policy incident_impacts_read on "better_supabase"."incident_impacts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incident_postmortems" (
+create table "better_supabase"."incident_postmortems" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null unique,
@@ -4658,19 +4162,18 @@ create table if not exists "better_supabase"."incident_postmortems" (
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("tenant_id", "incident_id");
+create index "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("tenant_id", "incident_id");
 alter table "better_supabase"."incident_postmortems" enable row level security;
 revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
-drop policy if exists incident_postmortems_read on "better_supabase"."incident_postmortems";
 create policy incident_postmortems_read on "better_supabase"."incident_postmortems"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One status page per organization. Anonymous visitors read it only through
 -- public_status_page(slug), never through these tables.
-create table if not exists "better_supabase"."incident_status_pages" (
+create table "better_supabase"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null unique,
   "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
@@ -4684,14 +4187,13 @@ alter table "better_supabase"."incident_status_pages" enable row level security;
 revoke all on "better_supabase"."incident_status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_pages" to authenticated;
 grant all on "better_supabase"."incident_status_pages" to service_role;
-drop policy if exists incident_status_pages_read on "better_supabase"."incident_status_pages";
 create policy incident_status_pages_read on "better_supabase"."incident_status_pages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- The regulatory reporting profile of an incident: which regimes apply, when
 -- the organization became aware, and the facts that move a deadline.
-create table if not exists "better_supabase"."incident_regulatory_profiles" (
+create table "better_supabase"."incident_regulatory_profiles" (
   "incident_id" uuid primary key references "better_supabase"."incidents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "regimes" text[] not null default '{}' check ("regimes" <@ array['nis2', 'dora', 'cra']),
@@ -4704,19 +4206,18 @@ create table if not exists "better_supabase"."incident_regulatory_profiles" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "incident_regulatory_profiles_tenant_idx" on "better_supabase"."incident_regulatory_profiles" ("tenant_id");
+create index "incident_regulatory_profiles_tenant_idx" on "better_supabase"."incident_regulatory_profiles" ("tenant_id");
 alter table "better_supabase"."incident_regulatory_profiles" enable row level security;
 revoke all on "better_supabase"."incident_regulatory_profiles" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_profiles" to authenticated;
 grant all on "better_supabase"."incident_regulatory_profiles" to service_role;
-drop policy if exists "incident_regulatory_profiles_read" on "better_supabase"."incident_regulatory_profiles";
 create policy incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per deadline. A submission fills submitted_at and the reference the
 -- authority gave; reminder_id is the reminder that warns the commander.
-create table if not exists "better_supabase"."incident_regulatory_filings" (
+create table "better_supabase"."incident_regulatory_filings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null references "better_supabase"."incidents" ("id") on delete cascade,
@@ -4731,12 +4232,11 @@ create table if not exists "better_supabase"."incident_regulatory_filings" (
   "created_at" timestamptz not null default now(),
   unique ("incident_id", "regime", "stage")
 );
-create index if not exists "incident_regulatory_filings_tenant_idx" on "better_supabase"."incident_regulatory_filings" ("tenant_id", "due_at") where "submitted_at" is null;
+create index "incident_regulatory_filings_tenant_idx" on "better_supabase"."incident_regulatory_filings" ("tenant_id", "due_at") where "submitted_at" is null;
 alter table "better_supabase"."incident_regulatory_filings" enable row level security;
 revoke all on "better_supabase"."incident_regulatory_filings" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_filings" to authenticated;
 grant all on "better_supabase"."incident_regulatory_filings" to service_role;
-drop policy if exists "incident_regulatory_filings_read" on "better_supabase"."incident_regulatory_filings";
 create policy incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -4907,7 +4407,7 @@ grant execute on function "better_supabase"."list_status_components"(uuid) to au
 -- Opens an incident. attrs: title (required), description, severity (sev1
 -- to sev4, default sev3), public, commanderId, message (the first timeline
 -- update) and impacts ([{ componentId, impact }]).
-drop function if exists "better_supabase"."open_incident"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."open_incident"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -4960,7 +4460,7 @@ grant execute on function "better_supabase"."open_incident"(uuid, jsonb) to auth
 -- Changes an incident. attrs: title, description, severity, public and
 -- commanderId; a key left out keeps its value. The status moves only
 -- through post_incident_update.
-drop function if exists "better_supabase"."update_incident"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."update_incident"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -5614,192 +5114,147 @@ grant execute on function "better_supabase"."public_status_page"(text, integer) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_components" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_components" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_components" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_components" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_component_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_component_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incidents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incidents";
 create policy bsb_tenant_scope_select on "better_supabase"."incidents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incidents";
 create policy bsb_tenant_scope_insert on "better_supabase"."incidents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incidents";
 create policy bsb_tenant_scope_update on "better_supabase"."incidents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incidents";
 create policy bsb_tenant_scope_delete on "better_supabase"."incidents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_updates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_updates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_updates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_updates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_updates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_impacts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_impacts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_impacts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_impacts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_impacts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortems";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_postmortems" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_postmortems" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_postmortems" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_postmortems" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_pages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_pages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_pages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_pages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -5809,12 +5264,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."incident_refresh_components"(uuid[]);
-drop function if exists "api"."incident_apply_impacts"(uuid, jsonb);
-drop function if exists "api"."plan_incident_filings"(uuid);
 
-drop function if exists "api"."open_incident"(uuid, jsonb, jsonb);
-drop function if exists "api"."update_incident"(uuid, jsonb, jsonb);
 
 create or replace function "api"."save_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
 returns jsonb
@@ -6002,89 +5452,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:315b4013741a08d2322c4476ba455c43ecefd88bb5ece63b1d293171f3c2727c
+-- @bsb-hash sha256:c804da3353ad30a003a49306ea2152a670688c375890876c970aae6306caae11
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incidents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_impacts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Incidents: severity, a status timeline, affected components, postmortems,
 -- and a public status page read through one narrow function.
@@ -6107,7 +5478,6 @@ create index if not exists "incident_status_components_tenant_idx" on "better_su
 alter table "better_supabase"."incident_status_components" enable row level security;
 grant select on "better_supabase"."incident_status_components" to authenticated;
 grant all on "better_supabase"."incident_status_components" to service_role;
-drop policy if exists bsb_incident_status_components_read on "better_supabase"."incident_status_components";
 create policy bsb_incident_status_components_read on "better_supabase"."incident_status_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -6125,7 +5495,6 @@ create unique index if not exists "incident_status_component_history_open_idx" o
 alter table "better_supabase"."incident_status_component_history" enable row level security;
 grant select on "better_supabase"."incident_status_component_history" to authenticated;
 grant all on "better_supabase"."incident_status_component_history" to service_role;
-drop policy if exists bsb_incident_status_component_history_read on "better_supabase"."incident_status_component_history";
 create policy bsb_incident_status_component_history_read on "better_supabase"."incident_status_component_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -6151,7 +5520,6 @@ create index if not exists "incidents_commander_idx" on "better_supabase"."incid
 alter table "better_supabase"."incidents" enable row level security;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
-drop policy if exists bsb_incidents_read on "better_supabase"."incidents";
 create policy bsb_incidents_read on "better_supabase"."incidents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -6170,7 +5538,6 @@ create index if not exists "incident_updates_parent_idx" on "better_supabase"."i
 alter table "better_supabase"."incident_updates" enable row level security;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
-drop policy if exists bsb_incident_updates_read on "better_supabase"."incident_updates";
 create policy bsb_incident_updates_read on "better_supabase"."incident_updates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -6186,7 +5553,6 @@ create index if not exists "incident_impacts_component_idx" on "better_supabase"
 alter table "better_supabase"."incident_impacts" enable row level security;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
-drop policy if exists bsb_incident_impacts_read on "better_supabase"."incident_impacts";
 create policy bsb_incident_impacts_read on "better_supabase"."incident_impacts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -6209,7 +5575,6 @@ create index if not exists "incident_postmortems_tenant_idx" on "better_supabase
 alter table "better_supabase"."incident_postmortems" enable row level security;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
-drop policy if exists bsb_incident_postmortems_read on "better_supabase"."incident_postmortems";
 create policy bsb_incident_postmortems_read on "better_supabase"."incident_postmortems"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -6230,7 +5595,6 @@ create unique index if not exists "bsb_incident_status_pages_slug_key" on "bette
 alter table "better_supabase"."incident_status_pages" enable row level security;
 grant select on "better_supabase"."incident_status_pages" to authenticated;
 grant all on "better_supabase"."incident_status_pages" to service_role;
-drop policy if exists bsb_incident_status_pages_read on "better_supabase"."incident_status_pages";
 create policy bsb_incident_status_pages_read on "better_supabase"."incident_status_pages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -6254,7 +5618,6 @@ create unique index if not exists "bsb_incident_regulatory_profiles_one_key" on 
 alter table "better_supabase"."incident_regulatory_profiles" enable row level security;
 grant select on "better_supabase"."incident_regulatory_profiles" to authenticated;
 grant all on "better_supabase"."incident_regulatory_profiles" to service_role;
-drop policy if exists bsb_incident_regulatory_profiles_select on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_incident_regulatory_profiles_select on "better_supabase"."incident_regulatory_profiles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -6279,7 +5642,6 @@ create unique index if not exists "bsb_incident_regulatory_filings_slot_key" on 
 alter table "better_supabase"."incident_regulatory_filings" enable row level security;
 grant select on "better_supabase"."incident_regulatory_filings" to authenticated;
 grant all on "better_supabase"."incident_regulatory_filings" to service_role;
-drop policy if exists bsb_incident_regulatory_filings_select on "better_supabase"."incident_regulatory_filings";
 create policy bsb_incident_regulatory_filings_select on "better_supabase"."incident_regulatory_filings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -6450,7 +5812,7 @@ grant execute on function "better_supabase"."list_status_components"(uuid) to au
 -- Opens an incident. attrs: title (required), description, severity (sev1
 -- to sev4, default sev3), public, commanderId, message (the first timeline
 -- update) and impacts ([{ componentId, impact }]).
-drop function if exists "better_supabase"."open_incident"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."open_incident"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -6503,7 +5865,7 @@ grant execute on function "better_supabase"."open_incident"(uuid, jsonb) to auth
 -- Changes an incident. attrs: title, description, severity, public and
 -- commanderId; a key left out keeps its value. The status moves only
 -- through post_incident_update.
-drop function if exists "better_supabase"."update_incident"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."update_incident"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -7157,192 +6519,147 @@ grant execute on function "better_supabase"."public_status_page"(text, integer) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_components" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_components" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_components" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_components" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_component_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_component_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incidents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incidents";
 create policy bsb_tenant_scope_select on "better_supabase"."incidents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incidents";
 create policy bsb_tenant_scope_insert on "better_supabase"."incidents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incidents";
 create policy bsb_tenant_scope_update on "better_supabase"."incidents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incidents";
 create policy bsb_tenant_scope_delete on "better_supabase"."incidents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_updates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_updates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_updates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_updates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_updates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_impacts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_impacts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_impacts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_impacts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_impacts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortems";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_postmortems" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_postmortems" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_postmortems" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_postmortems" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_pages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_pages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_pages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_pages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -7364,96 +6681,17 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:9768a928cf2c27716a5c69ec21a89ed1a83a3896f69b11bd43583e36f9511022
+-- @bsb-hash sha256:c7870e2f685370ef00b87f54a80b7a85f973ce2d82f86a6bbd36342c7b0856b7
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incidents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incidents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_updates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_impacts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_impacts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Incidents: severity, a status timeline, affected components, postmortems,
 -- and a public status page read through one narrow function.
 
 -- The services a status page reports on. status follows the worst impact of
 -- the open incidents on the component; nothing else writes it.
-create table if not exists "better_supabase"."incident_status_components" (
+create table "better_supabase"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -7467,18 +6705,17 @@ create table if not exists "better_supabase"."incident_status_components" (
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "id")
 );
-create index if not exists "incident_status_components_tenant_idx" on "better_supabase"."incident_status_components" ("org_id", "position");
+create index "incident_status_components_tenant_idx" on "better_supabase"."incident_status_components" ("org_id", "position");
 alter table "better_supabase"."incident_status_components" enable row level security;
 revoke all on "better_supabase"."incident_status_components" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_components" to authenticated;
 grant all on "better_supabase"."incident_status_components" to service_role;
-drop policy if exists incident_status_components_read on "better_supabase"."incident_status_components";
 create policy incident_status_components_read on "better_supabase"."incident_status_components"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per status a component held, for the uptime history.
-create table if not exists "better_supabase"."incident_status_component_history" (
+create table "better_supabase"."incident_status_component_history" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "component_id" uuid not null,
@@ -7488,18 +6725,17 @@ create table if not exists "better_supabase"."incident_status_component_history"
   check ("ended_at" is null or "ended_at" >= "started_at"),
   foreign key ("org_id", "component_id") references "better_supabase"."incident_status_components" ("org_id", "id") on delete cascade
 );
-create index if not exists "incident_status_component_history_component_idx" on "better_supabase"."incident_status_component_history" ("org_id", "component_id", "started_at");
-create unique index if not exists "incident_status_component_history_open_idx" on "better_supabase"."incident_status_component_history" ("component_id") where "ended_at" is null;
+create index "incident_status_component_history_component_idx" on "better_supabase"."incident_status_component_history" ("org_id", "component_id", "started_at");
+create unique index "incident_status_component_history_open_idx" on "better_supabase"."incident_status_component_history" ("component_id") where "ended_at" is null;
 alter table "better_supabase"."incident_status_component_history" enable row level security;
 revoke all on "better_supabase"."incident_status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_component_history" to authenticated;
 grant all on "better_supabase"."incident_status_component_history" to service_role;
-drop policy if exists incident_status_component_history_read on "better_supabase"."incident_status_component_history";
 create policy incident_status_component_history_read on "better_supabase"."incident_status_component_history"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incidents" (
+create table "better_supabase"."incidents" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
@@ -7519,20 +6755,19 @@ create table if not exists "better_supabase"."incidents" (
   check (("status" = 'resolved') = ("resolved_at" is not null)),
   unique ("org_id", "id")
 );
-create index if not exists "incidents_tenant_idx" on "better_supabase"."incidents" ("org_id", "started_at" desc);
-create index if not exists "incidents_open_idx" on "better_supabase"."incidents" ("org_id") where "status" <> 'resolved';
-create index if not exists "incidents_commander_idx" on "better_supabase"."incidents" ("org_id", "commander_id") where "commander_id" is not null;
+create index "incidents_tenant_idx" on "better_supabase"."incidents" ("org_id", "started_at" desc);
+create index "incidents_open_idx" on "better_supabase"."incidents" ("org_id") where "status" <> 'resolved';
+create index "incidents_commander_idx" on "better_supabase"."incidents" ("org_id", "commander_id") where "commander_id" is not null;
 alter table "better_supabase"."incidents" enable row level security;
 revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
-drop policy if exists incidents_read on "better_supabase"."incidents";
 create policy incidents_read on "better_supabase"."incidents"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- The status timeline: each update sets the incident's status.
-create table if not exists "better_supabase"."incident_updates" (
+create table "better_supabase"."incident_updates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "incident_id" uuid not null,
@@ -7545,17 +6780,16 @@ create table if not exists "better_supabase"."incident_updates" (
   "created_at" timestamptz not null default clock_timestamp(),
   foreign key ("org_id", "incident_id") references "better_supabase"."incidents" ("org_id", "id") on delete cascade
 );
-create index if not exists "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("org_id", "incident_id", "created_at");
+create index "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("org_id", "incident_id", "created_at");
 alter table "better_supabase"."incident_updates" enable row level security;
 revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
-drop policy if exists incident_updates_read on "better_supabase"."incident_updates";
 create policy incident_updates_read on "better_supabase"."incident_updates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incident_impacts" (
+create table "better_supabase"."incident_impacts" (
   "org_id" uuid not null,
   "incident_id" uuid not null,
   "component_id" uuid not null,
@@ -7564,18 +6798,17 @@ create table if not exists "better_supabase"."incident_impacts" (
   foreign key ("org_id", "incident_id") references "better_supabase"."incidents" ("org_id", "id") on delete cascade,
   foreign key ("org_id", "component_id") references "better_supabase"."incident_status_components" ("org_id", "id") on delete cascade
 );
-create index if not exists "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("org_id", "incident_id");
-create index if not exists "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("org_id", "component_id");
+create index "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("org_id", "incident_id");
+create index "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("org_id", "component_id");
 alter table "better_supabase"."incident_impacts" enable row level security;
 revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
-drop policy if exists incident_impacts_read on "better_supabase"."incident_impacts";
 create policy incident_impacts_read on "better_supabase"."incident_impacts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
-create table if not exists "better_supabase"."incident_postmortems" (
+create table "better_supabase"."incident_postmortems" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "incident_id" uuid not null unique,
@@ -7591,19 +6824,18 @@ create table if not exists "better_supabase"."incident_postmortems" (
   "updated_at" timestamptz not null default now(),
   foreign key ("org_id", "incident_id") references "better_supabase"."incidents" ("org_id", "id") on delete cascade
 );
-create index if not exists "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("org_id", "incident_id");
+create index "incident_postmortems_tenant_idx" on "better_supabase"."incident_postmortems" ("org_id", "incident_id");
 alter table "better_supabase"."incident_postmortems" enable row level security;
 revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
-drop policy if exists incident_postmortems_read on "better_supabase"."incident_postmortems";
 create policy incident_postmortems_read on "better_supabase"."incident_postmortems"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One status page per organization. Anonymous visitors read it only through
 -- public_status_page(slug), never through these tables.
-create table if not exists "better_supabase"."incident_status_pages" (
+create table "better_supabase"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null unique,
   "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
@@ -7617,14 +6849,13 @@ alter table "better_supabase"."incident_status_pages" enable row level security;
 revoke all on "better_supabase"."incident_status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_pages" to authenticated;
 grant all on "better_supabase"."incident_status_pages" to service_role;
-drop policy if exists incident_status_pages_read on "better_supabase"."incident_status_pages";
 create policy incident_status_pages_read on "better_supabase"."incident_status_pages"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- The regulatory reporting profile of an incident: which regimes apply, when
 -- the organization became aware, and the facts that move a deadline.
-create table if not exists "better_supabase"."incident_regulatory_profiles" (
+create table "better_supabase"."incident_regulatory_profiles" (
   "incident_id" uuid primary key references "better_supabase"."incidents" ("id") on delete cascade,
   "org_id" uuid not null,
   "regimes" text[] not null default '{}' check ("regimes" <@ array['nis2', 'dora', 'cra']),
@@ -7637,19 +6868,18 @@ create table if not exists "better_supabase"."incident_regulatory_profiles" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "incident_regulatory_profiles_tenant_idx" on "better_supabase"."incident_regulatory_profiles" ("org_id");
+create index "incident_regulatory_profiles_tenant_idx" on "better_supabase"."incident_regulatory_profiles" ("org_id");
 alter table "better_supabase"."incident_regulatory_profiles" enable row level security;
 revoke all on "better_supabase"."incident_regulatory_profiles" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_profiles" to authenticated;
 grant all on "better_supabase"."incident_regulatory_profiles" to service_role;
-drop policy if exists "incident_regulatory_profiles_read" on "better_supabase"."incident_regulatory_profiles";
 create policy incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per deadline. A submission fills submitted_at and the reference the
 -- authority gave; reminder_id is the reminder that warns the commander.
-create table if not exists "better_supabase"."incident_regulatory_filings" (
+create table "better_supabase"."incident_regulatory_filings" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "incident_id" uuid not null references "better_supabase"."incidents" ("id") on delete cascade,
@@ -7664,12 +6894,11 @@ create table if not exists "better_supabase"."incident_regulatory_filings" (
   "created_at" timestamptz not null default now(),
   unique ("incident_id", "regime", "stage")
 );
-create index if not exists "incident_regulatory_filings_tenant_idx" on "better_supabase"."incident_regulatory_filings" ("org_id", "due_at") where "submitted_at" is null;
+create index "incident_regulatory_filings_tenant_idx" on "better_supabase"."incident_regulatory_filings" ("org_id", "due_at") where "submitted_at" is null;
 alter table "better_supabase"."incident_regulatory_filings" enable row level security;
 revoke all on "better_supabase"."incident_regulatory_filings" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_filings" to authenticated;
 grant all on "better_supabase"."incident_regulatory_filings" to service_role;
-drop policy if exists "incident_regulatory_filings_read" on "better_supabase"."incident_regulatory_filings";
 create policy incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
@@ -7840,7 +7069,7 @@ grant execute on function "better_supabase"."list_status_components"(uuid) to au
 -- Opens an incident. attrs: title (required), description, severity (sev1
 -- to sev4, default sev3), public, commanderId, message (the first timeline
 -- update) and impacts ([{ componentId, impact }]).
-drop function if exists "better_supabase"."open_incident"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."open_incident"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -7893,7 +7122,7 @@ grant execute on function "better_supabase"."open_incident"(uuid, jsonb) to auth
 -- Changes an incident. attrs: title, description, severity, public and
 -- commanderId; a key left out keeps its value. The status moves only
 -- through post_incident_update.
-drop function if exists "better_supabase"."update_incident"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."update_incident"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -8547,192 +7776,147 @@ grant execute on function "better_supabase"."public_status_page"(text, integer) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_components" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_components" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_components" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_components" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_component_history" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_component_history" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incidents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incidents";
 create policy bsb_tenant_scope_select on "better_supabase"."incidents" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incidents";
 create policy bsb_tenant_scope_insert on "better_supabase"."incidents" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incidents";
 create policy bsb_tenant_scope_update on "better_supabase"."incidents" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incidents";
 create policy bsb_tenant_scope_delete on "better_supabase"."incidents" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_updates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_updates" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_updates" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_updates" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_updates";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_updates" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_impacts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_impacts" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_impacts" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_impacts" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_impacts";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_impacts" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortems";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_postmortems" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_postmortems" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_postmortems" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_postmortems" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_profiles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_profiles" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_profiles" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_profiles" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_profiles" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_regulatory_filings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_regulatory_filings" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_regulatory_filings" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_regulatory_filings" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_regulatory_filings" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_select on "better_supabase"."incident_status_pages" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_pages" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_update on "better_supabase"."incident_status_pages" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_pages" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

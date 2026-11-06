@@ -169,7 +169,7 @@ ${
 );${addExtraColumns(t, extras)}
 create index if not exists ${sqlIdent(`${ctx.tableName("targets").name}_period_idx`)} on ${t} (${c("tenant")}, ${c("periodStart")}, ${c("periodEnd")})${has("archivedAt") ? ` where ${c("archivedAt")} is null` : ""};
 ${lockTable(t, { read: true })}
-${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("targets").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("targets").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { target: t })}
 `
     : ""
 }

@@ -128,7 +128,7 @@ export function batchTablesSql(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, q.read),
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const invoiceRef = invoices.owns("invoices")

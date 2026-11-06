@@ -69,7 +69,7 @@ describe("employees module", () => {
     });
 
     expect(sql).toContain("array['permanent', 'freelance']::text[]");
-    expect(sql).toContain('add column if not exists "shoe_size" integer');
+    expect(sql).toContain('add column "shoe_size" integer');
     expect(sql).toContain("when 'shoe_size' then");
     expect(() =>
       body(["employees"], {
@@ -193,7 +193,7 @@ describe("employees module", () => {
     );
     const sql = body(["approvals", "time-tracking", "employees"]);
     expect(sql).toContain(
-      'alter table "better_supabase"."time_entries" add column if not exists employee_id uuid references "better_supabase"."employees" ("id") on delete set null;',
+      'alter table "better_supabase"."time_entries" add column employee_id uuid references "better_supabase"."employees" ("id") on delete set null;',
     );
     expect(sql).toContain(
       'create trigger bsb_time_entries_employee before insert or update of "user_id" on "better_supabase"."time_entries"',

@@ -1,35 +1,12 @@
 -- better-supabase module: teams
 -- @bsb-block teams@2 managed
--- @bsb-hash sha256:ad448f8640cc9c3c4cfb8564ce785287401e6744b3284e1d665f7e64cf717f3e
+-- @bsb-hash sha256:2d1066c246a198c85ee96f8dfd23eb256d86af7c68c362230e34ffa709073474
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."teams";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."teams";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."teams";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."teams";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."teams";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."team_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."team_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."team_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."team_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."team_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.
-create table if not exists "better_supabase"."teams" (
+create table "better_supabase"."teams" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -45,29 +22,26 @@ alter table "better_supabase"."teams" enable row level security;
 revoke all on "better_supabase"."teams" from public, anon, authenticated;
 grant select on "better_supabase"."teams" to authenticated;
 grant all on "better_supabase"."teams" to service_role;
-drop policy if exists teams_read on "better_supabase"."teams";
 create policy teams_read on "better_supabase"."teams"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
-create table if not exists "better_supabase"."team_members" (
+create table "better_supabase"."team_members" (
   "team_id" uuid not null references "better_supabase"."teams" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
   "created_at" timestamptz not null default now(),
   primary key ("team_id", "user_id")
 );
-create index if not exists team_members_user_idx on "better_supabase"."team_members" ("user_id");
-create index if not exists team_members_membership_idx on "better_supabase"."team_members" ("tenant_id", "user_id");
+create index team_members_user_idx on "better_supabase"."team_members" ("user_id");
+create index team_members_membership_idx on "better_supabase"."team_members" ("tenant_id", "user_id");
 alter table "better_supabase"."team_members" enable row level security;
 revoke all on "better_supabase"."team_members" from public, anon, authenticated;
 grant select on "better_supabase"."team_members" to authenticated;
 grant all on "better_supabase"."team_members" to service_role;
-drop policy if exists team_members_read on "better_supabase"."team_members";
 create policy team_members_read on "better_supabase"."team_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
-alter table "better_supabase"."team_members" drop constraint if exists team_members_membership_fkey;
 alter table "better_supabase"."team_members"
   add constraint team_members_membership_fkey
   foreign key ("tenant_id", "user_id")
@@ -103,8 +77,6 @@ begin
 end
 $shared_teams$;
 alter table "better_supabase"."inbox_conversations"
-  drop constraint if exists conversations_team_fkey;
-alter table "better_supabase"."inbox_conversations"
   add constraint conversations_team_fkey
   foreign key ("team_id") references "better_supabase"."teams" ("id") on delete set null;
 -- A signed-in caller may only read their own teams; the service role and
@@ -128,9 +100,7 @@ revoke execute on function "better_supabase"."team_ids_of"(uuid) from public, an
 grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated, service_role;
 
 -- fields: the extra columns (blocks.teams.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_team"(uuid, text, text);
-drop function if exists "better_supabase"."create_team"(uuid, text, text, jsonb);
-drop function if exists "better_supabase"."create_team"(uuid, text, text, text, jsonb);
+
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text, slug text default null)
 returns jsonb
 language plpgsql
@@ -183,10 +153,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_team"(uuid, text, text, text) from public, anon;
 grant execute on function "better_supabase"."create_team"(uuid, text, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_team"(uuid, text, text);
-drop function if exists "better_supabase"."update_team"(uuid, text, text, jsonb);
-drop function if exists "better_supabase"."update_team"(uuid, text, text, jsonb, jsonb);
 -- patch: name, slug and description to set; a key that is present sets its
 -- column, so null clears the description.
 create or replace function "better_supabase"."update_team"(team uuid, name text, description text, patch jsonb default null)
@@ -451,45 +417,35 @@ grant execute on function "better_supabase"."list_teams"(uuid) to authenticated,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."teams";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."teams";
 create policy bsb_tenant_scope_select on "better_supabase"."teams" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."teams";
 create policy bsb_tenant_scope_insert on "better_supabase"."teams" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."teams";
 create policy bsb_tenant_scope_update on "better_supabase"."teams" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."teams";
 create policy bsb_tenant_scope_delete on "better_supabase"."teams" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."team_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."team_members";
 create policy bsb_tenant_scope_select on "better_supabase"."team_members" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."team_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."team_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."team_members";
 create policy bsb_tenant_scope_update on "better_supabase"."team_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."team_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."team_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -504,13 +460,6 @@ $$;
 -- blocks.teams.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."create_team"(uuid, text, text);
-drop function if exists "api"."create_team"(uuid, text, text, jsonb);
-drop function if exists "api"."create_team"(uuid, text, text, text, jsonb);
-drop function if exists "api"."update_team"(uuid, text, text);
-drop function if exists "api"."update_team"(uuid, text, text, jsonb);
-drop function if exists "api"."update_team"(uuid, text, text, jsonb, jsonb);
 
 create or replace function "api"."team_ids_of"(member uuid)
 returns setof uuid

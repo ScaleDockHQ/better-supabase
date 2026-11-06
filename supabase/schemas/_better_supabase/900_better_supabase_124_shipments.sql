@@ -1,63 +1,16 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:06bf450104e753de6d8ede0480b31b8da26dcb7b0ee0a7d7b1d1fb2e1fccb139
+-- @bsb-hash sha256:0321bd4ff8f3ed94d2190860b6a1507c5a6f0df8bb2e200eafa5c3da94f2ecdc
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shipments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_packages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_packages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_packages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_packages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_packages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_tracking_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_tracking_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_tracking_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_tracking_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_tracking_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."intrastat_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."intrastat_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."intrastat_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."intrastat_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."intrastat_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Shipments: packages, addresses, carrier labels and a tracking timeline
 -- whose latest event sets the shipment's status.
 
 -- Shipments: packages going from one address to another, labeled through a
 -- carrier, with a status that follows the latest tracking event.
-create table if not exists "better_supabase"."shipments" (
+create table "better_supabase"."shipments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "reference" text not null check (length("reference") >= 1 and length("reference") <= 100),
@@ -86,20 +39,19 @@ create table if not exists "better_supabase"."shipments" (
   check (("label_cost" is null) = ("currency" is null)),
   check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
 );
-create index if not exists "shipments_tenant_idx" on "better_supabase"."shipments" ("tenant_id", "created_at" desc);
-create index if not exists "shipments_status_idx" on "better_supabase"."shipments" ("tenant_id", "status");
-create unique index if not exists "shipments_tracking_key" on "better_supabase"."shipments" ("carrier", "tracking_number") where "tracking_number" is not null;
-create index if not exists "shipments_subject_idx" on "better_supabase"."shipments" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "shipments_location_idx" on "better_supabase"."shipments" ("from_location_id");
+create index "shipments_tenant_idx" on "better_supabase"."shipments" ("tenant_id", "created_at" desc);
+create index "shipments_status_idx" on "better_supabase"."shipments" ("tenant_id", "status");
+create unique index "shipments_tracking_key" on "better_supabase"."shipments" ("carrier", "tracking_number") where "tracking_number" is not null;
+create index "shipments_subject_idx" on "better_supabase"."shipments" ("tenant_id", "subject_type", "subject_id");
+create index "shipments_location_idx" on "better_supabase"."shipments" ("from_location_id");
 alter table "better_supabase"."shipments" enable row level security;
 revoke all on "better_supabase"."shipments" from public, anon, authenticated;
 grant select on "better_supabase"."shipments" to authenticated;
 grant all on "better_supabase"."shipments" to service_role;
-drop policy if exists "shipments_read" on "better_supabase"."shipments";
 create policy shipments_read on "better_supabase"."shipments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
-create table if not exists "better_supabase"."shipment_packages" (
+create table "better_supabase"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
@@ -115,18 +67,17 @@ alter table "better_supabase"."shipment_packages" enable row level security;
 revoke all on "better_supabase"."shipment_packages" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
-drop policy if exists "shipment_packages_read" on "better_supabase"."shipment_packages";
 create policy shipment_packages_read on "better_supabase"."shipment_packages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 
-alter table "better_supabase"."shipments" add column if not exists "delivered_to" text;
-alter table "better_supabase"."shipments" add column if not exists "proof_reference" text;
-alter table "better_supabase"."shipments" add column if not exists "proof_attachment_id" uuid;
-alter table "better_supabase"."shipments" add column if not exists "proof_recorded_at" timestamptz;
+alter table "better_supabase"."shipments" add column "delivered_to" text;
+alter table "better_supabase"."shipments" add column "proof_reference" text;
+alter table "better_supabase"."shipments" add column "proof_attachment_id" uuid;
+alter table "better_supabase"."shipments" add column "proof_recorded_at" timestamptz;
 -- The tracking timeline. A carrier event id is recorded once per shipment, so
 -- a redelivered webhook or a repeated poll changes nothing.
-create table if not exists "better_supabase"."shipment_tracking_events" (
+create table "better_supabase"."shipment_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
@@ -139,12 +90,11 @@ create table if not exists "better_supabase"."shipment_tracking_events" (
   "created_at" timestamptz not null default now(),
   unique ("shipment_id", "external_id")
 );
-create index if not exists "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
+create index "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
 alter table "better_supabase"."shipment_tracking_events" enable row level security;
 revoke all on "better_supabase"."shipment_tracking_events" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_tracking_events" to authenticated;
 grant all on "better_supabase"."shipment_tracking_events" to service_role;
-drop policy if exists "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events";
 create policy shipment_tracking_events_read on "better_supabase"."shipment_tracking_events"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
@@ -168,31 +118,15 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."shipment_events_append_only"() from public, anon, authenticated;
-drop trigger if exists "bsb_shipment_events_append_only" on "better_supabase"."shipment_tracking_events";
 create trigger "bsb_shipment_events_append_only" before update or delete on "better_supabase"."shipment_tracking_events"
   for each row execute function "better_supabase"."shipment_events_append_only"('tenant_id');
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."shipments"'::regclass and conname = 'shipments_from_location_fkey'
-  ) then
-    alter table "better_supabase"."shipments" add constraint "shipments_from_location_fkey"
-      foreign key ("from_location_id") references "better_supabase"."asset_locations" ("id") on delete set null not valid;
-    begin
-      alter table "better_supabase"."shipments" validate constraint "shipments_from_location_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."shipments"', '"better_supabase"."shipments"', 'shipments_from_location_fkey';
-    end;
-  end if;
-end;
-$$;
+alter table "better_supabase"."shipments" add constraint "shipments_from_location_fkey"
+  foreign key ("from_location_id") references "better_supabase"."asset_locations" ("id") on delete set null;
 
 -- The stock a shipment carries out, and what comes back. An outbound line
 -- leaves stock when the shipment gets its label; a return line comes back
 -- with a disposition.
-create table if not exists "better_supabase"."shipment_lines" (
+create table "better_supabase"."shipment_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
@@ -210,14 +144,13 @@ create table if not exists "better_supabase"."shipment_lines" (
   check (("direction" = 'return') = ("disposition" is not null)),
   unique ("shipment_id", "position")
 );
-create index if not exists "shipment_lines_variant_idx" on "better_supabase"."shipment_lines" ("variant_id", "location_id");
-create index if not exists "shipment_lines_location_idx" on "better_supabase"."shipment_lines" ("location_id");
-create index if not exists "shipment_lines_allocation_idx" on "better_supabase"."shipment_lines" ("allocation_id");
+create index "shipment_lines_variant_idx" on "better_supabase"."shipment_lines" ("variant_id", "location_id");
+create index "shipment_lines_location_idx" on "better_supabase"."shipment_lines" ("location_id");
+create index "shipment_lines_allocation_idx" on "better_supabase"."shipment_lines" ("allocation_id");
 alter table "better_supabase"."shipment_lines" enable row level security;
 revoke all on "better_supabase"."shipment_lines" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_lines" to authenticated;
 grant all on "better_supabase"."shipment_lines" to service_role;
-drop policy if exists "shipment_lines_read" on "better_supabase"."shipment_lines";
 create policy shipment_lines_read on "better_supabase"."shipment_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
@@ -227,7 +160,7 @@ create policy shipment_lines_read on "better_supabase"."shipment_lines"
 -- names the member state it came from, are derived into lines by
 -- prepare_intrastat; a manual line is saved by hand and stays when the month is
 -- prepared again.
-create table if not exists "better_supabase"."intrastat_lines" (
+create table "better_supabase"."intrastat_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "period" date not null check ("period" = date_trunc('month', "period")::date),
@@ -245,18 +178,15 @@ create table if not exists "better_supabase"."intrastat_lines" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "intrastat_lines_period_idx" on "better_supabase"."intrastat_lines" ("tenant_id", "period");
-create index if not exists "intrastat_lines_variant_idx" on "better_supabase"."intrastat_lines" ("variant_id") where "variant_id" is not null;
+create index "intrastat_lines_period_idx" on "better_supabase"."intrastat_lines" ("tenant_id", "period");
+create index "intrastat_lines_variant_idx" on "better_supabase"."intrastat_lines" ("variant_id") where "variant_id" is not null;
 alter table "better_supabase"."intrastat_lines" enable row level security;
 revoke all on "better_supabase"."intrastat_lines" from public, anon, authenticated;
 grant select on "better_supabase"."intrastat_lines" to authenticated;
 grant all on "better_supabase"."intrastat_lines" to service_role;
-drop policy if exists "intrastat_lines_read" on "better_supabase"."intrastat_lines";
 create policy intrastat_lines_read on "better_supabase"."intrastat_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
-
-drop function if exists "better_supabase"."create_shipment"(uuid, jsonb, jsonb, jsonb, text, uuid, text, text, jsonb);
 -- Creates a draft shipment in tenant from from_address to to_address with its
 -- packages: a jsonb array of { weightGrams, lengthMm?, widthMm?, heightMm?,
 -- reference? }. reference defaults to a generated code.
@@ -1229,108 +1159,83 @@ comment on function "better_supabase"."shipments_subject_merge"(text, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."shipments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipments";
 create policy bsb_tenant_scope_select on "better_supabase"."shipments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipments";
 create policy bsb_tenant_scope_insert on "better_supabase"."shipments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipments";
 create policy bsb_tenant_scope_update on "better_supabase"."shipments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipments";
 create policy bsb_tenant_scope_delete on "better_supabase"."shipments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_packages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_packages";
 create policy bsb_tenant_scope_select on "better_supabase"."shipment_packages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_packages";
 create policy bsb_tenant_scope_insert on "better_supabase"."shipment_packages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_packages";
 create policy bsb_tenant_scope_update on "better_supabase"."shipment_packages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_packages";
 create policy bsb_tenant_scope_delete on "better_supabase"."shipment_packages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_tracking_events";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_tracking_events";
 create policy bsb_tenant_scope_select on "better_supabase"."shipment_tracking_events" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_tracking_events";
 create policy bsb_tenant_scope_insert on "better_supabase"."shipment_tracking_events" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_tracking_events";
 create policy bsb_tenant_scope_update on "better_supabase"."shipment_tracking_events" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_tracking_events";
 create policy bsb_tenant_scope_delete on "better_supabase"."shipment_tracking_events" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."shipment_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."shipment_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."shipment_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."shipment_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."intrastat_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."intrastat_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."intrastat_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."intrastat_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."intrastat_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."intrastat_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."intrastat_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."intrastat_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."intrastat_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1348,8 +1253,6 @@ $$;
 -- blocks.shipments.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."create_shipment"(uuid, jsonb, jsonb, jsonb, text, uuid, text, text, jsonb);
 
 create or replace function "api"."create_shipment"(tenant uuid, from_address jsonb, to_address jsonb, packages jsonb, reference text default null, from_location_id uuid default null, subject_type text default null, subject_id text default null)
 returns jsonb

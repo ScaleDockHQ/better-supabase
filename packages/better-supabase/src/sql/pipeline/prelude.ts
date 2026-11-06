@@ -3,6 +3,8 @@ import type { BlockSqlFile, BlockSqlLayout } from "../module-types.ts";
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
 import { ACTING_MEMBER, actorWriteFunctions } from "../actor-guard.ts";
 import { columnTypeFunctions } from "../column-type.ts";
+import { grantTable } from "../emit/grant.ts";
+import { createTable, enableRowSecurity } from "../emit/table.ts";
 import { MEMO_FUNCTIONS } from "../memo.ts";
 import { moduleContext } from "../module-context.ts";
 import { EQUIVALENT_TRIGGERS } from "../shared.ts";
@@ -22,17 +24,17 @@ const DESCRIPTION =
   "The schema, the blocks table and the helper functions every block calls, each defined once.";
 
 /** The table `moduleRow` writes to. */
-const BLOCKS_TABLE = `create table better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
+const BLOCKS_TABLE = `${createTable("better_supabase.blocks", [
+  "name text primary key",
+  "block text",
+  "version integer not null",
+  "mode text not null",
+  "installed_at timestamptz not null default now()",
+  "updated_at timestamptz not null default now()",
+])}
+${enableRowSecurity("better_supabase.blocks")}
 revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;`;
+${grantTable("better_supabase.blocks", ["select"], ["service_role"])}`;
 
 /**
  * `member_organization_ids` as an empty set, for a layout that has tenant scope

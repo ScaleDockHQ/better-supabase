@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:f46ab3de76d7e8da2a42a04e963fa515d9045dc5b424876d72e6207c6904ec7a
+-- @bsb-hash sha256:7bd7b08065fe300bd8518dcf2879df342c246413d3dcd2396404bb0b7bfb1e9e
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8,14 +8,12 @@
 -- centrakit.organizations is the app's table, and it has every column this block needs.
 create unique index if not exists organizations_slug_idx on "centrakit"."organizations" (lower("slug"::text));
 alter table "centrakit"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "centrakit"."organizations";
 create trigger bsb_updated_at before update on "centrakit"."organizations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "centrakit"."organizations" enable row level security;
 grant select on "centrakit"."organizations" to authenticated;
 grant all on "centrakit"."organizations" to service_role;
-drop policy if exists bsb_organizations_read on "centrakit"."organizations";
-drop policy if exists bsb_organizations_select on "centrakit"."organizations";
 create policy bsb_organizations_select on "centrakit"."organizations"
   for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
@@ -219,7 +217,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bsb_organization_owner" on "centrakit"."organization_users";
 create constraint trigger "bsb_organization_owner" after update of "role_id", "organization_id" or delete on "centrakit"."organization_users"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
@@ -272,7 +269,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_organization_role_guard" on "centrakit"."organization_users";
 create trigger "bsb_organization_role_guard" before insert or update on "centrakit"."organization_users"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
@@ -493,10 +489,6 @@ begin
 end;
 $$;
 
-
-drop function if exists "better_supabase"."add_member_role"(uuid, uuid, text);
-drop function if exists "better_supabase"."remove_member_role"(uuid, uuid, text);
-
 -- Records that the caller opened the organization (the last_used_at column of
 -- memberships, when it has one), for "recent organizations" lists.
 create or replace function "better_supabase"."mark_used"(organization uuid)
@@ -515,9 +507,6 @@ begin
   return found;
 end;
 $$;
-
-drop function if exists "better_supabase"."suspend_member"(uuid, uuid);
-drop function if exists "better_supabase"."resume_member"(uuid, uuid);
 
 -- Makes organization the caller's active organization (blocks.permissions.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
@@ -545,8 +534,6 @@ begin
   return jsonb_build_object('organization_id', organization, 'refresh', false);
 end;
 $$;
-
-drop function if exists "better_supabase"."list_my_organizations"();
 create or replace function "better_supabase"."list_my_organizations"()
 returns table (
   id uuid,
@@ -567,8 +554,6 @@ as $$
     and not better_supabase.tenant_disabled(o."id")
   order by o."name"
 $$;
-
-drop function if exists "better_supabase"."list_members"(uuid);
 create or replace function "better_supabase"."list_members"(organization uuid)
 returns table (user_id uuid, role text)
 language plpgsql

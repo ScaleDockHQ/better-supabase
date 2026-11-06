@@ -1,28 +1,13 @@
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:f6bb672b450428e20324e2eb3cdc706abf1d65ea41f2d4a41865c9eb1d965aa5
+-- @bsb-hash sha256:a0885f29e93d1ca83d2d19aa628d64c3818a90cda62f8b80f608f32b54807a4f
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Enrichment: what a provider returned for a company or a person, one result
 -- per provider, and the empty columns a match filled.
-create table if not exists "better_supabase"."enrichments" (
+create table "better_supabase"."enrichments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "company_id" uuid references "better_supabase"."companies" ("id") on delete cascade,
@@ -37,13 +22,12 @@ create table if not exists "better_supabase"."enrichments" (
   constraint enrichments_company_provider_key unique ("company_id", "provider"),
   constraint enrichments_person_provider_key unique ("person_id", "provider")
 );
-create index if not exists enrichments_tenant_idx on "better_supabase"."enrichments" ("tenant_id", "fetched_at");
-create index if not exists enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
+create index enrichments_tenant_idx on "better_supabase"."enrichments" ("tenant_id", "fetched_at");
+create index enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."enrichments" enable row level security;
 revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
-drop policy if exists enrichments_read on "better_supabase"."enrichments";
 create policy enrichments_read on "better_supabase"."enrichments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
@@ -281,24 +265,19 @@ grant execute on function "better_supabase"."enrichment_due"(text, integer, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_select on "better_supabase"."enrichments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrichments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_update on "better_supabase"."enrichments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

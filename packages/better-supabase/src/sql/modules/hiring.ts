@@ -478,7 +478,7 @@ create table if not exists ${t("jobs")} (
 );
 create index if not exists jobs_tenant_status_idx on ${t("jobs")} (${j("tenant")}, ${j("status")});${addExtraColumns(t("jobs"), extras)}
 ${lockModuleTable(ctx, "jobs", { read: true })}
-${renderPolicy(makePolicy({ table: t("jobs"), name: "jobs_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(j("tenant"), read) }), { drop: true, target: t("jobs") })}
+${renderPolicy(makePolicy({ table: t("jobs"), name: "jobs_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(j("tenant"), read) }), { target: t("jobs") })}
 
 create table if not exists ${t("applications")} (
   ${a("id")} uuid primary key default gen_random_uuid(),
@@ -495,7 +495,7 @@ create table if not exists ${t("applications")} (
 create index if not exists ${ctx.naming.rename("applications_board_idx")} on ${t("applications")} (${pipelined ? a("pipeline") : a("job")}, ${a("stage")}, ${a("rank")});
 create index if not exists ${ctx.naming.rename("applications_candidate_idx")} on ${t("applications")} (${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")});${addExtraColumns(t("applications"), appExtras)}
 ${lockModuleTable(ctx, "applications", { read: true })}
-${renderPolicy(makePolicy({ table: t("applications"), name: ctx.naming.rename("applications_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(a("tenant"), read) }), { drop: true, target: t("applications") })}
+${renderPolicy(makePolicy({ table: t("applications"), name: ctx.naming.rename("applications_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(a("tenant"), read) }), { target: t("applications") })}
 
 create table if not exists ${t("scorecards")} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -508,7 +508,7 @@ create table if not exists ${t("scorecards")} (
 );${perApplication ? appUniqueIndex(ctx, "scorecards", ["application", "reviewer"]) : appUniqueIndex(ctx, "scorecards", ["application", "stage", "reviewer"]).replace(/;$/, " nulls not distinct;")}
 create index if not exists ${ctx.naming.rename("application_scorecards_reviewer_idx")} on ${t("scorecards")} (${s("reviewer")});
 ${lockModuleTable(ctx, "scorecards", { read: true })}
-${renderPolicy(makePolicy({ table: t("scorecards"), name: ctx.naming.rename("application_scorecards_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), read) }), { drop: true, target: t("scorecards") })}
+${renderPolicy(makePolicy({ table: t("scorecards"), name: ctx.naming.rename("application_scorecards_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), read) }), { target: t("scorecards") })}
 ${scoreRows ? scoresTable(ctx, read) : ""}
 create table if not exists ${t("interviews")} (
   ${v("id")} uuid primary key default gen_random_uuid(),
@@ -540,7 +540,7 @@ ${renderPolicy(
       .map((check) => ` or ${check}`)
       .join("")}`,
   }),
-  { drop: true, target: t("interviews") },
+  { target: t("interviews") },
 )}
 `
     : "";

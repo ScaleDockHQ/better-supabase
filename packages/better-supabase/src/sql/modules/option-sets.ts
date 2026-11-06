@@ -131,7 +131,7 @@ function tables(ctx: BlockSqlContext, names: OptionNames): string {
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, names.read),
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   return `

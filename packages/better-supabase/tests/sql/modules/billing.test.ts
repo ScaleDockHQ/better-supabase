@@ -42,9 +42,6 @@ describe("billing module", () => {
       `p."every"::text = billing_plan_price.billing_interval`,
     );
     expect(sql).toContain(`and p."on_sale"`);
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."billing_plan_price"(text, text);',
-    );
 
     const variants = billing({
       plans: { table: "plans", interval: "every", variant: "pack" },
@@ -79,7 +76,7 @@ describe("billing module", () => {
     )!.contents;
 
     expect(withOrganizations).toContain(
-      'constraint "billing_customers_tenant_fkey"\n      foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade',
+      'add constraint "billing_customers_tenant_fkey"\n  foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade;',
     );
 
     const off = renderBlocks(["organizations", "billing"], {
@@ -174,7 +171,7 @@ describe("billing module", () => {
       `"stripe_customer_id" text unique check ("stripe_customer_id" ~ '^cus_')`,
     );
     expect(sql).toContain(
-      `alter table ${table} add column if not exists "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_');`,
+      `"stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_')`,
     );
     expect(sql).toContain(
       `alter table ${table} alter column "stripe_customer_id" drop not null;`,

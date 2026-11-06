@@ -1,46 +1,15 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:1c50404d72de0ca108a9696e5caa01cec646e70b98315735c8ef8039cae942ca
+-- @bsb-hash sha256:cfa3cb28795dffe586461365c1666e67195f787767878ddb7174a684693d430d
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_start_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Workflow runs of any engine, one row per run. Engines write them through
 -- record_workflow_run (the Workflow SDK World mirrors its own runs); members
 -- read them through RLS.
-create table if not exists "better_supabase"."workflow_runs" (
+create table "better_supabase"."workflow_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "engine" text not null check (length("engine") >= 1 and length("engine") <= 100),
   "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
@@ -57,43 +26,32 @@ create table if not exists "better_supabase"."workflow_runs" (
   "cancel_requested_at" timestamptz,
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
-create index if not exists workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
-create index if not exists workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
-create index if not exists workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
+create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
+create index workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
+create index workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
-alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
+alter table "better_supabase"."workflow_runs" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_runs" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."workflow_runs" add column "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
+alter table "better_supabase"."workflow_runs" add column "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
+alter table "better_supabase"."workflow_runs" add column "mode" text not null default 'live' check ("mode" in ('live', 'test'));
+alter table "better_supabase"."workflow_runs" add column "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
-create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
-alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."workflow_runs"'::regclass and c.conname = 'workflow_runs_subject_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
-    alter table "better_supabase"."workflow_runs" drop constraint if exists "workflow_runs_subject_check";
-    alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check" check (("subject_type" is null) = ("subject_id" is null));
-    comment on constraint "workflow_runs_subject_check" on "better_supabase"."workflow_runs" is 'better-supabase check 9166c23a';
-  end if;
-end;
-$$;
-create index if not exists workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
+alter table "better_supabase"."workflow_runs" add column "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
+create unique index workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."workflow_runs" add column "dispatch_until" timestamptz;
+alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check"
+  check (("subject_type" is null) = ("subject_id" is null));
+create index workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
 alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
-drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
 create policy workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
@@ -102,7 +60,7 @@ create policy workflow_runs_read on "better_supabase"."workflow_runs"
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
 -- next_run_at on with the next cron time it computes.
-create table if not exists "better_supabase"."workflow_schedules" (
+create table "better_supabase"."workflow_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -118,20 +76,19 @@ create table if not exists "better_supabase"."workflow_schedules" (
   "created_at" timestamptz not null default now(),
   constraint workflow_schedules_tenant_name_key unique nulls not distinct ("tenant_id", "name")
 );
-create index if not exists workflow_schedules_due_idx on "better_supabase"."workflow_schedules" ("next_run_at") where not "paused";
-create index if not exists workflow_schedules_created_by_idx on "better_supabase"."workflow_schedules" ("created_by");
+create index workflow_schedules_due_idx on "better_supabase"."workflow_schedules" ("next_run_at") where not "paused";
+create index workflow_schedules_created_by_idx on "better_supabase"."workflow_schedules" ("created_by");
 alter table "better_supabase"."workflow_schedules" enable row level security;
 revoke all on "better_supabase"."workflow_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
 create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
-create table if not exists "better_supabase"."workflow_semaphores" (
+create table "better_supabase"."workflow_semaphores" (
   "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "holder" text not null check (length("holder") >= 1 and length("holder") <= 200),
   "acquired_at" timestamptz not null default now(),
@@ -145,7 +102,7 @@ grant all on "better_supabase"."workflow_semaphores" to service_role;
 -- Admission control for starts: a request waits here until its key has room
 -- (concurrency), its debounce window passed, or is dropped while a run with
 -- its key is active (singleton).
-create table if not exists "better_supabase"."workflow_start_requests" (
+create table "better_supabase"."workflow_start_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
@@ -160,23 +117,13 @@ create table if not exists "better_supabase"."workflow_start_requests" (
   "created_at" timestamptz not null default now(),
   "started_at" timestamptz
 );
-create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
-create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
-create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."workflow_start_requests"'::regclass and c.conname = 'workflow_start_requests_subject_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
-    alter table "better_supabase"."workflow_start_requests" drop constraint if exists "workflow_start_requests_subject_check";
-    alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check" check (("subject_type" is null) = ("subject_id" is null));
-    comment on constraint "workflow_start_requests_subject_check" on "better_supabase"."workflow_start_requests" is 'better-supabase check 9166c23a';
-  end if;
-end;
-$$;
+create index workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
+create index workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
+create index workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
+alter table "better_supabase"."workflow_start_requests" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_start_requests" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check"
+  check (("subject_type" is null) = ("subject_id" is null));
 alter table "better_supabase"."workflow_start_requests" enable row level security;
 revoke all on "better_supabase"."workflow_start_requests" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
@@ -205,7 +152,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_workflow_runs_status" on "better_supabase"."workflow_runs";
 create trigger "bsb_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
@@ -214,9 +160,7 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- value, mode keeps the first report's (default live); attributes merge.
 -- With an idempotency_key, a run that already holds the key for the tenant is
 -- returned as it is, so concurrent starts with one key record one run.
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -417,7 +361,7 @@ grant execute on function "better_supabase"."set_workflow_run_engine"(uuid, text
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
 -- (the default), test, or null for both.
-drop function if exists "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
+
 create or replace function "better_supabase"."workflow_runs_list"(
   tenant uuid default null,
   definition text default null,
@@ -893,7 +837,7 @@ grant execute on function "better_supabase"."workflow_admission_active"(text) to
 -- is active; debounce replaces the waiting request and waits that long;
 -- concurrency caps the runs started at once. subject_type and subject_id
 -- name the record the run belongs to.
-drop function if exists "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
+
 create or replace function "better_supabase"."request_workflow_start"(
   key text,
   workflow text,
@@ -1019,8 +963,7 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
-create policy bsb_workflow_runs_receive on realtime.messages
+        create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -1045,8 +988,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as restrictive
   for select to public
   using (
@@ -1054,37 +995,29 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as re
     or ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_schedules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_schedules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1106,46 +1039,15 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:cfd62b775e5677aa1b5fb11c59078e2827e61f97a6d10cf03696d071d94ee41a
+-- @bsb-hash sha256:0f461aa98b622689621503b67671aa2965be136ea0e058ff425ced56ebd45601
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_start_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Workflow runs of any engine, one row per run. Engines write them through
 -- record_workflow_run (the Workflow SDK World mirrors its own runs); members
 -- read them through RLS.
-create table if not exists "better_supabase"."workflow_runs" (
+create table "better_supabase"."workflow_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "engine" text not null check (length("engine") >= 1 and length("engine") <= 100),
   "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
@@ -1162,43 +1064,32 @@ create table if not exists "better_supabase"."workflow_runs" (
   "cancel_requested_at" timestamptz,
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
-create index if not exists workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
-create index if not exists workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
-create index if not exists workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
+create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
+create index workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
+create index workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
-alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
+alter table "better_supabase"."workflow_runs" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_runs" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."workflow_runs" add column "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
+alter table "better_supabase"."workflow_runs" add column "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
+alter table "better_supabase"."workflow_runs" add column "mode" text not null default 'live' check ("mode" in ('live', 'test'));
+alter table "better_supabase"."workflow_runs" add column "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
-create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
-alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."workflow_runs"'::regclass and c.conname = 'workflow_runs_subject_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
-    alter table "better_supabase"."workflow_runs" drop constraint if exists "workflow_runs_subject_check";
-    alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check" check (("subject_type" is null) = ("subject_id" is null));
-    comment on constraint "workflow_runs_subject_check" on "better_supabase"."workflow_runs" is 'better-supabase check 9166c23a';
-  end if;
-end;
-$$;
-create index if not exists workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
+alter table "better_supabase"."workflow_runs" add column "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
+create unique index workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."workflow_runs" add column "dispatch_until" timestamptz;
+alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check"
+  check (("subject_type" is null) = ("subject_id" is null));
+create index workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
 alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
-drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
 create policy workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
@@ -1207,7 +1098,7 @@ create policy workflow_runs_read on "better_supabase"."workflow_runs"
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
 -- next_run_at on with the next cron time it computes.
-create table if not exists "better_supabase"."workflow_schedules" (
+create table "better_supabase"."workflow_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -1223,20 +1114,19 @@ create table if not exists "better_supabase"."workflow_schedules" (
   "created_at" timestamptz not null default now(),
   constraint workflow_schedules_tenant_name_key unique nulls not distinct ("tenant_id", "name")
 );
-create index if not exists workflow_schedules_due_idx on "better_supabase"."workflow_schedules" ("next_run_at") where not "paused";
-create index if not exists workflow_schedules_created_by_idx on "better_supabase"."workflow_schedules" ("created_by");
+create index workflow_schedules_due_idx on "better_supabase"."workflow_schedules" ("next_run_at") where not "paused";
+create index workflow_schedules_created_by_idx on "better_supabase"."workflow_schedules" ("created_by");
 alter table "better_supabase"."workflow_schedules" enable row level security;
 revoke all on "better_supabase"."workflow_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
 create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
-create table if not exists "better_supabase"."workflow_semaphores" (
+create table "better_supabase"."workflow_semaphores" (
   "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "holder" text not null check (length("holder") >= 1 and length("holder") <= 200),
   "acquired_at" timestamptz not null default now(),
@@ -1250,7 +1140,7 @@ grant all on "better_supabase"."workflow_semaphores" to service_role;
 -- Admission control for starts: a request waits here until its key has room
 -- (concurrency), its debounce window passed, or is dropped while a run with
 -- its key is active (singleton).
-create table if not exists "better_supabase"."workflow_start_requests" (
+create table "better_supabase"."workflow_start_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
@@ -1265,23 +1155,13 @@ create table if not exists "better_supabase"."workflow_start_requests" (
   "created_at" timestamptz not null default now(),
   "started_at" timestamptz
 );
-create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
-create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
-create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."workflow_start_requests"'::regclass and c.conname = 'workflow_start_requests_subject_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
-    alter table "better_supabase"."workflow_start_requests" drop constraint if exists "workflow_start_requests_subject_check";
-    alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check" check (("subject_type" is null) = ("subject_id" is null));
-    comment on constraint "workflow_start_requests_subject_check" on "better_supabase"."workflow_start_requests" is 'better-supabase check 9166c23a';
-  end if;
-end;
-$$;
+create index workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
+create index workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
+create index workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
+alter table "better_supabase"."workflow_start_requests" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_start_requests" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check"
+  check (("subject_type" is null) = ("subject_id" is null));
 alter table "better_supabase"."workflow_start_requests" enable row level security;
 revoke all on "better_supabase"."workflow_start_requests" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
@@ -1322,7 +1202,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_workflow_runs_status" on "better_supabase"."workflow_runs";
 create trigger "bsb_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
@@ -1331,9 +1210,7 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- value, mode keeps the first report's (default live); attributes merge.
 -- With an idempotency_key, a run that already holds the key for the tenant is
 -- returned as it is, so concurrent starts with one key record one run.
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -1534,7 +1411,7 @@ grant execute on function "better_supabase"."set_workflow_run_engine"(uuid, text
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
 -- (the default), test, or null for both.
-drop function if exists "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
+
 create or replace function "better_supabase"."workflow_runs_list"(
   tenant uuid default null,
   definition text default null,
@@ -2012,7 +1889,7 @@ grant execute on function "better_supabase"."workflow_admission_active"(text) to
 -- is active; debounce replaces the waiting request and waits that long;
 -- concurrency caps the runs started at once. subject_type and subject_id
 -- name the record the run belongs to.
-drop function if exists "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
+
 create or replace function "better_supabase"."request_workflow_start"(
   key text,
   workflow text,
@@ -2138,8 +2015,7 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
-create policy bsb_workflow_runs_receive on realtime.messages
+        create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -2164,8 +2040,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as restrictive
   for select to public
   using (
@@ -2173,37 +2047,29 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as re
     or ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_schedules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_schedules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2225,40 +2091,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:9dbe6e4e5bbdadade3f91e929e9f86fd792f7c553f9cf74f66534317458fcb51
+-- @bsb-hash sha256:e59ec2c5eae7d062fad1efd476d8bf19511f5976dd7adf14979201dbbc7fa295
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."workflow_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."workflow_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."workflow_start_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -2268,7 +2104,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Workflow runs of any engine, one row per run. Engines write them through
 -- record_workflow_run (the Workflow SDK World mirrors its own runs); members
 -- read them through RLS.
-create table if not exists "app_private"."workflow_runs" (
+create table "app_private"."workflow_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "engine" text not null check (length("engine") >= 1 and length("engine") <= 100),
   "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
@@ -2285,43 +2121,32 @@ create table if not exists "app_private"."workflow_runs" (
   "cancel_requested_at" timestamptz,
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
-create index if not exists workflow_runs_tenant_idx on "app_private"."workflow_runs" ("tenant_id", "created_at" desc);
-create index if not exists workflow_runs_actor_idx on "app_private"."workflow_runs" ("actor_id", "created_at" desc);
-create index if not exists workflow_runs_status_idx on "app_private"."workflow_runs" ("status", "completed_at");
+create index workflow_runs_tenant_idx on "app_private"."workflow_runs" ("tenant_id", "created_at" desc);
+create index workflow_runs_actor_idx on "app_private"."workflow_runs" ("actor_id", "created_at" desc);
+create index workflow_runs_status_idx on "app_private"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "app_private"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "app_private"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "app_private"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "app_private"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
-alter table "app_private"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "app_private"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
+alter table "app_private"."workflow_runs" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "app_private"."workflow_runs" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "app_private"."workflow_runs" add column "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
+alter table "app_private"."workflow_runs" add column "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
+alter table "app_private"."workflow_runs" add column "mode" text not null default 'live' check ("mode" in ('live', 'test'));
+alter table "app_private"."workflow_runs" add column "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "app_private"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
-create unique index if not exists workflow_runs_idempotency_key on "app_private"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
-alter table "app_private"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"app_private"."workflow_runs"'::regclass and c.conname = 'workflow_runs_subject_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
-    alter table "app_private"."workflow_runs" drop constraint if exists "workflow_runs_subject_check";
-    alter table "app_private"."workflow_runs" add constraint "workflow_runs_subject_check" check (("subject_type" is null) = ("subject_id" is null));
-    comment on constraint "workflow_runs_subject_check" on "app_private"."workflow_runs" is 'better-supabase check 9166c23a';
-  end if;
-end;
-$$;
-create index if not exists workflow_runs_subject_idx on "app_private"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
+alter table "app_private"."workflow_runs" add column "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
+create unique index workflow_runs_idempotency_key on "app_private"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
+alter table "app_private"."workflow_runs" add column "dispatch_until" timestamptz;
+alter table "app_private"."workflow_runs" add constraint "workflow_runs_subject_check"
+  check (("subject_type" is null) = ("subject_id" is null));
+create index workflow_runs_subject_idx on "app_private"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
 alter table "app_private"."workflow_runs" enable row level security;
 revoke all on "app_private"."workflow_runs" from public, anon, authenticated;
 grant select on "app_private"."workflow_runs" to authenticated;
 grant all on "app_private"."workflow_runs" to service_role;
-drop policy if exists workflow_runs_read on "app_private"."workflow_runs";
 create policy workflow_runs_read on "app_private"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
@@ -2330,7 +2155,7 @@ create policy workflow_runs_read on "app_private"."workflow_runs"
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
 -- next_run_at on with the next cron time it computes.
-create table if not exists "app_private"."workflow_schedules" (
+create table "app_private"."workflow_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -2346,20 +2171,19 @@ create table if not exists "app_private"."workflow_schedules" (
   "created_at" timestamptz not null default now(),
   constraint workflow_schedules_tenant_name_key unique nulls not distinct ("tenant_id", "name")
 );
-create index if not exists workflow_schedules_due_idx on "app_private"."workflow_schedules" ("next_run_at") where not "paused";
-create index if not exists workflow_schedules_created_by_idx on "app_private"."workflow_schedules" ("created_by");
+create index workflow_schedules_due_idx on "app_private"."workflow_schedules" ("next_run_at") where not "paused";
+create index workflow_schedules_created_by_idx on "app_private"."workflow_schedules" ("created_by");
 alter table "app_private"."workflow_schedules" enable row level security;
 revoke all on "app_private"."workflow_schedules" from public, anon, authenticated;
 grant select on "app_private"."workflow_schedules" to authenticated;
 grant all on "app_private"."workflow_schedules" to service_role;
-drop policy if exists workflow_schedules_read on "app_private"."workflow_schedules";
 create policy workflow_schedules_read on "app_private"."workflow_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
-create table if not exists "app_private"."workflow_semaphores" (
+create table "app_private"."workflow_semaphores" (
   "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "holder" text not null check (length("holder") >= 1 and length("holder") <= 200),
   "acquired_at" timestamptz not null default now(),
@@ -2373,7 +2197,7 @@ grant all on "app_private"."workflow_semaphores" to service_role;
 -- Admission control for starts: a request waits here until its key has room
 -- (concurrency), its debounce window passed, or is dropped while a run with
 -- its key is active (singleton).
-create table if not exists "app_private"."workflow_start_requests" (
+create table "app_private"."workflow_start_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
@@ -2388,23 +2212,13 @@ create table if not exists "app_private"."workflow_start_requests" (
   "created_at" timestamptz not null default now(),
   "started_at" timestamptz
 );
-create index if not exists workflow_start_requests_key_idx on "app_private"."workflow_start_requests" ("key", "status");
-create index if not exists workflow_start_requests_due_idx on "app_private"."workflow_start_requests" ("not_before") where "status" = 'pending';
-create index if not exists workflow_start_requests_actor_idx on "app_private"."workflow_start_requests" ("actor_id");
-alter table "app_private"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "app_private"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"app_private"."workflow_start_requests"'::regclass and c.conname = 'workflow_start_requests_subject_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
-    alter table "app_private"."workflow_start_requests" drop constraint if exists "workflow_start_requests_subject_check";
-    alter table "app_private"."workflow_start_requests" add constraint "workflow_start_requests_subject_check" check (("subject_type" is null) = ("subject_id" is null));
-    comment on constraint "workflow_start_requests_subject_check" on "app_private"."workflow_start_requests" is 'better-supabase check 9166c23a';
-  end if;
-end;
-$$;
+create index workflow_start_requests_key_idx on "app_private"."workflow_start_requests" ("key", "status");
+create index workflow_start_requests_due_idx on "app_private"."workflow_start_requests" ("not_before") where "status" = 'pending';
+create index workflow_start_requests_actor_idx on "app_private"."workflow_start_requests" ("actor_id");
+alter table "app_private"."workflow_start_requests" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "app_private"."workflow_start_requests" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "app_private"."workflow_start_requests" add constraint "workflow_start_requests_subject_check"
+  check (("subject_type" is null) = ("subject_id" is null));
 alter table "app_private"."workflow_start_requests" enable row level security;
 revoke all on "app_private"."workflow_start_requests" from public, anon, authenticated;
 grant all on "app_private"."workflow_start_requests" to service_role;
@@ -2433,7 +2247,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."workflow_runs_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_workflow_runs_status" on "app_private"."workflow_runs";
 create trigger "bsb_workflow_runs_status" after insert or update of "status" on "app_private"."workflow_runs"
   for each row execute function "app_private"."workflow_runs_changed"();
 
@@ -2442,9 +2255,7 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- value, mode keeps the first report's (default live); attributes merge.
 -- With an idempotency_key, a run that already holds the key for the tenant is
 -- returned as it is, so concurrent starts with one key record one run.
-drop function if exists "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
-drop function if exists "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
-drop function if exists "app_private"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
+
 create or replace function "app_private"."record_workflow_run"(
   engine text,
   external_id text,
@@ -2645,7 +2456,7 @@ grant execute on function "app_private"."set_workflow_run_engine"(uuid, text, te
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
 -- (the default), test, or null for both.
-drop function if exists "app_private"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
+
 create or replace function "app_private"."workflow_runs_list"(
   tenant uuid default null,
   definition text default null,
@@ -3121,7 +2932,7 @@ grant execute on function "app_private"."workflow_admission_active"(text) to ser
 -- is active; debounce replaces the waiting request and waits that long;
 -- concurrency caps the runs started at once. subject_type and subject_id
 -- name the record the run belongs to.
-drop function if exists "app_private"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
+
 create or replace function "app_private"."request_workflow_start"(
   key text,
   workflow text,
@@ -3247,8 +3058,7 @@ grant execute on function "app_private"."mark_workflow_start_request"(uuid, text
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
-create policy bsb_workflow_runs_receive on realtime.messages
+        create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -3273,8 +3083,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."workflow_runs";
-drop policy if exists bsb_tenant_scope_select on "app_private"."workflow_runs";
 create policy bsb_tenant_scope_select on "app_private"."workflow_runs" as restrictive
   for select to public
   using (
@@ -3282,37 +3090,29 @@ create policy bsb_tenant_scope_select on "app_private"."workflow_runs" as restri
     or ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_runs";
 create policy bsb_tenant_scope_insert on "app_private"."workflow_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."workflow_runs";
 create policy bsb_tenant_scope_update on "app_private"."workflow_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."workflow_runs";
 create policy bsb_tenant_scope_delete on "app_private"."workflow_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."workflow_schedules";
-drop policy if exists bsb_tenant_scope_select on "app_private"."workflow_schedules";
 create policy bsb_tenant_scope_select on "app_private"."workflow_schedules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "app_private"."workflow_schedules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."workflow_schedules";
 create policy bsb_tenant_scope_update on "app_private"."workflow_schedules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."workflow_schedules";
 create policy bsb_tenant_scope_delete on "app_private"."workflow_schedules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3334,46 +3134,15 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:95084ee7880cff491ae36202c7f9477d2bff40923dbcda753d8223cdf50922ed
+-- @bsb-hash sha256:ef111ac8fd2e3e747568df228ef901d3dd3c40f1a1a5ac0527790f65b9ed76ed
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_start_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Workflow runs of any engine, one row per run. Engines write them through
 -- record_workflow_run (the Workflow SDK World mirrors its own runs); members
 -- read them through RLS.
-create table if not exists "better_supabase"."workflow_runs" (
+create table "better_supabase"."workflow_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "engine" text not null check (length("engine") >= 1 and length("engine") <= 100),
   "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
@@ -3390,43 +3159,32 @@ create table if not exists "better_supabase"."workflow_runs" (
   "cancel_requested_at" timestamptz,
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
-create index if not exists workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
-create index if not exists workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
-create index if not exists workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
+create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
+create index workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
+create index workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
-alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
+alter table "better_supabase"."workflow_runs" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_runs" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."workflow_runs" add column "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
+alter table "better_supabase"."workflow_runs" add column "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
+alter table "better_supabase"."workflow_runs" add column "mode" text not null default 'live' check ("mode" in ('live', 'test'));
+alter table "better_supabase"."workflow_runs" add column "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
-create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
-alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."workflow_runs"'::regclass and c.conname = 'workflow_runs_subject_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
-    alter table "better_supabase"."workflow_runs" drop constraint if exists "workflow_runs_subject_check";
-    alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check" check (("subject_type" is null) = ("subject_id" is null));
-    comment on constraint "workflow_runs_subject_check" on "better_supabase"."workflow_runs" is 'better-supabase check 9166c23a';
-  end if;
-end;
-$$;
-create index if not exists workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
+alter table "better_supabase"."workflow_runs" add column "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
+create unique index workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."workflow_runs" add column "dispatch_until" timestamptz;
+alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check"
+  check (("subject_type" is null) = ("subject_id" is null));
+create index workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
 alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
-drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
 create policy workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
@@ -3435,7 +3193,7 @@ create policy workflow_runs_read on "better_supabase"."workflow_runs"
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
 -- next_run_at on with the next cron time it computes.
-create table if not exists "better_supabase"."workflow_schedules" (
+create table "better_supabase"."workflow_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -3451,20 +3209,19 @@ create table if not exists "better_supabase"."workflow_schedules" (
   "created_at" timestamptz not null default now(),
   constraint workflow_schedules_tenant_name_key unique nulls not distinct ("tenant_id", "name")
 );
-create index if not exists workflow_schedules_due_idx on "better_supabase"."workflow_schedules" ("next_run_at") where not "paused";
-create index if not exists workflow_schedules_created_by_idx on "better_supabase"."workflow_schedules" ("created_by");
+create index workflow_schedules_due_idx on "better_supabase"."workflow_schedules" ("next_run_at") where not "paused";
+create index workflow_schedules_created_by_idx on "better_supabase"."workflow_schedules" ("created_by");
 alter table "better_supabase"."workflow_schedules" enable row level security;
 revoke all on "better_supabase"."workflow_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
 create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
-create table if not exists "better_supabase"."workflow_semaphores" (
+create table "better_supabase"."workflow_semaphores" (
   "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "holder" text not null check (length("holder") >= 1 and length("holder") <= 200),
   "acquired_at" timestamptz not null default now(),
@@ -3478,7 +3235,7 @@ grant all on "better_supabase"."workflow_semaphores" to service_role;
 -- Admission control for starts: a request waits here until its key has room
 -- (concurrency), its debounce window passed, or is dropped while a run with
 -- its key is active (singleton).
-create table if not exists "better_supabase"."workflow_start_requests" (
+create table "better_supabase"."workflow_start_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
@@ -3493,23 +3250,13 @@ create table if not exists "better_supabase"."workflow_start_requests" (
   "created_at" timestamptz not null default now(),
   "started_at" timestamptz
 );
-create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
-create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
-create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."workflow_start_requests"'::regclass and c.conname = 'workflow_start_requests_subject_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
-    alter table "better_supabase"."workflow_start_requests" drop constraint if exists "workflow_start_requests_subject_check";
-    alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check" check (("subject_type" is null) = ("subject_id" is null));
-    comment on constraint "workflow_start_requests_subject_check" on "better_supabase"."workflow_start_requests" is 'better-supabase check 9166c23a';
-  end if;
-end;
-$$;
+create index workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
+create index workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
+create index workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
+alter table "better_supabase"."workflow_start_requests" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_start_requests" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check"
+  check (("subject_type" is null) = ("subject_id" is null));
 alter table "better_supabase"."workflow_start_requests" enable row level security;
 revoke all on "better_supabase"."workflow_start_requests" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
@@ -3538,7 +3285,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_workflow_runs_status" on "better_supabase"."workflow_runs";
 create trigger "bsb_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
@@ -3547,9 +3293,7 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- value, mode keeps the first report's (default live); attributes merge.
 -- With an idempotency_key, a run that already holds the key for the tenant is
 -- returned as it is, so concurrent starts with one key record one run.
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -3750,7 +3494,7 @@ grant execute on function "better_supabase"."set_workflow_run_engine"(uuid, text
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
 -- (the default), test, or null for both.
-drop function if exists "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
+
 create or replace function "better_supabase"."workflow_runs_list"(
   tenant uuid default null,
   definition text default null,
@@ -4226,7 +3970,7 @@ grant execute on function "better_supabase"."workflow_admission_active"(text) to
 -- is active; debounce replaces the waiting request and waits that long;
 -- concurrency caps the runs started at once. subject_type and subject_id
 -- name the record the run belongs to.
-drop function if exists "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
+
 create or replace function "better_supabase"."request_workflow_start"(
   key text,
   workflow text,
@@ -4352,8 +4096,7 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
-create policy bsb_workflow_runs_receive on realtime.messages
+        create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -4378,8 +4121,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as restrictive
   for select to public
   using (
@@ -4387,37 +4128,29 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as re
     or ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_schedules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_schedules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4425,12 +4158,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."workflow_schedules" 
 -- blocks.workflows.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
-drop function if exists "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
-drop function if exists "api"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
-drop function if exists "api"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
-drop function if exists "api"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
 
 create or replace function "api"."record_workflow_run"(engine text, external_id text, definition text, status text, tenant uuid default null, actor uuid default null, attributes jsonb default '{}'::jsonb, error text default null, started_at timestamptz default null, completed_at timestamptz default null, subject_type text default null, subject_id text default null, principal_kind text default null, principal_id text default null, mode text default null, trigger_node text default null, idempotency_key text default null)
 returns uuid
@@ -4624,41 +4351,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:064e24b19c91ba527cca1acdec49e8bdfa4d7a18795f1e722f0aa1bd919afae9
+-- @bsb-hash sha256:3703f8e3c891ca9873d6879bf992da8318bd6205ec475fe7ee37ec472e13721c
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_start_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Workflow runs of any engine, one row per run. Engines write them through
 -- record_workflow_run (the Workflow SDK World mirrors its own runs); members
@@ -4702,7 +4398,6 @@ create index if not exists workflow_runs_subject_idx on "better_supabase"."workf
 alter table "better_supabase"."workflow_runs" enable row level security;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
-drop policy if exists bsb_workflow_runs_select on "better_supabase"."workflow_runs";
 create policy bsb_workflow_runs_select on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
@@ -4731,7 +4426,6 @@ create index if not exists workflow_schedules_created_by_idx on "better_supabase
 alter table "better_supabase"."workflow_schedules" enable row level security;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-drop policy if exists bsb_workflow_schedules_select on "better_supabase"."workflow_schedules";
 create policy bsb_workflow_schedules_select on "better_supabase"."workflow_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
@@ -4795,7 +4489,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_workflow_runs_status" on "better_supabase"."workflow_runs";
 create trigger "bsb_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
@@ -4804,9 +4497,7 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- value, mode keeps the first report's (default live); attributes merge.
 -- With an idempotency_key, a run that already holds the key for the tenant is
 -- returned as it is, so concurrent starts with one key record one run.
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -5009,7 +4700,7 @@ grant execute on function "better_supabase"."set_workflow_run_engine"(uuid, text
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
 -- (the default), test, or null for both.
-drop function if exists "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
+
 create or replace function "better_supabase"."workflow_runs_list"(
   tenant uuid default null,
   definition text default null,
@@ -5485,7 +5176,7 @@ grant execute on function "better_supabase"."workflow_admission_active"(text) to
 -- is active; debounce replaces the waiting request and waits that long;
 -- concurrency caps the runs started at once. subject_type and subject_id
 -- name the record the run belongs to.
-drop function if exists "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
+
 create or replace function "better_supabase"."request_workflow_start"(
   key text,
   workflow text,
@@ -5611,8 +5302,7 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
-create policy bsb_workflow_runs_receive on realtime.messages
+        create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -5637,8 +5327,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as restrictive
   for select to public
   using (
@@ -5646,37 +5334,29 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as re
     or ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_schedules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_schedules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -5698,46 +5378,15 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:6e2bc59fc2255549e5819299ae3900e1b39514b3b93629c84f684492ec4558e1
+-- @bsb-hash sha256:1618c63716ba97acde8211d08d4113027e9b1019914ddeef1542a494bae08253
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_start_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_start_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Workflow runs of any engine, one row per run. Engines write them through
 -- record_workflow_run (the Workflow SDK World mirrors its own runs); members
 -- read them through RLS.
-create table if not exists "better_supabase"."workflow_runs" (
+create table "better_supabase"."workflow_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "engine" text not null check (length("engine") >= 1 and length("engine") <= 100),
   "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
@@ -5754,43 +5403,32 @@ create table if not exists "better_supabase"."workflow_runs" (
   "cancel_requested_at" timestamptz,
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
-create index if not exists workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("org_id", "created_at" desc);
-create index if not exists workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
-create index if not exists workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
+create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("org_id", "created_at" desc);
+create index workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
+create index workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."workflow_runs" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "better_supabase"."workflow_runs" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
-alter table "better_supabase"."workflow_runs" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "better_supabase"."workflow_runs" add column if not exists "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
+alter table "better_supabase"."workflow_runs" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_runs" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."workflow_runs" add column "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
+alter table "better_supabase"."workflow_runs" add column "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
+alter table "better_supabase"."workflow_runs" add column "mode" text not null default 'live' check ("mode" in ('live', 'test'));
+alter table "better_supabase"."workflow_runs" add column "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "better_supabase"."workflow_runs" add column if not exists "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
-create unique index if not exists workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("org_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
-alter table "better_supabase"."workflow_runs" add column if not exists "dispatch_until" timestamptz;
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."workflow_runs"'::regclass and c.conname = 'workflow_runs_subject_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
-    alter table "better_supabase"."workflow_runs" drop constraint if exists "workflow_runs_subject_check";
-    alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check" check (("subject_type" is null) = ("subject_id" is null));
-    comment on constraint "workflow_runs_subject_check" on "better_supabase"."workflow_runs" is 'better-supabase check 9166c23a';
-  end if;
-end;
-$$;
-create index if not exists workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("org_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
+alter table "better_supabase"."workflow_runs" add column "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
+create unique index workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("org_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."workflow_runs" add column "dispatch_until" timestamptz;
+alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check"
+  check (("subject_type" is null) = ("subject_id" is null));
+create index workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("org_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
 alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
-drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
 create policy workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
@@ -5799,7 +5437,7 @@ create policy workflow_runs_read on "better_supabase"."workflow_runs"
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
 -- next_run_at on with the next cron time it computes.
-create table if not exists "better_supabase"."workflow_schedules" (
+create table "better_supabase"."workflow_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -5815,20 +5453,19 @@ create table if not exists "better_supabase"."workflow_schedules" (
   "created_at" timestamptz not null default now(),
   constraint workflow_schedules_tenant_name_key unique nulls not distinct ("org_id", "name")
 );
-create index if not exists workflow_schedules_due_idx on "better_supabase"."workflow_schedules" ("next_run_at") where not "paused";
-create index if not exists workflow_schedules_created_by_idx on "better_supabase"."workflow_schedules" ("created_by");
+create index workflow_schedules_due_idx on "better_supabase"."workflow_schedules" ("next_run_at") where not "paused";
+create index workflow_schedules_created_by_idx on "better_supabase"."workflow_schedules" ("created_by");
 alter table "better_supabase"."workflow_schedules" enable row level security;
 revoke all on "better_supabase"."workflow_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
 create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
-create table if not exists "better_supabase"."workflow_semaphores" (
+create table "better_supabase"."workflow_semaphores" (
   "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "holder" text not null check (length("holder") >= 1 and length("holder") <= 200),
   "acquired_at" timestamptz not null default now(),
@@ -5842,7 +5479,7 @@ grant all on "better_supabase"."workflow_semaphores" to service_role;
 -- Admission control for starts: a request waits here until its key has room
 -- (concurrency), its debounce window passed, or is dropped while a run with
 -- its key is active (singleton).
-create table if not exists "better_supabase"."workflow_start_requests" (
+create table "better_supabase"."workflow_start_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "key" text not null check (length("key") >= 1 and length("key") <= 200),
   "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
@@ -5857,23 +5494,13 @@ create table if not exists "better_supabase"."workflow_start_requests" (
   "created_at" timestamptz not null default now(),
   "started_at" timestamptz
 );
-create index if not exists workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
-create index if not exists workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
-create index if not exists workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."workflow_start_requests" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."workflow_start_requests"'::regclass and c.conname = 'workflow_start_requests_subject_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9166c23a' then
-    alter table "better_supabase"."workflow_start_requests" drop constraint if exists "workflow_start_requests_subject_check";
-    alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check" check (("subject_type" is null) = ("subject_id" is null));
-    comment on constraint "workflow_start_requests_subject_check" on "better_supabase"."workflow_start_requests" is 'better-supabase check 9166c23a';
-  end if;
-end;
-$$;
+create index workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
+create index workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
+create index workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
+alter table "better_supabase"."workflow_start_requests" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_start_requests" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check"
+  check (("subject_type" is null) = ("subject_id" is null));
 alter table "better_supabase"."workflow_start_requests" enable row level security;
 revoke all on "better_supabase"."workflow_start_requests" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_start_requests" to service_role;
@@ -5902,7 +5529,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_workflow_runs_status" on "better_supabase"."workflow_runs";
 create trigger "bsb_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
@@ -5911,9 +5537,7 @@ create trigger "bsb_workflow_runs_status" after insert or update of "status" on 
 -- value, mode keeps the first report's (default live); attributes merge.
 -- With an idempotency_key, a run that already holds the key for the tenant is
 -- returned as it is, so concurrent starts with one key record one run.
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz);
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text);
-drop function if exists "better_supabase"."record_workflow_run"(text, text, text, text, uuid, uuid, jsonb, text, timestamptz, timestamptz, text, text, text, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."record_workflow_run"(
   engine text,
   external_id text,
@@ -6114,7 +5738,7 @@ grant execute on function "better_supabase"."set_workflow_run_engine"(uuid, text
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
 -- (the default), test, or null for both.
-drop function if exists "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz);
+
 create or replace function "better_supabase"."workflow_runs_list"(
   tenant uuid default null,
   definition text default null,
@@ -6590,7 +6214,7 @@ grant execute on function "better_supabase"."workflow_admission_active"(text) to
 -- is active; debounce replaces the waiting request and waits that long;
 -- concurrency caps the runs started at once. subject_type and subject_id
 -- name the record the run belongs to.
-drop function if exists "better_supabase"."request_workflow_start"(text, text, jsonb, uuid, uuid, integer, interval, boolean);
+
 create or replace function "better_supabase"."request_workflow_start"(
   key text,
   workflow text,
@@ -6716,8 +6340,7 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_workflow_runs_receive on realtime.messages;
-create policy bsb_workflow_runs_receive on realtime.messages
+        create policy bsb_workflow_runs_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (
@@ -6742,8 +6365,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as restrictive
   for select to public
   using (
@@ -6751,37 +6372,29 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as re
     or ("actor_id" = (select auth.uid())
     or "org_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_runs" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_runs" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_schedules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_schedules" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_schedules" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

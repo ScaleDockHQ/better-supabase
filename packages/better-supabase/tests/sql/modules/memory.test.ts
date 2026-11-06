@@ -17,11 +17,9 @@ const rendered = (names: readonly string[], modules: AnyBlocksConfig = {}) =>
 describe("memory module", () => {
   it("owns the memory and message embedding tables", () => {
     const sql = body();
+    expect(sql).toContain('create table "better_supabase"."memories" (');
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."memories" (',
-    );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."memory_message_embeddings" (',
+      'create table "better_supabase"."memory_message_embeddings" (',
     );
     expect(sql).toContain("nulls not distinct");
     expect(sql).toContain("using hnsw");
@@ -141,9 +139,6 @@ describe("memory module", () => {
 
   it("saves a category, a confidence and an expiry", () => {
     const sql = body();
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."memory_save"(uuid, text, jsonb, extensions.vector, text, text);',
-    );
     expect(sql).toContain(
       "category text default null,\n  confidence real default null,\n  expires_at timestamptz default null",
     );
@@ -268,9 +263,6 @@ describe("memory module", () => {
 
   it("purges one tenant's memories", () => {
     const sql = body();
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."purge_memories"(integer, integer);',
-    );
     expect(sql).toContain(
       '"purge_memories"(retention_days integer default 30, batch integer default 1000, tenant uuid default null)',
     );

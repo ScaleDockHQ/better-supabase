@@ -1,12 +1,12 @@
 -- ==== schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:a7dea99107464b38a512bf71e9681c2f879ff2dd6c3beaf1b88db2f2e95f86b5
+-- @bsb-hash sha256:38c6f0a3b78a15869bfba8f7316128930b4c2b37ec62fa7e6a89b5763253a71a
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists "better_supabase"."organizations" (
+create table "better_supabase"."organizations" (
   "id" uuid primary key default gen_random_uuid(),
   "name" text not null check (length(btrim("name")) > 0),
   "slug" text not null,
@@ -15,39 +15,23 @@ create table if not exists "better_supabase"."organizations" (
   "disabled_at" timestamptz,
   "deleted_at" timestamptz
 );
-alter table "better_supabase"."organizations" add column if not exists "app_note" text;
-create unique index if not exists organizations_slug_idx on "better_supabase"."organizations" (lower("slug"::text)) where "deleted_at" is null;
-create index if not exists organizations_created_by_idx on "better_supabase"."organizations" ("created_by");
-alter table "better_supabase"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
+alter table "better_supabase"."organizations" add column "app_note" text;
+create unique index organizations_slug_idx on "better_supabase"."organizations" (lower("slug"::text)) where "deleted_at" is null;
+create index organizations_created_by_idx on "better_supabase"."organizations" ("created_by");
+alter table "better_supabase"."organizations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."organizations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."organizations" enable row level security;
 revoke all on "better_supabase"."organizations" from public, anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
-drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
 create policy bsb_organizations_read on "better_supabase"."organizations"
   for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."memberships"'::regclass and conname = 'memberships_organization_fkey'
-  ) then
-    alter table "better_supabase"."memberships" add constraint "memberships_organization_fkey"
-      foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade not valid;
-    begin
-      alter table "better_supabase"."memberships" validate constraint "memberships_organization_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."memberships"', '"better_supabase"."memberships"', 'memberships_organization_fkey';
-    end;
-  end if;
-end;
-$$;
+alter table "better_supabase"."memberships" add constraint "memberships_organization_fkey"
+  foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade;
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
 -- blocks.organizations.options), 'reserved' or 'taken'. except_organization skips the
@@ -236,7 +220,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
 create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
@@ -289,7 +272,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
 create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
@@ -481,10 +463,6 @@ begin
 end;
 $$;
 
-
-drop function if exists "better_supabase"."add_member_role"(uuid, uuid, text);
-drop function if exists "better_supabase"."remove_member_role"(uuid, uuid, text);
-
 -- Records that the caller opened the organization (the last_used_at column of
 -- memberships, when it has one), for "recent organizations" lists.
 create or replace function "better_supabase"."mark_used"(organization uuid)
@@ -636,8 +614,6 @@ begin
   return jsonb_build_object('organization_id', organization, 'refresh', false);
 end;
 $$;
-
-drop function if exists "better_supabase"."list_my_organizations"();
 create or replace function "better_supabase"."list_my_organizations"()
 returns table (
   id uuid,
@@ -659,8 +635,6 @@ as $$
     and not better_supabase.tenant_disabled(o."id")
   order by o."name"
 $$;
-
-drop function if exists "better_supabase"."list_members"(uuid);
 create or replace function "better_supabase"."list_members"(organization uuid)
 returns table (user_id uuid, role text, disabled_at timestamptz)
 language plpgsql

@@ -1,32 +1,9 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:c090e5540e58aeba25de6ab5eb619a22fd5674e2bf30e11076d097a498ab54b7
+-- @bsb-hash sha256:b2d892ac5677ee0e45a09f8033bce655219b066eb6201628790aaedc014f1339
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."import_runs";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."import_runs";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."import_runs";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."import_runs";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."import_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- centrakit.import_runs is the app's table, and it has every column this block needs.
 alter table "centrakit"."import_runs" add column if not exists "dry_run" boolean not null default false;
@@ -43,7 +20,7 @@ create index if not exists "import_runs_tenant_idx" on "centrakit"."import_runs"
 -- One pending or running run per organization and source.
 create unique index if not exists "import_runs_active_idx" on "centrakit"."import_runs" ("tenant_id", "source") where "status" in ('pending', 'running');
 
-create table if not exists "better_supabase"."import_records" (
+create table "better_supabase"."import_records" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "source" text not null,
@@ -60,7 +37,7 @@ create table if not exists "better_supabase"."import_records" (
   "missing_since" timestamptz,
   constraint "import_records_key" unique ("tenant_id", "source", "scope", "entity", "external_key", "role")
 );
-create index if not exists "import_records_subject_idx" on "better_supabase"."import_records" ("tenant_id", "subject_type", "subject_id");
+create index "import_records_subject_idx" on "better_supabase"."import_records" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."import_records" enable row level security;
 revoke all on "better_supabase"."import_records" from public, anon, authenticated;
 grant select on "better_supabase"."import_records" to authenticated;
@@ -671,39 +648,29 @@ grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "centrakit"."import_runs";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."import_runs";
 create policy bsb_tenant_scope_select on "centrakit"."import_runs" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."import_runs";
 create policy bsb_tenant_scope_insert on "centrakit"."import_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."import_runs";
 create policy bsb_tenant_scope_update on "centrakit"."import_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."import_runs";
 create policy bsb_tenant_scope_delete on "centrakit"."import_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
 create policy bsb_tenant_scope_select on "better_supabase"."import_records" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
 create policy bsb_tenant_scope_insert on "better_supabase"."import_records" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
 create policy bsb_tenant_scope_update on "better_supabase"."import_records" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
 create policy bsb_tenant_scope_delete on "better_supabase"."import_records" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

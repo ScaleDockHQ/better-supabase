@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:0bc26921c2eb5523ea00f4eb91cb8200dd33c8d563c871350fadf27f4e77a9a7
+-- @bsb-hash sha256:60b29815918e8d3455d220421f7ef761b992f526ab6d96a7f843bf7643d25721
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,7 @@
 -- with hashed secrets, a user's grant per client, single-use authorization
 -- codes bound to a PKCE S256 challenge (RFC 7636), device codes (RFC 8628)
 -- and a revocation list of access token jtis. Tokens are issued elsewhere.
-create table if not exists "better_supabase"."oauth_clients" (
+create table "better_supabase"."oauth_clients" (
   "id" uuid primary key default gen_random_uuid(),
   "client_id" text not null unique check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
   "secret_hash" text check ("secret_hash" ~ '^[0-9a-f]{64}$'),
@@ -28,12 +28,12 @@ create table if not exists "better_supabase"."oauth_clients" (
   "updated_at" timestamptz not null default now(),
   check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
 );
-create index if not exists oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
+create index oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
 alter table "better_supabase"."oauth_clients" enable row level security;
 revoke all on "better_supabase"."oauth_clients" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_clients" to service_role;
 
-create table if not exists "better_supabase"."oauth_grants" (
+create table "better_supabase"."oauth_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
@@ -43,15 +43,14 @@ create table if not exists "better_supabase"."oauth_grants" (
   "updated_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create unique index if not exists oauth_grants_active_idx on "better_supabase"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
-create index if not exists oauth_grants_client_idx on "better_supabase"."oauth_grants" ("client_id");
-alter table "better_supabase"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
+create unique index oauth_grants_active_idx on "better_supabase"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
+create index oauth_grants_client_idx on "better_supabase"."oauth_grants" ("client_id");
+create index oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
 alter table "better_supabase"."oauth_grants" enable row level security;
 revoke all on "better_supabase"."oauth_grants" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_grants" to service_role;
 
-create table if not exists "better_supabase"."oauth_authorization_codes" (
+create table "better_supabase"."oauth_authorization_codes" (
   "code_hash" text primary key check ("code_hash" ~ '^[0-9a-f]{64}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -65,16 +64,15 @@ create table if not exists "better_supabase"."oauth_authorization_codes" (
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists oauth_authorization_codes_expires_idx on "better_supabase"."oauth_authorization_codes" ("expires_at");
-create index if not exists oauth_authorization_codes_grant_idx on "better_supabase"."oauth_authorization_codes" ("grant_id");
-create index if not exists oauth_authorization_codes_client_idx on "better_supabase"."oauth_authorization_codes" ("client_id");
-alter table "better_supabase"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
+create index oauth_authorization_codes_expires_idx on "better_supabase"."oauth_authorization_codes" ("expires_at");
+create index oauth_authorization_codes_grant_idx on "better_supabase"."oauth_authorization_codes" ("grant_id");
+create index oauth_authorization_codes_client_idx on "better_supabase"."oauth_authorization_codes" ("client_id");
+create index oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
 alter table "better_supabase"."oauth_authorization_codes" enable row level security;
 revoke all on "better_supabase"."oauth_authorization_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_authorization_codes" to service_role;
 
-create table if not exists "better_supabase"."oauth_device_codes" (
+create table "better_supabase"."oauth_device_codes" (
   "device_code_hash" text primary key check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
   "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
@@ -90,30 +88,29 @@ create table if not exists "better_supabase"."oauth_device_codes" (
   "created_at" timestamptz not null default now(),
   check (("status" = 'approved') = ("grant_id" is not null))
 );
-create unique index if not exists oauth_device_codes_user_code_idx on "better_supabase"."oauth_device_codes" ("user_code") where "status" = 'pending';
-create index if not exists oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
-create index if not exists oauth_device_codes_grant_idx on "better_supabase"."oauth_device_codes" ("grant_id");
-create index if not exists oauth_device_codes_client_idx on "better_supabase"."oauth_device_codes" ("client_id");
-alter table "better_supabase"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
+create unique index oauth_device_codes_user_code_idx on "better_supabase"."oauth_device_codes" ("user_code") where "status" = 'pending';
+create index oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
+create index oauth_device_codes_grant_idx on "better_supabase"."oauth_device_codes" ("grant_id");
+create index oauth_device_codes_client_idx on "better_supabase"."oauth_device_codes" ("client_id");
+create index oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
 alter table "better_supabase"."oauth_device_codes" enable row level security;
 revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
-create table if not exists "better_supabase"."oauth_revocations" (
+create table "better_supabase"."oauth_revocations" (
   "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
 );
-create index if not exists oauth_revocations_expires_idx on "better_supabase"."oauth_revocations" ("expires_at");
+create index oauth_revocations_expires_idx on "better_supabase"."oauth_revocations" ("expires_at");
 alter table "better_supabase"."oauth_revocations" enable row level security;
 revoke all on "better_supabase"."oauth_revocations" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
 -- when there is none. Only the definer functions below call it.
-drop function if exists "better_supabase"."oauth_grant_for"(uuid, text, text[]);
+
 create or replace function "better_supabase"."oauth_grant_for"(user_id uuid, client_id text, scopes text[], resource text[] default '{}')
 returns uuid
 language plpgsql
@@ -354,7 +351,7 @@ revoke execute on function "better_supabase"."delete_oauth_client"(text) from pu
 grant execute on function "better_supabase"."delete_oauth_client"(text) to service_role;
 
 -- Stores an authorization code after consent, under the user's grant.
-drop function if exists "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text);
+
 create or replace function "better_supabase"."create_oauth_authorization_code"(
   code_hash text, client_id text, user_id uuid, redirect_uri text, scope text,
   code_challenge text, ttl interval, nonce text default null, resource text[] default null)
@@ -396,7 +393,7 @@ grant execute on function "better_supabase"."create_oauth_authorization_code"(te
 
 -- Consumes a code once. code_challenge is S256 of the presented verifier.
 -- A code presented twice revokes its grant (RFC 9700 section 4.5).
-drop function if exists "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text);
+
 create or replace function "better_supabase"."redeem_oauth_authorization_code"(
   code_hash text, client_id text, redirect_uri text, code_challenge text, resource text[] default null)
 returns jsonb
@@ -453,7 +450,7 @@ revoke execute on function "better_supabase"."redeem_oauth_authorization_code"(t
 grant execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text, text[]) to service_role;
 
 -- Starts a device authorization (RFC 8628 section 3.2).
-drop function if exists "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer);
+
 create or replace function "better_supabase"."create_oauth_device_code"(
   device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5,
   resource text[] default null)
@@ -549,7 +546,7 @@ grant execute on function "better_supabase"."decide_oauth_device_code"(text, uui
 
 -- A token request's poll (RFC 8628 section 3.5): pending, slow_down,
 -- access_denied, expired_token, invalid_grant, or ok once.
-drop function if exists "better_supabase"."poll_oauth_device_code"(text, text);
+
 create or replace function "better_supabase"."poll_oauth_device_code"(device_code_hash text, client_id text, resource text[] default null)
 returns jsonb
 language plpgsql
@@ -820,7 +817,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:624f4eb3ec24e6ec9c430b4f3fc8f19a7571f3e5c4d455984ec1a8a8ed03f95e
+-- @bsb-hash sha256:0b04c2d9dc1ba1c9e23b6494cd12dffb495bb5cc4f012ada0c26e3d0f36d7db4
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -829,7 +826,7 @@ on conflict (name) do update
 -- with hashed secrets, a user's grant per client, single-use authorization
 -- codes bound to a PKCE S256 challenge (RFC 7636), device codes (RFC 8628)
 -- and a revocation list of access token jtis. Tokens are issued elsewhere.
-create table if not exists "better_supabase"."oauth_clients" (
+create table "better_supabase"."oauth_clients" (
   "id" uuid primary key default gen_random_uuid(),
   "client_id" text not null unique check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
   "secret_hash" text check ("secret_hash" ~ '^[0-9a-f]{64}$'),
@@ -847,12 +844,12 @@ create table if not exists "better_supabase"."oauth_clients" (
   "updated_at" timestamptz not null default now(),
   check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
 );
-create index if not exists oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
+create index oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
 alter table "better_supabase"."oauth_clients" enable row level security;
 revoke all on "better_supabase"."oauth_clients" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_clients" to service_role;
 
-create table if not exists "better_supabase"."oauth_grants" (
+create table "better_supabase"."oauth_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
@@ -862,15 +859,14 @@ create table if not exists "better_supabase"."oauth_grants" (
   "updated_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create unique index if not exists oauth_grants_active_idx on "better_supabase"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
-create index if not exists oauth_grants_client_idx on "better_supabase"."oauth_grants" ("client_id");
-alter table "better_supabase"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
+create unique index oauth_grants_active_idx on "better_supabase"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
+create index oauth_grants_client_idx on "better_supabase"."oauth_grants" ("client_id");
+create index oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
 alter table "better_supabase"."oauth_grants" enable row level security;
 revoke all on "better_supabase"."oauth_grants" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_grants" to service_role;
 
-create table if not exists "better_supabase"."oauth_authorization_codes" (
+create table "better_supabase"."oauth_authorization_codes" (
   "code_hash" text primary key check ("code_hash" ~ '^[0-9a-f]{64}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -884,16 +880,15 @@ create table if not exists "better_supabase"."oauth_authorization_codes" (
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists oauth_authorization_codes_expires_idx on "better_supabase"."oauth_authorization_codes" ("expires_at");
-create index if not exists oauth_authorization_codes_grant_idx on "better_supabase"."oauth_authorization_codes" ("grant_id");
-create index if not exists oauth_authorization_codes_client_idx on "better_supabase"."oauth_authorization_codes" ("client_id");
-alter table "better_supabase"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
+create index oauth_authorization_codes_expires_idx on "better_supabase"."oauth_authorization_codes" ("expires_at");
+create index oauth_authorization_codes_grant_idx on "better_supabase"."oauth_authorization_codes" ("grant_id");
+create index oauth_authorization_codes_client_idx on "better_supabase"."oauth_authorization_codes" ("client_id");
+create index oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
 alter table "better_supabase"."oauth_authorization_codes" enable row level security;
 revoke all on "better_supabase"."oauth_authorization_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_authorization_codes" to service_role;
 
-create table if not exists "better_supabase"."oauth_device_codes" (
+create table "better_supabase"."oauth_device_codes" (
   "device_code_hash" text primary key check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
   "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
@@ -909,30 +904,29 @@ create table if not exists "better_supabase"."oauth_device_codes" (
   "created_at" timestamptz not null default now(),
   check (("status" = 'approved') = ("grant_id" is not null))
 );
-create unique index if not exists oauth_device_codes_user_code_idx on "better_supabase"."oauth_device_codes" ("user_code") where "status" = 'pending';
-create index if not exists oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
-create index if not exists oauth_device_codes_grant_idx on "better_supabase"."oauth_device_codes" ("grant_id");
-create index if not exists oauth_device_codes_client_idx on "better_supabase"."oauth_device_codes" ("client_id");
-alter table "better_supabase"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
+create unique index oauth_device_codes_user_code_idx on "better_supabase"."oauth_device_codes" ("user_code") where "status" = 'pending';
+create index oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
+create index oauth_device_codes_grant_idx on "better_supabase"."oauth_device_codes" ("grant_id");
+create index oauth_device_codes_client_idx on "better_supabase"."oauth_device_codes" ("client_id");
+create index oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
 alter table "better_supabase"."oauth_device_codes" enable row level security;
 revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
-create table if not exists "better_supabase"."oauth_revocations" (
+create table "better_supabase"."oauth_revocations" (
   "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
 );
-create index if not exists oauth_revocations_expires_idx on "better_supabase"."oauth_revocations" ("expires_at");
+create index oauth_revocations_expires_idx on "better_supabase"."oauth_revocations" ("expires_at");
 alter table "better_supabase"."oauth_revocations" enable row level security;
 revoke all on "better_supabase"."oauth_revocations" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
 -- when there is none. Only the definer functions below call it.
-drop function if exists "better_supabase"."oauth_grant_for"(uuid, text, text[]);
+
 create or replace function "better_supabase"."oauth_grant_for"(user_id uuid, client_id text, scopes text[], resource text[] default '{}')
 returns uuid
 language plpgsql
@@ -1195,7 +1189,7 @@ revoke execute on function "better_supabase"."delete_oauth_client"(text) from pu
 grant execute on function "better_supabase"."delete_oauth_client"(text) to service_role;
 
 -- Stores an authorization code after consent, under the user's grant.
-drop function if exists "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text);
+
 create or replace function "better_supabase"."create_oauth_authorization_code"(
   code_hash text, client_id text, user_id uuid, redirect_uri text, scope text,
   code_challenge text, ttl interval, nonce text default null, resource text[] default null)
@@ -1237,7 +1231,7 @@ grant execute on function "better_supabase"."create_oauth_authorization_code"(te
 
 -- Consumes a code once. code_challenge is S256 of the presented verifier.
 -- A code presented twice revokes its grant (RFC 9700 section 4.5).
-drop function if exists "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text);
+
 create or replace function "better_supabase"."redeem_oauth_authorization_code"(
   code_hash text, client_id text, redirect_uri text, code_challenge text, resource text[] default null)
 returns jsonb
@@ -1302,7 +1296,7 @@ revoke execute on function "better_supabase"."redeem_oauth_authorization_code"(t
 grant execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text, text[]) to service_role;
 
 -- Starts a device authorization (RFC 8628 section 3.2).
-drop function if exists "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer);
+
 create or replace function "better_supabase"."create_oauth_device_code"(
   device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5,
   resource text[] default null)
@@ -1398,7 +1392,7 @@ grant execute on function "better_supabase"."decide_oauth_device_code"(text, uui
 
 -- A token request's poll (RFC 8628 section 3.5): pending, slow_down,
 -- access_denied, expired_token, invalid_grant, or ok once.
-drop function if exists "better_supabase"."poll_oauth_device_code"(text, text);
+
 create or replace function "better_supabase"."poll_oauth_device_code"(device_code_hash text, client_id text, resource text[] default null)
 returns jsonb
 language plpgsql
@@ -1685,7 +1679,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:f554688fb8763b64b1a82e70a33b9fcc62ce9283a91d361f9364e150af76a9ac
+-- @bsb-hash sha256:62c6525614faa40e69aef5211cf1aa830d8d99ecf5e17a6e635328b35eafeca4
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1699,7 +1693,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- with hashed secrets, a user's grant per client, single-use authorization
 -- codes bound to a PKCE S256 challenge (RFC 7636), device codes (RFC 8628)
 -- and a revocation list of access token jtis. Tokens are issued elsewhere.
-create table if not exists "app_private"."oauth_clients" (
+create table "app_private"."oauth_clients" (
   "id" uuid primary key default gen_random_uuid(),
   "client_id" text not null unique check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
   "secret_hash" text check ("secret_hash" ~ '^[0-9a-f]{64}$'),
@@ -1717,12 +1711,12 @@ create table if not exists "app_private"."oauth_clients" (
   "updated_at" timestamptz not null default now(),
   check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
 );
-create index if not exists oauth_clients_created_by_idx on "app_private"."oauth_clients" ("created_by");
+create index oauth_clients_created_by_idx on "app_private"."oauth_clients" ("created_by");
 alter table "app_private"."oauth_clients" enable row level security;
 revoke all on "app_private"."oauth_clients" from public, anon, authenticated;
 grant all on "app_private"."oauth_clients" to service_role;
 
-create table if not exists "app_private"."oauth_grants" (
+create table "app_private"."oauth_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "client_id" text not null references "app_private"."oauth_clients" ("client_id") on delete cascade on update cascade,
@@ -1732,15 +1726,14 @@ create table if not exists "app_private"."oauth_grants" (
   "updated_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create unique index if not exists oauth_grants_active_idx on "app_private"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
-create index if not exists oauth_grants_client_idx on "app_private"."oauth_grants" ("client_id");
-alter table "app_private"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_grants_user_idx on "app_private"."oauth_grants" ("user_id");
+create unique index oauth_grants_active_idx on "app_private"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
+create index oauth_grants_client_idx on "app_private"."oauth_grants" ("client_id");
+create index oauth_grants_user_idx on "app_private"."oauth_grants" ("user_id");
 alter table "app_private"."oauth_grants" enable row level security;
 revoke all on "app_private"."oauth_grants" from public, anon, authenticated;
 grant all on "app_private"."oauth_grants" to service_role;
 
-create table if not exists "app_private"."oauth_authorization_codes" (
+create table "app_private"."oauth_authorization_codes" (
   "code_hash" text primary key check ("code_hash" ~ '^[0-9a-f]{64}$'),
   "client_id" text not null references "app_private"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -1754,16 +1747,15 @@ create table if not exists "app_private"."oauth_authorization_codes" (
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists oauth_authorization_codes_expires_idx on "app_private"."oauth_authorization_codes" ("expires_at");
-create index if not exists oauth_authorization_codes_grant_idx on "app_private"."oauth_authorization_codes" ("grant_id");
-create index if not exists oauth_authorization_codes_client_idx on "app_private"."oauth_authorization_codes" ("client_id");
-alter table "app_private"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_authorization_codes_user_idx on "app_private"."oauth_authorization_codes" ("user_id");
+create index oauth_authorization_codes_expires_idx on "app_private"."oauth_authorization_codes" ("expires_at");
+create index oauth_authorization_codes_grant_idx on "app_private"."oauth_authorization_codes" ("grant_id");
+create index oauth_authorization_codes_client_idx on "app_private"."oauth_authorization_codes" ("client_id");
+create index oauth_authorization_codes_user_idx on "app_private"."oauth_authorization_codes" ("user_id");
 alter table "app_private"."oauth_authorization_codes" enable row level security;
 revoke all on "app_private"."oauth_authorization_codes" from public, anon, authenticated;
 grant all on "app_private"."oauth_authorization_codes" to service_role;
 
-create table if not exists "app_private"."oauth_device_codes" (
+create table "app_private"."oauth_device_codes" (
   "device_code_hash" text primary key check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
   "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "app_private"."oauth_clients" ("client_id") on delete cascade on update cascade,
@@ -1779,30 +1771,29 @@ create table if not exists "app_private"."oauth_device_codes" (
   "created_at" timestamptz not null default now(),
   check (("status" = 'approved') = ("grant_id" is not null))
 );
-create unique index if not exists oauth_device_codes_user_code_idx on "app_private"."oauth_device_codes" ("user_code") where "status" = 'pending';
-create index if not exists oauth_device_codes_expires_idx on "app_private"."oauth_device_codes" ("expires_at");
-create index if not exists oauth_device_codes_grant_idx on "app_private"."oauth_device_codes" ("grant_id");
-create index if not exists oauth_device_codes_client_idx on "app_private"."oauth_device_codes" ("client_id");
-alter table "app_private"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_device_codes_user_idx on "app_private"."oauth_device_codes" ("user_id");
+create unique index oauth_device_codes_user_code_idx on "app_private"."oauth_device_codes" ("user_code") where "status" = 'pending';
+create index oauth_device_codes_expires_idx on "app_private"."oauth_device_codes" ("expires_at");
+create index oauth_device_codes_grant_idx on "app_private"."oauth_device_codes" ("grant_id");
+create index oauth_device_codes_client_idx on "app_private"."oauth_device_codes" ("client_id");
+create index oauth_device_codes_user_idx on "app_private"."oauth_device_codes" ("user_id");
 alter table "app_private"."oauth_device_codes" enable row level security;
 revoke all on "app_private"."oauth_device_codes" from public, anon, authenticated;
 grant all on "app_private"."oauth_device_codes" to service_role;
 
-create table if not exists "app_private"."oauth_revocations" (
+create table "app_private"."oauth_revocations" (
   "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
 );
-create index if not exists oauth_revocations_expires_idx on "app_private"."oauth_revocations" ("expires_at");
+create index oauth_revocations_expires_idx on "app_private"."oauth_revocations" ("expires_at");
 alter table "app_private"."oauth_revocations" enable row level security;
 revoke all on "app_private"."oauth_revocations" from public, anon, authenticated;
 grant all on "app_private"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
 -- when there is none. Only the definer functions below call it.
-drop function if exists "app_private"."oauth_grant_for"(uuid, text, text[]);
+
 create or replace function "app_private"."oauth_grant_for"(user_id uuid, client_id text, scopes text[], resource text[] default '{}')
 returns uuid
 language plpgsql
@@ -2043,7 +2034,7 @@ revoke execute on function "app_private"."delete_oauth_client"(text) from public
 grant execute on function "app_private"."delete_oauth_client"(text) to service_role;
 
 -- Stores an authorization code after consent, under the user's grant.
-drop function if exists "app_private"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text);
+
 create or replace function "app_private"."create_oauth_authorization_code"(
   code_hash text, client_id text, user_id uuid, redirect_uri text, scope text,
   code_challenge text, ttl interval, nonce text default null, resource text[] default null)
@@ -2085,7 +2076,7 @@ grant execute on function "app_private"."create_oauth_authorization_code"(text, 
 
 -- Consumes a code once. code_challenge is S256 of the presented verifier.
 -- A code presented twice revokes its grant (RFC 9700 section 4.5).
-drop function if exists "app_private"."redeem_oauth_authorization_code"(text, text, text, text);
+
 create or replace function "app_private"."redeem_oauth_authorization_code"(
   code_hash text, client_id text, redirect_uri text, code_challenge text, resource text[] default null)
 returns jsonb
@@ -2142,7 +2133,7 @@ revoke execute on function "app_private"."redeem_oauth_authorization_code"(text,
 grant execute on function "app_private"."redeem_oauth_authorization_code"(text, text, text, text, text[]) to service_role;
 
 -- Starts a device authorization (RFC 8628 section 3.2).
-drop function if exists "app_private"."create_oauth_device_code"(text, text, text, text, interval, integer);
+
 create or replace function "app_private"."create_oauth_device_code"(
   device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5,
   resource text[] default null)
@@ -2238,7 +2229,7 @@ grant execute on function "app_private"."decide_oauth_device_code"(text, uuid, b
 
 -- A token request's poll (RFC 8628 section 3.5): pending, slow_down,
 -- access_denied, expired_token, invalid_grant, or ok once.
-drop function if exists "app_private"."poll_oauth_device_code"(text, text);
+
 create or replace function "app_private"."poll_oauth_device_code"(device_code_hash text, client_id text, resource text[] default null)
 returns jsonb
 language plpgsql
@@ -2509,7 +2500,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:e44732cce63f05128fc468f330c679cfc5afeae78215fd9c298c70963ebd05dd
+-- @bsb-hash sha256:55099f19ac85a8e3f7a2b043566e7ed502bca11106fe2eac3270bf55c3d6ca6b
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2518,7 +2509,7 @@ on conflict (name) do update
 -- with hashed secrets, a user's grant per client, single-use authorization
 -- codes bound to a PKCE S256 challenge (RFC 7636), device codes (RFC 8628)
 -- and a revocation list of access token jtis. Tokens are issued elsewhere.
-create table if not exists "better_supabase"."oauth_clients" (
+create table "better_supabase"."oauth_clients" (
   "id" uuid primary key default gen_random_uuid(),
   "client_id" text not null unique check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
   "secret_hash" text check ("secret_hash" ~ '^[0-9a-f]{64}$'),
@@ -2536,12 +2527,12 @@ create table if not exists "better_supabase"."oauth_clients" (
   "updated_at" timestamptz not null default now(),
   check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
 );
-create index if not exists oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
+create index oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
 alter table "better_supabase"."oauth_clients" enable row level security;
 revoke all on "better_supabase"."oauth_clients" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_clients" to service_role;
 
-create table if not exists "better_supabase"."oauth_grants" (
+create table "better_supabase"."oauth_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
@@ -2551,15 +2542,14 @@ create table if not exists "better_supabase"."oauth_grants" (
   "updated_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create unique index if not exists oauth_grants_active_idx on "better_supabase"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
-create index if not exists oauth_grants_client_idx on "better_supabase"."oauth_grants" ("client_id");
-alter table "better_supabase"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
+create unique index oauth_grants_active_idx on "better_supabase"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
+create index oauth_grants_client_idx on "better_supabase"."oauth_grants" ("client_id");
+create index oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
 alter table "better_supabase"."oauth_grants" enable row level security;
 revoke all on "better_supabase"."oauth_grants" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_grants" to service_role;
 
-create table if not exists "better_supabase"."oauth_authorization_codes" (
+create table "better_supabase"."oauth_authorization_codes" (
   "code_hash" text primary key check ("code_hash" ~ '^[0-9a-f]{64}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -2573,16 +2563,15 @@ create table if not exists "better_supabase"."oauth_authorization_codes" (
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists oauth_authorization_codes_expires_idx on "better_supabase"."oauth_authorization_codes" ("expires_at");
-create index if not exists oauth_authorization_codes_grant_idx on "better_supabase"."oauth_authorization_codes" ("grant_id");
-create index if not exists oauth_authorization_codes_client_idx on "better_supabase"."oauth_authorization_codes" ("client_id");
-alter table "better_supabase"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
+create index oauth_authorization_codes_expires_idx on "better_supabase"."oauth_authorization_codes" ("expires_at");
+create index oauth_authorization_codes_grant_idx on "better_supabase"."oauth_authorization_codes" ("grant_id");
+create index oauth_authorization_codes_client_idx on "better_supabase"."oauth_authorization_codes" ("client_id");
+create index oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
 alter table "better_supabase"."oauth_authorization_codes" enable row level security;
 revoke all on "better_supabase"."oauth_authorization_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_authorization_codes" to service_role;
 
-create table if not exists "better_supabase"."oauth_device_codes" (
+create table "better_supabase"."oauth_device_codes" (
   "device_code_hash" text primary key check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
   "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
@@ -2598,30 +2587,29 @@ create table if not exists "better_supabase"."oauth_device_codes" (
   "created_at" timestamptz not null default now(),
   check (("status" = 'approved') = ("grant_id" is not null))
 );
-create unique index if not exists oauth_device_codes_user_code_idx on "better_supabase"."oauth_device_codes" ("user_code") where "status" = 'pending';
-create index if not exists oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
-create index if not exists oauth_device_codes_grant_idx on "better_supabase"."oauth_device_codes" ("grant_id");
-create index if not exists oauth_device_codes_client_idx on "better_supabase"."oauth_device_codes" ("client_id");
-alter table "better_supabase"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
-create index if not exists oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
+create unique index oauth_device_codes_user_code_idx on "better_supabase"."oauth_device_codes" ("user_code") where "status" = 'pending';
+create index oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
+create index oauth_device_codes_grant_idx on "better_supabase"."oauth_device_codes" ("grant_id");
+create index oauth_device_codes_client_idx on "better_supabase"."oauth_device_codes" ("client_id");
+create index oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
 alter table "better_supabase"."oauth_device_codes" enable row level security;
 revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
-create table if not exists "better_supabase"."oauth_revocations" (
+create table "better_supabase"."oauth_revocations" (
   "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
 );
-create index if not exists oauth_revocations_expires_idx on "better_supabase"."oauth_revocations" ("expires_at");
+create index oauth_revocations_expires_idx on "better_supabase"."oauth_revocations" ("expires_at");
 alter table "better_supabase"."oauth_revocations" enable row level security;
 revoke all on "better_supabase"."oauth_revocations" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
 -- when there is none. Only the definer functions below call it.
-drop function if exists "better_supabase"."oauth_grant_for"(uuid, text, text[]);
+
 create or replace function "better_supabase"."oauth_grant_for"(user_id uuid, client_id text, scopes text[], resource text[] default '{}')
 returns uuid
 language plpgsql
@@ -2862,7 +2850,7 @@ revoke execute on function "better_supabase"."delete_oauth_client"(text) from pu
 grant execute on function "better_supabase"."delete_oauth_client"(text) to service_role;
 
 -- Stores an authorization code after consent, under the user's grant.
-drop function if exists "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text);
+
 create or replace function "better_supabase"."create_oauth_authorization_code"(
   code_hash text, client_id text, user_id uuid, redirect_uri text, scope text,
   code_challenge text, ttl interval, nonce text default null, resource text[] default null)
@@ -2904,7 +2892,7 @@ grant execute on function "better_supabase"."create_oauth_authorization_code"(te
 
 -- Consumes a code once. code_challenge is S256 of the presented verifier.
 -- A code presented twice revokes its grant (RFC 9700 section 4.5).
-drop function if exists "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text);
+
 create or replace function "better_supabase"."redeem_oauth_authorization_code"(
   code_hash text, client_id text, redirect_uri text, code_challenge text, resource text[] default null)
 returns jsonb
@@ -2961,7 +2949,7 @@ revoke execute on function "better_supabase"."redeem_oauth_authorization_code"(t
 grant execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text, text[]) to service_role;
 
 -- Starts a device authorization (RFC 8628 section 3.2).
-drop function if exists "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer);
+
 create or replace function "better_supabase"."create_oauth_device_code"(
   device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5,
   resource text[] default null)
@@ -3057,7 +3045,7 @@ grant execute on function "better_supabase"."decide_oauth_device_code"(text, uui
 
 -- A token request's poll (RFC 8628 section 3.5): pending, slow_down,
 -- access_denied, expired_token, invalid_grant, or ok once.
-drop function if exists "better_supabase"."poll_oauth_device_code"(text, text);
+
 create or replace function "better_supabase"."poll_oauth_device_code"(device_code_hash text, client_id text, resource text[] default null)
 returns jsonb
 language plpgsql
@@ -3315,11 +3303,6 @@ grant execute on function "better_supabase"."purge_oauth_server"() to service_ro
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-drop function if exists "api"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text);
-drop function if exists "api"."redeem_oauth_authorization_code"(text, text, text, text);
-drop function if exists "api"."create_oauth_device_code"(text, text, text, text, interval, integer);
-drop function if exists "api"."poll_oauth_device_code"(text, text);
-
 create or replace function "api"."register_oauth_client"(client_id text, secret_hash text, registration_token_hash text, client_name text, redirect_uris text[], grant_types text[], token_endpoint_auth_method text, scope text, metadata jsonb, created_by uuid default null)
 returns jsonb
 language sql
@@ -3524,7 +3507,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:f18d82063bcdee42c8bf5cda2bf838d6895b5f18648593fc7ff87102382b93dc
+-- @bsb-hash sha256:47f688424306de3993dee94f26e8c68935e28a3812aef66f86b78e2401415612
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3621,7 +3604,7 @@ grant all on "better_supabase"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
 -- when there is none. Only the definer functions below call it.
-drop function if exists "better_supabase"."oauth_grant_for"(uuid, text, text[]);
+
 create or replace function "better_supabase"."oauth_grant_for"(user_id uuid, client_id text, scopes text[], resource text[] default '{}')
 returns uuid
 language plpgsql
@@ -3862,7 +3845,7 @@ revoke execute on function "better_supabase"."delete_oauth_client"(text) from pu
 grant execute on function "better_supabase"."delete_oauth_client"(text) to service_role;
 
 -- Stores an authorization code after consent, under the user's grant.
-drop function if exists "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text);
+
 create or replace function "better_supabase"."create_oauth_authorization_code"(
   code_hash text, client_id text, user_id uuid, redirect_uri text, scope text,
   code_challenge text, ttl interval, nonce text default null, resource text[] default null)
@@ -3904,7 +3887,7 @@ grant execute on function "better_supabase"."create_oauth_authorization_code"(te
 
 -- Consumes a code once. code_challenge is S256 of the presented verifier.
 -- A code presented twice revokes its grant (RFC 9700 section 4.5).
-drop function if exists "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text);
+
 create or replace function "better_supabase"."redeem_oauth_authorization_code"(
   code_hash text, client_id text, redirect_uri text, code_challenge text, resource text[] default null)
 returns jsonb
@@ -3961,7 +3944,7 @@ revoke execute on function "better_supabase"."redeem_oauth_authorization_code"(t
 grant execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text, text[]) to service_role;
 
 -- Starts a device authorization (RFC 8628 section 3.2).
-drop function if exists "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer);
+
 create or replace function "better_supabase"."create_oauth_device_code"(
   device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5,
   resource text[] default null)
@@ -4057,7 +4040,7 @@ grant execute on function "better_supabase"."decide_oauth_device_code"(text, uui
 
 -- A token request's poll (RFC 8628 section 3.5): pending, slow_down,
 -- access_denied, expired_token, invalid_grant, or ok once.
-drop function if exists "better_supabase"."poll_oauth_device_code"(text, text);
+
 create or replace function "better_supabase"."poll_oauth_device_code"(device_code_hash text, client_id text, resource text[] default null)
 returns jsonb
 language plpgsql

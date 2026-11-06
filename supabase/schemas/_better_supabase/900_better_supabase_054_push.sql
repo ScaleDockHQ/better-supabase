@@ -1,6 +1,6 @@
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:73af4ec02fdb379fe8131c855cf9480805067b289b1aad25cbde7fc60f4a54d0
+-- @bsb-hash sha256:996c105549dc21286fdfe7bc6cbc7ab8aeb2b7d12d2c84f9274051cf93dd8fc5
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,7 @@
 -- through register_push_device and unregister_push_device; the sender reads
 -- tokens with push_tokens_for and drops the ones the provider rejects with
 -- prune_push_tokens, both service role only.
-create table if not exists "better_supabase"."push_devices" (
+create table "better_supabase"."push_devices" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "token" text not null unique check (length("token") >= 1 and length("token") <= 4096),
@@ -21,22 +21,20 @@ create table if not exists "better_supabase"."push_devices" (
   "created_at" timestamptz not null default now(),
   "last_seen_at" timestamptz not null default now()
 );
-create index if not exists push_devices_user_idx on "better_supabase"."push_devices" ("user_id");
+create index push_devices_user_idx on "better_supabase"."push_devices" ("user_id");
 alter table "better_supabase"."push_devices" enable row level security;
 revoke all on "better_supabase"."push_devices" from public, anon, authenticated;
 grant select, delete on "better_supabase"."push_devices" to authenticated;
 grant all on "better_supabase"."push_devices" to service_role;
-drop policy if exists push_devices_own_read on "better_supabase"."push_devices";
 create policy push_devices_own_read on "better_supabase"."push_devices"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists push_devices_own_delete on "better_supabase"."push_devices";
 create policy push_devices_own_delete on "better_supabase"."push_devices"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- Registers the caller's device, or refreshes it; returns the device id.
-drop function if exists "better_supabase"."register_push_device"(text, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."register_push_device"(
   token text,
   platform text,
@@ -200,7 +198,7 @@ grant execute on function "better_supabase"."prune_push_tokens"(text[]) to servi
 
 -- One row per delivery and device: the Expo ticket id, or the error Expo
 -- answered. A retried delivery skips the devices that already have a ticket.
-create table if not exists "better_supabase"."push_tickets" (
+create table "better_supabase"."push_tickets" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
   "token" text not null,
@@ -211,7 +209,7 @@ create table if not exists "better_supabase"."push_tickets" (
   "checked_at" timestamptz,
   unique ("delivery_id", "token")
 );
-create index if not exists push_tickets_unchecked_idx on "better_supabase"."push_tickets" ("created_at") where "checked_at" is null and "ticket_id" is not null;
+create index push_tickets_unchecked_idx on "better_supabase"."push_tickets" ("created_at") where "checked_at" is null and "ticket_id" is not null;
 alter table "better_supabase"."push_tickets" enable row level security;
 revoke all on "better_supabase"."push_tickets" from public, anon, authenticated;
 grant all on "better_supabase"."push_tickets" to service_role;
@@ -315,7 +313,7 @@ $$;
 -- how many tickets it stored and the provider events it recorded for the
 -- first time, as record_delivery_event returns them. Postgres can't change
 -- a return type in place, so the integer version is dropped first.
-drop function if exists "better_supabase"."complete_push_receipts"(jsonb);
+
 create or replace function "better_supabase"."complete_push_receipts"(receipts jsonb)
 returns jsonb
 language plpgsql
@@ -378,9 +376,6 @@ grant execute on function "better_supabase"."complete_push_receipts"(jsonb) to s
 -- blocks.push.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."register_push_device"(text, text, text, text, text, jsonb);
-drop function if exists "api"."complete_push_receipts"(jsonb);
 
 create or replace function "api"."register_push_device"(token text, platform text, provider text default 'expo', device_name text default null, app_version text default null)
 returns uuid

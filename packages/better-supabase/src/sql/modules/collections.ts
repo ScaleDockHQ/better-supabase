@@ -266,7 +266,7 @@ ${renderPolicy(
   or ${co("scope")} = 'tenant'
 )`,
   }),
-  { drop: true, target: t("collections") },
+  { target: t("collections") },
 )}
 ${renderPolicy(
   makePolicy({
@@ -278,7 +278,7 @@ ${renderPolicy(
   and exists (select 1 from ${t("collections")} c where c.${co("id")} = ${en("collection")})
   and ${canSubject}(${en("subjectType")}, ${en("subjectId")}, 'read')`,
   }),
-  { drop: true, target: t("entries") },
+  { target: t("entries") },
 )}
 ${renderPolicy(
   makePolicy({
@@ -290,7 +290,7 @@ ${renderPolicy(
   and ${names.scope.check(fa("tenant"), names.read)}
   and ${canSubject}(${fa("subjectType")}, ${fa("subjectId")}, 'read')`,
   }),
-  { drop: true, target: t("favorites") },
+  { target: t("favorites") },
 )}
 ${renderPolicy(
   makePolicy({
@@ -302,7 +302,7 @@ ${renderPolicy(
   and ${names.scope.check(sv("tenant"), names.read)}
   and ${canSubject}(${sv("subjectType")}, ${sv("subjectId")}, 'read')`,
   }),
-  { drop: true, target: t("savedItems") },
+  { target: t("savedItems") },
 )}
 `;
 }

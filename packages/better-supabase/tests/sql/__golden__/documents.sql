@@ -1,51 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:06aa70452c13c3ba5d14a56fb826450609498353630d9da1f1007d93efbd9ad3
+-- @bsb-hash sha256:eb43af0323db32290749114a75ce80d5053a8fd6f877afb8bebeb33dd20a1e8d
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_snapshots";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_suggestions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."documents" (
+create table "better_supabase"."documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -56,17 +17,16 @@ create table if not exists "better_supabase"."documents" (
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "name")
 );
-create index if not exists "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
+create index "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
 alter table "better_supabase"."documents" enable row level security;
 revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-drop policy if exists documents_read on "better_supabase"."documents";
 create policy documents_read on "better_supabase"."documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
-create table if not exists "better_supabase"."document_updates" (
+create table "better_supabase"."document_updates" (
   "seq" bigint generated always as identity primary key,
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -74,12 +34,12 @@ create table if not exists "better_supabase"."document_updates" (
   "actor" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
+create index "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
 alter table "better_supabase"."document_updates" enable row level security;
 revoke all on "better_supabase"."document_updates" from public, anon, authenticated;
 grant all on "better_supabase"."document_updates" to service_role;
 
-create table if not exists "better_supabase"."document_snapshots" (
+create table "better_supabase"."document_snapshots" (
   "document_id" uuid primary key references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "state" bytea not null,
@@ -90,7 +50,7 @@ alter table "better_supabase"."document_snapshots" enable row level security;
 revoke all on "better_supabase"."document_snapshots" from public, anon, authenticated;
 grant all on "better_supabase"."document_snapshots" to service_role;
 
-create table if not exists "better_supabase"."document_suggestions" (
+create table "better_supabase"."document_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -103,7 +63,7 @@ create table if not exists "better_supabase"."document_suggestions" (
   "decided_at" timestamptz,
   "note" text check (length("note") >= 1 and length("note") <= 500)
 );
-create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
+create index "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
 revoke all on "better_supabase"."document_suggestions" from public, anon, authenticated;
 grant all on "better_supabase"."document_suggestions" to service_role;
@@ -535,13 +495,11 @@ grant execute on function "better_supabase"."documents_to_compact"(integer, inte
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_documents_receive on realtime.messages;
-create policy bsb_documents_receive on realtime.messages
+        create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        drop policy if exists bsb_documents_send on realtime.messages;
-create policy bsb_documents_send on realtime.messages
+        create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
@@ -552,24 +510,19 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
 create policy bsb_tenant_scope_select on "better_supabase"."documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
 create policy bsb_tenant_scope_update on "better_supabase"."documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -591,51 +544,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:958bfe6e83114850dcc5b7349a6dd325b245e221a5e0066a61222c068ec998b4
+-- @bsb-hash sha256:21ceacd755fc58f245a6a7b5bf2df9a4929d02c676bf3508a944c3f4099675c2
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_snapshots";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_suggestions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."documents" (
+create table "better_supabase"."documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -646,17 +560,16 @@ create table if not exists "better_supabase"."documents" (
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "name")
 );
-create index if not exists "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
+create index "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
 alter table "better_supabase"."documents" enable row level security;
 revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-drop policy if exists documents_read on "better_supabase"."documents";
 create policy documents_read on "better_supabase"."documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
-create table if not exists "better_supabase"."document_updates" (
+create table "better_supabase"."document_updates" (
   "seq" bigint generated always as identity primary key,
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -664,12 +577,12 @@ create table if not exists "better_supabase"."document_updates" (
   "actor" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
+create index "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
 alter table "better_supabase"."document_updates" enable row level security;
 revoke all on "better_supabase"."document_updates" from public, anon, authenticated;
 grant all on "better_supabase"."document_updates" to service_role;
 
-create table if not exists "better_supabase"."document_snapshots" (
+create table "better_supabase"."document_snapshots" (
   "document_id" uuid primary key references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "state" bytea not null,
@@ -680,7 +593,7 @@ alter table "better_supabase"."document_snapshots" enable row level security;
 revoke all on "better_supabase"."document_snapshots" from public, anon, authenticated;
 grant all on "better_supabase"."document_snapshots" to service_role;
 
-create table if not exists "better_supabase"."document_suggestions" (
+create table "better_supabase"."document_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -693,7 +606,7 @@ create table if not exists "better_supabase"."document_suggestions" (
   "decided_at" timestamptz,
   "note" text check (length("note") >= 1 and length("note") <= 500)
 );
-create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
+create index "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
 revoke all on "better_supabase"."document_suggestions" from public, anon, authenticated;
 grant all on "better_supabase"."document_suggestions" to service_role;
@@ -1270,13 +1183,11 @@ grant execute on function "better_supabase"."name_document_version"(uuid, uuid, 
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_documents_receive on realtime.messages;
-create policy bsb_documents_receive on realtime.messages
+        create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        drop policy if exists bsb_documents_send on realtime.messages;
-create policy bsb_documents_send on realtime.messages
+        create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
@@ -1287,24 +1198,19 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
 create policy bsb_tenant_scope_select on "better_supabase"."documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
 create policy bsb_tenant_scope_update on "better_supabase"."documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1334,55 +1240,17 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:63befd898b6daa76b01909f0b4e981b36502d452a0c706e78f402c664849ba7f
+-- @bsb-hash sha256:497285eb91da10c22f0e77aa8803b5760854fd9619c8195c5ec28f0b75933b6f
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."documents";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."documents";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."documents";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."documents";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."document_updates";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."document_updates";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."document_updates";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."document_updates";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."document_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."document_snapshots";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."document_suggestions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."documents" (
+create table "app_private"."documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1393,17 +1261,16 @@ create table if not exists "app_private"."documents" (
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "name")
 );
-create index if not exists "documents_tenant_idx" on "app_private"."documents" ("tenant_id", "updated_at" desc);
+create index "documents_tenant_idx" on "app_private"."documents" ("tenant_id", "updated_at" desc);
 alter table "app_private"."documents" enable row level security;
 revoke all on "app_private"."documents" from public, anon, authenticated;
 grant select on "app_private"."documents" to authenticated;
 grant all on "app_private"."documents" to service_role;
-drop policy if exists documents_read on "app_private"."documents";
 create policy documents_read on "app_private"."documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
-create table if not exists "app_private"."document_updates" (
+create table "app_private"."document_updates" (
   "seq" bigint generated always as identity primary key,
   "document_id" uuid not null references "app_private"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -1411,12 +1278,12 @@ create table if not exists "app_private"."document_updates" (
   "actor" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "document_updates_document_idx" on "app_private"."document_updates" ("document_id", "seq");
+create index "document_updates_document_idx" on "app_private"."document_updates" ("document_id", "seq");
 alter table "app_private"."document_updates" enable row level security;
 revoke all on "app_private"."document_updates" from public, anon, authenticated;
 grant all on "app_private"."document_updates" to service_role;
 
-create table if not exists "app_private"."document_snapshots" (
+create table "app_private"."document_snapshots" (
   "document_id" uuid primary key references "app_private"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "state" bytea not null,
@@ -1427,7 +1294,7 @@ alter table "app_private"."document_snapshots" enable row level security;
 revoke all on "app_private"."document_snapshots" from public, anon, authenticated;
 grant all on "app_private"."document_snapshots" to service_role;
 
-create table if not exists "app_private"."document_suggestions" (
+create table "app_private"."document_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
   "document_id" uuid not null references "app_private"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -1440,7 +1307,7 @@ create table if not exists "app_private"."document_suggestions" (
   "decided_at" timestamptz,
   "note" text check (length("note") >= 1 and length("note") <= 500)
 );
-create index if not exists "document_suggestions_document_idx" on "app_private"."document_suggestions" ("document_id", "status", "created_at");
+create index "document_suggestions_document_idx" on "app_private"."document_suggestions" ("document_id", "status", "created_at");
 alter table "app_private"."document_suggestions" enable row level security;
 revoke all on "app_private"."document_suggestions" from public, anon, authenticated;
 grant all on "app_private"."document_suggestions" to service_role;
@@ -1872,13 +1739,11 @@ grant execute on function "app_private"."documents_to_compact"(integer, integer)
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_documents_receive on realtime.messages;
-create policy bsb_documents_receive on realtime.messages
+        create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "app_private"."document_topic_access"((select realtime.topic()), false));
-        drop policy if exists bsb_documents_send on realtime.messages;
-create policy bsb_documents_send on realtime.messages
+        create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "app_private"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "app_private"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
@@ -1889,24 +1754,19 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."documents";
-drop policy if exists bsb_tenant_scope_select on "app_private"."documents";
 create policy bsb_tenant_scope_select on "app_private"."documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."documents";
 create policy bsb_tenant_scope_insert on "app_private"."documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."documents";
 create policy bsb_tenant_scope_update on "app_private"."documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."documents";
 create policy bsb_tenant_scope_delete on "app_private"."documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1928,51 +1788,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:8973b1838713ebbb6da2bd9eedb2b0634731073688d8f414c9644699a9a988ea
+-- @bsb-hash sha256:8a44acb59e466c536e1073cefea85b5bb9b992b6c6314735e8a9c61b2e09f07a
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_snapshots";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_suggestions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."documents" (
+create table "better_supabase"."documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1983,17 +1804,16 @@ create table if not exists "better_supabase"."documents" (
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "name")
 );
-create index if not exists "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
+create index "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
 alter table "better_supabase"."documents" enable row level security;
 revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-drop policy if exists documents_read on "better_supabase"."documents";
 create policy documents_read on "better_supabase"."documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
-create table if not exists "better_supabase"."document_updates" (
+create table "better_supabase"."document_updates" (
   "seq" bigint generated always as identity primary key,
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -2001,12 +1821,12 @@ create table if not exists "better_supabase"."document_updates" (
   "actor" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
+create index "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
 alter table "better_supabase"."document_updates" enable row level security;
 revoke all on "better_supabase"."document_updates" from public, anon, authenticated;
 grant all on "better_supabase"."document_updates" to service_role;
 
-create table if not exists "better_supabase"."document_snapshots" (
+create table "better_supabase"."document_snapshots" (
   "document_id" uuid primary key references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "state" bytea not null,
@@ -2017,7 +1837,7 @@ alter table "better_supabase"."document_snapshots" enable row level security;
 revoke all on "better_supabase"."document_snapshots" from public, anon, authenticated;
 grant all on "better_supabase"."document_snapshots" to service_role;
 
-create table if not exists "better_supabase"."document_suggestions" (
+create table "better_supabase"."document_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -2030,7 +1850,7 @@ create table if not exists "better_supabase"."document_suggestions" (
   "decided_at" timestamptz,
   "note" text check (length("note") >= 1 and length("note") <= 500)
 );
-create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
+create index "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
 revoke all on "better_supabase"."document_suggestions" from public, anon, authenticated;
 grant all on "better_supabase"."document_suggestions" to service_role;
@@ -2462,13 +2282,11 @@ grant execute on function "better_supabase"."documents_to_compact"(integer, inte
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_documents_receive on realtime.messages;
-create policy bsb_documents_receive on realtime.messages
+        create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        drop policy if exists bsb_documents_send on realtime.messages;
-create policy bsb_documents_send on realtime.messages
+        create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
@@ -2479,24 +2297,19 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
 create policy bsb_tenant_scope_select on "better_supabase"."documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
 create policy bsb_tenant_scope_update on "better_supabase"."documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2617,49 +2430,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:a2696ac50130d27873ac050df48d3bcce29e1428976f7eda08d22247302c620c
+-- @bsb-hash sha256:24302692266e879a993e0a733f138ab9ef7d13c7b3e408067f677c2e9cf8d720
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_snapshots";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_suggestions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- better_supabase.documents is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."documents" add column if not exists "id" uuid default gen_random_uuid();
@@ -2675,7 +2449,6 @@ create index if not exists "documents_tenant_idx" on "better_supabase"."document
 alter table "better_supabase"."documents" enable row level security;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-drop policy if exists bsb_documents_select on "better_supabase"."documents";
 create policy bsb_documents_select on "better_supabase"."documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
@@ -3144,13 +2917,11 @@ grant execute on function "better_supabase"."documents_to_compact"(integer, inte
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_documents_receive on realtime.messages;
-create policy bsb_documents_receive on realtime.messages
+        create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        drop policy if exists bsb_documents_send on realtime.messages;
-create policy bsb_documents_send on realtime.messages
+        create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
@@ -3161,24 +2932,19 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
 create policy bsb_tenant_scope_select on "better_supabase"."documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
 create policy bsb_tenant_scope_update on "better_supabase"."documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3200,51 +2966,12 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:04cafcf1d881006b0a40c7284f4c951c364055368728f6fde30f0cd5301683ad
+-- @bsb-hash sha256:62f89498c42b4b25ae3dcc5fe647a649eb2f3ad1b97b3d6bdf2fdf29fe3cbbe4
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_snapshots";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_suggestions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."documents" (
+create table "better_supabase"."documents" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -3255,17 +2982,16 @@ create table if not exists "better_supabase"."documents" (
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "name")
 );
-create index if not exists "documents_tenant_idx" on "better_supabase"."documents" ("org_id", "updated_at" desc);
+create index "documents_tenant_idx" on "better_supabase"."documents" ("org_id", "updated_at" desc);
 alter table "better_supabase"."documents" enable row level security;
 revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-drop policy if exists documents_read on "better_supabase"."documents";
 create policy documents_read on "better_supabase"."documents"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
-create table if not exists "better_supabase"."document_updates" (
+create table "better_supabase"."document_updates" (
   "seq" bigint generated always as identity primary key,
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "org_id" uuid not null,
@@ -3273,12 +2999,12 @@ create table if not exists "better_supabase"."document_updates" (
   "actor" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
+create index "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
 alter table "better_supabase"."document_updates" enable row level security;
 revoke all on "better_supabase"."document_updates" from public, anon, authenticated;
 grant all on "better_supabase"."document_updates" to service_role;
 
-create table if not exists "better_supabase"."document_snapshots" (
+create table "better_supabase"."document_snapshots" (
   "document_id" uuid primary key references "better_supabase"."documents" ("id") on delete cascade,
   "org_id" uuid not null,
   "state" bytea not null,
@@ -3289,7 +3015,7 @@ alter table "better_supabase"."document_snapshots" enable row level security;
 revoke all on "better_supabase"."document_snapshots" from public, anon, authenticated;
 grant all on "better_supabase"."document_snapshots" to service_role;
 
-create table if not exists "better_supabase"."document_suggestions" (
+create table "better_supabase"."document_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "org_id" uuid not null,
@@ -3302,7 +3028,7 @@ create table if not exists "better_supabase"."document_suggestions" (
   "decided_at" timestamptz,
   "note" text check (length("note") >= 1 and length("note") <= 500)
 );
-create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
+create index "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
 revoke all on "better_supabase"."document_suggestions" from public, anon, authenticated;
 grant all on "better_supabase"."document_suggestions" to service_role;
@@ -3734,13 +3460,11 @@ grant execute on function "better_supabase"."documents_to_compact"(integer, inte
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_documents_receive on realtime.messages;
-create policy bsb_documents_receive on realtime.messages
+        create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        drop policy if exists bsb_documents_send on realtime.messages;
-create policy bsb_documents_send on realtime.messages
+        create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
@@ -3751,24 +3475,19 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
 create policy bsb_tenant_scope_select on "better_supabase"."documents" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('documents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."documents" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
 create policy bsb_tenant_scope_update on "better_supabase"."documents" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

@@ -181,7 +181,7 @@ create index if not exists ${ctx.naming.rename("field_changes_tenant_idx")} on $
       : ""
   }
 ${lockTable(t, { read: true })}
-${renderPolicy(makePolicy({ table: t, name: policy, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and coalesce(${canSubject}(${c("subjectType")}, ${c("subjectId")}, 'read'), false)` }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: policy, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and coalesce(${canSubject}(${c("subjectType")}, ${c("subjectId")}, 'read'), false)` }), { target: t })}
 ${partitioned ? `\n${MONTHLY_PARTITIONS}\n${registerPartitions(t)}\n` : ""}${bindings.map((binding) => bindingTrigger(ctx, binding, c)).join("\n")}
 
 -- A record's changes, newest first, optionally of one field. before is the id

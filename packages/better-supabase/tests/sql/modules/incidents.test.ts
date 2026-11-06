@@ -62,7 +62,7 @@ describe("incidents module", () => {
       .join("\n");
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."incident_postmortem_actions" (',
+      'create table "better_supabase"."incident_postmortem_actions" (',
     );
     expect(sql).toContain(
       'references "better_supabase"."tasks" ("id") on delete cascade',

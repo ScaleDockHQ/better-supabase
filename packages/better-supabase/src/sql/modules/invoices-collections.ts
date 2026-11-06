@@ -167,7 +167,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: ctx.scope.check(d("tenant"), read),
   }),
-  { drop: true, target: t },
+  { target: t },
 )}
 `;
 }

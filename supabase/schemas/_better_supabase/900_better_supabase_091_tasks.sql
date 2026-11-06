@@ -1,61 +1,14 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:453be5144ba32ceff340fa347e488ded4cde4f35743df8aaea5dcbdbda3ba51c
+-- @bsb-hash sha256:776795f5ac96fcaf47b6d38f71473c2654f9365a8f6a2f1c0c2850a147e149f2
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_projects";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_projects";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_projects";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_projects";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_projects";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."iterations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."iterations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."iterations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."iterations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."iterations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Work items on pipelines: issues and tasks with an identifier, a parent,
 -- assignees, a priority, dates, projects and iterations.
 
-create table if not exists "better_supabase"."work_projects" (
+create table "better_supabase"."work_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
@@ -70,19 +23,18 @@ create table if not exists "better_supabase"."work_projects" (
   unique ("tenant_id", "key"),
   check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
-alter table "better_supabase"."work_projects" add column if not exists "budget_amount" bigint check ("budget_amount" >= 0);
-alter table "better_supabase"."work_projects" add column if not exists "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."work_projects" add column if not exists "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
+alter table "better_supabase"."work_projects" add column "budget_amount" bigint check ("budget_amount" >= 0);
+alter table "better_supabase"."work_projects" add column "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."work_projects" add column "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
 alter table "better_supabase"."work_projects" enable row level security;
 revoke all on "better_supabase"."work_projects" from public, anon, authenticated;
 grant select on "better_supabase"."work_projects" to authenticated;
 grant all on "better_supabase"."work_projects" to service_role;
-drop policy if exists work_projects_read on "better_supabase"."work_projects";
 create policy work_projects_read on "better_supabase"."work_projects"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "better_supabase"."iterations" (
+create table "better_supabase"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "team_id" uuid,
@@ -92,17 +44,16 @@ create table if not exists "better_supabase"."iterations" (
   "created_at" timestamptz not null default now(),
   check ("ends_on" >= "starts_on")
 );
-create index if not exists iterations_tenant_idx on "better_supabase"."iterations" ("tenant_id", "team_id", "starts_on");
+create index iterations_tenant_idx on "better_supabase"."iterations" ("tenant_id", "team_id", "starts_on");
 alter table "better_supabase"."iterations" enable row level security;
 revoke all on "better_supabase"."iterations" from public, anon, authenticated;
 grant select on "better_supabase"."iterations" to authenticated;
 grant all on "better_supabase"."iterations" to service_role;
-drop policy if exists iterations_read on "better_supabase"."iterations";
 create policy iterations_read on "better_supabase"."iterations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "better_supabase"."work_items" (
+create table "better_supabase"."work_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "number" bigint not null,
@@ -134,41 +85,39 @@ create table if not exists "better_supabase"."work_items" (
   unique ("tenant_id", "number"),
   check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
-create index if not exists "work_items_board_idx" on "better_supabase"."work_items" ("pipeline_id", "stage_id", "rank");
-create index if not exists "work_items_parent_idx" on "better_supabase"."work_items" ("parent_id");
-create index if not exists "work_items_project_idx" on "better_supabase"."work_items" ("project_id");
-create index if not exists "work_items_iteration_idx" on "better_supabase"."work_items" ("iteration_id");
-create index if not exists "work_items_due_idx" on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
+create index "work_items_board_idx" on "better_supabase"."work_items" ("pipeline_id", "stage_id", "rank");
+create index "work_items_parent_idx" on "better_supabase"."work_items" ("parent_id");
+create index "work_items_project_idx" on "better_supabase"."work_items" ("project_id");
+create index "work_items_iteration_idx" on "better_supabase"."work_items" ("iteration_id");
+create index "work_items_due_idx" on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."work_items" enable row level security;
 revoke all on "better_supabase"."work_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_items" to authenticated;
 grant all on "better_supabase"."work_items" to service_role;
-drop policy if exists work_items_read on "better_supabase"."work_items";
 create policy work_items_read on "better_supabase"."work_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "better_supabase"."work_item_assignees" (
+create table "better_supabase"."work_item_assignees" (
   "tenant_id" uuid not null,
   "work_item_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
   "user_id" uuid not null,
   "created_at" timestamptz not null default now(),
   primary key ("work_item_id", "user_id")
 );
-create index if not exists "work_item_assignees_user_idx" on "better_supabase"."work_item_assignees" ("user_id");
+create index "work_item_assignees_user_idx" on "better_supabase"."work_item_assignees" ("user_id");
 alter table "better_supabase"."work_item_assignees" enable row level security;
 revoke all on "better_supabase"."work_item_assignees" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_assignees" to authenticated;
 grant all on "better_supabase"."work_item_assignees" to service_role;
-drop policy if exists work_item_assignees_read on "better_supabase"."work_item_assignees";
 create policy work_item_assignees_read on "better_supabase"."work_item_assignees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-alter table "better_supabase"."work_items" add column if not exists "recurs_from" uuid references "better_supabase"."work_items" ("id") on delete set null;
-create unique index if not exists "work_items_recurs_from_idx" on "better_supabase"."work_items" ("recurs_from");
+alter table "better_supabase"."work_items" add column "recurs_from" uuid references "better_supabase"."work_items" ("id") on delete set null;
+create unique index "work_items_recurs_from_idx" on "better_supabase"."work_items" ("recurs_from");
 
-create table if not exists "better_supabase"."work_item_checklist_items" (
+create table "better_supabase"."work_item_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "work_item_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
@@ -180,12 +129,11 @@ create table if not exists "better_supabase"."work_item_checklist_items" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "work_item_checklist_item_idx" on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
+create index "work_item_checklist_item_idx" on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
 alter table "better_supabase"."work_item_checklist_items" enable row level security;
 revoke all on "better_supabase"."work_item_checklist_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_checklist_items" to authenticated;
 grant all on "better_supabase"."work_item_checklist_items" to service_role;
-drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
 create policy work_item_checklist_items_read on "better_supabase"."work_item_checklist_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
@@ -242,7 +190,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-drop trigger if exists bsb_work_item_guard on "better_supabase"."work_items";
 create trigger bsb_work_item_guard before insert or update on "better_supabase"."work_items"
 for each row execute function better_supabase.bsb_work_item_guard();
 
@@ -343,7 +290,7 @@ grant execute on function "better_supabase"."create_work_item"(uuid, jsonb, uuid
 -- field, hint, reason }] }. With atomic, the first change that fails raises
 -- its error and no change is kept. The window field ({ startAt, endAt })
 -- writes both ends in one update, so the end-after-start check sees both.
-drop function if exists "better_supabase"."update_work_items"(jsonb);
+
 create or replace function "better_supabase"."update_work_items"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
@@ -1133,113 +1080,86 @@ grant execute on function "better_supabase"."save_iteration"(uuid, uuid, jsonb) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
 create policy bsb_tenant_scope_select on "better_supabase"."work_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
 create policy bsb_tenant_scope_update on "better_supabase"."work_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
 create policy bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
 create policy bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
 create policy bsb_tenant_scope_select on "better_supabase"."work_item_assignees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_item_assignees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
 create policy bsb_tenant_scope_update on "better_supabase"."work_item_assignees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_item_assignees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_projects";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_projects";
 create policy bsb_tenant_scope_select on "better_supabase"."work_projects" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_projects";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_projects" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_projects";
 create policy bsb_tenant_scope_update on "better_supabase"."work_projects" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_projects";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_projects" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."iterations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."iterations";
 create policy bsb_tenant_scope_select on "better_supabase"."iterations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."iterations";
 create policy bsb_tenant_scope_insert on "better_supabase"."iterations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."iterations";
 create policy bsb_tenant_scope_update on "better_supabase"."iterations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."iterations";
 create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-drop trigger if exists "bsb_search_work_item_index" on "better_supabase"."work_items";
 create trigger "bsb_search_work_item_index"
   after insert or delete or update of "id", "tenant_id", "title", "identifier", "body", "archived_at" on "better_supabase"."work_items"
   for each row execute function "better_supabase"."search_index_row"('work_item', 'id');
@@ -1257,8 +1177,6 @@ $$;
 -- blocks.tasks.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."update_work_items"(jsonb);
 
 create or replace function "api"."create_work_item"(tenant uuid, attrs jsonb, assignees uuid[])
 returns jsonb

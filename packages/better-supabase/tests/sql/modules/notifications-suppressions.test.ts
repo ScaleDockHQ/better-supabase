@@ -35,7 +35,7 @@ const APP_TABLES: AnyBlocksConfig = {
 describe("notification suppressions", () => {
   it("owns a suppressions table that users read for themselves and only the service writes", () => {
     const sql = body();
-    expect(sql).toContain(`create table if not exists ${TABLE} (`);
+    expect(sql).toContain(`create table ${TABLE} (`);
     expect(sql).toContain(
       `"address" text not null check ("address" = lower("address"))`,
     );
@@ -104,10 +104,10 @@ describe("notification suppressions", () => {
   it("creates its own suppressions table next to the app's tables when the app maps none", () => {
     const sql = overApp(APP_TABLES);
     expect(sql).toContain(
-      `create table if not exists "public"."notification_suppressions" (`,
+      `create table "public"."notification_suppressions" (`,
     );
     expect(sql).not.toContain(
-      `create table if not exists "public"."notification_deliveries" (`,
+      `create table "public"."notification_deliveries" (`,
     );
   });
 

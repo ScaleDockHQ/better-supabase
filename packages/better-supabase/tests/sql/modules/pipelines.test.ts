@@ -46,11 +46,9 @@ const render = (
 describe("pipelines module", () => {
   it("renders the tables and functions without bindings", () => {
     const sql = render({});
+    expect(sql).toContain('create table "better_supabase"."pipelines"');
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."pipelines"',
-    );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."pipeline_stage_history"',
+      'create table "better_supabase"."pipeline_stage_history"',
     );
     expect(sql).toContain(
       '"better_supabase"."pipeline_board"(subject_type text, pipeline uuid, owner uuid default null)',
@@ -87,9 +85,6 @@ describe("pipelines module", () => {
       'create trigger bsb_pipeline_status_deal after insert or update of "stage_id"',
     );
     expect(sql).toContain("when 'won' then 'won' when 'lost' then 'lost'");
-    expect(sql).toContain(
-      'drop trigger if exists bsb_pipeline_status_application on "hr"."applications"',
-    );
     expect(sql).toContain('and r."deleted_at" is null');
   });
 

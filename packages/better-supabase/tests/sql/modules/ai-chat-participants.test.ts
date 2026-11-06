@@ -10,7 +10,7 @@ describe("ai-chat participants", () => {
     const sql = body();
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."ai_chat_participants" (',
+      'create table "better_supabase"."ai_chat_participants" (',
     );
     expect(sql).toContain('"id" uuid primary key default gen_random_uuid()');
     expect(sql).toContain(

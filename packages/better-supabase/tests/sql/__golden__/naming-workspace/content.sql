@@ -1,29 +1,14 @@
 -- ==== schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:da411d48b67da1cb784f0dfe972ff55cad703450cb1c5c6237d012239a64ce20
+-- @bsb-hash sha256:cbf56f1e96c6ac5ff4045e6d41ed2eff851f0fe266af8fc8362a8099227a5d1f
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Content entries per organization: typed, localized pages and posts with a
 -- slug, drafted, scheduled and published, readable by anyone once published.
-create table if not exists "better_supabase"."content_entries" (
+create table "better_supabase"."content_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.types and options.locales; the functions check both.
@@ -50,17 +35,16 @@ create table if not exists "better_supabase"."content_entries" (
   check ("status" <> 'scheduled' or "publish_at" is not null),
   check ("status" <> 'published' or "published_at" is not null)
 );
-create index if not exists "content_entries_published_idx" on "better_supabase"."content_entries" ("tenant_id", "type", "locale", "published_at" desc) where "status" = 'published';
-create index if not exists "content_entries_due_idx" on "better_supabase"."content_entries" ("publish_at") where "status" = 'scheduled';
-create index if not exists "content_entries_updated_idx" on "better_supabase"."content_entries" ("tenant_id", "updated_at" desc);
-create index if not exists "content_entries_author_idx" on "better_supabase"."content_entries" ("author_id");
-create index if not exists "content_entries_cover_idx" on "better_supabase"."content_entries" ("cover_attachment_id");
+create index "content_entries_published_idx" on "better_supabase"."content_entries" ("tenant_id", "type", "locale", "published_at" desc) where "status" = 'published';
+create index "content_entries_due_idx" on "better_supabase"."content_entries" ("publish_at") where "status" = 'scheduled';
+create index "content_entries_updated_idx" on "better_supabase"."content_entries" ("tenant_id", "updated_at" desc);
+create index "content_entries_author_idx" on "better_supabase"."content_entries" ("author_id");
+create index "content_entries_cover_idx" on "better_supabase"."content_entries" ("cover_attachment_id");
 
 alter table "better_supabase"."content_entries" enable row level security;
 revoke all on "better_supabase"."content_entries" from public, anon, authenticated;
 grant select on "better_supabase"."content_entries" to authenticated;
 grant all on "better_supabase"."content_entries" to service_role;
-drop policy if exists content_entries_read on "better_supabase"."content_entries";
 create policy content_entries_read on "better_supabase"."content_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')));
@@ -611,24 +595,19 @@ grant execute on function "better_supabase"."public_content_entries"(uuid, text,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."content_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."content_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."content_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."content_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

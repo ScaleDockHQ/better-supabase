@@ -1,30 +1,15 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:9cb344467be696c73c106e5f22238f6a88ebbdcef26a40dc7a50da60f86e223a
+-- @bsb-hash sha256:3a29de0dcfe34f257722ecb5aed2c9689d644a8b1ae80a1d5c44ac931b2062bf
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."api_keys";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- API keys: `<prefix>_<public id>_<secret>`. Only the SHA-256 of the secret
 -- is stored. A key acts as its user (user_id), as its tenant (organization_id
 -- without user_id), or as a user inside one tenant (both).
-create table if not exists "better_supabase"."api_keys" (
+create table "better_supabase"."api_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
@@ -47,13 +32,12 @@ create table if not exists "better_supabase"."api_keys" (
 -- verify_api_key updates the counters on every request; free space on each
 -- page keeps those updates HOT (no index writes).
 alter table "better_supabase"."api_keys" set (fillfactor = 80);
-create index if not exists api_keys_tenant_idx on "better_supabase"."api_keys" ("organization_id");
-create index if not exists api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
-create index if not exists api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
-create index if not exists api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
+create index api_keys_tenant_idx on "better_supabase"."api_keys" ("organization_id");
+create index api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
+create index api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
+create index api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
 -- What a key is for (blocks.api-keys.options.kinds), such as client or export.
-alter table "better_supabase"."api_keys" add column if not exists "kind" text;
-alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;
+alter table "better_supabase"."api_keys" add column "kind" text;
 alter table "better_supabase"."api_keys" enable row level security;
 revoke all on "better_supabase"."api_keys" from public, anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;
@@ -61,9 +45,7 @@ grant all on "better_supabase"."api_keys" to service_role;
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
+
 create or replace function "better_supabase"."create_api_key"(
   name text,
   public_id text,
@@ -451,30 +433,15 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:628590683951eac5da0ee4da9239216389a61d9f018c0dd86a81d6713a04a044
+-- @bsb-hash sha256:611a2b2e6127d522d5a43663722f80edfd331a718a0f3e99f37417499f4b85ec
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."api_keys";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- API keys: `<prefix>_<public id>_<secret>`. Only the SHA-256 of the secret
 -- is stored. A key acts as its user (user_id), as its tenant (organization_id
 -- without user_id), or as a user inside one tenant (both).
-create table if not exists "better_supabase"."api_keys" (
+create table "better_supabase"."api_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
@@ -497,13 +464,12 @@ create table if not exists "better_supabase"."api_keys" (
 -- verify_api_key updates the counters on every request; free space on each
 -- page keeps those updates HOT (no index writes).
 alter table "better_supabase"."api_keys" set (fillfactor = 80);
-create index if not exists api_keys_tenant_idx on "better_supabase"."api_keys" ("organization_id");
-create index if not exists api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
-create index if not exists api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
-create index if not exists api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
+create index api_keys_tenant_idx on "better_supabase"."api_keys" ("organization_id");
+create index api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
+create index api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
+create index api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
 -- What a key is for (blocks.api-keys.options.kinds), such as client or export.
-alter table "better_supabase"."api_keys" add column if not exists "kind" text;
-alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;
+alter table "better_supabase"."api_keys" add column "kind" text;
 alter table "better_supabase"."api_keys" enable row level security;
 revoke all on "better_supabase"."api_keys" from public, anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;
@@ -511,9 +477,7 @@ grant all on "better_supabase"."api_keys" to service_role;
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
+
 create or replace function "better_supabase"."create_api_key"(
   name text,
   public_id text,
@@ -935,24 +899,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:5d77b215b5b40ab1409df9dc36bc807b903184003b59eaab76f9e94ea9eff078
+-- @bsb-hash sha256:e1319819917f4acf8ca3c554ec3b74b0276be56c7d67253d27ca526c44c76db7
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."api_keys";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."api_keys";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."api_keys";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."api_keys";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."api_keys";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -962,7 +912,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- API keys: `<prefix>_<public id>_<secret>`. Only the SHA-256 of the secret
 -- is stored. A key acts as its user (user_id), as its tenant (organization_id
 -- without user_id), or as a user inside one tenant (both).
-create table if not exists "app_private"."api_keys" (
+create table "app_private"."api_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
@@ -985,13 +935,12 @@ create table if not exists "app_private"."api_keys" (
 -- verify_api_key updates the counters on every request; free space on each
 -- page keeps those updates HOT (no index writes).
 alter table "app_private"."api_keys" set (fillfactor = 80);
-create index if not exists api_keys_tenant_idx on "app_private"."api_keys" ("organization_id");
-create index if not exists api_keys_user_idx on "app_private"."api_keys" ("user_id");
-create index if not exists api_keys_rotated_from_idx on "app_private"."api_keys" ("rotated_from");
-create index if not exists api_keys_created_by_idx on "app_private"."api_keys" ("created_by");
+create index api_keys_tenant_idx on "app_private"."api_keys" ("organization_id");
+create index api_keys_user_idx on "app_private"."api_keys" ("user_id");
+create index api_keys_rotated_from_idx on "app_private"."api_keys" ("rotated_from");
+create index api_keys_created_by_idx on "app_private"."api_keys" ("created_by");
 -- What a key is for (blocks.api-keys.options.kinds), such as client or export.
-alter table "app_private"."api_keys" add column if not exists "kind" text;
-alter table "app_private"."api_keys" drop constraint if exists api_keys_kind_check;
+alter table "app_private"."api_keys" add column "kind" text;
 alter table "app_private"."api_keys" enable row level security;
 revoke all on "app_private"."api_keys" from public, anon, authenticated;
 grant all on "app_private"."api_keys" to service_role;
@@ -999,9 +948,7 @@ grant all on "app_private"."api_keys" to service_role;
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
-drop function if exists "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
-drop function if exists "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
-drop function if exists "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
+
 create or replace function "app_private"."create_api_key"(
   name text,
   public_id text,
@@ -1389,30 +1336,15 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:f61242234302d7e7790aea4fe081fae8cc4aef579768da70d134a667bf859567
+-- @bsb-hash sha256:d8ff5a780d0496b5c4caf36daf87bb7016533b99cc37ea2a558b8ce0160f362f
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."api_keys";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- API keys: `<prefix>_<public id>_<secret>`. Only the SHA-256 of the secret
 -- is stored. A key acts as its user (user_id), as its tenant (organization_id
 -- without user_id), or as a user inside one tenant (both).
-create table if not exists "better_supabase"."api_keys" (
+create table "better_supabase"."api_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
@@ -1435,13 +1367,12 @@ create table if not exists "better_supabase"."api_keys" (
 -- verify_api_key updates the counters on every request; free space on each
 -- page keeps those updates HOT (no index writes).
 alter table "better_supabase"."api_keys" set (fillfactor = 80);
-create index if not exists api_keys_tenant_idx on "better_supabase"."api_keys" ("organization_id");
-create index if not exists api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
-create index if not exists api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
-create index if not exists api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
+create index api_keys_tenant_idx on "better_supabase"."api_keys" ("organization_id");
+create index api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
+create index api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
+create index api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
 -- What a key is for (blocks.api-keys.options.kinds), such as client or export.
-alter table "better_supabase"."api_keys" add column if not exists "kind" text;
-alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;
+alter table "better_supabase"."api_keys" add column "kind" text;
 alter table "better_supabase"."api_keys" enable row level security;
 revoke all on "better_supabase"."api_keys" from public, anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;
@@ -1449,9 +1380,7 @@ grant all on "better_supabase"."api_keys" to service_role;
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
+
 create or replace function "better_supabase"."create_api_key"(
   name text,
   public_id text,
@@ -1826,10 +1755,6 @@ grant execute on function "better_supabase"."api_key_tenant"() to anon, authenti
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-drop function if exists "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
-drop function if exists "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
-drop function if exists "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
-
 create or replace function "api"."create_api_key"(name text, public_id text, secret_hash text, tenant uuid default null, personal boolean default false, scopes text[] default '{}', expires_at timestamptz default null, rate_limit integer default null, prefix text default 'bs', kind text default null)
 returns jsonb
 language sql
@@ -1913,25 +1838,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:fa25bf6ed38d35f754583144046cfb6f317ecbc7802e36feaa4402d5e0e34138
+-- @bsb-hash sha256:4457874af0091cf967bb511cf1ae50f1e9b3f0c4b5c282bdfcd01732020748af
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."api_keys";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- API keys: `<prefix>_<public id>_<secret>`. Only the SHA-256 of the secret
 -- is stored. A key acts as its user (user_id), as its tenant (organization_id
@@ -1966,9 +1876,7 @@ grant all on "better_supabase"."api_keys" to service_role;
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
+
 create or replace function "better_supabase"."create_api_key"(
   name text,
   public_id text,
@@ -2356,30 +2264,15 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:e0dd1faf263684e5cd719fb7819a8cc5958d31af5bdac320ee587c93d17998b2
+-- @bsb-hash sha256:e5c68be1d697cce96a9f215da58f49c08a5865df5b32c7c45923f6c36df7eebc
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."api_keys";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."api_keys";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- API keys: `<prefix>_<public id>_<secret>`. Only the SHA-256 of the secret
 -- is stored. A key acts as its user (user_id), as its tenant (organization_id
 -- without user_id), or as a user inside one tenant (both).
-create table if not exists "better_supabase"."api_keys" (
+create table "better_supabase"."api_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
@@ -2402,13 +2295,12 @@ create table if not exists "better_supabase"."api_keys" (
 -- verify_api_key updates the counters on every request; free space on each
 -- page keeps those updates HOT (no index writes).
 alter table "better_supabase"."api_keys" set (fillfactor = 80);
-create index if not exists api_keys_tenant_idx on "better_supabase"."api_keys" ("org_id");
-create index if not exists api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
-create index if not exists api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
-create index if not exists api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
+create index api_keys_tenant_idx on "better_supabase"."api_keys" ("org_id");
+create index api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
+create index api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
+create index api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
 -- What a key is for (blocks.api-keys.options.kinds), such as client or export.
-alter table "better_supabase"."api_keys" add column if not exists "kind" text;
-alter table "better_supabase"."api_keys" drop constraint if exists api_keys_kind_check;
+alter table "better_supabase"."api_keys" add column "kind" text;
 alter table "better_supabase"."api_keys" enable row level security;
 revoke all on "better_supabase"."api_keys" from public, anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;
@@ -2416,9 +2308,7 @@ grant all on "better_supabase"."api_keys" to service_role;
 -- Creates a key. TypeScript generates the public id and the secret and sends
 -- only the secret's SHA-256. A tenant key needs api_keys.manage; a personal
 -- key in a tenant needs api_keys.own there.
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text);
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, jsonb);
-drop function if exists "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text, jsonb);
+
 create or replace function "better_supabase"."create_api_key"(
   name text,
   public_id text,

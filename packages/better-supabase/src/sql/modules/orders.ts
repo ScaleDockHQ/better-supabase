@@ -424,7 +424,7 @@ function tables(ctx: BlockSqlContext, names: OrdersNames): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   const ofOrder = (table: string): string => {

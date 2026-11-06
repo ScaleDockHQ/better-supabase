@@ -55,9 +55,7 @@ const CENTRAKIT: BlockConfig = {
 describe("audit module", () => {
   it("keeps the managed defaults and adds event naming", () => {
     const sql = audit();
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."audit_events" (',
-    );
+    expect(sql).toContain('create table "better_supabase"."audit_events" (');
     expect(sql).toContain(
       "coalesce(entry.event_prefix, tg_table_name) || '.' || case tg_op",
     );
@@ -65,10 +63,7 @@ describe("audit module", () => {
       "create or replace function better_supabase.audit_event(",
     );
     expect(sql).toContain("coalesce(source, 'app')");
-    expect(sql).toContain('drop trigger if exists "bsb_audit_append_only"');
-    expect(sql).toContain(
-      'drop policy if exists bsb_audit_read on "better_supabase"."audit_events";',
-    );
+    expect(sql).not.toContain('drop trigger if exists "bsb_audit_append_only"');
     expect(sql).not.toContain("audit_events_restricted");
     expect(sql).toContain(
       "execute function better_supabase.audit_row_change(%L)",
@@ -139,7 +134,7 @@ describe("audit module", () => {
     expect(sql).toMatch(/grant select \([^)]*"actor_id"[^)]*\) on/);
     expect(sql).not.toMatch(/grant select \([^)]*"impersonated_by"/);
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."audit_events_restricted"',
+      'create table "better_supabase"."audit_events_restricted"',
     );
     expect(sql).toContain('to "service_role", "authenticated";');
   });
@@ -220,7 +215,7 @@ describe("audit module", () => {
       "coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id'))))",
     );
     expect(sql).toContain(
-      'create index if not exists audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;',
+      'create index audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;',
     );
   });
 
@@ -267,23 +262,17 @@ describe("audit module", () => {
   it("chains entries through the shared chain tag only with options.chain", () => {
     const sql = audit({ options: { chain: true } });
     expect(sql).toContain(
-      'alter table "better_supabase"."audit_events" add column if not exists row_hash bytea;',
+      'alter table "better_supabase"."audit_events" add column row_hash bytea;',
     );
     expect(sql).toContain(
       `select better_supabase.chain('"better_supabase"."audit_events"', 'organization_id');`,
     );
-    expect(sql).toContain(
-      "drop function if exists better_supabase.audit_chain_link();",
-    );
     expect(sql).not.toContain(
       "create or replace function better_supabase.verify_audit_chain",
     );
-    expect(audit()).toContain(
-      'drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";',
-    );
     expect(audit()).not.toContain("select better_supabase.chain(");
     expect(appAudit({ ...CENTRAKIT, options: { chain: true } })).not.toContain(
-      "add column if not exists row_hash",
+      "add column row_hash",
     );
   });
 
@@ -529,18 +518,9 @@ describe("audit value mapping", () => {
     );
   });
 
-  it("drops the previous signatures of audit_event and audit_event_trusted", () => {
+  it("grants the current signature of audit_event", () => {
     const sql = audit();
 
-    const previous =
-      "text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text)";
-
-    expect(sql).toContain(
-      `drop function if exists better_supabase.audit_event(${previous};`,
-    );
-    expect(sql).toContain(
-      `drop function if exists better_supabase.audit_event_trusted(${previous};`,
-    );
     expect(sql).toContain(
       "grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to",
     );

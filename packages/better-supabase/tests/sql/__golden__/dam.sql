@@ -1,40 +1,17 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:58fc8f44f9b38e62781186a652d5a576a89c113ddbdab310d892ae9dadd34a2e
+-- @bsb-hash sha256:f57dd349307897d5661c5594e4cd62186a8b3a4db6d002063084dc4f905b4688
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_renditions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Digital asset management on the drive: renditions of a file and the usage
 -- rights that say who may use it, where and until when.
 
 -- The derived versions of a drive file: a thumbnail, a web size. One row per
 -- file and kind; the files live in storage under path.
-create table if not exists "better_supabase"."dam_renditions" (
+create table "better_supabase"."dam_renditions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
@@ -54,14 +31,13 @@ alter table "better_supabase"."dam_renditions" enable row level security;
 revoke all on "better_supabase"."dam_renditions" from public, anon, authenticated;
 grant select on "better_supabase"."dam_renditions" to authenticated;
 grant all on "better_supabase"."dam_renditions" to service_role;
-drop policy if exists dam_renditions_read on "better_supabase"."dam_renditions";
 create policy dam_renditions_read on "better_supabase"."dam_renditions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
 
 -- Who may use a file, where and until when. A row without territory or channel
 -- covers all of them; one without expires_on never ends. A revoked right stays.
-create table if not exists "better_supabase"."dam_usage_rights" (
+create table "better_supabase"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
@@ -78,13 +54,12 @@ create table if not exists "better_supabase"."dam_usage_rights" (
   "created_at" timestamptz not null default now(),
   check ("expires_on" is null or "expires_on" >= "starts_on")
 );
-create index if not exists "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("tenant_id", "node_id");
-create index if not exists "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
+create index "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("tenant_id", "node_id");
+create index "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
 alter table "better_supabase"."dam_usage_rights" enable row level security;
 revoke all on "better_supabase"."dam_usage_rights" from public, anon, authenticated;
 grant select on "better_supabase"."dam_usage_rights" to authenticated;
 grant all on "better_supabase"."dam_usage_rights" to service_role;
-drop policy if exists dam_usage_rights_read on "better_supabase"."dam_usage_rights";
 create policy dam_usage_rights_read on "better_supabase"."dam_usage_rights"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
@@ -338,45 +313,35 @@ grant execute on function "better_supabase"."notify_expiring_usage_rights"(integ
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."dam_usage_rights";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_select on "better_supabase"."dam_usage_rights" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_update on "better_supabase"."dam_usage_rights" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dam_renditions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_select on "better_supabase"."dam_renditions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_insert on "better_supabase"."dam_renditions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_update on "better_supabase"."dam_renditions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -398,40 +363,17 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:9f88f757e143e2b2a47ae5b3bc01bf4739c42a1cd2f118b7cec7424d8e337a2f
+-- @bsb-hash sha256:c394103e7c4149241486556672a1e2c46a2a3bd4f54ad7072cb5d4b3f57f457d
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_renditions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Digital asset management on the drive: renditions of a file and the usage
 -- rights that say who may use it, where and until when.
 
 -- The derived versions of a drive file: a thumbnail, a web size. One row per
 -- file and kind; the files live in storage under path.
-create table if not exists "better_supabase"."dam_renditions" (
+create table "better_supabase"."dam_renditions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
@@ -451,14 +393,13 @@ alter table "better_supabase"."dam_renditions" enable row level security;
 revoke all on "better_supabase"."dam_renditions" from public, anon, authenticated;
 grant select on "better_supabase"."dam_renditions" to authenticated;
 grant all on "better_supabase"."dam_renditions" to service_role;
-drop policy if exists dam_renditions_read on "better_supabase"."dam_renditions";
 create policy dam_renditions_read on "better_supabase"."dam_renditions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
 
 -- Who may use a file, where and until when. A row without territory or channel
 -- covers all of them; one without expires_on never ends. A revoked right stays.
-create table if not exists "better_supabase"."dam_usage_rights" (
+create table "better_supabase"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
@@ -475,13 +416,12 @@ create table if not exists "better_supabase"."dam_usage_rights" (
   "created_at" timestamptz not null default now(),
   check ("expires_on" is null or "expires_on" >= "starts_on")
 );
-create index if not exists "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("tenant_id", "node_id");
-create index if not exists "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
+create index "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("tenant_id", "node_id");
+create index "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
 alter table "better_supabase"."dam_usage_rights" enable row level security;
 revoke all on "better_supabase"."dam_usage_rights" from public, anon, authenticated;
 grant select on "better_supabase"."dam_usage_rights" to authenticated;
 grant all on "better_supabase"."dam_usage_rights" to service_role;
-drop policy if exists dam_usage_rights_read on "better_supabase"."dam_usage_rights";
 create policy dam_usage_rights_read on "better_supabase"."dam_usage_rights"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
@@ -804,45 +744,35 @@ grant execute on function "better_supabase"."notify_expiring_usage_rights"(integ
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."dam_usage_rights";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_select on "better_supabase"."dam_usage_rights" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_update on "better_supabase"."dam_usage_rights" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dam_renditions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_select on "better_supabase"."dam_renditions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_insert on "better_supabase"."dam_renditions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_update on "better_supabase"."dam_renditions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -872,32 +802,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:b7d771e535d2c73fb75af0c6b3baff25775a9f52c0df428545cc01639fb210ed
+-- @bsb-hash sha256:d7363fe57d15f62d076474e1d777fac3e7a7a8d1267f2910fa7e8669f521858e
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."dam_usage_rights";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."dam_renditions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -909,7 +817,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 
 -- The derived versions of a drive file: a thumbnail, a web size. One row per
 -- file and kind; the files live in storage under path.
-create table if not exists "app_private"."dam_renditions" (
+create table "app_private"."dam_renditions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
@@ -929,14 +837,13 @@ alter table "app_private"."dam_renditions" enable row level security;
 revoke all on "app_private"."dam_renditions" from public, anon, authenticated;
 grant select on "app_private"."dam_renditions" to authenticated;
 grant all on "app_private"."dam_renditions" to service_role;
-drop policy if exists dam_renditions_read on "app_private"."dam_renditions";
 create policy dam_renditions_read on "app_private"."dam_renditions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
 
 -- Who may use a file, where and until when. A row without territory or channel
 -- covers all of them; one without expires_on never ends. A revoked right stays.
-create table if not exists "app_private"."dam_usage_rights" (
+create table "app_private"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
@@ -953,13 +860,12 @@ create table if not exists "app_private"."dam_usage_rights" (
   "created_at" timestamptz not null default now(),
   check ("expires_on" is null or "expires_on" >= "starts_on")
 );
-create index if not exists "dam_usage_rights_node_idx" on "app_private"."dam_usage_rights" ("tenant_id", "node_id");
-create index if not exists "dam_usage_rights_expiry_idx" on "app_private"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
+create index "dam_usage_rights_node_idx" on "app_private"."dam_usage_rights" ("tenant_id", "node_id");
+create index "dam_usage_rights_expiry_idx" on "app_private"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
 alter table "app_private"."dam_usage_rights" enable row level security;
 revoke all on "app_private"."dam_usage_rights" from public, anon, authenticated;
 grant select on "app_private"."dam_usage_rights" to authenticated;
 grant all on "app_private"."dam_usage_rights" to service_role;
-drop policy if exists dam_usage_rights_read on "app_private"."dam_usage_rights";
 create policy dam_usage_rights_read on "app_private"."dam_usage_rights"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
@@ -1213,45 +1119,35 @@ grant execute on function "app_private"."notify_expiring_usage_rights"(integer) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."dam_usage_rights";
-drop policy if exists bsb_tenant_scope_select on "app_private"."dam_usage_rights";
 create policy bsb_tenant_scope_select on "app_private"."dam_usage_rights" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."dam_usage_rights";
 create policy bsb_tenant_scope_insert on "app_private"."dam_usage_rights" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."dam_usage_rights";
 create policy bsb_tenant_scope_update on "app_private"."dam_usage_rights" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."dam_usage_rights";
 create policy bsb_tenant_scope_delete on "app_private"."dam_usage_rights" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."dam_renditions";
-drop policy if exists bsb_tenant_scope_select on "app_private"."dam_renditions";
 create policy bsb_tenant_scope_select on "app_private"."dam_renditions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."dam_renditions";
 create policy bsb_tenant_scope_insert on "app_private"."dam_renditions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."dam_renditions";
 create policy bsb_tenant_scope_update on "app_private"."dam_renditions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."dam_renditions";
 create policy bsb_tenant_scope_delete on "app_private"."dam_renditions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1273,40 +1169,17 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:aecdb1b89fb9d5236250b4780306076275e9dba5bec96d0e46d42dac4385b088
+-- @bsb-hash sha256:5ecbe46ae7c90b86fcb0cc0fcfeb821512722cf785d7b16465fb2d471b35bbaf
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_renditions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Digital asset management on the drive: renditions of a file and the usage
 -- rights that say who may use it, where and until when.
 
 -- The derived versions of a drive file: a thumbnail, a web size. One row per
 -- file and kind; the files live in storage under path.
-create table if not exists "better_supabase"."dam_renditions" (
+create table "better_supabase"."dam_renditions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
@@ -1326,14 +1199,13 @@ alter table "better_supabase"."dam_renditions" enable row level security;
 revoke all on "better_supabase"."dam_renditions" from public, anon, authenticated;
 grant select on "better_supabase"."dam_renditions" to authenticated;
 grant all on "better_supabase"."dam_renditions" to service_role;
-drop policy if exists dam_renditions_read on "better_supabase"."dam_renditions";
 create policy dam_renditions_read on "better_supabase"."dam_renditions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
 
 -- Who may use a file, where and until when. A row without territory or channel
 -- covers all of them; one without expires_on never ends. A revoked right stays.
-create table if not exists "better_supabase"."dam_usage_rights" (
+create table "better_supabase"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
@@ -1350,13 +1222,12 @@ create table if not exists "better_supabase"."dam_usage_rights" (
   "created_at" timestamptz not null default now(),
   check ("expires_on" is null or "expires_on" >= "starts_on")
 );
-create index if not exists "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("tenant_id", "node_id");
-create index if not exists "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
+create index "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("tenant_id", "node_id");
+create index "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
 alter table "better_supabase"."dam_usage_rights" enable row level security;
 revoke all on "better_supabase"."dam_usage_rights" from public, anon, authenticated;
 grant select on "better_supabase"."dam_usage_rights" to authenticated;
 grant all on "better_supabase"."dam_usage_rights" to service_role;
-drop policy if exists dam_usage_rights_read on "better_supabase"."dam_usage_rights";
 create policy dam_usage_rights_read on "better_supabase"."dam_usage_rights"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
@@ -1610,45 +1481,35 @@ grant execute on function "better_supabase"."notify_expiring_usage_rights"(integ
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."dam_usage_rights";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_select on "better_supabase"."dam_usage_rights" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_update on "better_supabase"."dam_usage_rights" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dam_renditions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_select on "better_supabase"."dam_renditions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_insert on "better_supabase"."dam_renditions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_update on "better_supabase"."dam_renditions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1740,33 +1601,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:e04d01795f1f444e7ca2e8617d985dadab5ea510101c42832ab11fda2da217f3
+-- @bsb-hash sha256:ee07afab1614489c8ca815013c11974aa5b24ecd4de03503946fbe2aa212474d
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_renditions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Digital asset management on the drive: renditions of a file and the usage
 -- rights that say who may use it, where and until when.
@@ -1791,7 +1629,6 @@ create unique index if not exists "bsb_dam_renditions_tenant_node_kind_key" on "
 alter table "better_supabase"."dam_renditions" enable row level security;
 grant select on "better_supabase"."dam_renditions" to authenticated;
 grant all on "better_supabase"."dam_renditions" to service_role;
-drop policy if exists bsb_dam_renditions_read on "better_supabase"."dam_renditions";
 create policy bsb_dam_renditions_read on "better_supabase"."dam_renditions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
@@ -1818,7 +1655,6 @@ create index if not exists "dam_usage_rights_expiry_idx" on "better_supabase"."d
 alter table "better_supabase"."dam_usage_rights" enable row level security;
 grant select on "better_supabase"."dam_usage_rights" to authenticated;
 grant all on "better_supabase"."dam_usage_rights" to service_role;
-drop policy if exists bsb_dam_usage_rights_read on "better_supabase"."dam_usage_rights";
 create policy bsb_dam_usage_rights_read on "better_supabase"."dam_usage_rights"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
@@ -2072,45 +1908,35 @@ grant execute on function "better_supabase"."notify_expiring_usage_rights"(integ
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."dam_usage_rights";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_select on "better_supabase"."dam_usage_rights" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_update on "better_supabase"."dam_usage_rights" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dam_renditions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_select on "better_supabase"."dam_renditions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_insert on "better_supabase"."dam_renditions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_update on "better_supabase"."dam_renditions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2132,40 +1958,17 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:60e78088fbdbe538179338c051665ec1569dcf0d63fa8d4699c08062f5e37f9d
+-- @bsb-hash sha256:72761d251beed2c8720e93540a397162869e4f42e320fd7f483218f0cfd676fb
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_usage_rights";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_renditions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_renditions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Digital asset management on the drive: renditions of a file and the usage
 -- rights that say who may use it, where and until when.
 
 -- The derived versions of a drive file: a thumbnail, a web size. One row per
 -- file and kind; the files live in storage under path.
-create table if not exists "better_supabase"."dam_renditions" (
+create table "better_supabase"."dam_renditions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "node_id" uuid not null,
@@ -2185,14 +1988,13 @@ alter table "better_supabase"."dam_renditions" enable row level security;
 revoke all on "better_supabase"."dam_renditions" from public, anon, authenticated;
 grant select on "better_supabase"."dam_renditions" to authenticated;
 grant all on "better_supabase"."dam_renditions" to service_role;
-drop policy if exists dam_renditions_read on "better_supabase"."dam_renditions";
 create policy dam_renditions_read on "better_supabase"."dam_renditions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('dam.read')));
 
 -- Who may use a file, where and until when. A row without territory or channel
 -- covers all of them; one without expires_on never ends. A revoked right stays.
-create table if not exists "better_supabase"."dam_usage_rights" (
+create table "better_supabase"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "node_id" uuid not null,
@@ -2209,13 +2011,12 @@ create table if not exists "better_supabase"."dam_usage_rights" (
   "created_at" timestamptz not null default now(),
   check ("expires_on" is null or "expires_on" >= "starts_on")
 );
-create index if not exists "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("org_id", "node_id");
-create index if not exists "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
+create index "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("org_id", "node_id");
+create index "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
 alter table "better_supabase"."dam_usage_rights" enable row level security;
 revoke all on "better_supabase"."dam_usage_rights" from public, anon, authenticated;
 grant select on "better_supabase"."dam_usage_rights" to authenticated;
 grant all on "better_supabase"."dam_usage_rights" to service_role;
-drop policy if exists dam_usage_rights_read on "better_supabase"."dam_usage_rights";
 create policy dam_usage_rights_read on "better_supabase"."dam_usage_rights"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('dam.read')));
@@ -2469,45 +2270,35 @@ grant execute on function "better_supabase"."notify_expiring_usage_rights"(integ
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."dam_usage_rights";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_select on "better_supabase"."dam_usage_rights" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_insert on "better_supabase"."dam_usage_rights" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_update on "better_supabase"."dam_usage_rights" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights";
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_usage_rights" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dam_renditions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_select on "better_supabase"."dam_renditions" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('dam.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_insert on "better_supabase"."dam_renditions" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_update on "better_supabase"."dam_renditions" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dam_renditions";
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

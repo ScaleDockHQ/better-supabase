@@ -1,32 +1,9 @@
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:78fed01fba11eb5357991ce344e97a8127aa8997bf2ca5d3b786774712668ca6
+-- @bsb-hash sha256:068ae8a10d66f2f6d0332962eff53122071bebc90058a083ae14b08a4a2d7549
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."recurrence_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."reminders";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."reminders";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."reminders";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."reminders";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."reminders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- centrakit.recurrence_rules is the app's table, and it has every column this block needs.
 alter table "centrakit"."recurrence_rules" enable row level security;
@@ -41,28 +18,10 @@ grant all on "centrakit"."reminders" to service_role;
 create index if not exists "reminders_subject_idx" on "centrakit"."reminders" ("subject_type", "subject_id");
 create index if not exists "reminders_tenant_idx" on "centrakit"."reminders" ("tenant_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"centrakit"."reminders"'::regclass and conname = 'reminders_offset_check'
-  ) then
-    begin
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"centrakit"."reminders"', 'reminders_offset_check', '"centrakit"."reminders"', 'reminders_offset_check';
-    end;
-  end if;
-end;
-$$;
 -- centrakit.reminder_deliveries is the app's table, and it has every column this block needs.
 alter table "centrakit"."reminder_deliveries" enable row level security;
 grant select on "centrakit"."reminder_deliveries" to authenticated;
 grant all on "centrakit"."reminder_deliveries" to service_role;
-
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
@@ -195,7 +154,7 @@ grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamp
 
 -- Every reminder's schedule: its subject's rule, its own time, or the
 -- subject's `at` column. Delivery dedupes on (reminder, occurrence).
-drop function if exists "better_supabase"."list_reminder_schedule"();
+
 create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
@@ -241,39 +200,29 @@ grant execute on function "better_supabase"."list_reminder_schedule"() to servic
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "centrakit"."recurrence_rules";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."recurrence_rules";
 create policy bsb_tenant_scope_select on "centrakit"."recurrence_rules" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."recurrence_rules";
 create policy bsb_tenant_scope_insert on "centrakit"."recurrence_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."recurrence_rules";
 create policy bsb_tenant_scope_update on "centrakit"."recurrence_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."recurrence_rules";
 create policy bsb_tenant_scope_delete on "centrakit"."recurrence_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "centrakit"."reminders";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."reminders";
 create policy bsb_tenant_scope_select on "centrakit"."reminders" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."reminders";
 create policy bsb_tenant_scope_insert on "centrakit"."reminders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."reminders";
 create policy bsb_tenant_scope_update on "centrakit"."reminders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."reminders";
 create policy bsb_tenant_scope_delete on "centrakit"."reminders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

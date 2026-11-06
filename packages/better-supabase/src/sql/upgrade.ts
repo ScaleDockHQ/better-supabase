@@ -12,6 +12,7 @@ import {
   withProviderDefaults,
 } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
+import { rerunnableDdl } from "./pipeline/static.ts";
 import {
   SQL_MODULES,
   checkMigrationOptions,
@@ -160,7 +161,11 @@ export function upgradePlan(
       .map((step) => ({
         from: step.from,
         description: step.description,
-        sql: step.sql(moves.includes(step) ? ctx : contextAt(step.from)).trim(),
+        // Upgrade steps run over an installed database, so each statement
+        // they repeat is rerunnable.
+        sql: rerunnableDdl(
+          step.sql(moves.includes(step) ? ctx : contextAt(step.from)).trim(),
+        ),
       }));
 
     return [{ module: entry.module, from: entry.version, to, steps }];

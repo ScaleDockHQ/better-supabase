@@ -37,7 +37,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: ctx.scope.check(tenant, sql.read),
   }),
-  { drop: true, target: ctx.table(logical) },
+  { target: ctx.table(logical) },
 )}`;
 
   const invalid = (message: string): string =>

@@ -1,30 +1,15 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:89a9be10a5436ecb157955841b16274ed3575d2f4fd9d25a05b2e82ad3e1125b
+-- @bsb-hash sha256:978ac1993591fed9bbb6060bc64c603599e92770ad81aeaa794d084ca1f5e85a
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Durable output streams: a writer appends ordered chunks (bytea) and any reader
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
-create table if not exists "better_supabase"."streams" (
+create table "better_supabase"."streams" (
   "id" text primary key check (length("id") >= 1 and length("id") <= 200),
   "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
@@ -35,19 +20,18 @@ create table if not exists "better_supabase"."streams" (
   "cancel_requested_at" timestamptz,
   "expires_at" timestamptz not null default now() + interval '1 day'
 );
-create index if not exists streams_owner_idx on "better_supabase"."streams" ("owner_id");
-create index if not exists streams_tenant_idx on "better_supabase"."streams" ("tenant_id");
-create index if not exists streams_expires_idx on "better_supabase"."streams" ("expires_at");
+create index streams_owner_idx on "better_supabase"."streams" ("owner_id");
+create index streams_tenant_idx on "better_supabase"."streams" ("tenant_id");
+create index streams_expires_idx on "better_supabase"."streams" ("expires_at");
 alter table "better_supabase"."streams" enable row level security;
 revoke all on "better_supabase"."streams" from public, anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
-drop policy if exists streams_owner_read on "better_supabase"."streams";
 create policy streams_owner_read on "better_supabase"."streams"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."stream_chunks" (
+create table "better_supabase"."stream_chunks" (
   "stream_id" text not null references "better_supabase"."streams" ("id") on delete cascade,
   "idx" integer not null check ("idx" >= 0),
   "data" bytea not null,
@@ -57,7 +41,6 @@ alter table "better_supabase"."stream_chunks" enable row level security;
 revoke all on "better_supabase"."stream_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
-drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
 create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
   for select to authenticated
   using (exists (
@@ -69,12 +52,12 @@ create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- publisher (get, set with a TTL, incr), for postgresPublisher. A value that is
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
-create table if not exists "better_supabase"."stream_kv" (
+create table "better_supabase"."stream_kv" (
   "key" text primary key check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );
-create index if not exists stream_kv_expires_idx on "better_supabase"."stream_kv" ("expires_at") where "expires_at" is not null;
+create index stream_kv_expires_idx on "better_supabase"."stream_kv" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."stream_kv" enable row level security;
 revoke all on "better_supabase"."stream_kv" from public, anon, authenticated;
 grant all on "better_supabase"."stream_kv" to service_role;
@@ -376,8 +359,7 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_streams_receive on realtime.messages;
-create policy bsb_streams_receive on realtime.messages
+        create policy bsb_streams_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -393,24 +375,19 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
 create policy bsb_tenant_scope_select on "better_supabase"."streams" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
 create policy bsb_tenant_scope_insert on "better_supabase"."streams" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
 create policy bsb_tenant_scope_update on "better_supabase"."streams" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
 create policy bsb_tenant_scope_delete on "better_supabase"."streams" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -432,30 +409,15 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:89a9be10a5436ecb157955841b16274ed3575d2f4fd9d25a05b2e82ad3e1125b
+-- @bsb-hash sha256:978ac1993591fed9bbb6060bc64c603599e92770ad81aeaa794d084ca1f5e85a
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Durable output streams: a writer appends ordered chunks (bytea) and any reader
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
-create table if not exists "better_supabase"."streams" (
+create table "better_supabase"."streams" (
   "id" text primary key check (length("id") >= 1 and length("id") <= 200),
   "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
@@ -466,19 +428,18 @@ create table if not exists "better_supabase"."streams" (
   "cancel_requested_at" timestamptz,
   "expires_at" timestamptz not null default now() + interval '1 day'
 );
-create index if not exists streams_owner_idx on "better_supabase"."streams" ("owner_id");
-create index if not exists streams_tenant_idx on "better_supabase"."streams" ("tenant_id");
-create index if not exists streams_expires_idx on "better_supabase"."streams" ("expires_at");
+create index streams_owner_idx on "better_supabase"."streams" ("owner_id");
+create index streams_tenant_idx on "better_supabase"."streams" ("tenant_id");
+create index streams_expires_idx on "better_supabase"."streams" ("expires_at");
 alter table "better_supabase"."streams" enable row level security;
 revoke all on "better_supabase"."streams" from public, anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
-drop policy if exists streams_owner_read on "better_supabase"."streams";
 create policy streams_owner_read on "better_supabase"."streams"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."stream_chunks" (
+create table "better_supabase"."stream_chunks" (
   "stream_id" text not null references "better_supabase"."streams" ("id") on delete cascade,
   "idx" integer not null check ("idx" >= 0),
   "data" bytea not null,
@@ -488,7 +449,6 @@ alter table "better_supabase"."stream_chunks" enable row level security;
 revoke all on "better_supabase"."stream_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
-drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
 create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
   for select to authenticated
   using (exists (
@@ -500,12 +460,12 @@ create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- publisher (get, set with a TTL, incr), for postgresPublisher. A value that is
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
-create table if not exists "better_supabase"."stream_kv" (
+create table "better_supabase"."stream_kv" (
   "key" text primary key check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );
-create index if not exists stream_kv_expires_idx on "better_supabase"."stream_kv" ("expires_at") where "expires_at" is not null;
+create index stream_kv_expires_idx on "better_supabase"."stream_kv" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."stream_kv" enable row level security;
 revoke all on "better_supabase"."stream_kv" from public, anon, authenticated;
 grant all on "better_supabase"."stream_kv" to service_role;
@@ -807,8 +767,7 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_streams_receive on realtime.messages;
-create policy bsb_streams_receive on realtime.messages
+        create policy bsb_streams_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -824,24 +783,19 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
 create policy bsb_tenant_scope_select on "better_supabase"."streams" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
 create policy bsb_tenant_scope_insert on "better_supabase"."streams" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
 create policy bsb_tenant_scope_update on "better_supabase"."streams" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
 create policy bsb_tenant_scope_delete on "better_supabase"."streams" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -863,24 +817,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:41d08444423dc932cc458c0b88aa9056c7fa5717dcc98175824e7fda815816ee
+-- @bsb-hash sha256:ac567add9d660dc92ce6a38d309792b41eb0a79a82063a74798dcf46271e2936
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."streams";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."streams";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."streams";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."streams";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."streams";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -890,7 +830,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Durable output streams: a writer appends ordered chunks (bytea) and any reader
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
-create table if not exists "app_private"."streams" (
+create table "app_private"."streams" (
   "id" text primary key check (length("id") >= 1 and length("id") <= 200),
   "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
@@ -901,19 +841,18 @@ create table if not exists "app_private"."streams" (
   "cancel_requested_at" timestamptz,
   "expires_at" timestamptz not null default now() + interval '1 day'
 );
-create index if not exists streams_owner_idx on "app_private"."streams" ("owner_id");
-create index if not exists streams_tenant_idx on "app_private"."streams" ("tenant_id");
-create index if not exists streams_expires_idx on "app_private"."streams" ("expires_at");
+create index streams_owner_idx on "app_private"."streams" ("owner_id");
+create index streams_tenant_idx on "app_private"."streams" ("tenant_id");
+create index streams_expires_idx on "app_private"."streams" ("expires_at");
 alter table "app_private"."streams" enable row level security;
 revoke all on "app_private"."streams" from public, anon, authenticated;
 grant select on "app_private"."streams" to authenticated;
 grant all on "app_private"."streams" to service_role;
-drop policy if exists streams_owner_read on "app_private"."streams";
 create policy streams_owner_read on "app_private"."streams"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
-create table if not exists "app_private"."stream_chunks" (
+create table "app_private"."stream_chunks" (
   "stream_id" text not null references "app_private"."streams" ("id") on delete cascade,
   "idx" integer not null check ("idx" >= 0),
   "data" bytea not null,
@@ -923,7 +862,6 @@ alter table "app_private"."stream_chunks" enable row level security;
 revoke all on "app_private"."stream_chunks" from public, anon, authenticated;
 grant select on "app_private"."stream_chunks" to authenticated;
 grant all on "app_private"."stream_chunks" to service_role;
-drop policy if exists stream_chunks_owner_read on "app_private"."stream_chunks";
 create policy stream_chunks_owner_read on "app_private"."stream_chunks"
   for select to authenticated
   using (exists (
@@ -935,12 +873,12 @@ create policy stream_chunks_owner_read on "app_private"."stream_chunks"
 -- publisher (get, set with a TTL, incr), for postgresPublisher. A value that is
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
-create table if not exists "app_private"."stream_kv" (
+create table "app_private"."stream_kv" (
   "key" text primary key check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );
-create index if not exists stream_kv_expires_idx on "app_private"."stream_kv" ("expires_at") where "expires_at" is not null;
+create index stream_kv_expires_idx on "app_private"."stream_kv" ("expires_at") where "expires_at" is not null;
 alter table "app_private"."stream_kv" enable row level security;
 revoke all on "app_private"."stream_kv" from public, anon, authenticated;
 grant all on "app_private"."stream_kv" to service_role;
@@ -1242,8 +1180,7 @@ grant execute on function "app_private"."purge_streams"(interval, integer) to se
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_streams_receive on realtime.messages;
-create policy bsb_streams_receive on realtime.messages
+        create policy bsb_streams_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -1259,24 +1196,19 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."streams";
-drop policy if exists bsb_tenant_scope_select on "app_private"."streams";
 create policy bsb_tenant_scope_select on "app_private"."streams" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."streams";
 create policy bsb_tenant_scope_insert on "app_private"."streams" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."streams";
 create policy bsb_tenant_scope_update on "app_private"."streams" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."streams";
 create policy bsb_tenant_scope_delete on "app_private"."streams" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1298,30 +1230,15 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:d06ec6285052d9a23ca228b5a8eb2e083943643ba1e8364fc3478d9c0dfeb397
+-- @bsb-hash sha256:786c8311e4a01506955ab3950ab0aca5b647fae653e42b301ba6638278a16971
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Durable output streams: a writer appends ordered chunks (bytea) and any reader
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
-create table if not exists "better_supabase"."streams" (
+create table "better_supabase"."streams" (
   "id" text primary key check (length("id") >= 1 and length("id") <= 200),
   "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
@@ -1332,19 +1249,18 @@ create table if not exists "better_supabase"."streams" (
   "cancel_requested_at" timestamptz,
   "expires_at" timestamptz not null default now() + interval '1 day'
 );
-create index if not exists streams_owner_idx on "better_supabase"."streams" ("owner_id");
-create index if not exists streams_tenant_idx on "better_supabase"."streams" ("tenant_id");
-create index if not exists streams_expires_idx on "better_supabase"."streams" ("expires_at");
+create index streams_owner_idx on "better_supabase"."streams" ("owner_id");
+create index streams_tenant_idx on "better_supabase"."streams" ("tenant_id");
+create index streams_expires_idx on "better_supabase"."streams" ("expires_at");
 alter table "better_supabase"."streams" enable row level security;
 revoke all on "better_supabase"."streams" from public, anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
-drop policy if exists streams_owner_read on "better_supabase"."streams";
 create policy streams_owner_read on "better_supabase"."streams"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."stream_chunks" (
+create table "better_supabase"."stream_chunks" (
   "stream_id" text not null references "better_supabase"."streams" ("id") on delete cascade,
   "idx" integer not null check ("idx" >= 0),
   "data" bytea not null,
@@ -1354,7 +1270,6 @@ alter table "better_supabase"."stream_chunks" enable row level security;
 revoke all on "better_supabase"."stream_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
-drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
 create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
   for select to authenticated
   using (exists (
@@ -1366,12 +1281,12 @@ create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- publisher (get, set with a TTL, incr), for postgresPublisher. A value that is
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
-create table if not exists "better_supabase"."stream_kv" (
+create table "better_supabase"."stream_kv" (
   "key" text primary key check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );
-create index if not exists stream_kv_expires_idx on "better_supabase"."stream_kv" ("expires_at") where "expires_at" is not null;
+create index stream_kv_expires_idx on "better_supabase"."stream_kv" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."stream_kv" enable row level security;
 revoke all on "better_supabase"."stream_kv" from public, anon, authenticated;
 grant all on "better_supabase"."stream_kv" to service_role;
@@ -1673,8 +1588,7 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_streams_receive on realtime.messages;
-create policy bsb_streams_receive on realtime.messages
+        create policy bsb_streams_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -1690,24 +1604,19 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
 create policy bsb_tenant_scope_select on "better_supabase"."streams" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
 create policy bsb_tenant_scope_insert on "better_supabase"."streams" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
 create policy bsb_tenant_scope_update on "better_supabase"."streams" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
 create policy bsb_tenant_scope_delete on "better_supabase"."streams" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1835,25 +1744,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:4eb6685245f9d99b37061775721a8072f92fa572dfe25fcb2a92bd4263370a79
+-- @bsb-hash sha256:5c1ebe7b84be7cc72eb897af6249f204fa0e3a78294c8f4b6243645a9a6787cc
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Durable output streams: a writer appends ordered chunks (bytea) and any reader
 -- resumes from a chunk index. The service role writes; the owner reads
@@ -1875,7 +1769,6 @@ create unique index if not exists "bsb_streams_id_key" on "better_supabase"."str
 alter table "better_supabase"."streams" enable row level security;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
-drop policy if exists bsb_streams_select on "better_supabase"."streams";
 create policy bsb_streams_select on "better_supabase"."streams"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
@@ -1888,7 +1781,6 @@ create unique index if not exists "bsb_stream_chunks_idx_key" on "better_supabas
 alter table "better_supabase"."stream_chunks" enable row level security;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
-drop policy if exists bsb_stream_chunks_select on "better_supabase"."stream_chunks";
 create policy bsb_stream_chunks_select on "better_supabase"."stream_chunks"
   for select to authenticated
   using (exists (
@@ -2206,8 +2098,7 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_streams_receive on realtime.messages;
-create policy bsb_streams_receive on realtime.messages
+        create policy bsb_streams_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -2223,24 +2114,19 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
 create policy bsb_tenant_scope_select on "better_supabase"."streams" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
 create policy bsb_tenant_scope_insert on "better_supabase"."streams" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
 create policy bsb_tenant_scope_update on "better_supabase"."streams" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
 create policy bsb_tenant_scope_delete on "better_supabase"."streams" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2262,30 +2148,15 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:9f6d1f8a15d6b5ff1f4dcc4e584ea1daacd3011fd57d4a5b5186a58be729a7cb
+-- @bsb-hash sha256:3702bb6b635403695eb45e585240dbb8fe575c055cfda535dabfc19c5fbc7f88
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Durable output streams: a writer appends ordered chunks (bytea) and any reader
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
-create table if not exists "better_supabase"."streams" (
+create table "better_supabase"."streams" (
   "id" text primary key check (length("id") >= 1 and length("id") <= 200),
   "org_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
@@ -2296,19 +2167,18 @@ create table if not exists "better_supabase"."streams" (
   "cancel_requested_at" timestamptz,
   "expires_at" timestamptz not null default now() + interval '1 day'
 );
-create index if not exists streams_owner_idx on "better_supabase"."streams" ("owner_id");
-create index if not exists streams_tenant_idx on "better_supabase"."streams" ("org_id");
-create index if not exists streams_expires_idx on "better_supabase"."streams" ("expires_at");
+create index streams_owner_idx on "better_supabase"."streams" ("owner_id");
+create index streams_tenant_idx on "better_supabase"."streams" ("org_id");
+create index streams_expires_idx on "better_supabase"."streams" ("expires_at");
 alter table "better_supabase"."streams" enable row level security;
 revoke all on "better_supabase"."streams" from public, anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
-drop policy if exists streams_owner_read on "better_supabase"."streams";
 create policy streams_owner_read on "better_supabase"."streams"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."stream_chunks" (
+create table "better_supabase"."stream_chunks" (
   "stream_id" text not null references "better_supabase"."streams" ("id") on delete cascade,
   "idx" integer not null check ("idx" >= 0),
   "data" bytea not null,
@@ -2318,7 +2188,6 @@ alter table "better_supabase"."stream_chunks" enable row level security;
 revoke all on "better_supabase"."stream_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
-drop policy if exists stream_chunks_owner_read on "better_supabase"."stream_chunks";
 create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
   for select to authenticated
   using (exists (
@@ -2330,12 +2199,12 @@ create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- publisher (get, set with a TTL, incr), for postgresPublisher. A value that is
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
-create table if not exists "better_supabase"."stream_kv" (
+create table "better_supabase"."stream_kv" (
   "key" text primary key check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );
-create index if not exists stream_kv_expires_idx on "better_supabase"."stream_kv" ("expires_at") where "expires_at" is not null;
+create index stream_kv_expires_idx on "better_supabase"."stream_kv" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."stream_kv" enable row level security;
 revoke all on "better_supabase"."stream_kv" from public, anon, authenticated;
 grant all on "better_supabase"."stream_kv" to service_role;
@@ -2637,8 +2506,7 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_streams_receive on realtime.messages;
-create policy bsb_streams_receive on realtime.messages
+        create policy bsb_streams_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -2654,24 +2522,19 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."streams";
 create policy bsb_tenant_scope_select on "better_supabase"."streams" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."streams";
 create policy bsb_tenant_scope_insert on "better_supabase"."streams" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."streams";
 create policy bsb_tenant_scope_update on "better_supabase"."streams" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."streams";
 create policy bsb_tenant_scope_delete on "better_supabase"."streams" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

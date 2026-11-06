@@ -1,27 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:b9977c4e08c313d82a4328a9c3a5ed7759cd3618bac4fe75b1120304442a25df
+-- @bsb-hash sha256:53e25f7f28346ad59b9937b655d47e9654f4dec6a3b6ff28397a9f4870b0ec2b
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."lead_score_checks" (
+create table "better_supabase"."lead_score_checks" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -30,14 +15,13 @@ create table if not exists "better_supabase"."lead_score_checks" (
   "checked_at" timestamptz,
   constraint "lead_score_checks_pkey" primary key ("subject_type", "subject_id")
 );
-create index if not exists "lead_score_checks_tenant_idx" on "better_supabase"."lead_score_checks" ("tenant_id");
-create index if not exists "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
+create index "lead_score_checks_tenant_idx" on "better_supabase"."lead_score_checks" ("tenant_id");
+create index "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
 
 alter table "better_supabase"."lead_score_checks" enable row level security;
 revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-drop policy if exists lead_score_checks_read on "better_supabase"."lead_score_checks";
 create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
@@ -185,7 +169,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_person_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_person_changed" on "better_supabase"."people";
 create trigger "bsb_person_changed"
   after insert or update on "better_supabase"."people"
   for each row execute function "better_supabase"."lead_person_changed"();
@@ -193,24 +176,19 @@ create trigger "bsb_person_changed"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_select on "better_supabase"."lead_score_checks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_insert on "better_supabase"."lead_score_checks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_update on "better_supabase"."lead_score_checks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_delete on "better_supabase"."lead_score_checks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -232,27 +210,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:b208ecd5683d42273d12ac75ccd512b281f92f79f2307e82465e02330398284d
+-- @bsb-hash sha256:08e6fe27544bbb5daf64129ccb2b31df6b183cc1681ce2b4ed6c1eae486adc2d
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."lead_score_checks" (
+create table "better_supabase"."lead_score_checks" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -261,14 +224,13 @@ create table if not exists "better_supabase"."lead_score_checks" (
   "checked_at" timestamptz,
   constraint "lead_score_checks_pkey" primary key ("subject_type", "subject_id")
 );
-create index if not exists "lead_score_checks_tenant_idx" on "better_supabase"."lead_score_checks" ("tenant_id");
-create index if not exists "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
+create index "lead_score_checks_tenant_idx" on "better_supabase"."lead_score_checks" ("tenant_id");
+create index "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
 
 alter table "better_supabase"."lead_score_checks" enable row level security;
 revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-drop policy if exists lead_score_checks_read on "better_supabase"."lead_score_checks";
 create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
@@ -433,7 +395,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_person_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_person_changed" on "better_supabase"."people";
 create trigger "bsb_person_changed"
   after insert or update on "better_supabase"."people"
   for each row execute function "better_supabase"."lead_person_changed"();
@@ -462,7 +423,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_segment_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_segment_changed" on "better_supabase"."segment_members";
 create trigger "bsb_segment_changed"
   after insert or delete on "better_supabase"."segment_members"
   for each row execute function "better_supabase"."lead_segment_changed"();
@@ -483,7 +443,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_mail_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_mail_changed" on "better_supabase"."mail_messages";
 create trigger "bsb_mail_changed"
   after insert or update of "opened_at", "clicked_at" on "better_supabase"."mail_messages"
   for each row execute function "better_supabase"."lead_mail_changed"();
@@ -504,7 +463,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_mail_linked"() from public, anon, authenticated;
-drop trigger if exists "bsb_mail_linked" on "better_supabase"."mail_thread_subjects";
 create trigger "bsb_mail_linked"
   after insert on "better_supabase"."mail_thread_subjects"
   for each row execute function "better_supabase"."lead_mail_linked"();
@@ -512,24 +470,19 @@ create trigger "bsb_mail_linked"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_select on "better_supabase"."lead_score_checks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_insert on "better_supabase"."lead_score_checks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_update on "better_supabase"."lead_score_checks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_delete on "better_supabase"."lead_score_checks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -551,31 +504,17 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:12b66cf4cee7738fb12b52a4104dd17e0f2c0ca5f8d47dab02917ea85c2232b6
+-- @bsb-hash sha256:27f6a4fe4c90a4a3f688148413b29018bba5eef0be68c60e2ec6a26ad2b248d2
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."lead_score_checks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."lead_score_checks" (
+create table "app_private"."lead_score_checks" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -584,14 +523,13 @@ create table if not exists "app_private"."lead_score_checks" (
   "checked_at" timestamptz,
   constraint "lead_score_checks_pkey" primary key ("subject_type", "subject_id")
 );
-create index if not exists "lead_score_checks_tenant_idx" on "app_private"."lead_score_checks" ("tenant_id");
-create index if not exists "lead_score_checks_due_idx" on "app_private"."lead_score_checks" ("checked_at" nulls first) where "stale";
+create index "lead_score_checks_tenant_idx" on "app_private"."lead_score_checks" ("tenant_id");
+create index "lead_score_checks_due_idx" on "app_private"."lead_score_checks" ("checked_at" nulls first) where "stale";
 
 alter table "app_private"."lead_score_checks" enable row level security;
 revoke all on "app_private"."lead_score_checks" from public, anon, authenticated;
 grant select on "app_private"."lead_score_checks" to authenticated;
 grant all on "app_private"."lead_score_checks" to service_role;
-drop policy if exists lead_score_checks_read on "app_private"."lead_score_checks";
 create policy lead_score_checks_read on "app_private"."lead_score_checks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
@@ -739,7 +677,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."lead_person_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_person_changed" on "better_supabase"."people";
 create trigger "bsb_person_changed"
   after insert or update on "better_supabase"."people"
   for each row execute function "app_private"."lead_person_changed"();
@@ -747,24 +684,19 @@ create trigger "bsb_person_changed"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."lead_score_checks";
-drop policy if exists bsb_tenant_scope_select on "app_private"."lead_score_checks";
 create policy bsb_tenant_scope_select on "app_private"."lead_score_checks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."lead_score_checks";
 create policy bsb_tenant_scope_insert on "app_private"."lead_score_checks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."lead_score_checks";
 create policy bsb_tenant_scope_update on "app_private"."lead_score_checks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."lead_score_checks";
 create policy bsb_tenant_scope_delete on "app_private"."lead_score_checks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -786,27 +718,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:0b2075571d470ad1562172172aa279d2c7ad14c091a9be79d622c7933eaafbb7
+-- @bsb-hash sha256:9edc9074b67d8059978888c329129788cb7041d82199a190fbf3e906e1d01882
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."lead_score_checks" (
+create table "better_supabase"."lead_score_checks" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -815,14 +732,13 @@ create table if not exists "better_supabase"."lead_score_checks" (
   "checked_at" timestamptz,
   constraint "lead_score_checks_pkey" primary key ("subject_type", "subject_id")
 );
-create index if not exists "lead_score_checks_tenant_idx" on "better_supabase"."lead_score_checks" ("tenant_id");
-create index if not exists "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
+create index "lead_score_checks_tenant_idx" on "better_supabase"."lead_score_checks" ("tenant_id");
+create index "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
 
 alter table "better_supabase"."lead_score_checks" enable row level security;
 revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-drop policy if exists lead_score_checks_read on "better_supabase"."lead_score_checks";
 create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
@@ -970,7 +886,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_person_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_person_changed" on "better_supabase"."people";
 create trigger "bsb_person_changed"
   after insert or update on "better_supabase"."people"
   for each row execute function "better_supabase"."lead_person_changed"();
@@ -978,24 +893,19 @@ create trigger "bsb_person_changed"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_select on "better_supabase"."lead_score_checks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_insert on "better_supabase"."lead_score_checks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_update on "better_supabase"."lead_score_checks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_delete on "better_supabase"."lead_score_checks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1049,25 +959,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:76af2649835d21d69bcb2630e47b0f1760dc03aef1c3750542d9c9fafe969501
+-- @bsb-hash sha256:53ac297bb8ab6125c7ba535e7b139602a630839c214bdfeaddb2c086cd368617
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- better_supabase.lead_score_checks is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."lead_score_checks" add column if not exists "tenant_id" uuid;
@@ -1082,7 +977,6 @@ create unique index if not exists "bsb_lead_score_checks_subject_key" on "better
 alter table "better_supabase"."lead_score_checks" enable row level security;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-drop policy if exists bsb_lead_score_checks_select on "better_supabase"."lead_score_checks";
 create policy bsb_lead_score_checks_select on "better_supabase"."lead_score_checks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
@@ -1231,7 +1125,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_person_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_person_changed" on "better_supabase"."people";
 create trigger "bsb_person_changed"
   after insert or update on "better_supabase"."people"
   for each row execute function "better_supabase"."lead_person_changed"();
@@ -1239,24 +1132,19 @@ create trigger "bsb_person_changed"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_select on "better_supabase"."lead_score_checks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_insert on "better_supabase"."lead_score_checks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_update on "better_supabase"."lead_score_checks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_delete on "better_supabase"."lead_score_checks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1278,27 +1166,12 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:0e0334f1600d8bebfe5c938964e0c09a3223e61fd826f37d079eeb269699ae64
+-- @bsb-hash sha256:e8177823285095e88e237200e322429992218e43619a1921da71128b1cdc5b4f
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."lead_score_checks" (
+create table "better_supabase"."lead_score_checks" (
   "org_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -1307,14 +1180,13 @@ create table if not exists "better_supabase"."lead_score_checks" (
   "checked_at" timestamptz,
   constraint "lead_score_checks_pkey" primary key ("subject_type", "subject_id")
 );
-create index if not exists "lead_score_checks_tenant_idx" on "better_supabase"."lead_score_checks" ("org_id");
-create index if not exists "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
+create index "lead_score_checks_tenant_idx" on "better_supabase"."lead_score_checks" ("org_id");
+create index "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
 
 alter table "better_supabase"."lead_score_checks" enable row level security;
 revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-drop policy if exists lead_score_checks_read on "better_supabase"."lead_score_checks";
 create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('scores.compute')));
@@ -1462,7 +1334,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_person_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_person_changed" on "better_supabase"."people";
 create trigger "bsb_person_changed"
   after insert or update on "better_supabase"."people"
   for each row execute function "better_supabase"."lead_person_changed"();
@@ -1470,24 +1341,19 @@ create trigger "bsb_person_changed"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_select on "better_supabase"."lead_score_checks" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('scores.compute')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_insert on "better_supabase"."lead_score_checks" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_update on "better_supabase"."lead_score_checks" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_delete on "better_supabase"."lead_score_checks" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

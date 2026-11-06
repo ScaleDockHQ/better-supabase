@@ -1,29 +1,14 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:eb4bed3b08f0e6bc92981b295f6eb63704719e2490c8c2514cc004d84e0dbc86
+-- @bsb-hash sha256:83ee71170a6b4f2f495219f2fd1311899a471743b23ec08878288bcc90823640
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Targets: a goal per period for a metric, for a member, a team or the
 -- whole organization, with progress from the data the blocks keep.
-create table if not exists "better_supabase"."goals" (
+create table "better_supabase"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -40,12 +25,11 @@ create table if not exists "better_supabase"."goals" (
   "updated_at" timestamptz not null default now(),
   check ("period_end" >= "period_start")
 );
-create index if not exists "goals_period_idx" on "better_supabase"."goals" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
+create index "goals_period_idx" on "better_supabase"."goals" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
 alter table "better_supabase"."goals" enable row level security;
 revoke all on "better_supabase"."goals" from public, anon, authenticated;
 grant select on "better_supabase"."goals" to authenticated;
 grant all on "better_supabase"."goals" to service_role;
-drop policy if exists goals_read on "better_supabase"."goals";
 create policy goals_read on "better_supabase"."goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
@@ -123,24 +107,19 @@ grant execute on function "better_supabase"."goal_progress"(uuid, date, uuid) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
 create policy bsb_tenant_scope_select on "better_supabase"."goals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
 create policy bsb_tenant_scope_insert on "better_supabase"."goals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
 create policy bsb_tenant_scope_update on "better_supabase"."goals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
 create policy bsb_tenant_scope_delete on "better_supabase"."goals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -162,29 +141,14 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:23d687fac9f16ad40aa8c2b67cdc7edf40c1649826a2ad234b8993a8d944c033
+-- @bsb-hash sha256:e402b6720c435b139ecffa710b83d09156874c610f8404076c2ecaa6fdc1c9fb
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Targets: a goal per period for a metric, for a member, a team or the
 -- whole organization, with progress from the data the blocks keep.
-create table if not exists "better_supabase"."goals" (
+create table "better_supabase"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -201,12 +165,11 @@ create table if not exists "better_supabase"."goals" (
   "updated_at" timestamptz not null default now(),
   check ("period_end" >= "period_start")
 );
-create index if not exists "goals_period_idx" on "better_supabase"."goals" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
+create index "goals_period_idx" on "better_supabase"."goals" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
 alter table "better_supabase"."goals" enable row level security;
 revoke all on "better_supabase"."goals" from public, anon, authenticated;
 grant select on "better_supabase"."goals" to authenticated;
 grant all on "better_supabase"."goals" to service_role;
-drop policy if exists goals_read on "better_supabase"."goals";
 create policy goals_read on "better_supabase"."goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
@@ -298,24 +261,19 @@ grant execute on function "better_supabase"."goal_progress"(uuid, date, uuid) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
 create policy bsb_tenant_scope_select on "better_supabase"."goals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
 create policy bsb_tenant_scope_insert on "better_supabase"."goals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
 create policy bsb_tenant_scope_update on "better_supabase"."goals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
 create policy bsb_tenant_scope_delete on "better_supabase"."goals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -344,24 +302,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:2a4981c7a382ed8c821abbd27e4bc58026e1ee023f6a640775aa7175726adeb2
+-- @bsb-hash sha256:5ffae4bb90bbe396ab48db5578c737f6d7ad704997376176a4781e9e472b9ad8
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."goals";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."goals";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."goals";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."goals";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."goals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -370,7 +314,7 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Targets: a goal per period for a metric, for a member, a team or the
 -- whole organization, with progress from the data the blocks keep.
-create table if not exists "app_private"."goals" (
+create table "app_private"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -387,12 +331,11 @@ create table if not exists "app_private"."goals" (
   "updated_at" timestamptz not null default now(),
   check ("period_end" >= "period_start")
 );
-create index if not exists "goals_period_idx" on "app_private"."goals" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
+create index "goals_period_idx" on "app_private"."goals" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
 alter table "app_private"."goals" enable row level security;
 revoke all on "app_private"."goals" from public, anon, authenticated;
 grant select on "app_private"."goals" to authenticated;
 grant all on "app_private"."goals" to service_role;
-drop policy if exists goals_read on "app_private"."goals";
 create policy goals_read on "app_private"."goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
@@ -470,24 +413,19 @@ grant execute on function "app_private"."goal_progress"(uuid, date, uuid) to aut
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."goals";
-drop policy if exists bsb_tenant_scope_select on "app_private"."goals";
 create policy bsb_tenant_scope_select on "app_private"."goals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."goals";
 create policy bsb_tenant_scope_insert on "app_private"."goals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."goals";
 create policy bsb_tenant_scope_update on "app_private"."goals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."goals";
 create policy bsb_tenant_scope_delete on "app_private"."goals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -509,29 +447,14 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:59b655a4dad8506bf284a9098d9935ec3b700736adbaa3663901d02fc48d79ac
+-- @bsb-hash sha256:882a096e84d67f87aca1c652a3ec1dd71af72627559f23b220a0fe71c93f8c56
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Targets: a goal per period for a metric, for a member, a team or the
 -- whole organization, with progress from the data the blocks keep.
-create table if not exists "better_supabase"."goals" (
+create table "better_supabase"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -548,12 +471,11 @@ create table if not exists "better_supabase"."goals" (
   "updated_at" timestamptz not null default now(),
   check ("period_end" >= "period_start")
 );
-create index if not exists "goals_period_idx" on "better_supabase"."goals" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
+create index "goals_period_idx" on "better_supabase"."goals" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
 alter table "better_supabase"."goals" enable row level security;
 revoke all on "better_supabase"."goals" from public, anon, authenticated;
 grant select on "better_supabase"."goals" to authenticated;
 grant all on "better_supabase"."goals" to service_role;
-drop policy if exists goals_read on "better_supabase"."goals";
 create policy goals_read on "better_supabase"."goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
@@ -631,24 +553,19 @@ grant execute on function "better_supabase"."goal_progress"(uuid, date, uuid) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
 create policy bsb_tenant_scope_select on "better_supabase"."goals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
 create policy bsb_tenant_scope_insert on "better_supabase"."goals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
 create policy bsb_tenant_scope_update on "better_supabase"."goals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
 create policy bsb_tenant_scope_delete on "better_supabase"."goals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -693,25 +610,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:9b360a844d22f92c9947dcc2543d4adff687b2694c73d506c6cb2635e207af8e
+-- @bsb-hash sha256:23ef8a881728bafbc47e8c3c9defb041114a77fc8d90812d25b5d8273e72d39b
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Targets: a goal per period for a metric, for a member, a team or the
 -- whole organization, with progress from the data the blocks keep.
@@ -734,7 +636,6 @@ create index if not exists "goals_period_idx" on "better_supabase"."goals" ("ten
 alter table "better_supabase"."goals" enable row level security;
 grant select on "better_supabase"."goals" to authenticated;
 grant all on "better_supabase"."goals" to service_role;
-drop policy if exists bsb_goals_select on "better_supabase"."goals";
 create policy bsb_goals_select on "better_supabase"."goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
@@ -812,24 +713,19 @@ grant execute on function "better_supabase"."goal_progress"(uuid, date, uuid) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
 create policy bsb_tenant_scope_select on "better_supabase"."goals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
 create policy bsb_tenant_scope_insert on "better_supabase"."goals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
 create policy bsb_tenant_scope_update on "better_supabase"."goals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
 create policy bsb_tenant_scope_delete on "better_supabase"."goals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -851,29 +747,14 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:4097a01005b30fe06c5ea091080c957c2b62fa9f30d50e1d1ec3b66519807e64
+-- @bsb-hash sha256:53b56480c381f385f419e4e70135dfc925ff06f41303f4d0853f5419b2cf575f
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Targets: a goal per period for a metric, for a member, a team or the
 -- whole organization, with progress from the data the blocks keep.
-create table if not exists "better_supabase"."goals" (
+create table "better_supabase"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -890,12 +771,11 @@ create table if not exists "better_supabase"."goals" (
   "updated_at" timestamptz not null default now(),
   check ("period_end" >= "period_start")
 );
-create index if not exists "goals_period_idx" on "better_supabase"."goals" ("org_id", "period_start", "period_end") where "archived_at" is null;
+create index "goals_period_idx" on "better_supabase"."goals" ("org_id", "period_start", "period_end") where "archived_at" is null;
 alter table "better_supabase"."goals" enable row level security;
 revoke all on "better_supabase"."goals" from public, anon, authenticated;
 grant select on "better_supabase"."goals" to authenticated;
 grant all on "better_supabase"."goals" to service_role;
-drop policy if exists goals_read on "better_supabase"."goals";
 create policy goals_read on "better_supabase"."goals"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('goals.read')));
@@ -973,24 +853,19 @@ grant execute on function "better_supabase"."goal_progress"(uuid, date, uuid) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
 create policy bsb_tenant_scope_select on "better_supabase"."goals" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
 create policy bsb_tenant_scope_insert on "better_supabase"."goals" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
 create policy bsb_tenant_scope_update on "better_supabase"."goals" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
 create policy bsb_tenant_scope_delete on "better_supabase"."goals" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

@@ -424,10 +424,7 @@ describe("hiring's managed tables in the new modes", BOOT, () => {
     expect(sql).toContain('unique ("application_id", "reviewer_user_id")');
     expect(sql).not.toContain('"recommendation" text');
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."interview_interviewers"',
-    );
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."submit_scorecard"(uuid, integer, text, text);',
+      'create table "better_supabase"."interview_interviewers"',
     );
     expect(sql).toContain("notes text, scores jsonb default null)");
     expect(sql).toContain(

@@ -92,7 +92,7 @@ describe("sla escalation ladder", () => {
       .map((file) => file.contents)
       .join("\n");
 
-    expect(sql).toContain("create table if not exists");
+    expect(sql).toContain("create table");
     expect(sql).toContain("sla_escalations");
     expect(sql).toContain("SLA_ESCALATION_INVALID");
     expect(sql).toContain('jsonb_array_elements(y."escalations")');

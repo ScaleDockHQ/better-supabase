@@ -238,9 +238,6 @@ create policy bsb_u_select on public.u for select to authenticated using (true);
     });
 
     expect(covered).not.toContain("create policy bsb_organizations_select");
-    expect(covered).toContain(
-      "drop policy if exists bsb_organizations_select on",
-    );
   });
 });
 
@@ -311,7 +308,9 @@ create policy bsb_tenant_scope on public.t as restrictive for all to authenticat
     const app = contents("app");
 
     expect(app).not.toContain("create policy bsb_organizations_select");
-    expect(app).toContain("drop policy if exists bsb_organizations_select on");
+    expect(app).not.toContain(
+      "drop policy if exists bsb_organizations_select on",
+    );
     expect(app).toMatch(
       /-- \S+\.organizations: the app's policies govern this table \(ownTablePolicies "app"\), so the block adds no bsb_organizations_select for select\./,
     );
@@ -345,9 +344,6 @@ create policy bsb_tenant_scope on public.t as restrictive for all to authenticat
     );
     expect(app).not.toMatch(
       new RegExp(`create policy bsb_\\w+ on ${quoted.replaceAll(".", "\\.")}`),
-    );
-    expect(app).toContain(
-      `drop policy if exists bsb_tenant_scope on ${quoted}`,
     );
     expect(app).toContain(
       `-- ${table}: the app's policies govern this table (ownTablePolicies "app"), so the block adds no restrictive bsb_tenant_scope_select.`,

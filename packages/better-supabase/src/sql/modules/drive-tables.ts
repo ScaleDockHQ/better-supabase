@@ -67,7 +67,7 @@ export function driveTablesSql(kit: DriveKit): string {
 create index if not exists ${sqlIdent(`${ctx.tableName("connections").name}_user_idx`)} on ${C} (${c("tenant")}, ${c("user")});
 create index if not exists ${sqlIdent(`${ctx.tableName("connections").name}_sync_idx`)} on ${C} (${c("lastSyncedAt")} nulls first) where ${c("status")} = 'active';
 ${lockTable(C, { read: false })}
-${renderPolicy(makePolicy({ table: C, name: ctx.naming.rename("drive_connections_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and ${c("user")} = auth.uid()` }), { drop: true, target: C })}
+${renderPolicy(makePolicy({ table: C, name: ctx.naming.rename("drive_connections_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and ${c("user")} = auth.uid()` }), { target: C })}
 `
       : "";
 

@@ -442,13 +442,13 @@ function build(ctx: BlockSqlContext): string {
       : "";
 
   const privateDocuments = ctx.installed("ai-files")
-    ? `\n${renderPolicy(makePolicy({ table: versions, name: ctx.of("ai-files").naming.rename("versions_ai_documents"), command: "select", roles: ["authenticated"], permissive: false, using: `${c("subjectType")} <> ${sqlString(aiDocumentSubject(ctx.of("ai-files")))}` }), { drop: true, target: versions })}`
+    ? `\n${renderPolicy(makePolicy({ table: versions, name: ctx.of("ai-files").naming.rename("versions_ai_documents"), command: "select", roles: ["authenticated"], permissive: false, using: `${c("subjectType")} <> ${sqlString(aiDocumentSubject(ctx.of("ai-files")))}` }), { target: versions })}`
     : "";
 
   const tables = ctx.manages
     ? `${versionsTableDdl(ctx)}${addExtraColumns(versions, extras)}
 ${lockTable(versions, { read: true })}
-${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("versions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: versions })}${privateDocuments}
+${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("versions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { target: versions })}${privateDocuments}
 `
     : "";
 

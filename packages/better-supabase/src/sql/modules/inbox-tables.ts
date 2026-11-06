@@ -33,7 +33,7 @@ const policy = (table: string, name: string, using: string): string =>
       roles: ["authenticated"],
       using,
     }),
-    { drop: true, target: table },
+    { target: table },
   );
 
 /** An optional column's line, followed by a comma, or nothing. */
@@ -523,7 +523,7 @@ begin
         and (select realtime.topic()) like ${sqlString(`${q.topic}:org:%`)}
         and substr((select realtime.topic()), ${String(q.topic.length + 6)}) in (select x::text from ${q.ctx.scope.ids(q.key("read"))} x)`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
     drop policy if exists ${broadcast} on realtime.messages;
   end if;
@@ -570,7 +570,7 @@ grant execute on function ${q.fn("inbox_file_allowed")}(text, text) to authentic
 do $$
 begin
   if to_regclass('storage.objects') is not null then
-        ${renderPolicy(makePolicy({ table: "storage.objects", name: read, command: "select", roles: ["authenticated"], using: `${q.fn("inbox_file_allowed")}(bucket_id, name)` }), { drop: true, target: "storage.objects" })}
+        ${renderPolicy(makePolicy({ table: "storage.objects", name: read, command: "select", roles: ["authenticated"], using: `${q.fn("inbox_file_allowed")}(bucket_id, name)` }), { target: "storage.objects" })}
     drop policy if exists ${write} on storage.objects;
   end if;
 end;

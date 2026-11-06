@@ -1,39 +1,16 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:183199d9d5f189b40822f8d1138476d93f7b456b49f66adac466bfbe6d997a86
+-- @bsb-hash sha256:98e405ac69b32e168c23b5df144b70ff41e78f2830e8e4596bc5801f7587461a
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Guests: people outside the organization (a client, a contractor) who reach
 -- the records they are granted, and portal access for the party they act for.
 -- A guest is never a member; policies add them through ctx.scope.guest.
 
-create table if not exists "better_supabase"."guests" (
+create table "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
@@ -52,19 +29,18 @@ create table if not exists "better_supabase"."guests" (
   check (("party_type" is null) = ("party_id" is null)),
   check ("status" <> 'active' or "user_id" is not null)
 );
-create unique index if not exists "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
-create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
+create unique index "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
+create unique index "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
+create index "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
 revoke all on "better_supabase"."guests" from public, anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
-drop policy if exists "guests_read" on "better_supabase"."guests";
 create policy guests_read on "better_supabase"."guests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."guest_grants" (
+create table "better_supabase"."guest_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
@@ -77,12 +53,11 @@ create table if not exists "better_supabase"."guest_grants" (
   "updated_at" timestamptz not null default now(),
   unique ("guest_id", "subject_type", "subject_id")
 );
-create index if not exists "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
+create index "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."guest_grants" enable row level security;
 revoke all on "better_supabase"."guest_grants" from public, anon, authenticated;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
-drop policy if exists "guest_grants_read" on "better_supabase"."guest_grants";
 create policy guest_grants_read on "better_supabase"."guest_grants"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
@@ -459,29 +434,22 @@ grant execute on function "better_supabase"."my_guest_access"() to authenticated
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
 create policy bsb_tenant_scope_select on "better_supabase"."guests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
 create policy bsb_tenant_scope_insert on "better_supabase"."guests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
 create policy bsb_tenant_scope_update on "better_supabase"."guests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
 create policy bsb_tenant_scope_delete on "better_supabase"."guests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as restrictive
   for select to public
   using (
@@ -489,16 +457,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as res
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."guest_grants" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_update on "better_supabase"."guest_grants" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

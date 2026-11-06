@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:460dc8c96523107d2c735549940c9da2ef09d0a803ef5e7838d62d2301eb5bb9
+-- @bsb-hash sha256:b08164ab63211cee714b76e82476d403d26ce00a75fc67b95f3658e08cbfb7cb
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -44,8 +44,6 @@ begin
   return new;
 end;
 $$;
-
-drop function if exists better_supabase.track_actor(regclass, text, text);
 
 -- select better_supabase.track_actor('public.customers');
 -- impersonated_by => 'impersonated_by' also stamps the impersonating admin.
@@ -122,7 +120,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:460dc8c96523107d2c735549940c9da2ef09d0a803ef5e7838d62d2301eb5bb9
+-- @bsb-hash sha256:b08164ab63211cee714b76e82476d403d26ce00a75fc67b95f3658e08cbfb7cb
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -165,8 +163,6 @@ begin
   return new;
 end;
 $$;
-
-drop function if exists better_supabase.track_actor(regclass, text, text);
 
 -- select better_supabase.track_actor('public.customers');
 -- impersonated_by => 'impersonated_by' also stamps the impersonating admin.
@@ -243,7 +239,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:460dc8c96523107d2c735549940c9da2ef09d0a803ef5e7838d62d2301eb5bb9
+-- @bsb-hash sha256:b08164ab63211cee714b76e82476d403d26ce00a75fc67b95f3658e08cbfb7cb
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -286,8 +282,6 @@ begin
   return new;
 end;
 $$;
-
-drop function if exists better_supabase.track_actor(regclass, text, text);
 
 -- select better_supabase.track_actor('public.customers');
 -- impersonated_by => 'impersonated_by' also stamps the impersonating admin.
@@ -364,7 +358,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:800a8aa4182dfc6fae9a8cc6480ee4a98c0253de8439cf56083815fbf5eac2fb
+-- @bsb-hash sha256:d3fbda15e12492dfb4b4867360706d7fddd77d44bee0e441cf58c3ba000562f4
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -407,8 +401,6 @@ begin
   return new;
 end;
 $$;
-
-drop function if exists better_supabase.track_actor(regclass, text, text);
 
 -- select better_supabase.track_actor('public.customers');
 -- impersonated_by => 'impersonated_by' also stamps the impersonating admin.

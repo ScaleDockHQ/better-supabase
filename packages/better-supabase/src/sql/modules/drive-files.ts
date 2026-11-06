@@ -142,7 +142,7 @@ export function driveFilesSql(kit: DriveKit): string {
   const previewReset = previewColumn ? `, ${n("previewPages")} = null` : "";
 
   const previewPolicy = previewColumn
-    ? `${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_previews_read"), command: "select", roles: ["authenticated"], using: `${previewPath("name")} and ${fn("drive_object_allowed")}(bucket_id, name, 'select')` }), { drop: true, target: "storage.objects" })}
+    ? `${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_previews_read"), command: "select", roles: ["authenticated"], using: `${previewPath("name")} and ${fn("drive_object_allowed")}(bucket_id, name, 'select')` }), { target: "storage.objects" })}
 `
     : "";
 
@@ -448,13 +448,13 @@ ${userGrant(`${fn("drive_attachment_allowed")}(text, text, boolean)`)}
 
 -- Restrictive policies: the attachments policies still apply, and a node's
 -- files also need its grants.
-${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_read"), command: "select", roles: ["authenticated"], permissive: false, using: `${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, false)` }), { drop: true, target: A })}
-${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_insert"), command: "insert", roles: ["authenticated"], permissive: false, check: `${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, true)` }), { drop: true, target: A })}
-${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_delete"), command: "delete", roles: ["authenticated"], permissive: false, using: `${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, true)` }), { drop: true, target: A })}
-${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_read"), command: "select", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'select')` }), { drop: true, target: "storage.objects" })}
-${previewPolicy}${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_insert"), command: "insert", roles: ["authenticated"], permissive: false, check: `${fn("drive_object_allowed")}(bucket_id, name, 'insert')` }), { drop: true, target: "storage.objects" })}
-${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_update"), command: "update", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'update')` }), { drop: true, target: "storage.objects" })}
-${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_delete"), command: "delete", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'delete')` }), { drop: true, target: "storage.objects" })}
+${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_read"), command: "select", roles: ["authenticated"], permissive: false, using: `${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, false)` }), { target: A })}
+${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_insert"), command: "insert", roles: ["authenticated"], permissive: false, check: `${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, true)` }), { target: A })}
+${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_delete"), command: "delete", roles: ["authenticated"], permissive: false, using: `${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, true)` }), { target: A })}
+${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_read"), command: "select", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'select')` }), { target: "storage.objects" })}
+${previewPolicy}${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_insert"), command: "insert", roles: ["authenticated"], permissive: false, check: `${fn("drive_object_allowed")}(bucket_id, name, 'insert')` }), { target: "storage.objects" })}
+${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_update"), command: "update", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'update')` }), { target: "storage.objects" })}
+${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_delete"), command: "delete", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'delete')` }), { target: "storage.objects" })}
 
 -- Attachments of nodes that are not the current content and not a saved
 -- revision, older than a day so an upload in flight stays. Deletes their

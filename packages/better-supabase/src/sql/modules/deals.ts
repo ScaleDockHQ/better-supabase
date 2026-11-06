@@ -301,9 +301,9 @@ ${lockTable(t("members"), { read: true })}
 -- A deal is visible to members with deals.read; with readAll off, only to
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
-${renderPolicy(makePolicy({ table: t("deals"), name: ctx.naming.rename("deals_read"), command: "select", roles: ["authenticated"], using: visible }), { drop: true, target: t("deals") })}
-${renderPolicy(makePolicy({ table: t("contacts"), name: ctx.naming.rename("deal_contacts_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("deals")} x where x.${d("id")} = ${k("deal")}) and ${canSubject}(${k("contactType")}, ${k("contactId")}, 'read')` }), { drop: true, target: t("contacts") })}
-${renderPolicy(makePolicy({ table: t("members"), name: ctx.naming.rename("deal_members_read"), command: "select", roles: ["authenticated"], using: `${m("user")} = (select auth.uid()) or ${ctx.scope.check(m("tenant"), n.read)}` }), { drop: true, target: t("members") })}
+${renderPolicy(makePolicy({ table: t("deals"), name: ctx.naming.rename("deals_read"), command: "select", roles: ["authenticated"], using: visible }), { target: t("deals") })}
+${renderPolicy(makePolicy({ table: t("contacts"), name: ctx.naming.rename("deal_contacts_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("deals")} x where x.${d("id")} = ${k("deal")}) and ${canSubject}(${k("contactType")}, ${k("contactId")}, 'read')` }), { target: t("contacts") })}
+${renderPolicy(makePolicy({ table: t("members"), name: ctx.naming.rename("deal_members_read"), command: "select", roles: ["authenticated"], using: `${m("user")} = (select auth.uid()) or ${ctx.scope.check(m("tenant"), n.read)}` }), { target: t("members") })}
 `;
 }
 

@@ -1,54 +1,15 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:20f849d81b01f6c8fdfe000a25e4c337fdbb968cca8854dc48eaacd24080304d
+-- @bsb-hash sha256:11ad0ca6c6bcab16478baa5ff74718469c07b4fee13e80a2f9c1218a70c6eb2e
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."deals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."deals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."deals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."deal_contacts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."deal_contacts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deal_contacts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."deal_contacts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deal_contacts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."deal_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."deal_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deal_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."deal_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deal_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."deal_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."deal_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deal_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."deal_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deal_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Deals on pipelines: an amount in minor units, a company and contacts, a
 -- forecast call, close-date slips, a next step and line items.
 
-create table if not exists "better_supabase"."deals" (
+create table "better_supabase"."deals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "number" bigint not null,
@@ -98,17 +59,17 @@ create table if not exists "better_supabase"."deals" (
   unique ("tenant_id", "number"),
   check (("company_type" is null) = ("company_id" is null))
 );
-create index if not exists deals_pipeline_stage_idx on "better_supabase"."deals" ("pipeline_id", "stage_id", "rank");
-create index if not exists deals_tenant_close_idx on "better_supabase"."deals" ("tenant_id", "expected_close_on") where "outcome" = 'open';
-create index if not exists deals_owner_idx on "better_supabase"."deals" ("owner_user_id");
-create index if not exists deals_company_idx on "better_supabase"."deals" ("company_type", "company_id");
-alter table "better_supabase"."deals" add column if not exists "app_note" text;
+create index deals_pipeline_stage_idx on "better_supabase"."deals" ("pipeline_id", "stage_id", "rank");
+create index deals_tenant_close_idx on "better_supabase"."deals" ("tenant_id", "expected_close_on") where "outcome" = 'open';
+create index deals_owner_idx on "better_supabase"."deals" ("owner_user_id");
+create index deals_company_idx on "better_supabase"."deals" ("company_type", "company_id");
+alter table "better_supabase"."deals" add column "app_note" text;
 alter table "better_supabase"."deals" enable row level security;
 revoke all on "better_supabase"."deals" from public, anon, authenticated;
 grant select on "better_supabase"."deals" to authenticated;
 grant all on "better_supabase"."deals" to service_role;
 
-create table if not exists "better_supabase"."deal_contacts" (
+create table "better_supabase"."deal_contacts" (
   "tenant_id" uuid not null,
   "deal_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
   "contact_type" text not null,
@@ -117,21 +78,21 @@ create table if not exists "better_supabase"."deal_contacts" (
   "is_primary" boolean not null default false,
   primary key ("deal_id", "contact_type", "contact_id")
 );
-create index if not exists deal_contacts_contact_idx on "better_supabase"."deal_contacts" ("contact_type", "contact_id");
-create unique index if not exists deal_contacts_primary_idx on "better_supabase"."deal_contacts" ("deal_id") where "is_primary";
+create index deal_contacts_contact_idx on "better_supabase"."deal_contacts" ("contact_type", "contact_id");
+create unique index deal_contacts_primary_idx on "better_supabase"."deal_contacts" ("deal_id") where "is_primary";
 alter table "better_supabase"."deal_contacts" enable row level security;
 revoke all on "better_supabase"."deal_contacts" from public, anon, authenticated;
 grant select on "better_supabase"."deal_contacts" to authenticated;
 grant all on "better_supabase"."deal_contacts" to service_role;
 
-create table if not exists "better_supabase"."deal_members" (
+create table "better_supabase"."deal_members" (
   "tenant_id" uuid not null,
   "deal_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
   "user_id" uuid not null,
   "role" text,
   primary key ("deal_id", "user_id")
 );
-create index if not exists deal_members_user_idx on "better_supabase"."deal_members" ("user_id");
+create index deal_members_user_idx on "better_supabase"."deal_members" ("user_id");
 alter table "better_supabase"."deal_members" enable row level security;
 revoke all on "better_supabase"."deal_members" from public, anon, authenticated;
 grant select on "better_supabase"."deal_members" to authenticated;
@@ -140,15 +101,12 @@ grant all on "better_supabase"."deal_members" to service_role;
 -- A deal is visible to members with deals.read; with readAll off, only to
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
-drop policy if exists deals_read on "better_supabase"."deals";
 create policy deals_read on "better_supabase"."deals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
-drop policy if exists deal_contacts_read on "better_supabase"."deal_contacts";
 create policy deal_contacts_read on "better_supabase"."deal_contacts"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
-drop policy if exists deal_members_read on "better_supabase"."deal_members";
 create policy deal_members_read on "better_supabase"."deal_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
@@ -218,7 +176,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_deal_guard() from public, anon, authenticated;
-drop trigger if exists bsb_deal_guard on "better_supabase"."deals";
 create trigger bsb_deal_guard before insert or update on "better_supabase"."deals"
 for each row execute function better_supabase.bsb_deal_guard();
 
@@ -632,7 +589,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_deal_members"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_deal_members"(uuid, jsonb) to authenticated, service_role;
-create table if not exists "better_supabase"."deal_lines" (
+create table "better_supabase"."deal_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
@@ -648,12 +605,11 @@ create table if not exists "better_supabase"."deal_lines" (
   "created_at" timestamptz not null default now(),
   check (("product_type" is null) = ("product_id" is null))
 );
-create index if not exists "deal_lines_parent_idx" on "better_supabase"."deal_lines" ("parent_id", "position");
+create index "deal_lines_parent_idx" on "better_supabase"."deal_lines" ("parent_id", "position");
 alter table "better_supabase"."deal_lines" enable row level security;
 revoke all on "better_supabase"."deal_lines" from public, anon, authenticated;
 grant select on "better_supabase"."deal_lines" to authenticated;
 grant all on "better_supabase"."deal_lines" to service_role;
-drop policy if exists "deal_lines_read" on "better_supabase"."deal_lines";
 create policy "deal_lines_read" on "better_supabase"."deal_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."deals" x where x."id" = "parent_id"));
 
@@ -710,10 +666,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_deal_lines_totals() from public, anon, authenticated;
-drop trigger if exists bsb_deal_lines_totals on "better_supabase"."deal_lines";
-drop trigger if exists bsb_deal_lines_totals_insert on "better_supabase"."deal_lines";
-drop trigger if exists bsb_deal_lines_totals_update on "better_supabase"."deal_lines";
-drop trigger if exists bsb_deal_lines_totals_delete on "better_supabase"."deal_lines";
 create trigger bsb_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
 referencing new table as new_rows
 for each statement execute function better_supabase.bsb_deal_lines_totals();
@@ -991,87 +943,67 @@ grant execute on function "better_supabase"."deal_board"(uuid) to authenticated,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."deals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."deals";
 create policy bsb_tenant_scope_select on "better_supabase"."deals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deals";
 create policy bsb_tenant_scope_insert on "better_supabase"."deals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."deals";
 create policy bsb_tenant_scope_update on "better_supabase"."deals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deals";
 create policy bsb_tenant_scope_delete on "better_supabase"."deals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."deal_contacts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."deal_contacts";
 create policy bsb_tenant_scope_select on "better_supabase"."deal_contacts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deal_contacts";
 create policy bsb_tenant_scope_insert on "better_supabase"."deal_contacts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."deal_contacts";
 create policy bsb_tenant_scope_update on "better_supabase"."deal_contacts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deal_contacts";
 create policy bsb_tenant_scope_delete on "better_supabase"."deal_contacts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."deal_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."deal_members";
 create policy bsb_tenant_scope_select on "better_supabase"."deal_members" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deal_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."deal_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."deal_members";
 create policy bsb_tenant_scope_update on "better_supabase"."deal_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deal_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."deal_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."deal_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."deal_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."deal_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."deals" x where x."id" = "parent_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deal_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."deal_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."deal_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."deal_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deal_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."deal_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

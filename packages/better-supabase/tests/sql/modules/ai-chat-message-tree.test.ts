@@ -87,9 +87,6 @@ describe("ai-chat message shapes", () => {
     expect(sql).toContain(
       '"author_id" uuid references auth.users (id) on delete set null',
     );
-    expect(sql).toContain(
-      'alter table "better_supabase"."ai_messages" add column if not exists "author_id"',
-    );
   });
 });
 
@@ -134,7 +131,7 @@ describe("ai-chat extra columns on every table", () => {
       ["ai_runs", "cost_center"],
     ]) {
       expect(sql).toContain(
-        `alter table "better_supabase"."${table}" add column if not exists "${column}" text;`,
+        `alter table "better_supabase"."${table}" add column "${column}" text;`,
       );
     }
 

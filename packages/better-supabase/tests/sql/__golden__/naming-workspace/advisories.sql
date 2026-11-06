@@ -1,79 +1,16 @@
 -- ==== schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:bd9c9c279af68503663601f3a068c9939316821463504cbcb8dbe90840fd8189
+-- @bsb-hash sha256:480b924a11b42d18984a40c6108bd0aeb7ea0db874de3cb2c9a32640c6a0e072
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."advisory_products";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."advisory_products";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."advisory_products";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."advisory_products";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."advisory_products";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."advisory_product_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."advisory_product_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."advisory_product_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."advisory_product_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."advisory_product_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sbom_components";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sbom_components";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sbom_components";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sbom_components";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sbom_components";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."vulnerabilities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."vulnerabilities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."vulnerabilities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."vulnerabilities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."vulnerabilities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."vex_statements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."vex_statements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."vex_statements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."vex_statements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."vex_statements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."advisories";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."advisories";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."advisories";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."advisories";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."advisories";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."advisory_vulnerabilities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."advisory_vulnerabilities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."advisory_vulnerabilities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."advisory_vulnerabilities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."advisory_vulnerabilities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Security advisories for a software vendor: products and versions with their
 -- CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV
 -- catalog, OpenVEX statements per version and CSAF 2.0 advisories.
 
-create table if not exists "better_supabase"."advisory_products" (
+create table "better_supabase"."advisory_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- Names the product in OpenVEX and CSAF documents.
@@ -86,17 +23,16 @@ create table if not exists "better_supabase"."advisory_products" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "advisory_products_key_idx" on "better_supabase"."advisory_products" ("tenant_id", "key");
+create unique index "advisory_products_key_idx" on "better_supabase"."advisory_products" ("tenant_id", "key");
 alter table "better_supabase"."advisory_products" enable row level security;
 revoke all on "better_supabase"."advisory_products" from public, anon, authenticated;
 grant select on "better_supabase"."advisory_products" to authenticated;
 grant all on "better_supabase"."advisory_products" to service_role;
-drop policy if exists advisory_products_read on "better_supabase"."advisory_products";
 create policy advisory_products_read on "better_supabase"."advisory_products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
-create table if not exists "better_supabase"."advisory_product_versions" (
+create table "better_supabase"."advisory_product_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null,
@@ -110,17 +46,16 @@ create table if not exists "better_supabase"."advisory_product_versions" (
   "sbom_imported_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "advisory_product_versions_product_idx" on "better_supabase"."advisory_product_versions" ("tenant_id", "product_id", "version");
+create unique index "advisory_product_versions_product_idx" on "better_supabase"."advisory_product_versions" ("tenant_id", "product_id", "version");
 alter table "better_supabase"."advisory_product_versions" enable row level security;
 revoke all on "better_supabase"."advisory_product_versions" from public, anon, authenticated;
 grant select on "better_supabase"."advisory_product_versions" to authenticated;
 grant all on "better_supabase"."advisory_product_versions" to service_role;
-drop policy if exists advisory_product_versions_read on "better_supabase"."advisory_product_versions";
 create policy advisory_product_versions_read on "better_supabase"."advisory_product_versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
-create table if not exists "better_supabase"."sbom_components" (
+create table "better_supabase"."sbom_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "version_id" uuid not null,
@@ -136,18 +71,17 @@ create table if not exists "better_supabase"."sbom_components" (
   "licenses" text[] not null default '{}',
   "hashes" jsonb not null default '[]'
 );
-create index if not exists "sbom_components_version_idx" on "better_supabase"."sbom_components" ("tenant_id", "version_id");
-create index if not exists "sbom_components_package_idx" on "better_supabase"."sbom_components" ("tenant_id", "package_purl") where "package_purl" is not null;
+create index "sbom_components_version_idx" on "better_supabase"."sbom_components" ("tenant_id", "version_id");
+create index "sbom_components_package_idx" on "better_supabase"."sbom_components" ("tenant_id", "package_purl") where "package_purl" is not null;
 alter table "better_supabase"."sbom_components" enable row level security;
 revoke all on "better_supabase"."sbom_components" from public, anon, authenticated;
 grant select on "better_supabase"."sbom_components" to authenticated;
 grant all on "better_supabase"."sbom_components" to service_role;
-drop policy if exists sbom_components_read on "better_supabase"."sbom_components";
 create policy sbom_components_read on "better_supabase"."sbom_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
-create table if not exists "better_supabase"."vulnerabilities" (
+create table "better_supabase"."vulnerabilities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "vuln_id" text not null check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'),
@@ -174,19 +108,18 @@ create table if not exists "better_supabase"."vulnerabilities" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "vulnerabilities_vuln_idx" on "better_supabase"."vulnerabilities" ("tenant_id", "vuln_id");
-create index if not exists "vulnerabilities_purls_idx" on "better_supabase"."vulnerabilities" using gin ("affected_purls");
-create index if not exists "vulnerabilities_due_idx" on "better_supabase"."vulnerabilities" ("enriched_at" nulls first);
+create unique index "vulnerabilities_vuln_idx" on "better_supabase"."vulnerabilities" ("tenant_id", "vuln_id");
+create index "vulnerabilities_purls_idx" on "better_supabase"."vulnerabilities" using gin ("affected_purls");
+create index "vulnerabilities_due_idx" on "better_supabase"."vulnerabilities" ("enriched_at" nulls first);
 alter table "better_supabase"."vulnerabilities" enable row level security;
 revoke all on "better_supabase"."vulnerabilities" from public, anon, authenticated;
 grant select on "better_supabase"."vulnerabilities" to authenticated;
 grant all on "better_supabase"."vulnerabilities" to service_role;
-drop policy if exists vulnerabilities_read on "better_supabase"."vulnerabilities";
 create policy vulnerabilities_read on "better_supabase"."vulnerabilities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
-create table if not exists "better_supabase"."vex_statements" (
+create table "better_supabase"."vex_statements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null,
@@ -201,17 +134,16 @@ create table if not exists "better_supabase"."vex_statements" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "vex_statements_scope_idx" on "better_supabase"."vex_statements" ("tenant_id", "product_id", "vulnerability_id", coalesce("version_id", '00000000-0000-0000-0000-000000000000'::uuid));
+create unique index "vex_statements_scope_idx" on "better_supabase"."vex_statements" ("tenant_id", "product_id", "vulnerability_id", coalesce("version_id", '00000000-0000-0000-0000-000000000000'::uuid));
 alter table "better_supabase"."vex_statements" enable row level security;
 revoke all on "better_supabase"."vex_statements" from public, anon, authenticated;
 grant select on "better_supabase"."vex_statements" to authenticated;
 grant all on "better_supabase"."vex_statements" to service_role;
-drop policy if exists vex_statements_read on "better_supabase"."vex_statements";
 create policy vex_statements_read on "better_supabase"."vex_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
-create table if not exists "better_supabase"."advisories" (
+create table "better_supabase"."advisories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The CSAF tracking id, such as ACME-SA-2026-001.
@@ -231,30 +163,28 @@ create table if not exists "better_supabase"."advisories" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "advisories_tracking_idx" on "better_supabase"."advisories" ("tenant_id", "tracking_id");
-create index if not exists "advisories_status_idx" on "better_supabase"."advisories" ("tenant_id", "status", "created_at" desc);
+create unique index "advisories_tracking_idx" on "better_supabase"."advisories" ("tenant_id", "tracking_id");
+create index "advisories_status_idx" on "better_supabase"."advisories" ("tenant_id", "status", "created_at" desc);
 alter table "better_supabase"."advisories" enable row level security;
 revoke all on "better_supabase"."advisories" from public, anon, authenticated;
 grant select on "better_supabase"."advisories" to authenticated;
 grant all on "better_supabase"."advisories" to service_role;
-drop policy if exists advisories_read on "better_supabase"."advisories";
 create policy advisories_read on "better_supabase"."advisories"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
-create table if not exists "better_supabase"."advisory_vulnerabilities" (
+create table "better_supabase"."advisory_vulnerabilities" (
   "tenant_id" uuid not null,
   "advisory_id" uuid not null,
   "vulnerability_id" uuid not null,
   "created_at" timestamptz not null default now(),
   primary key ("advisory_id", "vulnerability_id")
 );
-create index if not exists "advisory_vulnerabilities_vuln_idx" on "better_supabase"."advisory_vulnerabilities" ("tenant_id", "vulnerability_id");
+create index "advisory_vulnerabilities_vuln_idx" on "better_supabase"."advisory_vulnerabilities" ("tenant_id", "vulnerability_id");
 alter table "better_supabase"."advisory_vulnerabilities" enable row level security;
 revoke all on "better_supabase"."advisory_vulnerabilities" from public, anon, authenticated;
 grant select on "better_supabase"."advisory_vulnerabilities" to authenticated;
 grant all on "better_supabase"."advisory_vulnerabilities" to service_role;
-drop policy if exists advisory_vulnerabilities_read on "better_supabase"."advisory_vulnerabilities";
 create policy advisory_vulnerabilities_read on "better_supabase"."advisory_vulnerabilities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
@@ -1109,150 +1039,115 @@ grant execute on function "better_supabase"."list_published_advisories"(uuid) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."advisory_products";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."advisory_products";
 create policy bsb_tenant_scope_select on "better_supabase"."advisory_products" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."advisory_products";
 create policy bsb_tenant_scope_insert on "better_supabase"."advisory_products" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."advisory_products";
 create policy bsb_tenant_scope_update on "better_supabase"."advisory_products" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."advisory_products";
 create policy bsb_tenant_scope_delete on "better_supabase"."advisory_products" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."advisory_product_versions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."advisory_product_versions";
 create policy bsb_tenant_scope_select on "better_supabase"."advisory_product_versions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."advisory_product_versions";
 create policy bsb_tenant_scope_insert on "better_supabase"."advisory_product_versions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."advisory_product_versions";
 create policy bsb_tenant_scope_update on "better_supabase"."advisory_product_versions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."advisory_product_versions";
 create policy bsb_tenant_scope_delete on "better_supabase"."advisory_product_versions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."sbom_components";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."sbom_components";
 create policy bsb_tenant_scope_select on "better_supabase"."sbom_components" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sbom_components";
 create policy bsb_tenant_scope_insert on "better_supabase"."sbom_components" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."sbom_components";
 create policy bsb_tenant_scope_update on "better_supabase"."sbom_components" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sbom_components";
 create policy bsb_tenant_scope_delete on "better_supabase"."sbom_components" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."vulnerabilities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."vulnerabilities";
 create policy bsb_tenant_scope_select on "better_supabase"."vulnerabilities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."vulnerabilities";
 create policy bsb_tenant_scope_insert on "better_supabase"."vulnerabilities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."vulnerabilities";
 create policy bsb_tenant_scope_update on "better_supabase"."vulnerabilities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."vulnerabilities";
 create policy bsb_tenant_scope_delete on "better_supabase"."vulnerabilities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."vex_statements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."vex_statements";
 create policy bsb_tenant_scope_select on "better_supabase"."vex_statements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."vex_statements";
 create policy bsb_tenant_scope_insert on "better_supabase"."vex_statements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."vex_statements";
 create policy bsb_tenant_scope_update on "better_supabase"."vex_statements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."vex_statements";
 create policy bsb_tenant_scope_delete on "better_supabase"."vex_statements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."advisories";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."advisories";
 create policy bsb_tenant_scope_select on "better_supabase"."advisories" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."advisories";
 create policy bsb_tenant_scope_insert on "better_supabase"."advisories" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."advisories";
 create policy bsb_tenant_scope_update on "better_supabase"."advisories" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."advisories";
 create policy bsb_tenant_scope_delete on "better_supabase"."advisories" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."advisory_vulnerabilities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."advisory_vulnerabilities";
 create policy bsb_tenant_scope_select on "better_supabase"."advisory_vulnerabilities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."advisory_vulnerabilities";
 create policy bsb_tenant_scope_insert on "better_supabase"."advisory_vulnerabilities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."advisory_vulnerabilities";
 create policy bsb_tenant_scope_update on "better_supabase"."advisory_vulnerabilities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."advisory_vulnerabilities";
 create policy bsb_tenant_scope_delete on "better_supabase"."advisory_vulnerabilities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

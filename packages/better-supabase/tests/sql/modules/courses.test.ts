@@ -13,11 +13,9 @@ describe("courses module", () => {
     const sql = sqlOf();
 
     expect(sql).toContain(
-      `alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240);`,
+      `"valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240)`,
     );
-    expect(sql).toContain(
-      `alter table "better_supabase"."course_certificates" add column if not exists "expires_at" timestamptz;`,
-    );
+    expect(sql).toContain(`"expires_at" timestamptz`);
     expect(sql).toContain(
       "now() + make_interval(months => v_enrollment.valid_for)",
     );

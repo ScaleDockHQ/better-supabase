@@ -105,9 +105,6 @@ describe("credentials module", () => {
       expect(sql).toContain("v_scope := substring(v_name from '@([^@/]+)$');");
       expect(sql).not.toContain("vault.create_secret");
       expect(sql).not.toContain('"updated_at"');
-      expect(sql).toContain(
-        'drop trigger if exists "bsb_credential_vault" on "public"."integration_secrets";',
-      );
     });
 
     it("refuses a storage the table has no column for, and renames in managed mode", () => {

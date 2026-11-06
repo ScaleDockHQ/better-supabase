@@ -193,7 +193,7 @@ create table if not exists ${signals} (
 );
 create index if not exists ${name("signals", "subject_idx")} on ${signals} (${s("tenant")}, ${s("subjectType")}, ${s("subjectId")}, ${s("receivedAt")} desc);
 ${lockTable(signals, { read: true })}
-${renderPolicy(makePolicy({ table: signals, name: name("signals", "read"), command: "select", roles: ["authenticated"], using: `(${ctx.scope.check(s("tenant"), q.read)} and ${canSubject}(${s("subjectType")}, ${s("subjectId")}, 'read')) or ${s("createdBy")} = (select auth.uid())` }), { drop: true, target: signals })}
+${renderPolicy(makePolicy({ table: signals, name: name("signals", "read"), command: "select", roles: ["authenticated"], using: `(${ctx.scope.check(s("tenant"), q.read)} and ${canSubject}(${s("subjectType")}, ${s("subjectId")}, 'read')) or ${s("createdBy")} = (select auth.uid())` }), { target: signals })}
 
 -- A receipt for one consent decision: the document handed to the person, with
 -- the SHA-256 of its text. One receipt per consent and status, never changed.
@@ -211,7 +211,7 @@ create table if not exists ${receipts} (
 );
 create index if not exists ${name("receipts", "tenant_idx")} on ${receipts} (${r("tenant")}, ${r("issuedAt")} desc);
 ${lockTable(receipts, { read: true })}
-${renderPolicy(makePolicy({ table: receipts, name: name("receipts", "read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(r("tenant"), q.read)} and ${canSubject}(${r("subjectType")}, ${r("subjectId")}, 'read')` }), { drop: true, target: receipts })}
+${renderPolicy(makePolicy({ table: receipts, name: name("receipts", "read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(r("tenant"), q.read)} and ${canSubject}(${r("subjectType")}, ${r("subjectId")}, 'read')` }), { target: receipts })}
 `;
 }
 

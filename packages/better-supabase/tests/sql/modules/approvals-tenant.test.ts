@@ -29,7 +29,7 @@ describe("approval policies", () => {
       approvals({ policies: FLOORS, tenantPolicies: true }),
     );
 
-    expect(sql).toContain("create table if not exists");
+    expect(sql).toContain("create table");
     expect(sql).toContain("approval_policies");
     expect(sql).toContain(`rule_matches"(`);
     expect(sql).toContain("save_approval_policy");

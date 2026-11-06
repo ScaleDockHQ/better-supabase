@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:43759cb6759a48f0ad58c87dbcfc566a1a1fcbb83440187f5df6b1d6b5f69975
+-- @bsb-hash sha256:5b0a335665885e58c8763d166e44a310c00e2b3b25d4fe18f4984b71fc336ac5
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,7 +9,7 @@
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
-create table if not exists "better_supabase"."announcements" (
+create table "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "body" text not null default '' check (length("body") <= 10000),
@@ -28,21 +28,21 @@ create table if not exists "better_supabase"."announcements" (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "better_supabase"."announcements" drop constraint if exists bsb_announcements_audience;
+
 alter table "better_supabase"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
-create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
-create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
+create index announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
+create index announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
 revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
-create table if not exists "better_supabase"."announcement_dismissals" (
+create table "better_supabase"."announcement_dismissals" (
   "announcement_id" uuid not null references "better_supabase"."announcements" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "dismissed_at" timestamptz not null default now(),
   primary key ("announcement_id", "user_id")
 );
-create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
+create index announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
 revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
@@ -234,14 +234,12 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_announcements_receive on realtime.messages;
-create policy bsb_announcements_receive on realtime.messages
+        create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;
@@ -276,7 +274,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:a96b34ce4864abf5c13444a8cc4044c4a9b6987c3cc9ca334df1ad406342e38c
+-- @bsb-hash sha256:41a0225c2b14fe8b6c7d9eb68a413398f738e6f1a51d4e9b80cd63e91d23db3d
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -284,7 +282,7 @@ on conflict (name) do update
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
-create table if not exists "better_supabase"."announcements" (
+create table "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "body" text not null default '' check (length("body") <= 10000),
@@ -303,21 +301,21 @@ create table if not exists "better_supabase"."announcements" (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "better_supabase"."announcements" drop constraint if exists bsb_announcements_audience;
+
 alter table "better_supabase"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role', 'plan'));
-create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
-create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
+create index announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
+create index announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
 revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
-create table if not exists "better_supabase"."announcement_dismissals" (
+create table "better_supabase"."announcement_dismissals" (
   "announcement_id" uuid not null references "better_supabase"."announcements" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "dismissed_at" timestamptz not null default now(),
   primary key ("announcement_id", "user_id")
 );
-create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
+create index announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
 revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
@@ -530,14 +528,12 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_announcements_receive on realtime.messages;
-create policy bsb_announcements_receive on realtime.messages
+        create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;
@@ -579,7 +575,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:e8811724f91621190ffb976c304c66e5652612ce0ebe354140b19552a17ab27d
+-- @bsb-hash sha256:497ca8f270a71a7f1855a890552edaa6e127ce86b15c51591bc8485c39fb57c9
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -592,7 +588,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
-create table if not exists "app_private"."announcements" (
+create table "app_private"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "body" text not null default '' check (length("body") <= 10000),
@@ -611,21 +607,21 @@ create table if not exists "app_private"."announcements" (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "app_private"."announcements" drop constraint if exists bsb_announcements_audience;
+
 alter table "app_private"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
-create index if not exists announcements_window_idx on "app_private"."announcements" ("starts_at", "ends_at");
-create index if not exists announcements_created_by_idx on "app_private"."announcements" ("created_by");
+create index announcements_window_idx on "app_private"."announcements" ("starts_at", "ends_at");
+create index announcements_created_by_idx on "app_private"."announcements" ("created_by");
 alter table "app_private"."announcements" enable row level security;
 revoke all on "app_private"."announcements" from public, anon, authenticated;
 grant all on "app_private"."announcements" to service_role;
 
-create table if not exists "app_private"."announcement_dismissals" (
+create table "app_private"."announcement_dismissals" (
   "announcement_id" uuid not null references "app_private"."announcements" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "dismissed_at" timestamptz not null default now(),
   primary key ("announcement_id", "user_id")
 );
-create index if not exists announcement_dismissals_user_idx on "app_private"."announcement_dismissals" ("user_id");
+create index announcement_dismissals_user_idx on "app_private"."announcement_dismissals" ("user_id");
 alter table "app_private"."announcement_dismissals" enable row level security;
 revoke all on "app_private"."announcement_dismissals" from public, anon, authenticated;
 grant all on "app_private"."announcement_dismissals" to service_role;
@@ -817,14 +813,12 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bsb_announcements_broadcast" on "app_private"."announcements";
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "app_private"."announcements"
   for each row execute function "app_private"."broadcast_announcement"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_announcements_receive on realtime.messages;
-create policy bsb_announcements_receive on realtime.messages
+        create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;
@@ -859,7 +853,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:e595767004565b832f1056ce49a62e1b5784fcffd68b88a99d801d074ee67f8b
+-- @bsb-hash sha256:278f1364d0db58f2ac5a38a5166a8b513babf3a6fb2a5f57e3919e748de236d1
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -867,7 +861,7 @@ on conflict (name) do update
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
-create table if not exists "better_supabase"."announcements" (
+create table "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "body" text not null default '' check (length("body") <= 10000),
@@ -886,21 +880,21 @@ create table if not exists "better_supabase"."announcements" (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "better_supabase"."announcements" drop constraint if exists bsb_announcements_audience;
+
 alter table "better_supabase"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
-create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
-create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
+create index announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
+create index announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
 revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
-create table if not exists "better_supabase"."announcement_dismissals" (
+create table "better_supabase"."announcement_dismissals" (
   "announcement_id" uuid not null references "better_supabase"."announcements" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "dismissed_at" timestamptz not null default now(),
   primary key ("announcement_id", "user_id")
 );
-create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
+create index announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
 revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
@@ -1092,14 +1086,12 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_announcements_receive on realtime.messages;
-create policy bsb_announcements_receive on realtime.messages
+        create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;
@@ -1185,7 +1177,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:3481be17c741d8f661283d703ce0b3d847e0212c8d24fba37324609a87ad6345
+-- @bsb-hash sha256:a746854668fd301cc609b980b9f4c74da18455e5958061f65ef5c535afa339f6
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1410,14 +1402,12 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_announcements_receive on realtime.messages;
-create policy bsb_announcements_receive on realtime.messages
+        create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;

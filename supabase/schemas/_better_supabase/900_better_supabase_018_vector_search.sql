@@ -1,6 +1,6 @@
 -- better-supabase module: vector-search
 -- @bsb-block vector-search@1 managed
--- @bsb-hash sha256:08ec87cd76de5345d7aa9645c06699c63f5fbb2c9222e95816d345b4bff37584
+-- @bsb-hash sha256:a3f89c6c471e2f4189c3d82e6e20f0c7e414386202fe6a1ce8bcfead222ab30b
 -- search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,8 +14,7 @@ create extension if not exists vector with schema extensions;
 
 -- config.vectorSearch
 -- notes.embedding (cosine)
-drop function if exists "public"."search_notes"(extensions.vector, integer, jsonb, text);
-drop function if exists "public"."search_notes_scores"(extensions.vector, integer, jsonb, text);
+
 create or replace function "public"."search_notes"(query extensions.vector, k integer default 10)
 returns setof "public"."notes"
 language plpgsql

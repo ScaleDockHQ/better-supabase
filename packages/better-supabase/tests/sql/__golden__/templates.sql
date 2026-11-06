@@ -1,40 +1,17 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:f4659432941fe0af058426600b5313abeb17b5068f4da226be9dfa26287dfcf9
+-- @bsb-hash sha256:d2255a4b435b52804fda2c473774edd2b2317665fb66a816bd2f3fa2f35bee61
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
 -- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
-create table if not exists "better_supabase"."templates" (
+create table "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
@@ -52,16 +29,15 @@ create table if not exists "better_supabase"."templates" (
   "updated_at" timestamptz not null default now(),
   constraint templates_system_check check (("scope" = 'system') = ("tenant_id" is null))
 );
-create unique index if not exists templates_key_idx on "better_supabase"."templates" ("tenant_id", "key") nulls not distinct where "key" is not null;
-create unique index if not exists templates_default_idx on "better_supabase"."templates" ("tenant_id", "type", "language") nulls not distinct where "is_default";
-create index if not exists templates_type_idx on "better_supabase"."templates" ("tenant_id", "type");
-create index if not exists templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
-create index if not exists templates_created_by_idx on "better_supabase"."templates" ("created_by");
+create unique index templates_key_idx on "better_supabase"."templates" ("tenant_id", "key") nulls not distinct where "key" is not null;
+create unique index templates_default_idx on "better_supabase"."templates" ("tenant_id", "type", "language") nulls not distinct where "is_default";
+create index templates_type_idx on "better_supabase"."templates" ("tenant_id", "type");
+create index templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
+create index templates_created_by_idx on "better_supabase"."templates" ("created_by");
 alter table "better_supabase"."templates" enable row level security;
 revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
-drop policy if exists templates_read on "better_supabase"."templates";
 create policy templates_read on "better_supabase"."templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
@@ -69,7 +45,7 @@ create policy templates_read on "better_supabase"."templates"
 
 -- Numbered snapshots of a template's body: at most one draft, and published
 -- versions that never change. hash: the SHA-256 of the body as text.
-create table if not exists "better_supabase"."template_versions" (
+create table "better_supabase"."template_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version" integer not null check ("version" > 0),
@@ -80,19 +56,18 @@ create table if not exists "better_supabase"."template_versions" (
   "created_at" timestamptz not null default now(),
   constraint template_versions_template_version_key unique ("template_id", "version")
 );
-create unique index if not exists template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
-create index if not exists template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
+create unique index template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
+create index template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
 alter table "better_supabase"."template_versions" enable row level security;
 revoke all on "better_supabase"."template_versions" from public, anon, authenticated;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
-drop policy if exists template_versions_read on "better_supabase"."template_versions";
 create policy template_versions_read on "better_supabase"."template_versions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
 -- Each time a published version created a record, and which one.
-create table if not exists "better_supabase"."template_applications" (
+create table "better_supabase"."template_applications" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
@@ -102,16 +77,15 @@ create table if not exists "better_supabase"."template_applications" (
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );
-create index if not exists template_applications_tenant_idx on "better_supabase"."template_applications" ("tenant_id", "applied_at" desc);
-create index if not exists template_applications_template_idx on "better_supabase"."template_applications" ("template_id");
-create index if not exists template_applications_version_idx on "better_supabase"."template_applications" ("version_id");
-create index if not exists template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
-create index if not exists template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
+create index template_applications_tenant_idx on "better_supabase"."template_applications" ("tenant_id", "applied_at" desc);
+create index template_applications_template_idx on "better_supabase"."template_applications" ("template_id");
+create index template_applications_version_idx on "better_supabase"."template_applications" ("version_id");
+create index template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
+create index template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
 alter table "better_supabase"."template_applications" enable row level security;
 revoke all on "better_supabase"."template_applications" from public, anon, authenticated;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
-drop policy if exists template_applications_read on "better_supabase"."template_applications";
 create policy template_applications_read on "better_supabase"."template_applications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
@@ -120,7 +94,7 @@ create policy template_applications_read on "better_supabase"."template_applicat
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
 -- fields: the extra columns (blocks.templates.options.extraColumns) to set.
-drop function if exists "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language plpgsql
@@ -868,8 +842,6 @@ revoke execute on function "better_supabase"."template_row_guard"() from public,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
 create policy bsb_tenant_scope_select on "better_supabase"."templates" as restrictive
   for select to public
   using (
@@ -877,37 +849,29 @@ create policy bsb_tenant_scope_select on "better_supabase"."templates" as restri
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
 create policy bsb_tenant_scope_update on "better_supabase"."templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_select on "better_supabase"."template_applications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_insert on "better_supabase"."template_applications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_update on "better_supabase"."template_applications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_delete on "better_supabase"."template_applications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -931,56 +895,17 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:b6c3ec12a3eff2cd8fb837525cca006780ef8aefaa98b6e9e0701e8c9dc2314d
+-- @bsb-hash sha256:42bdb8003d8f8ccfe81e4fdc17fbfe8d043fc4a37d4124a1e73737cbd6ff9074
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."template_schedules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_schedules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."template_schedule_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_schedule_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_schedule_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_schedule_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_schedule_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
 -- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
-create table if not exists "better_supabase"."templates" (
+create table "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
@@ -998,16 +923,15 @@ create table if not exists "better_supabase"."templates" (
   "updated_at" timestamptz not null default now(),
   constraint templates_system_check check (("scope" = 'system') = ("tenant_id" is null))
 );
-create unique index if not exists templates_key_idx on "better_supabase"."templates" ("tenant_id", "key") nulls not distinct where "key" is not null;
-create unique index if not exists templates_default_idx on "better_supabase"."templates" ("tenant_id", "type", "language") nulls not distinct where "is_default";
-create index if not exists templates_type_idx on "better_supabase"."templates" ("tenant_id", "type");
-create index if not exists templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
-create index if not exists templates_created_by_idx on "better_supabase"."templates" ("created_by");
+create unique index templates_key_idx on "better_supabase"."templates" ("tenant_id", "key") nulls not distinct where "key" is not null;
+create unique index templates_default_idx on "better_supabase"."templates" ("tenant_id", "type", "language") nulls not distinct where "is_default";
+create index templates_type_idx on "better_supabase"."templates" ("tenant_id", "type");
+create index templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
+create index templates_created_by_idx on "better_supabase"."templates" ("created_by");
 alter table "better_supabase"."templates" enable row level security;
 revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
-drop policy if exists templates_read on "better_supabase"."templates";
 create policy templates_read on "better_supabase"."templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
@@ -1015,7 +939,7 @@ create policy templates_read on "better_supabase"."templates"
 
 -- Numbered snapshots of a template's body: at most one draft, and published
 -- versions that never change. hash: the SHA-256 of the body as text.
-create table if not exists "better_supabase"."template_versions" (
+create table "better_supabase"."template_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version" integer not null check ("version" > 0),
@@ -1026,19 +950,18 @@ create table if not exists "better_supabase"."template_versions" (
   "created_at" timestamptz not null default now(),
   constraint template_versions_template_version_key unique ("template_id", "version")
 );
-create unique index if not exists template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
-create index if not exists template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
+create unique index template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
+create index template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
 alter table "better_supabase"."template_versions" enable row level security;
 revoke all on "better_supabase"."template_versions" from public, anon, authenticated;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
-drop policy if exists template_versions_read on "better_supabase"."template_versions";
 create policy template_versions_read on "better_supabase"."template_versions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
 -- Each time a published version created a record, and which one.
-create table if not exists "better_supabase"."template_applications" (
+create table "better_supabase"."template_applications" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
@@ -1048,23 +971,22 @@ create table if not exists "better_supabase"."template_applications" (
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );
-create index if not exists template_applications_tenant_idx on "better_supabase"."template_applications" ("tenant_id", "applied_at" desc);
-create index if not exists template_applications_template_idx on "better_supabase"."template_applications" ("template_id");
-create index if not exists template_applications_version_idx on "better_supabase"."template_applications" ("version_id");
-create index if not exists template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
-create index if not exists template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
+create index template_applications_tenant_idx on "better_supabase"."template_applications" ("tenant_id", "applied_at" desc);
+create index template_applications_template_idx on "better_supabase"."template_applications" ("template_id");
+create index template_applications_version_idx on "better_supabase"."template_applications" ("version_id");
+create index template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
+create index template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
 alter table "better_supabase"."template_applications" enable row level security;
 revoke all on "better_supabase"."template_applications" from public, anon, authenticated;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
-drop policy if exists template_applications_read on "better_supabase"."template_applications";
 create policy template_applications_read on "better_supabase"."template_applications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
 
 -- The workflow definitions a template starts on each record it creates, with
 -- the input each run takes.
-create table if not exists "better_supabase"."template_workflows" (
+create table "better_supabase"."template_workflows" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
@@ -1074,13 +996,12 @@ create table if not exists "better_supabase"."template_workflows" (
   "created_at" timestamptz not null default now(),
   constraint template_workflows_template_definition_key unique ("template_id", "definition_id")
 );
-create index if not exists template_workflows_definition_idx on "better_supabase"."template_workflows" ("definition_id");
-create index if not exists template_workflows_created_by_idx on "better_supabase"."template_workflows" ("created_by");
+create index template_workflows_definition_idx on "better_supabase"."template_workflows" ("definition_id");
+create index template_workflows_created_by_idx on "better_supabase"."template_workflows" ("created_by");
 alter table "better_supabase"."template_workflows" enable row level security;
 revoke all on "better_supabase"."template_workflows" from public, anon, authenticated;
 grant select on "better_supabase"."template_workflows" to authenticated;
 grant all on "better_supabase"."template_workflows" to service_role;
-drop policy if exists template_workflows_read on "better_supabase"."template_workflows";
 create policy template_workflows_read on "better_supabase"."template_workflows"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
@@ -1124,7 +1045,7 @@ grant execute on function "better_supabase"."template_workflow_input_errors"(uui
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
 -- fields: the extra columns (blocks.templates.options.extraColumns) to set.
-drop function if exists "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language plpgsql
@@ -1936,7 +1857,7 @@ grant execute on function "better_supabase"."template_workflows_list"(uuid) to a
 -- input at every occurrence of its rule in "better_supabase"."recurrence_rules"
 -- (subject_type 'template_schedule'). The client expands the rules and enqueues
 -- one job per occurrence.
-create table if not exists "better_supabase"."template_schedules" (
+create table "better_supabase"."template_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -1947,20 +1868,19 @@ create table if not exists "better_supabase"."template_schedules" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists template_schedules_tenant_idx on "better_supabase"."template_schedules" ("tenant_id", "template_id");
-create index if not exists template_schedules_template_idx on "better_supabase"."template_schedules" ("template_id");
-create index if not exists template_schedules_created_by_idx on "better_supabase"."template_schedules" ("created_by");
+create index template_schedules_tenant_idx on "better_supabase"."template_schedules" ("tenant_id", "template_id");
+create index template_schedules_template_idx on "better_supabase"."template_schedules" ("template_id");
+create index template_schedules_created_by_idx on "better_supabase"."template_schedules" ("created_by");
 alter table "better_supabase"."template_schedules" enable row level security;
 revoke all on "better_supabase"."template_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."template_schedules" to authenticated;
 grant all on "better_supabase"."template_schedules" to service_role;
-drop policy if exists template_schedules_read on "better_supabase"."template_schedules";
 create policy template_schedules_read on "better_supabase"."template_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
 
 -- One row per occurrence a schedule claimed, and the application it made.
-create table if not exists "better_supabase"."template_schedule_runs" (
+create table "better_supabase"."template_schedule_runs" (
   "schedule_id" uuid not null references "better_supabase"."template_schedules" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "occurrence_at" timestamptz not null,
@@ -1968,13 +1888,12 @@ create table if not exists "better_supabase"."template_schedule_runs" (
   "created_at" timestamptz not null default now(),
   primary key ("schedule_id", "occurrence_at")
 );
-create index if not exists template_schedule_runs_tenant_idx on "better_supabase"."template_schedule_runs" ("tenant_id", "occurrence_at" desc);
-create index if not exists template_schedule_runs_application_idx on "better_supabase"."template_schedule_runs" ("application_id");
+create index template_schedule_runs_tenant_idx on "better_supabase"."template_schedule_runs" ("tenant_id", "occurrence_at" desc);
+create index template_schedule_runs_application_idx on "better_supabase"."template_schedule_runs" ("application_id");
 alter table "better_supabase"."template_schedule_runs" enable row level security;
 revoke all on "better_supabase"."template_schedule_runs" from public, anon, authenticated;
 grant select on "better_supabase"."template_schedule_runs" to authenticated;
 grant all on "better_supabase"."template_schedule_runs" to service_role;
-drop policy if exists template_schedule_runs_read on "better_supabase"."template_schedule_runs";
 create policy template_schedule_runs_read on "better_supabase"."template_schedule_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
@@ -1994,7 +1913,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."template_schedule_removed"() from public, anon, authenticated;
-drop trigger if exists "bsb_template_schedule_removed" on "better_supabase"."template_schedules";
 create trigger "bsb_template_schedule_removed" after delete on "better_supabase"."template_schedules"
 for each row execute function "better_supabase"."template_schedule_removed"();
 
@@ -2361,8 +2279,6 @@ revoke execute on function "better_supabase"."template_row_guard"() from public,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
 create policy bsb_tenant_scope_select on "better_supabase"."templates" as restrictive
   for select to public
   using (
@@ -2370,79 +2286,61 @@ create policy bsb_tenant_scope_select on "better_supabase"."templates" as restri
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
 create policy bsb_tenant_scope_update on "better_supabase"."templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_select on "better_supabase"."template_applications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_insert on "better_supabase"."template_applications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_update on "better_supabase"."template_applications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_delete on "better_supabase"."template_applications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."template_schedules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_schedules";
 create policy bsb_tenant_scope_select on "better_supabase"."template_schedules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_schedules";
 create policy bsb_tenant_scope_insert on "better_supabase"."template_schedules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_schedules";
 create policy bsb_tenant_scope_update on "better_supabase"."template_schedules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_schedules";
 create policy bsb_tenant_scope_delete on "better_supabase"."template_schedules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."template_schedule_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_schedule_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."template_schedule_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_schedule_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."template_schedule_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_schedule_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."template_schedule_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_schedule_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."template_schedule_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2473,32 +2371,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:ce58c4edca37114b9e7d310727b0a2b2b72c49f47f45519d634c1b82bd17c4be
+-- @bsb-hash sha256:77eb3048cf8d6c576ddc3d67ee5bd54cc696807f1bfa9ba8352c4d70eff93a3d
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."templates";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."templates";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."templates";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."templates";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."template_applications";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."template_applications";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."template_applications";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."template_applications";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."template_applications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -2510,7 +2386,7 @@ create extension if not exists pgcrypto with schema extensions;
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
 -- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
-create table if not exists "app_private"."templates" (
+create table "app_private"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
@@ -2528,16 +2404,15 @@ create table if not exists "app_private"."templates" (
   "updated_at" timestamptz not null default now(),
   constraint templates_system_check check (("scope" = 'system') = ("tenant_id" is null))
 );
-create unique index if not exists templates_key_idx on "app_private"."templates" ("tenant_id", "key") nulls not distinct where "key" is not null;
-create unique index if not exists templates_default_idx on "app_private"."templates" ("tenant_id", "type", "language") nulls not distinct where "is_default";
-create index if not exists templates_type_idx on "app_private"."templates" ("tenant_id", "type");
-create index if not exists templates_forked_from_idx on "app_private"."templates" ("forked_from") where "forked_from" is not null;
-create index if not exists templates_created_by_idx on "app_private"."templates" ("created_by");
+create unique index templates_key_idx on "app_private"."templates" ("tenant_id", "key") nulls not distinct where "key" is not null;
+create unique index templates_default_idx on "app_private"."templates" ("tenant_id", "type", "language") nulls not distinct where "is_default";
+create index templates_type_idx on "app_private"."templates" ("tenant_id", "type");
+create index templates_forked_from_idx on "app_private"."templates" ("forked_from") where "forked_from" is not null;
+create index templates_created_by_idx on "app_private"."templates" ("created_by");
 alter table "app_private"."templates" enable row level security;
 revoke all on "app_private"."templates" from public, anon, authenticated;
 grant select on "app_private"."templates" to authenticated;
 grant all on "app_private"."templates" to service_role;
-drop policy if exists templates_read on "app_private"."templates";
 create policy templates_read on "app_private"."templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
@@ -2545,7 +2420,7 @@ create policy templates_read on "app_private"."templates"
 
 -- Numbered snapshots of a template's body: at most one draft, and published
 -- versions that never change. hash: the SHA-256 of the body as text.
-create table if not exists "app_private"."template_versions" (
+create table "app_private"."template_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "app_private"."templates" ("id") on delete cascade,
   "version" integer not null check ("version" > 0),
@@ -2556,19 +2431,18 @@ create table if not exists "app_private"."template_versions" (
   "created_at" timestamptz not null default now(),
   constraint template_versions_template_version_key unique ("template_id", "version")
 );
-create unique index if not exists template_versions_one_draft_idx on "app_private"."template_versions" ("template_id") where "published_at" is null;
-create index if not exists template_versions_created_by_idx on "app_private"."template_versions" ("created_by");
+create unique index template_versions_one_draft_idx on "app_private"."template_versions" ("template_id") where "published_at" is null;
+create index template_versions_created_by_idx on "app_private"."template_versions" ("created_by");
 alter table "app_private"."template_versions" enable row level security;
 revoke all on "app_private"."template_versions" from public, anon, authenticated;
 grant select on "app_private"."template_versions" to authenticated;
 grant all on "app_private"."template_versions" to service_role;
-drop policy if exists template_versions_read on "app_private"."template_versions";
 create policy template_versions_read on "app_private"."template_versions"
   for select to authenticated
   using (exists (select 1 from "app_private"."templates" x where x."id" = "template_id"));
 
 -- Each time a published version created a record, and which one.
-create table if not exists "app_private"."template_applications" (
+create table "app_private"."template_applications" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "app_private"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "app_private"."template_versions" ("id") on delete cascade,
@@ -2578,16 +2452,15 @@ create table if not exists "app_private"."template_applications" (
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );
-create index if not exists template_applications_tenant_idx on "app_private"."template_applications" ("tenant_id", "applied_at" desc);
-create index if not exists template_applications_template_idx on "app_private"."template_applications" ("template_id");
-create index if not exists template_applications_version_idx on "app_private"."template_applications" ("version_id");
-create index if not exists template_applications_subject_idx on "app_private"."template_applications" ("subject_type", "subject_id");
-create index if not exists template_applications_applied_by_idx on "app_private"."template_applications" ("applied_by");
+create index template_applications_tenant_idx on "app_private"."template_applications" ("tenant_id", "applied_at" desc);
+create index template_applications_template_idx on "app_private"."template_applications" ("template_id");
+create index template_applications_version_idx on "app_private"."template_applications" ("version_id");
+create index template_applications_subject_idx on "app_private"."template_applications" ("subject_type", "subject_id");
+create index template_applications_applied_by_idx on "app_private"."template_applications" ("applied_by");
 alter table "app_private"."template_applications" enable row level security;
 revoke all on "app_private"."template_applications" from public, anon, authenticated;
 grant select on "app_private"."template_applications" to authenticated;
 grant all on "app_private"."template_applications" to service_role;
-drop policy if exists template_applications_read on "app_private"."template_applications";
 create policy template_applications_read on "app_private"."template_applications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
@@ -2596,7 +2469,7 @@ create policy template_applications_read on "app_private"."template_applications
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
 -- fields: the extra columns (blocks.templates.options.extraColumns) to set.
-drop function if exists "app_private"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
+
 create or replace function "app_private"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language plpgsql
@@ -3344,8 +3217,6 @@ revoke execute on function "app_private"."template_row_guard"() from public, ano
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."templates";
-drop policy if exists bsb_tenant_scope_select on "app_private"."templates";
 create policy bsb_tenant_scope_select on "app_private"."templates" as restrictive
   for select to public
   using (
@@ -3353,37 +3224,29 @@ create policy bsb_tenant_scope_select on "app_private"."templates" as restrictiv
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."templates";
 create policy bsb_tenant_scope_insert on "app_private"."templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."templates";
 create policy bsb_tenant_scope_update on "app_private"."templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."templates";
 create policy bsb_tenant_scope_delete on "app_private"."templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."template_applications";
-drop policy if exists bsb_tenant_scope_select on "app_private"."template_applications";
 create policy bsb_tenant_scope_select on "app_private"."template_applications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."template_applications";
 create policy bsb_tenant_scope_insert on "app_private"."template_applications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."template_applications";
 create policy bsb_tenant_scope_update on "app_private"."template_applications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."template_applications";
 create policy bsb_tenant_scope_delete on "app_private"."template_applications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3407,40 +3270,17 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:89986436b6ec39d4e958ccb17c8fa58c260cc6156551643c807997d857097a65
+-- @bsb-hash sha256:1865038828d3034087f16aedef5bf7bfab9ce48bc34653d3f64adb6ab9a1170c
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
 -- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
-create table if not exists "better_supabase"."templates" (
+create table "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
@@ -3458,16 +3298,15 @@ create table if not exists "better_supabase"."templates" (
   "updated_at" timestamptz not null default now(),
   constraint templates_system_check check (("scope" = 'system') = ("tenant_id" is null))
 );
-create unique index if not exists templates_key_idx on "better_supabase"."templates" ("tenant_id", "key") nulls not distinct where "key" is not null;
-create unique index if not exists templates_default_idx on "better_supabase"."templates" ("tenant_id", "type", "language") nulls not distinct where "is_default";
-create index if not exists templates_type_idx on "better_supabase"."templates" ("tenant_id", "type");
-create index if not exists templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
-create index if not exists templates_created_by_idx on "better_supabase"."templates" ("created_by");
+create unique index templates_key_idx on "better_supabase"."templates" ("tenant_id", "key") nulls not distinct where "key" is not null;
+create unique index templates_default_idx on "better_supabase"."templates" ("tenant_id", "type", "language") nulls not distinct where "is_default";
+create index templates_type_idx on "better_supabase"."templates" ("tenant_id", "type");
+create index templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
+create index templates_created_by_idx on "better_supabase"."templates" ("created_by");
 alter table "better_supabase"."templates" enable row level security;
 revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
-drop policy if exists templates_read on "better_supabase"."templates";
 create policy templates_read on "better_supabase"."templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
@@ -3475,7 +3314,7 @@ create policy templates_read on "better_supabase"."templates"
 
 -- Numbered snapshots of a template's body: at most one draft, and published
 -- versions that never change. hash: the SHA-256 of the body as text.
-create table if not exists "better_supabase"."template_versions" (
+create table "better_supabase"."template_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version" integer not null check ("version" > 0),
@@ -3486,19 +3325,18 @@ create table if not exists "better_supabase"."template_versions" (
   "created_at" timestamptz not null default now(),
   constraint template_versions_template_version_key unique ("template_id", "version")
 );
-create unique index if not exists template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
-create index if not exists template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
+create unique index template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
+create index template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
 alter table "better_supabase"."template_versions" enable row level security;
 revoke all on "better_supabase"."template_versions" from public, anon, authenticated;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
-drop policy if exists template_versions_read on "better_supabase"."template_versions";
 create policy template_versions_read on "better_supabase"."template_versions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
 -- Each time a published version created a record, and which one.
-create table if not exists "better_supabase"."template_applications" (
+create table "better_supabase"."template_applications" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
@@ -3508,16 +3346,15 @@ create table if not exists "better_supabase"."template_applications" (
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );
-create index if not exists template_applications_tenant_idx on "better_supabase"."template_applications" ("tenant_id", "applied_at" desc);
-create index if not exists template_applications_template_idx on "better_supabase"."template_applications" ("template_id");
-create index if not exists template_applications_version_idx on "better_supabase"."template_applications" ("version_id");
-create index if not exists template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
-create index if not exists template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
+create index template_applications_tenant_idx on "better_supabase"."template_applications" ("tenant_id", "applied_at" desc);
+create index template_applications_template_idx on "better_supabase"."template_applications" ("template_id");
+create index template_applications_version_idx on "better_supabase"."template_applications" ("version_id");
+create index template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
+create index template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
 alter table "better_supabase"."template_applications" enable row level security;
 revoke all on "better_supabase"."template_applications" from public, anon, authenticated;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
-drop policy if exists template_applications_read on "better_supabase"."template_applications";
 create policy template_applications_read on "better_supabase"."template_applications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
@@ -3526,7 +3363,7 @@ create policy template_applications_read on "better_supabase"."template_applicat
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
 -- fields: the extra columns (blocks.templates.options.extraColumns) to set.
-drop function if exists "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language plpgsql
@@ -4274,8 +4111,6 @@ revoke execute on function "better_supabase"."template_row_guard"() from public,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
 create policy bsb_tenant_scope_select on "better_supabase"."templates" as restrictive
   for select to public
   using (
@@ -4283,37 +4118,29 @@ create policy bsb_tenant_scope_select on "better_supabase"."templates" as restri
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
 create policy bsb_tenant_scope_update on "better_supabase"."templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_select on "better_supabase"."template_applications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_insert on "better_supabase"."template_applications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_update on "better_supabase"."template_applications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_delete on "better_supabase"."template_applications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4321,8 +4148,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."template_application
 -- blocks.templates.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
 
 create or replace function "api"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
@@ -4483,33 +4308,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:3fc99321dbb9ca413d6f1544e1e846ece05e6b10c45ed6c2500c460524fd35e3
+-- @bsb-hash sha256:7ca53ae26e8f7ba10896bc9d3b386f356f48a0d40546cfbcbd62c52b9dd88f74
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -4539,7 +4341,6 @@ create index if not exists templates_created_by_idx on "better_supabase"."templa
 alter table "better_supabase"."templates" enable row level security;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
-drop policy if exists bsb_templates_select on "better_supabase"."templates";
 create policy bsb_templates_select on "better_supabase"."templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
@@ -4562,7 +4363,6 @@ create index if not exists template_versions_created_by_idx on "better_supabase"
 alter table "better_supabase"."template_versions" enable row level security;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
-drop policy if exists bsb_template_versions_select on "better_supabase"."template_versions";
 create policy bsb_template_versions_select on "better_supabase"."template_versions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
@@ -4585,7 +4385,6 @@ create index if not exists template_applications_applied_by_idx on "better_supab
 alter table "better_supabase"."template_applications" enable row level security;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
-drop policy if exists bsb_template_applications_select on "better_supabase"."template_applications";
 create policy bsb_template_applications_select on "better_supabase"."template_applications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
@@ -4594,7 +4393,7 @@ create policy bsb_template_applications_select on "better_supabase"."template_ap
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
 -- fields: the extra columns (blocks.templates.options.extraColumns) to set.
-drop function if exists "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language plpgsql
@@ -5342,8 +5141,6 @@ revoke execute on function "better_supabase"."template_row_guard"() from public,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
 create policy bsb_tenant_scope_select on "better_supabase"."templates" as restrictive
   for select to public
   using (
@@ -5351,37 +5148,29 @@ create policy bsb_tenant_scope_select on "better_supabase"."templates" as restri
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
 create policy bsb_tenant_scope_update on "better_supabase"."templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_select on "better_supabase"."template_applications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_insert on "better_supabase"."template_applications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_update on "better_supabase"."template_applications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_delete on "better_supabase"."template_applications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -5405,40 +5194,17 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:ea0c7527a455625e80187db9d6c0cecab12175decd374a3fa328c2632011e1ca
+-- @bsb-hash sha256:2142906e08c322093bb671ea21fdd2cb275f00d97f8e3f11bd1e6baf8cc209dc
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
 -- Templates of a type (an invoice, a project, an email): a tenant's own, or
 -- a system starter (no tenant) that sync_templates keeps by key and tenants
 -- fork, or with options.brand a starter of one brand. forked_from: the template and version a fork copied.
-create table if not exists "better_supabase"."templates" (
+create table "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
   "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
@@ -5456,16 +5222,15 @@ create table if not exists "better_supabase"."templates" (
   "updated_at" timestamptz not null default now(),
   constraint templates_system_check check (("scope" = 'system') = ("org_id" is null))
 );
-create unique index if not exists templates_key_idx on "better_supabase"."templates" ("org_id", "key") nulls not distinct where "key" is not null;
-create unique index if not exists templates_default_idx on "better_supabase"."templates" ("org_id", "type", "language") nulls not distinct where "is_default";
-create index if not exists templates_type_idx on "better_supabase"."templates" ("org_id", "type");
-create index if not exists templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
-create index if not exists templates_created_by_idx on "better_supabase"."templates" ("created_by");
+create unique index templates_key_idx on "better_supabase"."templates" ("org_id", "key") nulls not distinct where "key" is not null;
+create unique index templates_default_idx on "better_supabase"."templates" ("org_id", "type", "language") nulls not distinct where "is_default";
+create index templates_type_idx on "better_supabase"."templates" ("org_id", "type");
+create index templates_forked_from_idx on "better_supabase"."templates" ("forked_from") where "forked_from" is not null;
+create index templates_created_by_idx on "better_supabase"."templates" ("created_by");
 alter table "better_supabase"."templates" enable row level security;
 revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
-drop policy if exists templates_read on "better_supabase"."templates";
 create policy templates_read on "better_supabase"."templates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('templates.read'))
@@ -5473,7 +5238,7 @@ create policy templates_read on "better_supabase"."templates"
 
 -- Numbered snapshots of a template's body: at most one draft, and published
 -- versions that never change. hash: the SHA-256 of the body as text.
-create table if not exists "better_supabase"."template_versions" (
+create table "better_supabase"."template_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version" integer not null check ("version" > 0),
@@ -5484,19 +5249,18 @@ create table if not exists "better_supabase"."template_versions" (
   "created_at" timestamptz not null default now(),
   constraint template_versions_template_version_key unique ("template_id", "version")
 );
-create unique index if not exists template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
-create index if not exists template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
+create unique index template_versions_one_draft_idx on "better_supabase"."template_versions" ("template_id") where "published_at" is null;
+create index template_versions_created_by_idx on "better_supabase"."template_versions" ("created_by");
 alter table "better_supabase"."template_versions" enable row level security;
 revoke all on "better_supabase"."template_versions" from public, anon, authenticated;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
-drop policy if exists template_versions_read on "better_supabase"."template_versions";
 create policy template_versions_read on "better_supabase"."template_versions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
 -- Each time a published version created a record, and which one.
-create table if not exists "better_supabase"."template_applications" (
+create table "better_supabase"."template_applications" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
@@ -5506,16 +5270,15 @@ create table if not exists "better_supabase"."template_applications" (
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );
-create index if not exists template_applications_tenant_idx on "better_supabase"."template_applications" ("org_id", "applied_at" desc);
-create index if not exists template_applications_template_idx on "better_supabase"."template_applications" ("template_id");
-create index if not exists template_applications_version_idx on "better_supabase"."template_applications" ("version_id");
-create index if not exists template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
-create index if not exists template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
+create index template_applications_tenant_idx on "better_supabase"."template_applications" ("org_id", "applied_at" desc);
+create index template_applications_template_idx on "better_supabase"."template_applications" ("template_id");
+create index template_applications_version_idx on "better_supabase"."template_applications" ("version_id");
+create index template_applications_subject_idx on "better_supabase"."template_applications" ("subject_type", "subject_id");
+create index template_applications_applied_by_idx on "better_supabase"."template_applications" ("applied_by");
 alter table "better_supabase"."template_applications" enable row level security;
 revoke all on "better_supabase"."template_applications" from public, anon, authenticated;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
-drop policy if exists template_applications_read on "better_supabase"."template_applications";
 create policy template_applications_read on "better_supabase"."template_applications"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('templates.read')));
@@ -5524,7 +5287,7 @@ create policy template_applications_read on "better_supabase"."template_applicat
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
 -- fields: the extra columns (blocks.templates.options.extraColumns) to set.
-drop function if exists "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language plpgsql
@@ -6272,8 +6035,6 @@ revoke execute on function "better_supabase"."template_row_guard"() from public,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."templates";
 create policy bsb_tenant_scope_select on "better_supabase"."templates" as restrictive
   for select to public
   using (
@@ -6281,37 +6042,29 @@ create policy bsb_tenant_scope_select on "better_supabase"."templates" as restri
     or ("org_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."templates" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."templates";
 create policy bsb_tenant_scope_update on "better_supabase"."templates" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."templates" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."template_applications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_select on "better_supabase"."template_applications" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_insert on "better_supabase"."template_applications" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_update on "better_supabase"."template_applications" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."template_applications";
 create policy bsb_tenant_scope_delete on "better_supabase"."template_applications" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

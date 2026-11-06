@@ -171,7 +171,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   unique (${tenant}, ${slug})
 );${addExtraColumns(teams, extras)}
 ${lockTable(teams, { read: true })}
-${renderPolicy(makePolicy({ table: teams, name: ctx.naming.rename("teams_read"), command: "select", roles: ["authenticated"], using: `${tenant} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: teams })}
+${renderPolicy(makePolicy({ table: teams, name: ctx.naming.rename("teams_read"), command: "select", roles: ["authenticated"], using: `${tenant} in (select ${ctx.scope.ids(read)})` }), { target: teams })}
 
 create table if not exists ${members} (
   ${memberTeam} ${idType} not null references ${teams} (${id}) on delete cascade,
@@ -183,7 +183,7 @@ create table if not exists ${members} (
 create index if not exists ${ctx.naming.rename("team_members_user_idx")} on ${members} (${memberUser});
 create index if not exists ${ctx.naming.rename("team_members_membership_idx")} on ${members} (${memberTenant}, ${memberUser});
 ${lockTable(members, { read: true })}
-${renderPolicy(makePolicy({ table: members, name: ctx.naming.rename("team_members_read"), command: "select", roles: ["authenticated"], using: `${memberTenant} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: members })}
+${renderPolicy(makePolicy({ table: members, name: ctx.naming.rename("team_members_read"), command: "select", roles: ["authenticated"], using: `${memberTenant} in (select ${ctx.scope.ids(read)})` }), { target: members })}
 ${membershipFk(ctx, members, memberTenant, memberUser)}
 `
     : "";

@@ -72,7 +72,7 @@ describe("rule policies", () => {
   });
 
   it("reads the rules back from the comment", () => {
-    const sql = `create table app.notes (id int);\n${renderRulePolicy(built, { drop: true })}\n`;
+    const sql = `create table app.notes (id int);\n${renderRulePolicy(built)}\n`;
     const [read] = readRulePolicies(sql);
 
     expect(read?.using).toEqual(rule);

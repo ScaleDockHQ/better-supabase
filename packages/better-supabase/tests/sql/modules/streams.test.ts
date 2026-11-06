@@ -10,12 +10,8 @@ const body = (modules: AnyBlocksConfig = {}) =>
 describe("streams module", () => {
   it("owns the stream and chunk tables with owner reads", () => {
     const sql = body();
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."streams" (',
-    );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."stream_chunks" (',
-    );
+    expect(sql).toContain('create table "better_supabase"."streams" (');
+    expect(sql).toContain('create table "better_supabase"."stream_chunks" (');
     expect(sql).toContain('primary key ("stream_id", "idx")');
     expect(sql).toContain('using ("owner_id" = (select auth.uid()))');
     expect(sql).toContain("on delete cascade");

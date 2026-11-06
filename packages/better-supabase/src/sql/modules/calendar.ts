@@ -260,7 +260,7 @@ ${
       })
     : ""
 }
-${renderPolicy(makePolicy({ table: attendees, name: `${ctx.tableName("attendees").name}_read`, command: "select", roles: ["authenticated"], using: `${features.access ? eventAccessCall(ctx, a("event"), "read", me) : ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid())` }), { drop: true, target: attendees })}
+${renderPolicy(makePolicy({ table: attendees, name: `${ctx.tableName("attendees").name}_read`, command: "select", roles: ["authenticated"], using: `${features.access ? eventAccessCall(ctx, a("event"), "read", me) : ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid())` }), { target: attendees })}
 `
       : "";
 
@@ -277,7 +277,7 @@ ${renderPolicy(makePolicy({ table: attendees, name: `${ctx.tableName("attendees"
 );${addExtraColumns(calendars, calendarExtras)}${calendarColumns}
 ${lockTable(calendars, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("calendars").name}_tenant_idx`)} on ${calendars} (${k("tenant")});
-${renderPolicy(makePolicy({ table: calendars, name: `${ctx.tableName("calendars").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? accessCall(ctx, k("id"), "read", me) : ctx.scope.check(k("tenant"), read) }), { drop: true, target: calendars })}
+${renderPolicy(makePolicy({ table: calendars, name: `${ctx.tableName("calendars").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? accessCall(ctx, k("id"), "read", me) : ctx.scope.check(k("tenant"), read) }), { target: calendars })}
 create table if not exists ${events} (
   ${e("id")} uuid primary key default gen_random_uuid(),
   ${e("tenant")} ${ctx.idType} not null,
@@ -324,7 +324,7 @@ ${addCheck({
   expression: `${e("transparency")} in ${TRANSPARENCIES}`,
 })}${eventColumns}${addExtraColumns(events, eventExtras(ctx))}${eventOverlap(ctx)}
 ${lockTable(events, { read: true })}
-${renderPolicy(makePolicy({ table: events, name: `${ctx.tableName("events").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? eventAccessCall(ctx, e("id"), "read", me) : ctx.scope.check(e("tenant"), read) }), { drop: true, target: events })}
+${renderPolicy(makePolicy({ table: events, name: `${ctx.tableName("events").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? eventAccessCall(ctx, e("id"), "read", me) : ctx.scope.check(e("tenant"), read) }), { target: events })}
 ${attendeesTable()}${alarmsTable(ctx)}${defaultAlarmsTable(ctx)}${workingHoursTable(ctx)}${grantsTable(ctx)}${recurrenceTables(ctx)}`
     : "";
 

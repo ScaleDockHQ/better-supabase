@@ -11,10 +11,10 @@ describe("ai-guardrails module", () => {
   it("owns the policy and decision tables, service role only", () => {
     const sql = body();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."guardrail_policies" (',
+      'create table "better_supabase"."guardrail_policies" (',
     );
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."guardrail_decisions" (',
+      'create table "better_supabase"."guardrail_decisions" (',
     );
     expect(sql).not.toMatch(/to authenticated/);
 

@@ -178,7 +178,7 @@ alter table ${sessions} enable row level security;
 ${revokeTable(sessions)}
 grant select on ${sessions} to service_role;
 -- Platform staff read every session.
-${renderPolicy(makePolicy({ table: sessions, name: "bsb_support_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.of("permissions").fn("is_platform")}(${ctx.permission("read", OPERATIONS["impersonation.read"])}))` }), { drop: true, target: sessions })}
+${renderPolicy(makePolicy({ table: sessions, name: "bsb_support_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.of("permissions").fn("is_platform")}(${ctx.permission("read", OPERATIONS["impersonation.read"])}))` }), { target: sessions })}
 grant select on ${sessions} to authenticated;
 `;
 }
@@ -249,7 +249,7 @@ ${renderPolicy(
     using: `${c("admin")} = (select auth.uid())
     or (select ${isPlatform}(${ctx.permission("read", OPERATIONS["impersonation.read"])}))`,
   }),
-  { drop: true, target: requests },
+  { target: requests },
 )}
 grant select on ${requests} to authenticated;
 `;

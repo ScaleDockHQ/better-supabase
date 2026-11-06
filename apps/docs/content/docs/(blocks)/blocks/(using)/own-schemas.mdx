@@ -1005,8 +1005,9 @@ reports it as [BS348](/docs/cli/doctor#bs348). Postgres combines permissive
 policies with `or`, so the block adds no `bsb_` policy for a command one of
 your permissive policies already allows for the block's roles: with `true`,
 the block's condition, the block's condition without some of its `and`
-operands, or one of those as an `or` operand of your condition. A comment in the block's file names your policy, and the
-`drop policy if exists` before it removes the copy an earlier install left. A
+operands, or one of those as an `or` operand of your condition. A comment in the block's file names your policy, and the schema diff
+removes the copy an earlier install left, because the file no longer declares
+it. A
 `bsb_` policy whose condition is wider than yours stays, because it can open
 rows your policies keep closed; [BS347](/docs/cli/doctor#bs347) reports it.
 On tenant tables, one restrictive policy per command (`bsb_tenant_scope_select`,
@@ -1049,10 +1050,9 @@ grants, but no restrictive `bsb_tenant_scope` policy either: it would add
 its organization check to every one of your policies, and so close rows that
 your policies open on purpose, such as a platform permission that reads
 across organizations. Keeping rows inside an organization is then up to your
-policies. Its file keeps the
-`drop policy if exists` for each policy it leaves out, followed by a comment
-that names the policy and says your policies govern the table, so `upgrade`
-removes the copies an earlier install left. Only your tables change: the
+policies. Its file holds a comment
+that names each policy it leaves out and says your policies govern the table,
+so the schema diff removes the copies an earlier install left. Only your tables change: the
 block's own tables keep its policies. Doctor then skips the table in
 [BS347](/docs/cli/doctor#bs347) and reports
 [BS350](/docs/cli/doctor#bs350) when the table has row level security on but

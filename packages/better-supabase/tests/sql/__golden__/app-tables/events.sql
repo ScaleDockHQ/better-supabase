@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:17be7658b6102e8d5111295e6e54e4a5a5a1094cb0e778425ef56f05fdf9ca6e
+-- @bsb-hash sha256:4396095db62517df042f612a0c6636764de88e391c3baae4d1541925d033e147
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -29,45 +29,34 @@ alter table "public"."tasks" enable row level security;
 revoke all on "public"."tasks" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."tasks" to authenticated;
 grant all on "public"."tasks" to service_role;
-drop policy if exists tasks_select on "public"."tasks";
 create policy tasks_select on "public"."tasks"
   for select to authenticated
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists tasks_insert on "public"."tasks";
 create policy tasks_insert on "public"."tasks"
   for insert to authenticated
   with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists tasks_update on "public"."tasks";
 create policy tasks_update on "public"."tasks"
   for update to authenticated
   using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()))
   with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists tasks_delete on "public"."tasks";
 create policy tasks_delete on "public"."tasks"
   for delete to authenticated
   using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_tenant_scope on "public"."tasks";
-drop policy if exists bsb_tenant_scope_select on "public"."tasks";
 create policy bsb_tenant_scope_select on "public"."tasks" as restrictive
   for select to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "public"."tasks";
 create policy bsb_tenant_scope_insert on "public"."tasks" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "public"."tasks";
 create policy bsb_tenant_scope_update on "public"."tasks" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "public"."tasks";
 create policy bsb_tenant_scope_delete on "public"."tasks" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-alter table "public"."tasks" drop constraint if exists "tasks_status_check";
 alter table "public"."tasks" add constraint "tasks_status_check" check ("status" in ('todo', 'done'));
 create index if not exists "tasks_organization_id_idx" on "public"."tasks" ("organization_id");
-drop trigger if exists "bsb_updated_at" on "public"."tasks";
 create trigger "bsb_updated_at" before update on "public"."tasks"
   for each row execute function better_supabase.set_updated_at();
 create or replace function "better_supabase"."tasks_emit_event"()
@@ -102,7 +91,6 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."tasks_emit_event"() from public, anon, authenticated;
-drop trigger if exists "bsb_emit_event" on "public"."tasks";
 create trigger "bsb_emit_event" after insert or update or delete on "public"."tasks"
   for each row execute function "better_supabase"."tasks_emit_event"();
 
@@ -110,43 +98,33 @@ alter table "public"."notes" enable row level security;
 revoke all on "public"."notes" from public, anon, authenticated;
 grant select, insert, update, delete on "public"."notes" to authenticated;
 grant all on "public"."notes" to service_role;
-drop policy if exists notes_select on "public"."notes";
 create policy notes_select on "public"."notes"
   for select to authenticated
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists notes_insert on "public"."notes";
 create policy notes_insert on "public"."notes"
   for insert to authenticated
   with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists notes_update on "public"."notes";
 create policy notes_update on "public"."notes"
   for update to authenticated
   using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()))
   with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists notes_delete on "public"."notes";
 create policy notes_delete on "public"."notes"
   for delete to authenticated
   using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_tenant_scope on "public"."notes";
-drop policy if exists bsb_tenant_scope_select on "public"."notes";
 create policy bsb_tenant_scope_select on "public"."notes" as restrictive
   for select to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "public"."notes";
 create policy bsb_tenant_scope_insert on "public"."notes" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "public"."notes";
 create policy bsb_tenant_scope_update on "public"."notes" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "public"."notes";
 create policy bsb_tenant_scope_delete on "public"."notes" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "notes_organization_id_idx" on "public"."notes" ("organization_id");
-drop trigger if exists "bsb_updated_at" on "public"."notes";
 create trigger "bsb_updated_at" before update on "public"."notes"
   for each row execute function better_supabase.set_updated_at();
 create or replace function "better_supabase"."notes_emit_event"()
@@ -167,7 +145,6 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."notes_emit_event"() from public, anon, authenticated;
-drop trigger if exists "bsb_emit_event" on "public"."notes";
 create trigger "bsb_emit_event" after delete on "public"."notes"
   for each row execute function "better_supabase"."notes_emit_event"();
 

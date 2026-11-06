@@ -1,37 +1,23 @@
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:1cfc0f2716835487533e10d4c0950db226f1775abfb9456238fac101456197b2
+-- @bsb-hash sha256:2ade6a87b106cdd2669fb1bc853782cf29942e2697bc2a7146f28cb67d2ac922
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."audit_logs";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."audit_logs";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."audit_logs";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."audit_logs";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."audit_logs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create table if not exists "better_supabase"."audited_tables" (
+create table "better_supabase"."audited_tables" (
   "target" regclass primary key,
   "ignore" text[] not null default '{}'
 );
 -- The primary key columns, read when the table is registered; composite keys are joined with ','.
-alter table "better_supabase"."audited_tables" add column if not exists "key_columns" text[] not null default '{id}';
+alter table "better_supabase"."audited_tables" add column "key_columns" text[] not null default '{id}';
 -- Per-table event naming and redaction.
-alter table "better_supabase"."audited_tables" add column if not exists "redact" text[] not null default '{}';
-alter table "better_supabase"."audited_tables" add column if not exists "category" text;
-alter table "better_supabase"."audited_tables" add column if not exists "event_prefix" text;
-alter table "better_supabase"."audited_tables" add column if not exists "target_type" text;
-alter table "better_supabase"."audited_tables" add column if not exists "tenant_column" text;
-alter table "better_supabase"."audited_tables" add column if not exists "label_column" text;
+alter table "better_supabase"."audited_tables" add column "redact" text[] not null default '{}';
+alter table "better_supabase"."audited_tables" add column "category" text;
+alter table "better_supabase"."audited_tables" add column "event_prefix" text;
+alter table "better_supabase"."audited_tables" add column "target_type" text;
+alter table "better_supabase"."audited_tables" add column "tenant_column" text;
+alter table "better_supabase"."audited_tables" add column "label_column" text;
 alter table "better_supabase"."audited_tables" enable row level security;
 revoke all on "better_supabase"."audited_tables" from public, anon, authenticated;
 
@@ -434,13 +420,6 @@ end;
 $$;
 revoke execute on function better_supabase.audit_statement_change() from public, anon, authenticated;
 
-drop function if exists better_supabase.audit(regclass, text[]);
-drop function if exists better_supabase.audit(regclass, text[], boolean);
-drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
-drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
-drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure);
-drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);
-
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
 -- event_prefix, category and target_type name the entries (event_prefix.created);
@@ -750,11 +729,7 @@ revoke execute on function better_supabase.audit_schema(text, text, text[]) from
 -- session), and otherwise get the act claim's values. restricted goes to the
 -- restricted table, with no row when every restricted value is empty; without
 -- that table, passing it fails instead of dropping the details.
-drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid);
-drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text);
-drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text);
-drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text);
-drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text);
+
 create or replace function better_supabase.audit_event(
   event_type text,
   category text default null,
@@ -925,8 +900,7 @@ grant execute on function better_supabase.audit_event_many(jsonb) to "service_ro
 -- caller, so only the owner, the service role and
 -- blocks.audit.options.trustedRoles may execute it. A function owned by
 -- postgres calls it on behalf of a client with the real actor context.
-drop function if exists better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text);
-drop function if exists better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text);
+
 create or replace function better_supabase.audit_event_trusted(
   event_type text,
   category text default null,
@@ -1005,9 +979,6 @@ end;
 $$;
 revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
-
-drop trigger if exists "bsb_audit_append_only" on "centrakit"."audit_logs";
-drop trigger if exists "bsb_audit_no_truncate" on "centrakit"."audit_logs";
 
 -- Tables the app must not edit: append_only refuses update, delete and
 -- truncate for every role; function_writes also takes the Data API write
@@ -1117,7 +1088,7 @@ end;
 $$;
 
 -- Signed heads of any chained table, recorded by a signing job.
-create table if not exists better_supabase.chain_checkpoints (
+create table better_supabase.chain_checkpoints (
   id bigint generated always as identity primary key,
   table_name text not null,
   tenant text,
@@ -1127,7 +1098,7 @@ create table if not exists better_supabase.chain_checkpoints (
   signature text not null,
   created_at timestamptz not null default now()
 );
-create index if not exists chain_checkpoints_idx on better_supabase.chain_checkpoints (table_name, tenant, chain_seq desc);
+create index chain_checkpoints_idx on better_supabase.chain_checkpoints (table_name, tenant, chain_seq desc);
 alter table better_supabase.chain_checkpoints enable row level security;
 revoke all on better_supabase.chain_checkpoints from public, anon, authenticated;
 grant all on better_supabase.chain_checkpoints to service_role;
@@ -1371,7 +1342,6 @@ revoke execute on function "better_supabase"."audit_read_tenants"() from public,
 revoke execute on function "better_supabase"."audit_reads_all"() from public, anon;
 grant execute on function "better_supabase"."audit_read_tenants"() to authenticated, service_role;
 grant execute on function "better_supabase"."audit_reads_all"() to authenticated, service_role;
-drop policy if exists bsb_audit_read on "centrakit"."audit_logs";
 create policy bsb_audit_read on "centrakit"."audit_logs"
   for select to authenticated
   using ("organization_id" in (select "better_supabase"."audit_read_tenants"())
@@ -1385,7 +1355,7 @@ grant select on "centrakit"."audit_logs" to authenticated;
 -- for_tenant, only entries of tenant (null: entries without one).
 -- Nightly with pg_cron or the jobs drain route:
 --   select better_supabase.purge_audit_log();
-drop function if exists better_supabase.purge_audit_log(interval, integer);
+
 create or replace function better_supabase.purge_audit_log(
   older_than interval default '1 year',
   batch integer default 10000,
@@ -1495,8 +1465,7 @@ grant execute on function better_supabase.audit_events_tenants(interval) to serv
 -- Page with the last entry's occurred_at and id as cursor_at and cursor_id,
 -- or open page N with skip (an offset) and count_audit_events for the total.
 -- skip is ignored with a cursor, so keyset pages never scan skipped rows.
-drop function if exists "better_supabase"."list_audit_events"(uuid, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
-drop function if exists "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean);
+
 create or replace function "better_supabase"."list_audit_events"(
   for_tenants uuid[] default null,
   for_event_types text[] default null,
@@ -1743,8 +1712,6 @@ grant execute on function "better_supabase"."reveal_audit_entries"(text[]) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "centrakit"."audit_logs";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."audit_logs";
 create policy bsb_tenant_scope_select on "centrakit"."audit_logs" as restrictive
   for select to public
   using (
@@ -1752,16 +1719,13 @@ create policy bsb_tenant_scope_select on "centrakit"."audit_logs" as restrictive
     or ("organization_id" in (select "better_supabase"."audit_read_tenants"())
     or (select "better_supabase"."audit_reads_all"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."audit_logs";
 create policy bsb_tenant_scope_insert on "centrakit"."audit_logs" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."audit_logs";
 create policy bsb_tenant_scope_update on "centrakit"."audit_logs" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."audit_logs";
 create policy bsb_tenant_scope_delete on "centrakit"."audit_logs" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));

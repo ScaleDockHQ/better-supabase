@@ -1,37 +1,14 @@
 -- ==== schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:2540c16d0fa8ab2d881bbcece18f933bf3a4abfcca1dcca80a4d7275498c849e
+-- @bsb-hash sha256:b492d43bc1092b65fb508d2f13ff67ecaa1bd0a6b990fd0e41b443c16396e94a
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 create extension if not exists btree_gist with schema extensions;
 
-create table if not exists "better_supabase"."time_entries" (
+create table "better_supabase"."time_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -57,56 +34,23 @@ create table if not exists "better_supabase"."time_entries" (
     tstzrange("started_at", coalesce("ended_at", 'infinity'::timestamptz)) with &&
   )
 );
-alter table "better_supabase"."time_entries" add column if not exists "app_note" text;
-alter table "better_supabase"."time_entries" add column if not exists "rate_currency" text;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."time_entries"'::regclass and conname = 'time_entries_rate_currency_check'
-  ) then
-    alter table "better_supabase"."time_entries" add constraint "time_entries_rate_currency_check"
-      check ("rate_currency" is null or "rate_currency" ~ '^[A-Z]{3}$') not valid;
-    begin
-      alter table "better_supabase"."time_entries" validate constraint "time_entries_rate_currency_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."time_entries"', 'time_entries_rate_currency_check', '"better_supabase"."time_entries"', 'time_entries_rate_currency_check';
-    end;
-  end if;
-end;
-$$;
-alter table "better_supabase"."time_entries" drop constraint if exists "time_entries_rate_pair_check";
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."time_entries"'::regclass and conname = 'time_entries_rate_needs_currency_check'
-  ) then
-    alter table "better_supabase"."time_entries" add constraint "time_entries_rate_needs_currency_check"
-      check ("rate" is null or "rate_currency" is not null) not valid;
-    begin
-      alter table "better_supabase"."time_entries" validate constraint "time_entries_rate_needs_currency_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."time_entries"', 'time_entries_rate_needs_currency_check', '"better_supabase"."time_entries"', 'time_entries_rate_needs_currency_check';
-    end;
-  end if;
-end;
-$$;
-create unique index if not exists "time_entries_running_idx" on "better_supabase"."time_entries" ("tenant_id", "user_id") where "ended_at" is null;
-create index if not exists "time_entries_user_idx" on "better_supabase"."time_entries" ("tenant_id", "user_id", "started_at" desc);
-create index if not exists "time_entries_subject_idx" on "better_supabase"."time_entries" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
+alter table "better_supabase"."time_entries" add column "app_note" text;
+alter table "better_supabase"."time_entries" add constraint "time_entries_rate_currency_check"
+  check ("rate_currency" is null or "rate_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."time_entries" add constraint "time_entries_rate_needs_currency_check"
+  check ("rate" is null or "rate_currency" is not null);
+create unique index "time_entries_running_idx" on "better_supabase"."time_entries" ("tenant_id", "user_id") where "ended_at" is null;
+create index "time_entries_user_idx" on "better_supabase"."time_entries" ("tenant_id", "user_id", "started_at" desc);
+create index "time_entries_subject_idx" on "better_supabase"."time_entries" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."time_entries" enable row level security;
 revoke all on "better_supabase"."time_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_entries" to authenticated;
 grant all on "better_supabase"."time_entries" to service_role;
-drop policy if exists time_entries_read on "better_supabase"."time_entries";
 create policy time_entries_read on "better_supabase"."time_entries"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
-create table if not exists "better_supabase"."timesheets" (
+create table "better_supabase"."timesheets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -118,13 +62,12 @@ create table if not exists "better_supabase"."timesheets" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "user_id", "week")
 );
-create index if not exists "timesheets_approval_idx" on "better_supabase"."timesheets" ("approval_id") where "approval_id" is not null;
-create index if not exists "timesheets_week_idx" on "better_supabase"."timesheets" ("tenant_id", "week" desc);
+create index "timesheets_approval_idx" on "better_supabase"."timesheets" ("approval_id") where "approval_id" is not null;
+create index "timesheets_week_idx" on "better_supabase"."timesheets" ("tenant_id", "week" desc);
 alter table "better_supabase"."timesheets" enable row level security;
 revoke all on "better_supabase"."timesheets" from public, anon, authenticated;
 grant select on "better_supabase"."timesheets" to authenticated;
 grant all on "better_supabase"."timesheets" to service_role;
-drop policy if exists timesheets_read on "better_supabase"."timesheets";
 create policy timesheets_read on "better_supabase"."timesheets"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
@@ -201,18 +144,13 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."time_entry_guard"() from public, anon, authenticated;
-drop trigger if exists bsb_time_entry_guard on "better_supabase"."time_entries";
 create trigger bsb_time_entry_guard
   before insert or update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."time_entry_guard"();
 
 -- Starts a timer for the caller, stopping the one that runs. fields: the
 -- extra columns (blocks.time-tracking.options.extraColumns) to set.
-drop function if exists "better_supabase"."start_timer"(uuid, text, text, boolean, numeric, text);
-drop function if exists "better_supabase"."start_timer"(uuid, text, text, boolean, numeric, text, jsonb);
-drop function if exists "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid);
-drop function if exists "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid, jsonb);
-drop function if exists "better_supabase"."start_timer"(uuid, text, text, boolean, bigint, text, text);
+
 create or replace function "better_supabase"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
@@ -293,8 +231,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."start_timer"(uuid, text, text, boolean, bigint, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."start_timer"(uuid, text, text, boolean, bigint, text, text, jsonb) to authenticated, service_role;
-
-drop function if exists "better_supabase"."stop_timer"(uuid);
 create or replace function "better_supabase"."stop_timer"(tenant uuid, entry uuid default null)
 returns jsonb
 language plpgsql
@@ -366,7 +302,7 @@ revoke execute on function "better_supabase"."running_timers"(uuid) from public,
 grant execute on function "better_supabase"."running_timers"(uuid) to authenticated, service_role;
 
 -- Records finished time. Logging for another member needs the manage permission.
-drop function if exists "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, bigint, text, text, uuid);
+
 create or replace function "better_supabase"."log_time"(tenant uuid, started_at timestamptz, ended_at timestamptz, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null, user_id uuid default null, fields jsonb default null)
 returns jsonb
 language plpgsql
@@ -765,8 +701,7 @@ grant execute on function "better_supabase"."submit_timesheet"(uuid, date, text)
 
 -- Locks the week once the approval is final. Approvals calls it; it isn't
 -- granted to anyone.
-drop function if exists "better_supabase"."approve_timesheet"(uuid, uuid);
-drop function if exists "better_supabase"."reject_timesheet"(uuid, text, uuid);
+
 create or replace function "better_supabase"."approve_timesheet"(timesheet_id uuid)
 returns void
 language plpgsql
@@ -859,45 +794,35 @@ grant execute on function "better_supabase"."list_timesheets"(uuid, uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."time_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."time_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."time_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."time_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."time_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."timesheets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."timesheets";
 create policy bsb_tenant_scope_select on "better_supabase"."timesheets" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timesheets";
 create policy bsb_tenant_scope_insert on "better_supabase"."timesheets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."timesheets";
 create policy bsb_tenant_scope_update on "better_supabase"."timesheets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timesheets";
 create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

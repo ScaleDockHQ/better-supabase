@@ -11,12 +11,12 @@ const IDENT: string = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
 const QUALIFIED: string = String.raw`${IDENT}(?:\.${IDENT})?`;
 
 export const TABLE: RegExp = new RegExp(
-  String.raw`^create table if not exists (${QUALIFIED}) \(\n([\s\S]*?)\n\);`,
+  String.raw`^create table (?:if not exists )?(${QUALIFIED}) \(\n([\s\S]*?)\n\);`,
   "gm",
 );
 
 export const ADDED_COLUMN: RegExp = new RegExp(
-  String.raw`^alter table (?:if exists )?(${QUALIFIED})\s+add column if not exists (${IDENT})`,
+  String.raw`^alter table (?:if exists )?(${QUALIFIED})\s+add column (?:if not exists )?(${IDENT})`,
   "gim",
 );
 

@@ -1,54 +1,15 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:087306baa99fd52a67bca2f26bf8d10e3ad6e3d86d9821aa609bc9913c9eae6a
+-- @bsb-hash sha256:a36f8a89e517dd2853c5d31f1a040727a92832490e17c05e5f5ba5a3618c93fc
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."quotes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."quotes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quotes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."quotes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quotes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."quote_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."quote_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quote_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."quote_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quote_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."quote_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."quote_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quote_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."quote_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quote_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."quote_tax_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."quote_tax_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quote_tax_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."quote_tax_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quote_tax_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Quotes: line items, sections, optional lines, discounts and tax per rate,
 -- published versions, sending with a public link or to the signed-in portal
 -- the customer accepts, rejects or asks changes through, and expiry.
 
-create table if not exists "better_supabase"."quotes" (
+create table "better_supabase"."quotes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "number" bigint not null,
@@ -100,27 +61,19 @@ create table if not exists "better_supabase"."quotes" (
   check (("company_type" is null) = ("company_id" is null)),
   check (("origin_type" is null) = ("origin_id" is null))
 );
-alter table "better_supabase"."quotes" add column if not exists "deposit_amount" bigint check ("deposit_amount" > 0);
-alter table "better_supabase"."quotes" add column if not exists "deposit_required" boolean not null default false;
-alter table "better_supabase"."quotes" add column if not exists "unpublished_changes" boolean not null default false;
-alter table "better_supabase"."quotes" add column if not exists "buyer" jsonb;
-alter table "better_supabase"."quotes" add column if not exists "variant_of" uuid;
-alter table "better_supabase"."quotes" add column if not exists "variant_label" text check (length("variant_label") >= 1 and length("variant_label") <= 100);
-alter table "better_supabase"."quotes" add column if not exists "is_selected" boolean not null default false;
-create index if not exists quotes_tenant_status_idx on "better_supabase"."quotes" ("tenant_id", "status", "created_at" desc);
-create index if not exists quotes_variant_idx on "better_supabase"."quotes" ("variant_of") where "variant_of" is not null;
-create index if not exists quotes_origin_idx on "better_supabase"."quotes" ("origin_type", "origin_id");
+create index quotes_tenant_status_idx on "better_supabase"."quotes" ("tenant_id", "status", "created_at" desc);
+create index quotes_variant_idx on "better_supabase"."quotes" ("variant_of") where "variant_of" is not null;
+create index quotes_origin_idx on "better_supabase"."quotes" ("origin_type", "origin_id");
 
 alter table "better_supabase"."quotes" enable row level security;
 revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
-drop policy if exists quotes_read on "better_supabase"."quotes";
 create policy quotes_read on "better_supabase"."quotes"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read'))) or ("status" <> 'draft' and ((("tenant_id")::text, ('quote')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or (("tenant_id")::text, ("company_type")::text, ("company_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or (("tenant_id")::text, ("contact_type")::text, ("contact_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))));
 
-create table if not exists "better_supabase"."quote_versions" (
+create table "better_supabase"."quote_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "quote_id" uuid not null references "better_supabase"."quotes" ("id") on delete cascade,
@@ -136,7 +89,6 @@ alter table "better_supabase"."quote_versions" enable row level security;
 revoke all on "better_supabase"."quote_versions" from public, anon, authenticated;
 grant select on "better_supabase"."quote_versions" to authenticated;
 grant all on "better_supabase"."quote_versions" to service_role;
-drop policy if exists quote_versions_read on "better_supabase"."quote_versions";
 create policy quote_versions_read on "better_supabase"."quote_versions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."quotes" q where q."id" = "quote_id"));
@@ -150,11 +102,10 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_quote_versions_frozen() from public, anon, authenticated;
-drop trigger if exists "bsb_quote_versions_frozen" on "better_supabase"."quote_versions";
 create trigger "bsb_quote_versions_frozen" before update on "better_supabase"."quote_versions"
 for each row execute function better_supabase.bsb_quote_versions_frozen();
 
-create table if not exists "better_supabase"."quote_tax_lines" (
+create table "better_supabase"."quote_tax_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid not null references "better_supabase"."quotes" ("id") on delete cascade,
@@ -165,12 +116,11 @@ create table if not exists "better_supabase"."quote_tax_lines" (
   "gross" bigint not null,
   "discount" bigint not null default 0
 );
-create index if not exists quote_tax_lines_parent_idx on "better_supabase"."quote_tax_lines" ("parent_id");
+create index quote_tax_lines_parent_idx on "better_supabase"."quote_tax_lines" ("parent_id");
 alter table "better_supabase"."quote_tax_lines" enable row level security;
 revoke all on "better_supabase"."quote_tax_lines" from public, anon, authenticated;
 grant select on "better_supabase"."quote_tax_lines" to authenticated;
 grant all on "better_supabase"."quote_tax_lines" to service_role;
-drop policy if exists quote_tax_lines_read on "better_supabase"."quote_tax_lines";
 create policy quote_tax_lines_read on "better_supabase"."quote_tax_lines"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."quotes" q where q."id" = "parent_id"));
@@ -563,7 +513,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."update_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_quote"(uuid, jsonb) to authenticated, service_role;
-create table if not exists "better_supabase"."quote_lines" (
+create table "better_supabase"."quote_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid not null references "better_supabase"."quotes" ("id") on delete cascade,
@@ -592,13 +542,11 @@ create table if not exists "better_supabase"."quote_lines" (
   "created_at" timestamptz not null default now(),
   check (("product_type" is null) = ("product_id" is null))
 );
-alter table "better_supabase"."quote_lines" add column if not exists "periods" integer not null default 1 check ("periods" > 0);
-create index if not exists "quote_lines_parent_idx" on "better_supabase"."quote_lines" ("parent_id", "position");
+create index "quote_lines_parent_idx" on "better_supabase"."quote_lines" ("parent_id", "position");
 alter table "better_supabase"."quote_lines" enable row level security;
 revoke all on "better_supabase"."quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."quote_lines" to authenticated;
 grant all on "better_supabase"."quote_lines" to service_role;
-drop policy if exists "quote_lines_read" on "better_supabase"."quote_lines";
 create policy "quote_lines_read" on "better_supabase"."quote_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."quotes" x where x."id" = "parent_id"));
 
@@ -712,10 +660,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_quote_lines_totals() from public, anon, authenticated;
-drop trigger if exists bsb_quote_lines_totals on "better_supabase"."quote_lines";
-drop trigger if exists bsb_quote_lines_totals_insert on "better_supabase"."quote_lines";
-drop trigger if exists bsb_quote_lines_totals_update on "better_supabase"."quote_lines";
-drop trigger if exists bsb_quote_lines_totals_delete on "better_supabase"."quote_lines";
 create trigger bsb_quote_lines_totals_insert after insert on "better_supabase"."quote_lines"
 referencing new table as new_rows
 for each statement execute function better_supabase.bsb_quote_lines_totals();
@@ -806,7 +750,7 @@ grant execute on function "better_supabase"."set_quote_lines"(uuid, jsonb) to au
 -- the next revision. Returns the quote with the link's token, which is stored
 -- only as a hash and returned this once.
 -- actor: who sent it, for the state machine's history.
-drop function if exists "better_supabase"."send_quote"(uuid);
+
 create or replace function "better_supabase"."send_quote"(quote uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -878,7 +822,7 @@ grant execute on function "better_supabase"."send_quote"(uuid, jsonb) to authent
 -- same quote, number and lines, a fresh valid-until date, and its link ends.
 -- The versions already published stay as they were. An accepted quote is
 -- kept as the customer accepted it; start a new quote instead.
-drop function if exists "better_supabase"."revise_quote"(uuid);
+
 create or replace function "better_supabase"."revise_quote"(quote uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -927,7 +871,7 @@ grant execute on function "better_supabase"."revise_quote"(uuid, jsonb) to authe
 -- Takes back a sent or expired quote the customer hasn't accepted: it can't
 -- be answered any more until it is revised and sent again. The actor and
 -- reason go to the state machine's history.
-drop function if exists "better_supabase"."withdraw_quote"(uuid, jsonb);
+
 create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
@@ -979,8 +923,7 @@ grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) 
 -- email, ip and userAgent, kept with the answer and in the state machine's
 -- history; a quote past its valid date then expires instead, and the expired
 -- quote is returned.
-drop function if exists "better_supabase"."decide_quote"(uuid, text, text, text);
-drop function if exists "better_supabase"."decide_quote"(uuid, text, text, text, jsonb);
+
 create or replace function "better_supabase"."decide_quote"(quote uuid, decision text, note text, by text, selected jsonb default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -1144,7 +1087,7 @@ grant execute on function "better_supabase"."public_quote"(text) to anon, authen
 -- changes_requested, with their name, a note and the optional lines they
 -- took. Their address and browser are kept with the answer. A quote past its
 -- valid date expires instead.
-drop function if exists "better_supabase"."respond_to_quote"(text, text, text, text);
+
 create or replace function "better_supabase"."respond_to_quote"(token text, decision text, name text, note text, selected jsonb default null)
 returns jsonb
 language plpgsql
@@ -1262,7 +1205,7 @@ grant execute on function "better_supabase"."respond_to_quote"(text, text, text,
 -- sent quote marks it viewed. No link token is needed. The service role
 -- reads it too, for an app's own portal; actor is then the customer who
 -- opened it, for the state machine's history.
-drop function if exists "better_supabase"."portal_quote"(uuid);
+
 create or replace function "better_supabase"."portal_quote"(quote uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -1887,87 +1830,67 @@ grant execute on function "better_supabase"."quote_totals_by_billing_party"(uuid
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."quotes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."quotes";
 create policy bsb_tenant_scope_select on "better_supabase"."quotes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read'))) or ("status" <> 'draft' and ((("tenant_id")::text, ('quote')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or (("tenant_id")::text, ("company_type")::text, ("company_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or (("tenant_id")::text, ("contact_type")::text, ("contact_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quotes";
 create policy bsb_tenant_scope_insert on "better_supabase"."quotes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."quotes";
 create policy bsb_tenant_scope_update on "better_supabase"."quotes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quotes";
 create policy bsb_tenant_scope_delete on "better_supabase"."quotes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."quote_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."quote_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."quote_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."quotes" x where x."id" = "parent_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quote_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."quote_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."quote_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."quote_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quote_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."quote_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."quote_versions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."quote_versions";
 create policy bsb_tenant_scope_select on "better_supabase"."quote_versions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."quotes" q where q."id" = "quote_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quote_versions";
 create policy bsb_tenant_scope_insert on "better_supabase"."quote_versions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."quote_versions";
 create policy bsb_tenant_scope_update on "better_supabase"."quote_versions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quote_versions";
 create policy bsb_tenant_scope_delete on "better_supabase"."quote_versions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."quote_tax_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."quote_tax_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."quote_tax_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."quotes" q where q."id" = "parent_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."quote_tax_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."quote_tax_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."quote_tax_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."quote_tax_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."quote_tax_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."quote_tax_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1982,14 +1905,6 @@ $$;
 -- blocks.quotes.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."send_quote"(uuid);
-drop function if exists "api"."revise_quote"(uuid);
-drop function if exists "api"."withdraw_quote"(uuid, jsonb);
-drop function if exists "api"."decide_quote"(uuid, text, text, text);
-drop function if exists "api"."decide_quote"(uuid, text, text, text, jsonb);
-drop function if exists "api"."respond_to_quote"(text, text, text, text);
-drop function if exists "api"."portal_quote"(uuid);
 
 create or replace function "api"."create_quote"(tenant uuid, attrs jsonb, lines jsonb)
 returns jsonb

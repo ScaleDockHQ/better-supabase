@@ -105,7 +105,7 @@ describe("qualifications module", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."qualifications" add column if not exists "licence_number" text;`,
+      `alter table "better_supabase"."qualifications" add column "licence_number" text;`,
     );
     expect(sql).toContain("evidence_note text default null, fields jsonb");
   });

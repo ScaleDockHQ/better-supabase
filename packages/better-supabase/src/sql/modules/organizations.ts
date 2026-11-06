@@ -214,7 +214,7 @@ alter table ${n.organization} add column if not exists ${ORGANIZATION_CUSTOMER_C
 ${revokeTable(n.organization)}
 grant select on ${n.organization} to authenticated;
 grant all on ${n.organization} to service_role;
-${ctx.owns("organizations") ? "" : `drop policy if exists bsb_organizations_read on ${n.organization};\n`}${renderPolicy(makePolicy({ table: n.organization, name: readPolicy, command: "select", roles: ["authenticated"], using: `${n.id} in (select ${ctx.of("memberships").fn("member_organization_ids")}())` }), { drop: true, target: n.organization })}
+${ctx.owns("organizations") ? "" : `drop policy if exists bsb_organizations_read on ${n.organization};\n`}${renderPolicy(makePolicy({ table: n.organization, name: readPolicy, command: "select", roles: ["authenticated"], using: `${n.id} in (select ${ctx.of("memberships").fn("member_organization_ids")}())` }), { target: n.organization })}
 `;
 }
 

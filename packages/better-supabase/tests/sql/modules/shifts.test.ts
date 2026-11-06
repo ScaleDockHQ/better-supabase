@@ -111,7 +111,7 @@ describe("shifts module", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."shifts" add column if not exists "site_code" text;`,
+      `alter table "better_supabase"."shifts" add column "site_code" text;`,
     );
     expect(sql).toContain("shift_id uuid default null, fields jsonb");
   });

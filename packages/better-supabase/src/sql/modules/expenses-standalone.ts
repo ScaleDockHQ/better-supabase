@@ -441,7 +441,7 @@ create table if not exists ${table} (
 );${addExtraColumns(table, extras)}${company ? `\nalter table ${table} alter column ${owner.column} drop not null;` : ""}
 create index if not exists ${sqlIdent(`${ctx.tableName("expenses").name}_owner_idx`)} on ${table} (${e("tenant")}, ${owner.column}, ${e("spentOn")} desc);
 ${lockModuleTable(ctx, "expenses", { read: true })}
-${renderPolicy(makePolicy({ table, name: ctx.naming.rename("expenses_read"), command: "select", roles: ["authenticated"], using: `${owner.mine} or ${ctx.scope.check(e("tenant"), read)}` }), { drop: true, target: table })}
+${renderPolicy(makePolicy({ table, name: ctx.naming.rename("expenses_read"), command: "select", roles: ["authenticated"], using: `${owner.mine} or ${ctx.scope.check(e("tenant"), read)}` }), { target: table })}
 `
     : "";
 

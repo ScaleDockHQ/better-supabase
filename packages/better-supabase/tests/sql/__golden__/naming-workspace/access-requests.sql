@@ -1,27 +1,12 @@
 -- ==== schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:c8a642036e8ca7b98df2c237b98d7ebc63e27403ee5ac4a31e7477ce657c83ec
+-- @bsb-hash sha256:76eece39067c1c8bf34074ad6cb14d020d2ecb472f7aabec0b2e95bf7ba96c02
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."access_requests" (
+create table "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -35,21 +20,20 @@ create table if not exists "better_supabase"."access_requests" (
   "ended_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
-create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
-create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
+create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
+create index "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
+create index "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
-drop policy if exists access_requests_read on "better_supabase"."access_requests";
 create policy access_requests_read on "better_supabase"."access_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
-drop function if exists "better_supabase"."request_access"(uuid, text, text, interval, jsonb);
+
 create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql
@@ -323,24 +307,19 @@ grant execute on function "better_supabase"."list_access_requests"(uuid, text, b
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."access_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."access_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."access_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

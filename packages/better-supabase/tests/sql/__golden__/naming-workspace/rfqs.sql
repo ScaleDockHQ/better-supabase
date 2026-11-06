@@ -1,57 +1,10 @@
 -- ==== schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:93024c6bc30901d3cffadd6bc2402a1817108d43013efd407345e52124fa9365
+-- @bsb-hash sha256:2210c9555ab77ff0410f348f811a29c417d839cb1ed29c58092856e387406c0f
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rfqs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rfqs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rfqs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rfqs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rfqs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rfq_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rfq_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rfq_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rfq_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rfq_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rfq_suppliers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rfq_suppliers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rfq_suppliers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rfq_suppliers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rfq_suppliers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rfq_quotes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rfq_quotes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rfq_quotes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rfq_quotes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rfq_quotes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rfq_quote_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rfq_quote_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rfq_quote_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rfq_quote_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rfq_quote_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Requests for quotation: lines to price, invited suppliers, their quotes, a
 -- comparison and an award that can create the purchase order.
@@ -59,7 +12,7 @@ end $$;
 -- A request for quotation sent to suppliers. The number is RFQ-1, RFQ-2 and so
 -- on, or the numbering block's format. awarded_quote_id and purchase_order_id
 -- are set when the request is awarded.
-create table if not exists "better_supabase"."rfqs" (
+create table "better_supabase"."rfqs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "number" text not null,
@@ -80,19 +33,18 @@ create table if not exists "better_supabase"."rfqs" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "sequence")
 );
-create index if not exists "rfqs_status_idx" on "better_supabase"."rfqs" ("tenant_id", "status");
+create index "rfqs_status_idx" on "better_supabase"."rfqs" ("tenant_id", "status");
 alter table "better_supabase"."rfqs" enable row level security;
 revoke all on "better_supabase"."rfqs" from public, anon, authenticated;
 grant select on "better_supabase"."rfqs" to authenticated;
 grant all on "better_supabase"."rfqs" to service_role;
-drop policy if exists rfqs_read on "better_supabase"."rfqs";
 create policy rfqs_read on "better_supabase"."rfqs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
 -- What is requested: a description, optionally a product variant of the
 -- inventory block (needed to award into a purchase order), and a quantity.
-create table if not exists "better_supabase"."rfq_lines" (
+create table "better_supabase"."rfq_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
@@ -107,14 +59,13 @@ alter table "better_supabase"."rfq_lines" enable row level security;
 revoke all on "better_supabase"."rfq_lines" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_lines" to authenticated;
 grant all on "better_supabase"."rfq_lines" to service_role;
-drop policy if exists rfq_lines_read on "better_supabase"."rfq_lines";
 create policy rfq_lines_read on "better_supabase"."rfq_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
 -- A supplier invited to quote. supplier_type and supplier_id name a contacts
 -- party (or another config.subjects record without the contacts block).
-create table if not exists "better_supabase"."rfq_suppliers" (
+create table "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
@@ -129,7 +80,6 @@ alter table "better_supabase"."rfq_suppliers" enable row level security;
 revoke all on "better_supabase"."rfq_suppliers" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_suppliers" to authenticated;
 grant all on "better_supabase"."rfq_suppliers" to service_role;
-drop policy if exists rfq_suppliers_read on "better_supabase"."rfq_suppliers";
 create policy rfq_suppliers_read on "better_supabase"."rfq_suppliers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
@@ -137,7 +87,7 @@ create policy rfq_suppliers_read on "better_supabase"."rfq_suppliers"
 -- A supplier's answer. One quote per invitation; recording again replaces its
 -- prices and raises the revision. total_amount is minor units of the request's
 -- currency.
-create table if not exists "better_supabase"."rfq_quotes" (
+create table "better_supabase"."rfq_quotes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
@@ -153,19 +103,18 @@ create table if not exists "better_supabase"."rfq_quotes" (
   "updated_at" timestamptz not null default now(),
   unique ("rfq_id", "invitation_id")
 );
-create index if not exists "rfq_quotes_invitation_idx" on "better_supabase"."rfq_quotes" ("invitation_id");
+create index "rfq_quotes_invitation_idx" on "better_supabase"."rfq_quotes" ("invitation_id");
 alter table "better_supabase"."rfq_quotes" enable row level security;
 revoke all on "better_supabase"."rfq_quotes" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_quotes" to authenticated;
 grant all on "better_supabase"."rfq_quotes" to service_role;
-drop policy if exists rfq_quotes_read on "better_supabase"."rfq_quotes";
 create policy rfq_quotes_read on "better_supabase"."rfq_quotes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
 -- The unit price of one requested line in a quote, in minor units. A quote
 -- need not price every line, but only a complete quote can be awarded.
-create table if not exists "better_supabase"."rfq_quote_lines" (
+create table "better_supabase"."rfq_quote_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "quote_id" uuid not null references "better_supabase"."rfq_quotes" ("id") on delete cascade,
@@ -174,12 +123,11 @@ create table if not exists "better_supabase"."rfq_quote_lines" (
   "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0),
   unique ("quote_id", "line_id")
 );
-create index if not exists "rfq_quote_lines_line_idx" on "better_supabase"."rfq_quote_lines" ("line_id");
+create index "rfq_quote_lines_line_idx" on "better_supabase"."rfq_quote_lines" ("line_id");
 alter table "better_supabase"."rfq_quote_lines" enable row level security;
 revoke all on "better_supabase"."rfq_quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_quote_lines" to authenticated;
 grant all on "better_supabase"."rfq_quote_lines" to service_role;
-drop policy if exists rfq_quote_lines_read on "better_supabase"."rfq_quote_lines";
 create policy rfq_quote_lines_read on "better_supabase"."rfq_quote_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
@@ -881,108 +829,83 @@ grant execute on function "better_supabase"."award_rfq"(uuid, uuid, uuid) to aut
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."rfqs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."rfqs";
 create policy bsb_tenant_scope_select on "better_supabase"."rfqs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rfqs";
 create policy bsb_tenant_scope_insert on "better_supabase"."rfqs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."rfqs";
 create policy bsb_tenant_scope_update on "better_supabase"."rfqs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rfqs";
 create policy bsb_tenant_scope_delete on "better_supabase"."rfqs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."rfq_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."rfq_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."rfq_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rfq_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."rfq_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."rfq_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."rfq_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rfq_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."rfq_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."rfq_suppliers";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."rfq_suppliers";
 create policy bsb_tenant_scope_select on "better_supabase"."rfq_suppliers" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rfq_suppliers";
 create policy bsb_tenant_scope_insert on "better_supabase"."rfq_suppliers" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."rfq_suppliers";
 create policy bsb_tenant_scope_update on "better_supabase"."rfq_suppliers" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rfq_suppliers";
 create policy bsb_tenant_scope_delete on "better_supabase"."rfq_suppliers" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."rfq_quotes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."rfq_quotes";
 create policy bsb_tenant_scope_select on "better_supabase"."rfq_quotes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rfq_quotes";
 create policy bsb_tenant_scope_insert on "better_supabase"."rfq_quotes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."rfq_quotes";
 create policy bsb_tenant_scope_update on "better_supabase"."rfq_quotes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rfq_quotes";
 create policy bsb_tenant_scope_delete on "better_supabase"."rfq_quotes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."rfq_quote_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."rfq_quote_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."rfq_quote_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rfq_quote_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."rfq_quote_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."rfq_quote_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."rfq_quote_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rfq_quote_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."rfq_quote_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

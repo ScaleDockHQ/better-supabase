@@ -822,7 +822,7 @@ begin
         and substr((select realtime.topic()), ${String(prefix.length + 1)}) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and ${ctx.fn("ai_chat_can_read")}(substr((select realtime.topic()), ${String(prefix.length + 1)})::uuid)`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
         ${renderPolicy(
           makePolicy({
@@ -833,7 +833,7 @@ begin
             using: `realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = ${sqlString(`${names.listTopic}:`)} || (select auth.uid())::text`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
   end if;
 end;

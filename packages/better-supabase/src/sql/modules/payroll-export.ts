@@ -377,7 +377,7 @@ function build(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, read),
       }),
-      { drop: true, target: ctx.table(table) },
+      { target: ctx.table(table) },
     );
 
   const overlap = (exclude: string): string => `exists (

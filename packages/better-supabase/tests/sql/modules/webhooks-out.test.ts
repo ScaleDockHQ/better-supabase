@@ -40,7 +40,7 @@ describe("webhooks-out module", () => {
   it("owns its tables, keeps secrets in Vault and the secrets table closed to clients", () => {
     const sql = body();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."webhook_endpoints" (',
+      'create table "better_supabase"."webhook_endpoints" (',
     );
     expect(sql).toContain('"event_types" text[]');
     expect(sql).toContain('"vault_secret_id" uuid');
@@ -185,9 +185,6 @@ describe("webhooks-out module", () => {
     const sql = body();
     expect(sql).toContain('"attempt" = v."attempt" + 1');
     expect(sql).toContain("max_attempts integer default 8");
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."claim_webhook_deliveries"(integer, interval);',
-    );
     expect(sql).toContain('and v."attempt" = v_attempt');
     expect(sql).toContain(`and v."status" = 'delivering'`);
     expect(sql).toContain("return 'stale';");
@@ -241,9 +238,6 @@ describe("webhooks-out module", () => {
         `(publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false))`,
       );
       expect(fn).toContain('"subject")\n  select');
-      expect(sql).toContain(
-        'drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);',
-      );
       expect(sql).toContain(
         `'subject', c."subject", 'owner', d."created_by", 'permissions', d."permissions", 'batch', d."batch"`,
       );

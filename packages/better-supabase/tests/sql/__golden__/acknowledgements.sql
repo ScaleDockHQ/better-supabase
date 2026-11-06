@@ -1,48 +1,17 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:230b7815a3cddad395f8b450e084c3039d7747c9a018c44dbf47b3363181e495
+-- @bsb-hash sha256:57ab78bda9882faaf2198775b008822e60be517cf76924a81da500018a4b30de
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_notices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Acknowledgements: members confirm they read the current version of a
 -- record they are assigned to, directly, through a team or through a role.
 
 -- Who has to acknowledge a record: a member, everyone in a team, or everyone
 -- holding a role, with an optional number of days to do it in.
-create table if not exists "better_supabase"."acknowledgement_assignments" (
+create table "better_supabase"."acknowledgement_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -54,18 +23,17 @@ create table if not exists "better_supabase"."acknowledgement_assignments" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
 );
-create index if not exists "acknowledgement_assignments_principal_idx" on "better_supabase"."acknowledgement_assignments" ("tenant_id", "principal_type", "principal_id");
+create index "acknowledgement_assignments_principal_idx" on "better_supabase"."acknowledgement_assignments" ("tenant_id", "principal_type", "principal_id");
 alter table "better_supabase"."acknowledgement_assignments" enable row level security;
 revoke all on "better_supabase"."acknowledgement_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgement_assignments" to authenticated;
 grant all on "better_supabase"."acknowledgement_assignments" to service_role;
-drop policy if exists acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments";
 create policy acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
 -- One row per member and version of a record they acknowledged.
-create table if not exists "better_supabase"."acknowledgements" (
+create table "better_supabase"."acknowledgements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -77,20 +45,19 @@ create table if not exists "better_supabase"."acknowledgements" (
   "acknowledged_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "version_id", "user_id")
 );
-create index if not exists "acknowledgements_user_idx" on "better_supabase"."acknowledgements" ("tenant_id", "user_id");
-create index if not exists "acknowledgements_version_idx" on "better_supabase"."acknowledgements" ("version_id", "subject_type", "subject_id");
+create index "acknowledgements_user_idx" on "better_supabase"."acknowledgements" ("tenant_id", "user_id");
+create index "acknowledgements_version_idx" on "better_supabase"."acknowledgements" ("version_id", "subject_type", "subject_id");
 alter table "better_supabase"."acknowledgements" enable row level security;
 revoke all on "better_supabase"."acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgements" to authenticated;
 grant all on "better_supabase"."acknowledgements" to service_role;
-drop policy if exists acknowledgements_read on "better_supabase"."acknowledgements";
 create policy acknowledgements_read on "better_supabase"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
 -- Which member notify_due_acknowledgements reminded about which version, so
 -- each overdue version notifies a member once.
-create table if not exists "better_supabase"."acknowledgement_notices" (
+create table "better_supabase"."acknowledgement_notices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -600,45 +567,35 @@ grant execute on function "better_supabase"."notify_due_acknowledgements"() to s
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_select on "better_supabase"."acknowledgements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_insert on "better_supabase"."acknowledgements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_update on "better_supabase"."acknowledgements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -660,48 +617,17 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:a087ee1d1d3fa01780345954be50a11e426d606d8715eedcf0595740f1b8a32b
+-- @bsb-hash sha256:96cf53549e4c6bf36dcc3845dd6ba6c1e93a918f242d8d583fdf88ed9e29c6bf
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_notices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Acknowledgements: members confirm they read the current version of a
 -- record they are assigned to, directly, through a team or through a role.
 
 -- Who has to acknowledge a record: a member, everyone in a team, or everyone
 -- holding a role, with an optional number of days to do it in.
-create table if not exists "better_supabase"."acknowledgement_assignments" (
+create table "better_supabase"."acknowledgement_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -713,18 +639,17 @@ create table if not exists "better_supabase"."acknowledgement_assignments" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
 );
-create index if not exists "acknowledgement_assignments_principal_idx" on "better_supabase"."acknowledgement_assignments" ("tenant_id", "principal_type", "principal_id");
+create index "acknowledgement_assignments_principal_idx" on "better_supabase"."acknowledgement_assignments" ("tenant_id", "principal_type", "principal_id");
 alter table "better_supabase"."acknowledgement_assignments" enable row level security;
 revoke all on "better_supabase"."acknowledgement_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgement_assignments" to authenticated;
 grant all on "better_supabase"."acknowledgement_assignments" to service_role;
-drop policy if exists acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments";
 create policy acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
 -- One row per member and version of a record they acknowledged.
-create table if not exists "better_supabase"."acknowledgements" (
+create table "better_supabase"."acknowledgements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -736,20 +661,19 @@ create table if not exists "better_supabase"."acknowledgements" (
   "acknowledged_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "version_id", "user_id")
 );
-create index if not exists "acknowledgements_user_idx" on "better_supabase"."acknowledgements" ("tenant_id", "user_id");
-create index if not exists "acknowledgements_version_idx" on "better_supabase"."acknowledgements" ("version_id", "subject_type", "subject_id");
+create index "acknowledgements_user_idx" on "better_supabase"."acknowledgements" ("tenant_id", "user_id");
+create index "acknowledgements_version_idx" on "better_supabase"."acknowledgements" ("version_id", "subject_type", "subject_id");
 alter table "better_supabase"."acknowledgements" enable row level security;
 revoke all on "better_supabase"."acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgements" to authenticated;
 grant all on "better_supabase"."acknowledgements" to service_role;
-drop policy if exists acknowledgements_read on "better_supabase"."acknowledgements";
 create policy acknowledgements_read on "better_supabase"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
 -- Which member notify_due_acknowledgements reminded about which version, so
 -- each overdue version notifies a member once.
-create table if not exists "better_supabase"."acknowledgement_notices" (
+create table "better_supabase"."acknowledgement_notices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1354,45 +1278,35 @@ grant execute on function "better_supabase"."notify_due_acknowledgements"() to s
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_select on "better_supabase"."acknowledgements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_insert on "better_supabase"."acknowledgements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_update on "better_supabase"."acknowledgements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1422,40 +1336,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:b375650794d53352e873a3922c14891013fc9f10e1b7e2596dfad1be946d6fb4
+-- @bsb-hash sha256:28510cc8521ef9f05b5a2822d499f985b1af2824178cda7bc95906c627fc7ec5
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."acknowledgement_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."acknowledgement_notices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -1467,7 +1351,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 
 -- Who has to acknowledge a record: a member, everyone in a team, or everyone
 -- holding a role, with an optional number of days to do it in.
-create table if not exists "app_private"."acknowledgement_assignments" (
+create table "app_private"."acknowledgement_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1479,18 +1363,17 @@ create table if not exists "app_private"."acknowledgement_assignments" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
 );
-create index if not exists "acknowledgement_assignments_principal_idx" on "app_private"."acknowledgement_assignments" ("tenant_id", "principal_type", "principal_id");
+create index "acknowledgement_assignments_principal_idx" on "app_private"."acknowledgement_assignments" ("tenant_id", "principal_type", "principal_id");
 alter table "app_private"."acknowledgement_assignments" enable row level security;
 revoke all on "app_private"."acknowledgement_assignments" from public, anon, authenticated;
 grant select on "app_private"."acknowledgement_assignments" to authenticated;
 grant all on "app_private"."acknowledgement_assignments" to service_role;
-drop policy if exists acknowledgement_assignments_read on "app_private"."acknowledgement_assignments";
 create policy acknowledgement_assignments_read on "app_private"."acknowledgement_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
 -- One row per member and version of a record they acknowledged.
-create table if not exists "app_private"."acknowledgements" (
+create table "app_private"."acknowledgements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1502,20 +1385,19 @@ create table if not exists "app_private"."acknowledgements" (
   "acknowledged_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "version_id", "user_id")
 );
-create index if not exists "acknowledgements_user_idx" on "app_private"."acknowledgements" ("tenant_id", "user_id");
-create index if not exists "acknowledgements_version_idx" on "app_private"."acknowledgements" ("version_id", "subject_type", "subject_id");
+create index "acknowledgements_user_idx" on "app_private"."acknowledgements" ("tenant_id", "user_id");
+create index "acknowledgements_version_idx" on "app_private"."acknowledgements" ("version_id", "subject_type", "subject_id");
 alter table "app_private"."acknowledgements" enable row level security;
 revoke all on "app_private"."acknowledgements" from public, anon, authenticated;
 grant select on "app_private"."acknowledgements" to authenticated;
 grant all on "app_private"."acknowledgements" to service_role;
-drop policy if exists acknowledgements_read on "app_private"."acknowledgements";
 create policy acknowledgements_read on "app_private"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
 -- Which member notify_due_acknowledgements reminded about which version, so
 -- each overdue version notifies a member once.
-create table if not exists "app_private"."acknowledgement_notices" (
+create table "app_private"."acknowledgement_notices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -2025,45 +1907,35 @@ grant execute on function "app_private"."notify_due_acknowledgements"() to servi
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."acknowledgement_assignments";
-drop policy if exists bsb_tenant_scope_select on "app_private"."acknowledgement_assignments";
 create policy bsb_tenant_scope_select on "app_private"."acknowledgement_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."acknowledgement_assignments";
 create policy bsb_tenant_scope_insert on "app_private"."acknowledgement_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."acknowledgement_assignments";
 create policy bsb_tenant_scope_update on "app_private"."acknowledgement_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."acknowledgement_assignments";
 create policy bsb_tenant_scope_delete on "app_private"."acknowledgement_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "app_private"."acknowledgements";
 create policy bsb_tenant_scope_select on "app_private"."acknowledgements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."acknowledgements";
 create policy bsb_tenant_scope_insert on "app_private"."acknowledgements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."acknowledgements";
 create policy bsb_tenant_scope_update on "app_private"."acknowledgements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."acknowledgements";
 create policy bsb_tenant_scope_delete on "app_private"."acknowledgements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2085,48 +1957,17 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:a9dca4d2b40800a084920e812e966feb5d5f95da73c16ba90a682f935afaeaa6
+-- @bsb-hash sha256:a1678948ba0ca044152c1cf59425173b87297a3bf7ff9a290a897be41f02cf3b
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_notices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Acknowledgements: members confirm they read the current version of a
 -- record they are assigned to, directly, through a team or through a role.
 
 -- Who has to acknowledge a record: a member, everyone in a team, or everyone
 -- holding a role, with an optional number of days to do it in.
-create table if not exists "better_supabase"."acknowledgement_assignments" (
+create table "better_supabase"."acknowledgement_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -2138,18 +1979,17 @@ create table if not exists "better_supabase"."acknowledgement_assignments" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
 );
-create index if not exists "acknowledgement_assignments_principal_idx" on "better_supabase"."acknowledgement_assignments" ("tenant_id", "principal_type", "principal_id");
+create index "acknowledgement_assignments_principal_idx" on "better_supabase"."acknowledgement_assignments" ("tenant_id", "principal_type", "principal_id");
 alter table "better_supabase"."acknowledgement_assignments" enable row level security;
 revoke all on "better_supabase"."acknowledgement_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgement_assignments" to authenticated;
 grant all on "better_supabase"."acknowledgement_assignments" to service_role;
-drop policy if exists acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments";
 create policy acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
 -- One row per member and version of a record they acknowledged.
-create table if not exists "better_supabase"."acknowledgements" (
+create table "better_supabase"."acknowledgements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -2161,20 +2001,19 @@ create table if not exists "better_supabase"."acknowledgements" (
   "acknowledged_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "version_id", "user_id")
 );
-create index if not exists "acknowledgements_user_idx" on "better_supabase"."acknowledgements" ("tenant_id", "user_id");
-create index if not exists "acknowledgements_version_idx" on "better_supabase"."acknowledgements" ("version_id", "subject_type", "subject_id");
+create index "acknowledgements_user_idx" on "better_supabase"."acknowledgements" ("tenant_id", "user_id");
+create index "acknowledgements_version_idx" on "better_supabase"."acknowledgements" ("version_id", "subject_type", "subject_id");
 alter table "better_supabase"."acknowledgements" enable row level security;
 revoke all on "better_supabase"."acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgements" to authenticated;
 grant all on "better_supabase"."acknowledgements" to service_role;
-drop policy if exists acknowledgements_read on "better_supabase"."acknowledgements";
 create policy acknowledgements_read on "better_supabase"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
 -- Which member notify_due_acknowledgements reminded about which version, so
 -- each overdue version notifies a member once.
-create table if not exists "better_supabase"."acknowledgement_notices" (
+create table "better_supabase"."acknowledgement_notices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -2684,45 +2523,35 @@ grant execute on function "better_supabase"."notify_due_acknowledgements"() to s
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_select on "better_supabase"."acknowledgements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_insert on "better_supabase"."acknowledgements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_update on "better_supabase"."acknowledgements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2824,41 +2653,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:734ac5ecfe932e8287047091ee3288526bee97da5a076969e0c0e948bf77896f
+-- @bsb-hash sha256:df6e436ea185dedfde5c318c0a02c22a4a0af83ca12d98e67a184351b24fdcc5
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_notices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Acknowledgements: members confirm they read the current version of a
 -- record they are assigned to, directly, through a team or through a role.
@@ -2880,7 +2678,6 @@ create index if not exists "acknowledgement_assignments_principal_idx" on "bette
 alter table "better_supabase"."acknowledgement_assignments" enable row level security;
 grant select on "better_supabase"."acknowledgement_assignments" to authenticated;
 grant all on "better_supabase"."acknowledgement_assignments" to service_role;
-drop policy if exists bsb_acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments";
 create policy bsb_acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
@@ -2902,7 +2699,6 @@ create index if not exists "acknowledgements_version_idx" on "better_supabase"."
 alter table "better_supabase"."acknowledgements" enable row level security;
 grant select on "better_supabase"."acknowledgements" to authenticated;
 grant all on "better_supabase"."acknowledgements" to service_role;
-drop policy if exists bsb_acknowledgements_read on "better_supabase"."acknowledgements";
 create policy bsb_acknowledgements_read on "better_supabase"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
@@ -3417,45 +3213,35 @@ grant execute on function "better_supabase"."notify_due_acknowledgements"() to s
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_select on "better_supabase"."acknowledgements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_insert on "better_supabase"."acknowledgements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_update on "better_supabase"."acknowledgements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3477,48 +3263,17 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:e306374307990b088b6ead15635610968adc5712e18550184f44ee0364b1491b
+-- @bsb-hash sha256:21e2c01adf443cb4c6e1e30b2ff1ab5e4b4af8b39c9476abefd8d4efa5d5257f
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_notices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_notices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Acknowledgements: members confirm they read the current version of a
 -- record they are assigned to, directly, through a team or through a role.
 
 -- Who has to acknowledge a record: a member, everyone in a team, or everyone
 -- holding a role, with an optional number of days to do it in.
-create table if not exists "better_supabase"."acknowledgement_assignments" (
+create table "better_supabase"."acknowledgement_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -3530,18 +3285,17 @@ create table if not exists "better_supabase"."acknowledgement_assignments" (
   "created_at" timestamptz not null default now(),
   unique ("org_id", "subject_type", "subject_id", "principal_type", "principal_id")
 );
-create index if not exists "acknowledgement_assignments_principal_idx" on "better_supabase"."acknowledgement_assignments" ("org_id", "principal_type", "principal_id");
+create index "acknowledgement_assignments_principal_idx" on "better_supabase"."acknowledgement_assignments" ("org_id", "principal_type", "principal_id");
 alter table "better_supabase"."acknowledgement_assignments" enable row level security;
 revoke all on "better_supabase"."acknowledgement_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgement_assignments" to authenticated;
 grant all on "better_supabase"."acknowledgement_assignments" to service_role;
-drop policy if exists acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments";
 create policy acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
 -- One row per member and version of a record they acknowledged.
-create table if not exists "better_supabase"."acknowledgements" (
+create table "better_supabase"."acknowledgements" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -3553,20 +3307,19 @@ create table if not exists "better_supabase"."acknowledgements" (
   "acknowledged_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "version_id", "user_id")
 );
-create index if not exists "acknowledgements_user_idx" on "better_supabase"."acknowledgements" ("org_id", "user_id");
-create index if not exists "acknowledgements_version_idx" on "better_supabase"."acknowledgements" ("version_id", "subject_type", "subject_id");
+create index "acknowledgements_user_idx" on "better_supabase"."acknowledgements" ("org_id", "user_id");
+create index "acknowledgements_version_idx" on "better_supabase"."acknowledgements" ("version_id", "subject_type", "subject_id");
 alter table "better_supabase"."acknowledgements" enable row level security;
 revoke all on "better_supabase"."acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgements" to authenticated;
 grant all on "better_supabase"."acknowledgements" to service_role;
-drop policy if exists acknowledgements_read on "better_supabase"."acknowledgements";
 create policy acknowledgements_read on "better_supabase"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
 -- Which member notify_due_acknowledgements reminded about which version, so
 -- each overdue version notifies a member once.
-create table if not exists "better_supabase"."acknowledgement_notices" (
+create table "better_supabase"."acknowledgement_notices" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -4076,45 +3829,35 @@ grant execute on function "better_supabase"."notify_due_acknowledgements"() to s
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgement_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."acknowledgement_assignments" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."acknowledgement_assignments" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."acknowledgement_assignments" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgement_assignments" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."acknowledgements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_select on "better_supabase"."acknowledgements" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_insert on "better_supabase"."acknowledgements" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_update on "better_supabase"."acknowledgements" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."acknowledgements";
 create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgements" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

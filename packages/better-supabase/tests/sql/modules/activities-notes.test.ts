@@ -78,13 +78,13 @@ describe("progress notes, rendered", () => {
     const sql = sqlOf();
 
     expect(sql).toContain(
-      `add column if not exists "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'))`,
+      `add column "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'))`,
     );
     expect(sql).toContain(
-      `add column if not exists "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade`,
+      `add column "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade`,
     );
     expect(sql).toContain(
-      `create index if not exists "activities_amends_idx" on "better_supabase"."activities" ("amends_id")`,
+      `create index "activities_amends_idx" on "better_supabase"."activities" ("amends_id")`,
     );
     expect(sql).toContain('function "better_supabase"."amend_activity"');
     expect(sql).toContain('function "better_supabase"."mark_activity_error"');

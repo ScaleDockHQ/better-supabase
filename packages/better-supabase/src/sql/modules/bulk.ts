@@ -250,7 +250,7 @@ ${declares.map((line) => `  ${line}`).join("\n")}
 create index if not exists bulk_runs_created_by_idx on ${runs} (${c("createdBy")}, ${c("createdAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("runs").name}_tenant_idx`)} on ${runs} (${c("tenant")});
 ${lockTable(runs, { read: true })}
-${renderPolicy(makePolicy({ table: runs, name: "bulk_runs_read", command: "select", roles: ["authenticated"], using: `${c("createdBy")} = (select auth.uid())` }), { drop: true, target: runs })}
+${renderPolicy(makePolicy({ table: runs, name: "bulk_runs_read", command: "select", roles: ["authenticated"], using: `${c("createdBy")} = (select auth.uid())` }), { target: runs })}
 `
     : "";
 

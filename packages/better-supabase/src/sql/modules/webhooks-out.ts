@@ -251,7 +251,7 @@ function tables(ctx: BlockSqlContext, n: HookNames): string {
         roles: ["authenticated"],
         ...spec,
       }),
-      { drop: true, target: n.table(table) },
+      { target: n.table(table) },
     )}`;
 
   const scoped = n.clientAccess;

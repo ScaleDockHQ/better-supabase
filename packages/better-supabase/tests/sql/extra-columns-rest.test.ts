@@ -52,11 +52,11 @@ describe("extraColumns on managed tables", () => {
 
       expect(sql).toMatch(
         new RegExp(
-          `alter table [^\\n]*"?${name}"? add column if not exists "app_note" text;`,
+          `alter table [^\\n]*"?${name}"? add column "app_note" text;`,
         ),
       );
       expect(sql).toContain(
-        'add column if not exists "app_rank" integer not null default 0;',
+        'add column "app_rank" integer not null default 0;',
       );
       expect(sql).toContain(`"app_note" = `);
       expect(sql).toContain('then r."app_note"');
@@ -75,12 +75,6 @@ describe("extraColumns on managed tables", () => {
     const sql = sqlOf("tags", { app_note: "text" });
     expect(sql).toContain(
       'create_tag"(tenant uuid, kind text, name text, color text, description text, fields jsonb default null)',
-    );
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text);',
-    );
-    expect(sqlOf("tags", undefined)).toContain(
-      'drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);',
     );
   });
 

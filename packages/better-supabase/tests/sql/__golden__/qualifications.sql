@@ -1,47 +1,16 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:2eb4d5ca2e2462e9d42d68d648417fab02b4d92d1c6ba2bf02873dad4c6b6f7e
+-- @bsb-hash sha256:451464662d716de90a559379ddad1dbd58deb0eb1e895f588d27a35ee03d8193
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_requirements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualifications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Qualifications: types of certification, licence or skill, who must hold
 -- them (requirements), and the holdings of members, companies and assets
 -- with their expiry.
 
-create table if not exists "better_supabase"."qualification_types" (
+create table "better_supabase"."qualification_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
@@ -59,17 +28,16 @@ create table if not exists "better_supabase"."qualification_types" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-create index if not exists "qualification_types_course_idx" on "better_supabase"."qualification_types" ("course_id") where "course_id" is not null;
+create index "qualification_types_course_idx" on "better_supabase"."qualification_types" ("course_id") where "course_id" is not null;
 alter table "better_supabase"."qualification_types" enable row level security;
 revoke all on "better_supabase"."qualification_types" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_types" to authenticated;
 grant all on "better_supabase"."qualification_types" to service_role;
-drop policy if exists qualification_types_read on "better_supabase"."qualification_types";
 create policy qualification_types_read on "better_supabase"."qualification_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "better_supabase"."qualification_requirements" (
+create table "better_supabase"."qualification_requirements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type_id" uuid not null,
@@ -81,17 +49,16 @@ create table if not exists "better_supabase"."qualification_requirements" (
   unique ("type_id", "target_type", "target_value"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "qualification_requirements_tenant_idx" on "better_supabase"."qualification_requirements" ("tenant_id", "type_id");
+create index "qualification_requirements_tenant_idx" on "better_supabase"."qualification_requirements" ("tenant_id", "type_id");
 alter table "better_supabase"."qualification_requirements" enable row level security;
 revoke all on "better_supabase"."qualification_requirements" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_requirements" to authenticated;
 grant all on "better_supabase"."qualification_requirements" to service_role;
-drop policy if exists qualification_requirements_read on "better_supabase"."qualification_requirements";
 create policy qualification_requirements_read on "better_supabase"."qualification_requirements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "better_supabase"."qualifications" (
+create table "better_supabase"."qualifications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type_id" uuid not null,
@@ -115,15 +82,14 @@ create table if not exists "better_supabase"."qualifications" (
   check ("expires_on" is null or "expires_on" >= "granted_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
-create index if not exists "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
-create index if not exists "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
-create index if not exists "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
+create index "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
+create index "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
+create index "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
+create index "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
 alter table "better_supabase"."qualifications" enable row level security;
 revoke all on "better_supabase"."qualifications" from public, anon, authenticated;
 grant select on "better_supabase"."qualifications" to authenticated;
 grant all on "better_supabase"."qualifications" to service_role;
-drop policy if exists qualifications_read on "better_supabase"."qualifications";
 create policy qualifications_read on "better_supabase"."qualifications"
   for select to authenticated
   using (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')));
@@ -395,7 +361,7 @@ grant execute on function "better_supabase"."list_qualification_requirements"(uu
 -- Grants a qualification to a holder (a member's user id, a company id or
 -- an asset id). The holding expires valid_for_months after granted_on;
 -- earlier holdings of the same type stay as history.
-drop function if exists "better_supabase"."grant_qualification"(uuid, text, text, text, date, uuid, text, jsonb);
+
 create or replace function "better_supabase"."grant_qualification"(tenant uuid, type_key text, holder_type text, holder_id text, granted_on date default current_date, evidence_attachment_id uuid default null, evidence_note text default null)
 returns jsonb
 language plpgsql
@@ -707,66 +673,51 @@ grant execute on function "better_supabase"."notify_expiring_qualifications"() t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_types";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_select on "better_supabase"."qualification_types" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualification_types" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_update on "better_supabase"."qualification_types" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualification_types" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_requirements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_select on "better_supabase"."qualification_requirements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualification_requirements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_update on "better_supabase"."qualification_requirements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualification_requirements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualifications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_select on "better_supabase"."qualifications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualifications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_update on "better_supabase"."qualifications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualifications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -788,47 +739,16 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:6fa17fe6009c89ee3191fa6e7c2f619bd5a28283fdc4fad8aa5f5c805f9d870b
+-- @bsb-hash sha256:7fa4bc50d2726674bc42cce5f77decf144c74dfd0c0990aea19edc6e805ca7e1
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_requirements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualifications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Qualifications: types of certification, licence or skill, who must hold
 -- them (requirements), and the holdings of members, companies and assets
 -- with their expiry.
 
-create table if not exists "better_supabase"."qualification_types" (
+create table "better_supabase"."qualification_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
@@ -846,17 +766,16 @@ create table if not exists "better_supabase"."qualification_types" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-create index if not exists "qualification_types_course_idx" on "better_supabase"."qualification_types" ("course_id") where "course_id" is not null;
+create index "qualification_types_course_idx" on "better_supabase"."qualification_types" ("course_id") where "course_id" is not null;
 alter table "better_supabase"."qualification_types" enable row level security;
 revoke all on "better_supabase"."qualification_types" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_types" to authenticated;
 grant all on "better_supabase"."qualification_types" to service_role;
-drop policy if exists qualification_types_read on "better_supabase"."qualification_types";
 create policy qualification_types_read on "better_supabase"."qualification_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "better_supabase"."qualification_requirements" (
+create table "better_supabase"."qualification_requirements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type_id" uuid not null,
@@ -868,17 +787,16 @@ create table if not exists "better_supabase"."qualification_requirements" (
   unique ("type_id", "target_type", "target_value"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "qualification_requirements_tenant_idx" on "better_supabase"."qualification_requirements" ("tenant_id", "type_id");
+create index "qualification_requirements_tenant_idx" on "better_supabase"."qualification_requirements" ("tenant_id", "type_id");
 alter table "better_supabase"."qualification_requirements" enable row level security;
 revoke all on "better_supabase"."qualification_requirements" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_requirements" to authenticated;
 grant all on "better_supabase"."qualification_requirements" to service_role;
-drop policy if exists qualification_requirements_read on "better_supabase"."qualification_requirements";
 create policy qualification_requirements_read on "better_supabase"."qualification_requirements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "better_supabase"."qualifications" (
+create table "better_supabase"."qualifications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type_id" uuid not null,
@@ -902,16 +820,15 @@ create table if not exists "better_supabase"."qualifications" (
   check ("expires_on" is null or "expires_on" >= "granted_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
-create index if not exists "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
-create index if not exists "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
-create index if not exists "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
-create index if not exists "qualifications_evidence_idx" on "better_supabase"."qualifications" ("evidence_attachment_id") where "evidence_attachment_id" is not null;
+create index "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
+create index "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
+create index "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
+create index "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
+create index "qualifications_evidence_idx" on "better_supabase"."qualifications" ("evidence_attachment_id") where "evidence_attachment_id" is not null;
 alter table "better_supabase"."qualifications" enable row level security;
 revoke all on "better_supabase"."qualifications" from public, anon, authenticated;
 grant select on "better_supabase"."qualifications" to authenticated;
 grant all on "better_supabase"."qualifications" to service_role;
-drop policy if exists qualifications_read on "better_supabase"."qualifications";
 create policy qualifications_read on "better_supabase"."qualifications"
   for select to authenticated
   using (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')));
@@ -1214,7 +1131,7 @@ grant execute on function "better_supabase"."list_qualification_requirements"(uu
 -- Grants a qualification to a holder (a member's user id, a company id or
 -- an asset id). The holding expires valid_for_months after granted_on;
 -- earlier holdings of the same type stay as history.
-drop function if exists "better_supabase"."grant_qualification"(uuid, text, text, text, date, uuid, text, jsonb);
+
 create or replace function "better_supabase"."grant_qualification"(tenant uuid, type_key text, holder_type text, holder_id text, granted_on date default current_date, evidence_attachment_id uuid default null, evidence_note text default null)
 returns jsonb
 language plpgsql
@@ -1638,7 +1555,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."qualification_course_certificate"() from public, anon, authenticated;
-drop trigger if exists "bsb_qualification_course_certificate" on "better_supabase"."course_certificates";
 create trigger "bsb_qualification_course_certificate"
 after insert or update of "revoked_at" on "better_supabase"."course_certificates"
 for each row execute function "better_supabase"."qualification_course_certificate"();
@@ -1646,66 +1562,51 @@ for each row execute function "better_supabase"."qualification_course_certificat
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_types";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_select on "better_supabase"."qualification_types" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualification_types" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_update on "better_supabase"."qualification_types" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualification_types" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_requirements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_select on "better_supabase"."qualification_requirements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualification_requirements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_update on "better_supabase"."qualification_requirements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualification_requirements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualifications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_select on "better_supabase"."qualifications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualifications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_update on "better_supabase"."qualifications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualifications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1736,40 +1637,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:a97b04b75cb34e92510b1299cdb334a20cf626590068a7afde42656aa6274dd1
+-- @bsb-hash sha256:9d748657f8c5585155a9e39d223918849030b9682c9bbb2f078f49fd6a1f3cf4
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."qualification_types";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."qualification_types";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."qualification_types";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."qualification_types";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."qualification_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."qualification_requirements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."qualifications";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."qualifications";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."qualifications";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."qualifications";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."qualifications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -1780,7 +1651,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- them (requirements), and the holdings of members, companies and assets
 -- with their expiry.
 
-create table if not exists "app_private"."qualification_types" (
+create table "app_private"."qualification_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
@@ -1798,17 +1669,16 @@ create table if not exists "app_private"."qualification_types" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-create index if not exists "qualification_types_course_idx" on "app_private"."qualification_types" ("course_id") where "course_id" is not null;
+create index "qualification_types_course_idx" on "app_private"."qualification_types" ("course_id") where "course_id" is not null;
 alter table "app_private"."qualification_types" enable row level security;
 revoke all on "app_private"."qualification_types" from public, anon, authenticated;
 grant select on "app_private"."qualification_types" to authenticated;
 grant all on "app_private"."qualification_types" to service_role;
-drop policy if exists qualification_types_read on "app_private"."qualification_types";
 create policy qualification_types_read on "app_private"."qualification_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "app_private"."qualification_requirements" (
+create table "app_private"."qualification_requirements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type_id" uuid not null,
@@ -1820,17 +1690,16 @@ create table if not exists "app_private"."qualification_requirements" (
   unique ("type_id", "target_type", "target_value"),
   foreign key ("tenant_id", "type_id") references "app_private"."qualification_types" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "qualification_requirements_tenant_idx" on "app_private"."qualification_requirements" ("tenant_id", "type_id");
+create index "qualification_requirements_tenant_idx" on "app_private"."qualification_requirements" ("tenant_id", "type_id");
 alter table "app_private"."qualification_requirements" enable row level security;
 revoke all on "app_private"."qualification_requirements" from public, anon, authenticated;
 grant select on "app_private"."qualification_requirements" to authenticated;
 grant all on "app_private"."qualification_requirements" to service_role;
-drop policy if exists qualification_requirements_read on "app_private"."qualification_requirements";
 create policy qualification_requirements_read on "app_private"."qualification_requirements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "app_private"."qualifications" (
+create table "app_private"."qualifications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type_id" uuid not null,
@@ -1854,15 +1723,14 @@ create table if not exists "app_private"."qualifications" (
   check ("expires_on" is null or "expires_on" >= "granted_on"),
   foreign key ("tenant_id", "type_id") references "app_private"."qualification_types" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "qualifications_holder_idx" on "app_private"."qualifications" ("tenant_id", "holder_type", "holder_id");
-create index if not exists "qualifications_type_idx" on "app_private"."qualifications" ("tenant_id", "type_id");
-create index if not exists "qualifications_expiry_idx" on "app_private"."qualifications" ("type_id", "expires_on");
-create index if not exists "qualifications_source_idx" on "app_private"."qualifications" ("source", "source_id") where "source_id" is not null;
+create index "qualifications_holder_idx" on "app_private"."qualifications" ("tenant_id", "holder_type", "holder_id");
+create index "qualifications_type_idx" on "app_private"."qualifications" ("tenant_id", "type_id");
+create index "qualifications_expiry_idx" on "app_private"."qualifications" ("type_id", "expires_on");
+create index "qualifications_source_idx" on "app_private"."qualifications" ("source", "source_id") where "source_id" is not null;
 alter table "app_private"."qualifications" enable row level security;
 revoke all on "app_private"."qualifications" from public, anon, authenticated;
 grant select on "app_private"."qualifications" to authenticated;
 grant all on "app_private"."qualifications" to service_role;
-drop policy if exists qualifications_read on "app_private"."qualifications";
 create policy qualifications_read on "app_private"."qualifications"
   for select to authenticated
   using (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')));
@@ -2134,7 +2002,7 @@ grant execute on function "app_private"."list_qualification_requirements"(uuid) 
 -- Grants a qualification to a holder (a member's user id, a company id or
 -- an asset id). The holding expires valid_for_months after granted_on;
 -- earlier holdings of the same type stay as history.
-drop function if exists "app_private"."grant_qualification"(uuid, text, text, text, date, uuid, text, jsonb);
+
 create or replace function "app_private"."grant_qualification"(tenant uuid, type_key text, holder_type text, holder_id text, granted_on date default current_date, evidence_attachment_id uuid default null, evidence_note text default null)
 returns jsonb
 language plpgsql
@@ -2446,66 +2314,51 @@ grant execute on function "app_private"."notify_expiring_qualifications"() to se
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."qualification_types";
-drop policy if exists bsb_tenant_scope_select on "app_private"."qualification_types";
 create policy bsb_tenant_scope_select on "app_private"."qualification_types" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."qualification_types";
 create policy bsb_tenant_scope_insert on "app_private"."qualification_types" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."qualification_types";
 create policy bsb_tenant_scope_update on "app_private"."qualification_types" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."qualification_types";
 create policy bsb_tenant_scope_delete on "app_private"."qualification_types" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."qualification_requirements";
-drop policy if exists bsb_tenant_scope_select on "app_private"."qualification_requirements";
 create policy bsb_tenant_scope_select on "app_private"."qualification_requirements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."qualification_requirements";
 create policy bsb_tenant_scope_insert on "app_private"."qualification_requirements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."qualification_requirements";
 create policy bsb_tenant_scope_update on "app_private"."qualification_requirements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."qualification_requirements";
 create policy bsb_tenant_scope_delete on "app_private"."qualification_requirements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."qualifications";
-drop policy if exists bsb_tenant_scope_select on "app_private"."qualifications";
 create policy bsb_tenant_scope_select on "app_private"."qualifications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."qualifications";
 create policy bsb_tenant_scope_insert on "app_private"."qualifications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."qualifications";
 create policy bsb_tenant_scope_update on "app_private"."qualifications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."qualifications";
 create policy bsb_tenant_scope_delete on "app_private"."qualifications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2527,47 +2380,16 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:6124bf13be4b633e826ff7e41f121d4d0031fb7ab755d489a5146f9f154cea70
+-- @bsb-hash sha256:55cfd8822c6256bc80445defba78ff612ab0d21695b9b653237f567f17185b3b
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_requirements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualifications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Qualifications: types of certification, licence or skill, who must hold
 -- them (requirements), and the holdings of members, companies and assets
 -- with their expiry.
 
-create table if not exists "better_supabase"."qualification_types" (
+create table "better_supabase"."qualification_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
@@ -2585,17 +2407,16 @@ create table if not exists "better_supabase"."qualification_types" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-create index if not exists "qualification_types_course_idx" on "better_supabase"."qualification_types" ("course_id") where "course_id" is not null;
+create index "qualification_types_course_idx" on "better_supabase"."qualification_types" ("course_id") where "course_id" is not null;
 alter table "better_supabase"."qualification_types" enable row level security;
 revoke all on "better_supabase"."qualification_types" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_types" to authenticated;
 grant all on "better_supabase"."qualification_types" to service_role;
-drop policy if exists qualification_types_read on "better_supabase"."qualification_types";
 create policy qualification_types_read on "better_supabase"."qualification_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "better_supabase"."qualification_requirements" (
+create table "better_supabase"."qualification_requirements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type_id" uuid not null,
@@ -2607,17 +2428,16 @@ create table if not exists "better_supabase"."qualification_requirements" (
   unique ("type_id", "target_type", "target_value"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "qualification_requirements_tenant_idx" on "better_supabase"."qualification_requirements" ("tenant_id", "type_id");
+create index "qualification_requirements_tenant_idx" on "better_supabase"."qualification_requirements" ("tenant_id", "type_id");
 alter table "better_supabase"."qualification_requirements" enable row level security;
 revoke all on "better_supabase"."qualification_requirements" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_requirements" to authenticated;
 grant all on "better_supabase"."qualification_requirements" to service_role;
-drop policy if exists qualification_requirements_read on "better_supabase"."qualification_requirements";
 create policy qualification_requirements_read on "better_supabase"."qualification_requirements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "better_supabase"."qualifications" (
+create table "better_supabase"."qualifications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type_id" uuid not null,
@@ -2641,15 +2461,14 @@ create table if not exists "better_supabase"."qualifications" (
   check ("expires_on" is null or "expires_on" >= "granted_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
-create index if not exists "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
-create index if not exists "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
-create index if not exists "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
+create index "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
+create index "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
+create index "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
+create index "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
 alter table "better_supabase"."qualifications" enable row level security;
 revoke all on "better_supabase"."qualifications" from public, anon, authenticated;
 grant select on "better_supabase"."qualifications" to authenticated;
 grant all on "better_supabase"."qualifications" to service_role;
-drop policy if exists qualifications_read on "better_supabase"."qualifications";
 create policy qualifications_read on "better_supabase"."qualifications"
   for select to authenticated
   using (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')));
@@ -2921,7 +2740,7 @@ grant execute on function "better_supabase"."list_qualification_requirements"(uu
 -- Grants a qualification to a holder (a member's user id, a company id or
 -- an asset id). The holding expires valid_for_months after granted_on;
 -- earlier holdings of the same type stay as history.
-drop function if exists "better_supabase"."grant_qualification"(uuid, text, text, text, date, uuid, text, jsonb);
+
 create or replace function "better_supabase"."grant_qualification"(tenant uuid, type_key text, holder_type text, holder_id text, granted_on date default current_date, evidence_attachment_id uuid default null, evidence_note text default null)
 returns jsonb
 language plpgsql
@@ -3233,66 +3052,51 @@ grant execute on function "better_supabase"."notify_expiring_qualifications"() t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_types";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_select on "better_supabase"."qualification_types" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualification_types" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_update on "better_supabase"."qualification_types" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualification_types" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_requirements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_select on "better_supabase"."qualification_requirements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualification_requirements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_update on "better_supabase"."qualification_requirements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualification_requirements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualifications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_select on "better_supabase"."qualifications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualifications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_update on "better_supabase"."qualifications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualifications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3300,8 +3104,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."qualifications" as r
 -- blocks.qualifications.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."grant_qualification"(uuid, text, text, text, date, uuid, text, jsonb);
 
 create or replace function "api"."save_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
 returns jsonb
@@ -3433,41 +3235,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:f48380d0758e87b5c8965b2505b8a2030d5bca515352ecc87db7cbc4b5ac2401
+-- @bsb-hash sha256:95f8d1bf48a0b0979fb813cdad7129171a6113d639f18e8f80b283ac2eaae301
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_requirements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualifications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Qualifications: types of certification, licence or skill, who must hold
 -- them (requirements), and the holdings of members, companies and assets
@@ -3492,7 +3263,6 @@ create index if not exists "qualification_types_course_idx" on "better_supabase"
 alter table "better_supabase"."qualification_types" enable row level security;
 grant select on "better_supabase"."qualification_types" to authenticated;
 grant all on "better_supabase"."qualification_types" to service_role;
-drop policy if exists bsb_qualification_types_read on "better_supabase"."qualification_types";
 create policy bsb_qualification_types_read on "better_supabase"."qualification_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3509,7 +3279,6 @@ create index if not exists "qualification_requirements_tenant_idx" on "better_su
 alter table "better_supabase"."qualification_requirements" enable row level security;
 grant select on "better_supabase"."qualification_requirements" to authenticated;
 grant all on "better_supabase"."qualification_requirements" to service_role;
-drop policy if exists bsb_qualification_requirements_read on "better_supabase"."qualification_requirements";
 create policy bsb_qualification_requirements_read on "better_supabase"."qualification_requirements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3539,7 +3308,6 @@ create index if not exists "qualifications_source_idx" on "better_supabase"."qua
 alter table "better_supabase"."qualifications" enable row level security;
 grant select on "better_supabase"."qualifications" to authenticated;
 grant all on "better_supabase"."qualifications" to service_role;
-drop policy if exists bsb_qualifications_read on "better_supabase"."qualifications";
 create policy bsb_qualifications_read on "better_supabase"."qualifications"
   for select to authenticated
   using (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')));
@@ -3811,7 +3579,7 @@ grant execute on function "better_supabase"."list_qualification_requirements"(uu
 -- Grants a qualification to a holder (a member's user id, a company id or
 -- an asset id). The holding expires valid_for_months after granted_on;
 -- earlier holdings of the same type stay as history.
-drop function if exists "better_supabase"."grant_qualification"(uuid, text, text, text, date, uuid, text, jsonb);
+
 create or replace function "better_supabase"."grant_qualification"(tenant uuid, type_key text, holder_type text, holder_id text, granted_on date default current_date, evidence_attachment_id uuid default null, evidence_note text default null)
 returns jsonb
 language plpgsql
@@ -4123,66 +3891,51 @@ grant execute on function "better_supabase"."notify_expiring_qualifications"() t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_types";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_select on "better_supabase"."qualification_types" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualification_types" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_update on "better_supabase"."qualification_types" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualification_types" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_requirements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_select on "better_supabase"."qualification_requirements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualification_requirements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_update on "better_supabase"."qualification_requirements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualification_requirements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualifications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_select on "better_supabase"."qualifications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualifications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_update on "better_supabase"."qualifications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualifications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4204,47 +3957,16 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:d4eed200816dd2e29a68e37edc42ebd3570ae8f56090f0a69465d07671b319a4
+-- @bsb-hash sha256:04a33c0385006004b5a8e3ddf7f09accc4ca61d8d1773ce3b877219012e8bd95
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_types";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_requirements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_requirements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualifications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualifications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Qualifications: types of certification, licence or skill, who must hold
 -- them (requirements), and the holdings of members, companies and assets
 -- with their expiry.
 
-create table if not exists "better_supabase"."qualification_types" (
+create table "better_supabase"."qualification_types" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
@@ -4262,17 +3984,16 @@ create table if not exists "better_supabase"."qualification_types" (
   unique ("org_id", "key"),
   unique ("org_id", "id")
 );
-create index if not exists "qualification_types_course_idx" on "better_supabase"."qualification_types" ("course_id") where "course_id" is not null;
+create index "qualification_types_course_idx" on "better_supabase"."qualification_types" ("course_id") where "course_id" is not null;
 alter table "better_supabase"."qualification_types" enable row level security;
 revoke all on "better_supabase"."qualification_types" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_types" to authenticated;
 grant all on "better_supabase"."qualification_types" to service_role;
-drop policy if exists qualification_types_read on "better_supabase"."qualification_types";
 create policy qualification_types_read on "better_supabase"."qualification_types"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "org_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "better_supabase"."qualification_requirements" (
+create table "better_supabase"."qualification_requirements" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "type_id" uuid not null,
@@ -4284,17 +4005,16 @@ create table if not exists "better_supabase"."qualification_requirements" (
   unique ("type_id", "target_type", "target_value"),
   foreign key ("org_id", "type_id") references "better_supabase"."qualification_types" ("org_id", "id") on delete cascade
 );
-create index if not exists "qualification_requirements_tenant_idx" on "better_supabase"."qualification_requirements" ("org_id", "type_id");
+create index "qualification_requirements_tenant_idx" on "better_supabase"."qualification_requirements" ("org_id", "type_id");
 alter table "better_supabase"."qualification_requirements" enable row level security;
 revoke all on "better_supabase"."qualification_requirements" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_requirements" to authenticated;
 grant all on "better_supabase"."qualification_requirements" to service_role;
-drop policy if exists qualification_requirements_read on "better_supabase"."qualification_requirements";
 create policy qualification_requirements_read on "better_supabase"."qualification_requirements"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "org_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "better_supabase"."qualifications" (
+create table "better_supabase"."qualifications" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "type_id" uuid not null,
@@ -4318,15 +4038,14 @@ create table if not exists "better_supabase"."qualifications" (
   check ("expires_on" is null or "expires_on" >= "granted_on"),
   foreign key ("org_id", "type_id") references "better_supabase"."qualification_types" ("org_id", "id") on delete cascade
 );
-create index if not exists "qualifications_holder_idx" on "better_supabase"."qualifications" ("org_id", "holder_type", "holder_id");
-create index if not exists "qualifications_type_idx" on "better_supabase"."qualifications" ("org_id", "type_id");
-create index if not exists "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
-create index if not exists "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
+create index "qualifications_holder_idx" on "better_supabase"."qualifications" ("org_id", "holder_type", "holder_id");
+create index "qualifications_type_idx" on "better_supabase"."qualifications" ("org_id", "type_id");
+create index "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
+create index "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
 alter table "better_supabase"."qualifications" enable row level security;
 revoke all on "better_supabase"."qualifications" from public, anon, authenticated;
 grant select on "better_supabase"."qualifications" to authenticated;
 grant all on "better_supabase"."qualifications" to service_role;
-drop policy if exists qualifications_read on "better_supabase"."qualifications";
 create policy qualifications_read on "better_supabase"."qualifications"
   for select to authenticated
   using (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "org_id" in (select better_supabase.tenant_ids_with('qualifications.read')));
@@ -4598,7 +4317,7 @@ grant execute on function "better_supabase"."list_qualification_requirements"(uu
 -- Grants a qualification to a holder (a member's user id, a company id or
 -- an asset id). The holding expires valid_for_months after granted_on;
 -- earlier holdings of the same type stay as history.
-drop function if exists "better_supabase"."grant_qualification"(uuid, text, text, text, date, uuid, text, jsonb);
+
 create or replace function "better_supabase"."grant_qualification"(tenant uuid, type_key text, holder_type text, holder_id text, granted_on date default current_date, evidence_attachment_id uuid default null, evidence_note text default null)
 returns jsonb
 language plpgsql
@@ -4910,66 +4629,51 @@ grant execute on function "better_supabase"."notify_expiring_qualifications"() t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_types";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_select on "better_supabase"."qualification_types" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "org_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualification_types" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_update on "better_supabase"."qualification_types" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_types";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualification_types" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualification_requirements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_select on "better_supabase"."qualification_requirements" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "org_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualification_requirements" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_update on "better_supabase"."qualification_requirements" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualification_requirements";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualification_requirements" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."qualifications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_select on "better_supabase"."qualifications" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "org_id" in (select better_supabase.tenant_ids_with('qualifications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_insert on "better_supabase"."qualifications" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_update on "better_supabase"."qualifications" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."qualifications";
 create policy bsb_tenant_scope_delete on "better_supabase"."qualifications" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

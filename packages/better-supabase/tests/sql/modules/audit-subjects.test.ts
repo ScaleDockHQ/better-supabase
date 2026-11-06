@@ -62,10 +62,10 @@ describe("audit subjectColumns", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."audit_events" add column if not exists "job_id" uuid generated always as (case when coalesce("new_record" ->> 'job_id', "old_record" ->> 'job_id', "metadata" ->> 'job_id') ~ '^[0-9a-fA-F]{8}-`,
+      `alter table "better_supabase"."audit_events" add column "job_id" uuid generated always as (case when coalesce("new_record" ->> 'job_id', "old_record" ->> 'job_id', "metadata" ->> 'job_id') ~ '^[0-9a-fA-F]{8}-`,
     );
     expect(sql).toContain(
-      `create index if not exists "audit_events_job_id_idx" on "better_supabase"."audit_events" ("job_id") where "job_id" is not null;`,
+      `create index "audit_events_job_id_idx" on "better_supabase"."audit_events" ("job_id") where "job_id" is not null;`,
     );
     expect(sql).toContain(
       `case when coalesce("new_record" ->> 'ticket_no', "old_record" ->> 'ticket_no', "metadata" ->> 'ticket_no') ~ '^-?[0-9]{1,18}$' then`,

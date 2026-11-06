@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:ca858028940af4d0667ed9c0f99f1277f49aabbf9564095f3a99bf139cd6c54d
+-- @bsb-hash sha256:0db526b11b51f61b0259405b64f71cbf15daa56a4d2add3e561625dc4abd7149
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,7 +11,7 @@
 -- (redeem_identity_link), or from a confirmed address in auth.users
 -- (link_verified_email). Users read and delete their own; nobody inserts or
 -- updates directly.
-create table if not exists "better_supabase"."identity_links" (
+create table "better_supabase"."identity_links" (
   "id" uuid primary key default gen_random_uuid(),
   "kind" text not null check ("kind" in ('email', 'chat')),
   "provider" text check (length("provider") >= 1 and length("provider") <= 100),
@@ -25,23 +25,21 @@ create table if not exists "better_supabase"."identity_links" (
   constraint identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
   constraint identity_links_identity_key unique nulls not distinct ("kind", "provider", "value", "workspace")
 );
-create index if not exists identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
-create index if not exists identity_links_contact_idx on "better_supabase"."identity_links" ("contact_id");
+create index identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
+create index identity_links_contact_idx on "better_supabase"."identity_links" ("contact_id");
 alter table "better_supabase"."identity_links" enable row level security;
 revoke all on "better_supabase"."identity_links" from public, anon, authenticated;
 grant select, delete on "better_supabase"."identity_links" to authenticated;
 grant all on "better_supabase"."identity_links" to service_role;
-drop policy if exists identity_links_own_read on "better_supabase"."identity_links";
 create policy identity_links_own_read on "better_supabase"."identity_links"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists identity_links_own_delete on "better_supabase"."identity_links";
 create policy identity_links_own_delete on "better_supabase"."identity_links"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- One-time link codes, stored as SHA-256. No policy: only the functions below read them.
-create table if not exists "better_supabase"."identity_link_codes" (
+create table "better_supabase"."identity_link_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "kind" text not null check ("kind" in ('email', 'chat')),
@@ -51,7 +49,7 @@ create table if not exists "better_supabase"."identity_link_codes" (
   "used_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists identity_link_codes_user_idx on "better_supabase"."identity_link_codes" ("user_id");
+create index identity_link_codes_user_idx on "better_supabase"."identity_link_codes" ("user_id");
 alter table "better_supabase"."identity_link_codes" enable row level security;
 revoke all on "better_supabase"."identity_link_codes" from public, anon, authenticated;
 grant all on "better_supabase"."identity_link_codes" to service_role;
@@ -264,7 +262,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_identity_email" on auth.users;
 create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."on_auth_user_email"();
 
@@ -285,7 +282,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:ca858028940af4d0667ed9c0f99f1277f49aabbf9564095f3a99bf139cd6c54d
+-- @bsb-hash sha256:0db526b11b51f61b0259405b64f71cbf15daa56a4d2add3e561625dc4abd7149
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -295,7 +292,7 @@ on conflict (name) do update
 -- (redeem_identity_link), or from a confirmed address in auth.users
 -- (link_verified_email). Users read and delete their own; nobody inserts or
 -- updates directly.
-create table if not exists "better_supabase"."identity_links" (
+create table "better_supabase"."identity_links" (
   "id" uuid primary key default gen_random_uuid(),
   "kind" text not null check ("kind" in ('email', 'chat')),
   "provider" text check (length("provider") >= 1 and length("provider") <= 100),
@@ -309,23 +306,21 @@ create table if not exists "better_supabase"."identity_links" (
   constraint identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
   constraint identity_links_identity_key unique nulls not distinct ("kind", "provider", "value", "workspace")
 );
-create index if not exists identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
-create index if not exists identity_links_contact_idx on "better_supabase"."identity_links" ("contact_id");
+create index identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
+create index identity_links_contact_idx on "better_supabase"."identity_links" ("contact_id");
 alter table "better_supabase"."identity_links" enable row level security;
 revoke all on "better_supabase"."identity_links" from public, anon, authenticated;
 grant select, delete on "better_supabase"."identity_links" to authenticated;
 grant all on "better_supabase"."identity_links" to service_role;
-drop policy if exists identity_links_own_read on "better_supabase"."identity_links";
 create policy identity_links_own_read on "better_supabase"."identity_links"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists identity_links_own_delete on "better_supabase"."identity_links";
 create policy identity_links_own_delete on "better_supabase"."identity_links"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- One-time link codes, stored as SHA-256. No policy: only the functions below read them.
-create table if not exists "better_supabase"."identity_link_codes" (
+create table "better_supabase"."identity_link_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "kind" text not null check ("kind" in ('email', 'chat')),
@@ -335,7 +330,7 @@ create table if not exists "better_supabase"."identity_link_codes" (
   "used_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists identity_link_codes_user_idx on "better_supabase"."identity_link_codes" ("user_id");
+create index identity_link_codes_user_idx on "better_supabase"."identity_link_codes" ("user_id");
 alter table "better_supabase"."identity_link_codes" enable row level security;
 revoke all on "better_supabase"."identity_link_codes" from public, anon, authenticated;
 grant all on "better_supabase"."identity_link_codes" to service_role;
@@ -548,7 +543,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_identity_email" on auth.users;
 create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."on_auth_user_email"();
 
@@ -569,7 +563,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:6ead64332a622a2595f365d3a8ae29bda1d9b67f6d1c9dbd1af247558bf8745d
+-- @bsb-hash sha256:138861bbcd94195b06407f167848c4c19ce17c9ea19eab6be9feb4a8d06ff4b8
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -584,7 +578,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- (redeem_identity_link), or from a confirmed address in auth.users
 -- (link_verified_email). Users read and delete their own; nobody inserts or
 -- updates directly.
-create table if not exists "app_private"."identity_links" (
+create table "app_private"."identity_links" (
   "id" uuid primary key default gen_random_uuid(),
   "kind" text not null check ("kind" in ('email', 'chat')),
   "provider" text check (length("provider") >= 1 and length("provider") <= 100),
@@ -598,23 +592,21 @@ create table if not exists "app_private"."identity_links" (
   constraint identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
   constraint identity_links_identity_key unique nulls not distinct ("kind", "provider", "value", "workspace")
 );
-create index if not exists identity_links_user_idx on "app_private"."identity_links" ("user_id");
-create index if not exists identity_links_contact_idx on "app_private"."identity_links" ("contact_id");
+create index identity_links_user_idx on "app_private"."identity_links" ("user_id");
+create index identity_links_contact_idx on "app_private"."identity_links" ("contact_id");
 alter table "app_private"."identity_links" enable row level security;
 revoke all on "app_private"."identity_links" from public, anon, authenticated;
 grant select, delete on "app_private"."identity_links" to authenticated;
 grant all on "app_private"."identity_links" to service_role;
-drop policy if exists identity_links_own_read on "app_private"."identity_links";
 create policy identity_links_own_read on "app_private"."identity_links"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists identity_links_own_delete on "app_private"."identity_links";
 create policy identity_links_own_delete on "app_private"."identity_links"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- One-time link codes, stored as SHA-256. No policy: only the functions below read them.
-create table if not exists "app_private"."identity_link_codes" (
+create table "app_private"."identity_link_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "kind" text not null check ("kind" in ('email', 'chat')),
@@ -624,7 +616,7 @@ create table if not exists "app_private"."identity_link_codes" (
   "used_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists identity_link_codes_user_idx on "app_private"."identity_link_codes" ("user_id");
+create index identity_link_codes_user_idx on "app_private"."identity_link_codes" ("user_id");
 alter table "app_private"."identity_link_codes" enable row level security;
 revoke all on "app_private"."identity_link_codes" from public, anon, authenticated;
 grant all on "app_private"."identity_link_codes" to service_role;
@@ -837,7 +829,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_identity_email" on auth.users;
 create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "app_private"."on_auth_user_email"();
 
@@ -858,7 +849,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:e4b12dbcd6384067c3f056362c66e935bb255ea78db1f5327ee8861ac6af3770
+-- @bsb-hash sha256:f61ea2b9ccf1cde2b31d48ee54654ebfb7e2e189b6bc68b748ec4e69e3db28cc
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -868,7 +859,7 @@ on conflict (name) do update
 -- (redeem_identity_link), or from a confirmed address in auth.users
 -- (link_verified_email). Users read and delete their own; nobody inserts or
 -- updates directly.
-create table if not exists "better_supabase"."identity_links" (
+create table "better_supabase"."identity_links" (
   "id" uuid primary key default gen_random_uuid(),
   "kind" text not null check ("kind" in ('email', 'chat')),
   "provider" text check (length("provider") >= 1 and length("provider") <= 100),
@@ -882,23 +873,21 @@ create table if not exists "better_supabase"."identity_links" (
   constraint identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
   constraint identity_links_identity_key unique nulls not distinct ("kind", "provider", "value", "workspace")
 );
-create index if not exists identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
-create index if not exists identity_links_contact_idx on "better_supabase"."identity_links" ("contact_id");
+create index identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
+create index identity_links_contact_idx on "better_supabase"."identity_links" ("contact_id");
 alter table "better_supabase"."identity_links" enable row level security;
 revoke all on "better_supabase"."identity_links" from public, anon, authenticated;
 grant select, delete on "better_supabase"."identity_links" to authenticated;
 grant all on "better_supabase"."identity_links" to service_role;
-drop policy if exists identity_links_own_read on "better_supabase"."identity_links";
 create policy identity_links_own_read on "better_supabase"."identity_links"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists identity_links_own_delete on "better_supabase"."identity_links";
 create policy identity_links_own_delete on "better_supabase"."identity_links"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- One-time link codes, stored as SHA-256. No policy: only the functions below read them.
-create table if not exists "better_supabase"."identity_link_codes" (
+create table "better_supabase"."identity_link_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "kind" text not null check ("kind" in ('email', 'chat')),
@@ -908,7 +897,7 @@ create table if not exists "better_supabase"."identity_link_codes" (
   "used_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists identity_link_codes_user_idx on "better_supabase"."identity_link_codes" ("user_id");
+create index identity_link_codes_user_idx on "better_supabase"."identity_link_codes" ("user_id");
 alter table "better_supabase"."identity_link_codes" enable row level security;
 revoke all on "better_supabase"."identity_link_codes" from public, anon, authenticated;
 grant all on "better_supabase"."identity_link_codes" to service_role;
@@ -1121,7 +1110,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_identity_email" on auth.users;
 create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."on_auth_user_email"();
 
@@ -1211,7 +1199,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:60c9f0ae2367f213f9496c3d1ed4549b38c8f499261f5bc0467972e2ad9ff5ce
+-- @bsb-hash sha256:f8ff115adfb6824add22e52806d61d71338ca179ded89d3f75251a14214e43a1
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1237,11 +1225,9 @@ create unique index if not exists "bsb_identity_links_identity_key" on "better_s
 alter table "better_supabase"."identity_links" enable row level security;
 grant select, delete on "better_supabase"."identity_links" to authenticated;
 grant all on "better_supabase"."identity_links" to service_role;
-drop policy if exists bsb_identity_links_select on "better_supabase"."identity_links";
 create policy bsb_identity_links_select on "better_supabase"."identity_links"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists bsb_identity_links_delete on "better_supabase"."identity_links";
 create policy bsb_identity_links_delete on "better_supabase"."identity_links"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
@@ -1468,7 +1454,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_identity_email" on auth.users;
 create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."on_auth_user_email"();
 

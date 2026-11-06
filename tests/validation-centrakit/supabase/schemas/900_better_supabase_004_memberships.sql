@@ -1,24 +1,9 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:04f5f43909c5a7ce1c3da60d9f0d066a5df3b259e077c8bb33354c710f8569e5
+-- @bsb-hash sha256:55f1017c9f61790d5763598709da13c86a06e5c071559e29e2a80a1d97dd5ec2
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."organization_users";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_users";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_users";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_users";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_users";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 grant usage on schema better_supabase to supabase_auth_admin;
 set check_function_bodies = off;
@@ -26,18 +11,14 @@ set check_function_bodies = off;
 -- centrakit.organization_users is the app's table, and it has every column this block needs.
 -- centrakit.organization_users already has an index on (user_id), so this block adds none.
 alter table "centrakit"."organization_users" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "centrakit"."organization_users";
 create trigger bsb_updated_at before update on "centrakit"."organization_users"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "centrakit"."organization_users" add column if not exists "last_used_at" timestamptz;
 
 alter table "centrakit"."organization_users" enable row level security;
 grant select on "centrakit"."organization_users" to authenticated;
 grant all on "centrakit"."organization_users" to service_role;
-
-drop trigger if exists "bsb_membership_roles" on "centrakit"."organization_users";
-drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
-drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
 
 -- blocks.memberships.options.roleThrough.where names the tenant roles. Every
 -- write to "centrakit"."organization_users" stores one of them, whoever writes it: a client policy, the
@@ -60,7 +41,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."membership_role_scope"() from public, anon, authenticated;
-drop trigger if exists "bsb_role_scope" on "centrakit"."organization_users";
 create trigger "bsb_role_scope" before insert or update of "role_id" on "centrakit"."organization_users"
   for each row execute function "better_supabase"."membership_role_scope"();
 
@@ -103,28 +83,20 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.same_tenant() from public, anon, authenticated;
-drop trigger if exists "bsb_same_tenant_project_id" on "centrakit"."tasks";
 create trigger "bsb_same_tenant_project_id" before insert or update of "project_id", "organization_id" on "centrakit"."tasks"
   for each row execute function better_supabase.same_tenant('project_id', 'organization_id', '"centrakit"."projects"', 'id', 'organization_id');
-drop trigger if exists "bsb_same_tenant_customer_id" on "centrakit"."customer_contacts";
 create trigger "bsb_same_tenant_customer_id" before insert or update of "customer_id", "organization_id" on "centrakit"."customer_contacts"
   for each row execute function better_supabase.same_tenant('customer_id', 'organization_id', '"centrakit"."customers"', 'id', 'organization_id');
-drop trigger if exists "bsb_same_tenant_contact_id" on "centrakit"."tasks";
 create trigger "bsb_same_tenant_contact_id" before insert or update of "contact_id", "organization_id", "customer_id" on "centrakit"."tasks"
   for each row execute function better_supabase.same_tenant('contact_id', 'organization_id', '"centrakit"."customer_contacts"', 'id', 'organization_id', '', 'customer_id', 'customer_id');
-drop trigger if exists "bsb_same_tenant_customer_id" on "centrakit"."tasks";
 create trigger "bsb_same_tenant_customer_id" before insert or update of "customer_id", "organization_id", "project_id" on "centrakit"."tasks"
   for each row execute function better_supabase.same_tenant('customer_id', 'organization_id', '"centrakit"."customers"', 'id', 'organization_id', 'p."id" is not distinct from (select h."customer_id" from "centrakit"."projects" h where h."id" = ($1)."project_id")');
-drop trigger if exists "bsb_same_tenant_label_id" on "centrakit"."tasks";
 create trigger "bsb_same_tenant_label_id" before insert or update of "label_id", "organization_id" on "centrakit"."tasks"
   for each row execute function better_supabase.same_tenant('label_id', 'organization_id', '"centrakit"."organization_tags"', 'id', 'tenant_id', 'p.kind = ''task''');
-drop trigger if exists "bsb_same_tenant_team_id" on "centrakit"."file_node_grant";
 create trigger "bsb_same_tenant_team_id" before insert or update of "team_id", "organization_id" on "centrakit"."file_node_grant"
   for each row execute function better_supabase.same_tenant('team_id', 'organization_id', '"centrakit"."teams"', 'id', 'tenant_id');
-drop trigger if exists "bsb_same_tenant_department_team_id" on "centrakit"."employees";
 create trigger "bsb_same_tenant_department_team_id" before insert or update of "department_team_id", "organization_id" on "centrakit"."employees"
   for each row execute function better_supabase.same_tenant('department_team_id', 'organization_id', '"centrakit"."teams"', 'id', 'tenant_id');
-drop trigger if exists "bsb_same_tenant_destination_id" on "centrakit"."webhook_deliveries";
 create trigger "bsb_same_tenant_destination_id" before insert or update of "destination_id", "organization_id" on "centrakit"."webhook_deliveries"
   for each row execute function better_supabase.same_tenant('destination_id', 'organization_id', '"centrakit"."webhook_destinations"', 'id', 'organization_id');
 
@@ -215,7 +187,6 @@ $$;
 revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
 
-drop policy if exists bsb_memberships_read on "centrakit"."organization_users";
 create policy bsb_memberships_read on "centrakit"."organization_users"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
@@ -259,24 +230,19 @@ reset check_function_bodies;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "centrakit"."organization_users";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_users";
 create policy bsb_tenant_scope_select on "centrakit"."organization_users" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_users";
 create policy bsb_tenant_scope_insert on "centrakit"."organization_users" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_users";
 create policy bsb_tenant_scope_update on "centrakit"."organization_users" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_users";
 create policy bsb_tenant_scope_delete on "centrakit"."organization_users" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));

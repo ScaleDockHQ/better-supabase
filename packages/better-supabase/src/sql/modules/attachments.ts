@@ -602,7 +602,7 @@ $$;
 revoke execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) from public, anon;
 grant execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) to authenticated, service_role;
 
-${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_read`), command: "select", roles: ["authenticated"], using: `${memberIn("read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})` }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_read`), command: "select", roles: ["authenticated"], using: `${memberIn("read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})` }), { target: t })}
 ${renderPolicy(
   makePolicy({
     table: t,
@@ -613,9 +613,9 @@ ${renderPolicy(
     and ${inTenant("", "upload")}
     and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`,
   }),
-  { drop: true, target: t },
+  { target: t },
 )}
-${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_delete`), command: "delete", roles: ["authenticated"], using: `${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")}` }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_delete`), command: "delete", roles: ["authenticated"], using: `${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")}` }), { target: t })}
 ${attachmentsTopicSql(ctx, { t, c, read: ctx.permission("read", permissions.read) })}
 ${versioned.table}
 -- Whether the caller may run action (insert, select or delete) on the

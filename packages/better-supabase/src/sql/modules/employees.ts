@@ -312,7 +312,7 @@ create unique index if not exists ${ctx.naming.rename("employees_origin_idx")} o
 create index if not exists ${ctx.naming.rename("employees_tenant_status_idx")} on ${t("employees")} (${e("tenant")}, ${e("status")});
 create index if not exists ${ctx.naming.rename("employees_manager_idx")} on ${t("employees")} (${e("manager")}) where ${e("manager")} is not null;${addExtraColumns(t("employees"), ctx.extraColumns("employees", RESERVED))}
 ${lockTable(t("employees"), { read: true })}
-${renderPolicy(makePolicy({ table: t("employees"), name: ctx.naming.rename("employees_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(e("tenant"), n.read)} or ${e("user")} = (select auth.uid())` }), { drop: true, target: t("employees") })}
+${renderPolicy(makePolicy({ table: t("employees"), name: ctx.naming.rename("employees_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(e("tenant"), n.read)} or ${e("user")} = (select auth.uid())` }), { target: t("employees") })}
 
 -- Private details stay out of the directory: readable with
 -- employees.view_sensitive and by the employee.
@@ -351,7 +351,7 @@ ${renderPolicy(
   select 1 from ${t("employees")} x where x.${e("id")} = ${p("employee")} and x.${e("user")} = (select auth.uid()))`
     }`,
   }),
-  { drop: true, target: t("privateDetails") },
+  { target: t("privateDetails") },
 )}
 
 -- Contract history: a new contract ends the one before it, and rows are
@@ -383,7 +383,7 @@ ${renderPolicy(
     using: `${ctx.scope.check(k("tenant"), n.contractsRead)} or exists (
   select 1 from ${t("employees")} x where x.${e("id")} = ${k("employee")} and x.${e("user")} = (select auth.uid()))`,
   }),
-  { drop: true, target: t("contracts") },
+  { target: t("contracts") },
 )}
 `;
 }

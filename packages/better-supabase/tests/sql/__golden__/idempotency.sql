@@ -1,12 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:73b71cc55fc67a6aacb0a55049d3962c60fde3375e7736294460911234f6ce56
+-- @bsb-hash sha256:041021136c16c1ac04dfe66b6d8540ddc8fa5d6c813174b69f6adafa231c7919
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists "better_supabase"."idempotency_keys" (
+create table "better_supabase"."idempotency_keys" (
   "scope" text not null default '',
   "key" text not null,
   "request_hash" text not null,
@@ -18,9 +18,9 @@ create table if not exists "better_supabase"."idempotency_keys" (
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
-create index if not exists "idempotency_keys_expiry_idx" on "better_supabase"."idempotency_keys" ("expires_at");
+create index "idempotency_keys_expiry_idx" on "better_supabase"."idempotency_keys" ("expires_at");
 -- The token of the request that holds the key while it runs.
-alter table "better_supabase"."idempotency_keys" add column if not exists "holder" uuid;
+alter table "better_supabase"."idempotency_keys" add column "holder" uuid;
 
 alter table "better_supabase"."idempotency_keys" enable row level security;
 revoke all on "better_supabase"."idempotency_keys" from public, anon, authenticated;
@@ -29,7 +29,7 @@ grant all on "better_supabase"."idempotency_keys" to service_role;
 -- state: 'started' (run it, with holder as the token complete and release
 -- need), 'replay' (send the stored response), 'running' (another request
 -- holds the key) or 'mismatch' (same key, different request).
-drop function if exists better_supabase.begin_idempotent(text, text, text, interval, interval);
+
 create or replace function better_supabase.begin_idempotent(
   scope text,
   key text,
@@ -78,7 +78,7 @@ $$;
 
 -- Stores the response for the holder that begin_idempotent returned; false
 -- when another request has taken the key over since.
-drop function if exists better_supabase.complete_idempotent(text, text, integer, jsonb);
+
 create or replace function better_supabase.complete_idempotent(
   scope text,
   key text,
@@ -127,7 +127,7 @@ $$;
 
 -- On failure: forget the key so the client can retry. False when another
 -- request holds it now.
-drop function if exists better_supabase.release_idempotent(text, text);
+
 create or replace function better_supabase.release_idempotent(scope text, key text, holder uuid)
 returns boolean
 language sql
@@ -145,7 +145,7 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists "better_supabase"."idempotency_leases" (
+create table "better_supabase"."idempotency_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
@@ -250,12 +250,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:73b71cc55fc67a6aacb0a55049d3962c60fde3375e7736294460911234f6ce56
+-- @bsb-hash sha256:041021136c16c1ac04dfe66b6d8540ddc8fa5d6c813174b69f6adafa231c7919
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists "better_supabase"."idempotency_keys" (
+create table "better_supabase"."idempotency_keys" (
   "scope" text not null default '',
   "key" text not null,
   "request_hash" text not null,
@@ -267,9 +267,9 @@ create table if not exists "better_supabase"."idempotency_keys" (
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
-create index if not exists "idempotency_keys_expiry_idx" on "better_supabase"."idempotency_keys" ("expires_at");
+create index "idempotency_keys_expiry_idx" on "better_supabase"."idempotency_keys" ("expires_at");
 -- The token of the request that holds the key while it runs.
-alter table "better_supabase"."idempotency_keys" add column if not exists "holder" uuid;
+alter table "better_supabase"."idempotency_keys" add column "holder" uuid;
 
 alter table "better_supabase"."idempotency_keys" enable row level security;
 revoke all on "better_supabase"."idempotency_keys" from public, anon, authenticated;
@@ -278,7 +278,7 @@ grant all on "better_supabase"."idempotency_keys" to service_role;
 -- state: 'started' (run it, with holder as the token complete and release
 -- need), 'replay' (send the stored response), 'running' (another request
 -- holds the key) or 'mismatch' (same key, different request).
-drop function if exists better_supabase.begin_idempotent(text, text, text, interval, interval);
+
 create or replace function better_supabase.begin_idempotent(
   scope text,
   key text,
@@ -327,7 +327,7 @@ $$;
 
 -- Stores the response for the holder that begin_idempotent returned; false
 -- when another request has taken the key over since.
-drop function if exists better_supabase.complete_idempotent(text, text, integer, jsonb);
+
 create or replace function better_supabase.complete_idempotent(
   scope text,
   key text,
@@ -376,7 +376,7 @@ $$;
 
 -- On failure: forget the key so the client can retry. False when another
 -- request holds it now.
-drop function if exists better_supabase.release_idempotent(text, text);
+
 create or replace function better_supabase.release_idempotent(scope text, key text, holder uuid)
 returns boolean
 language sql
@@ -394,7 +394,7 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists "better_supabase"."idempotency_leases" (
+create table "better_supabase"."idempotency_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
@@ -499,7 +499,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:09e1ecf34940e0309c758b7534ade6dc45a4dc197c0fa525d3990d1510f2e37a
+-- @bsb-hash sha256:ec9734e5db1a550e7771fd095161897d8271535e73c1ffdaf69e120fb2806e5e
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -510,7 +510,7 @@ alter default privileges in schema "app_private" revoke all on tables from publi
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 
-create table if not exists "app_private"."idempotency_keys" (
+create table "app_private"."idempotency_keys" (
   "scope" text not null default '',
   "key" text not null,
   "request_hash" text not null,
@@ -522,9 +522,9 @@ create table if not exists "app_private"."idempotency_keys" (
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
-create index if not exists "idempotency_keys_expiry_idx" on "app_private"."idempotency_keys" ("expires_at");
+create index "idempotency_keys_expiry_idx" on "app_private"."idempotency_keys" ("expires_at");
 -- The token of the request that holds the key while it runs.
-alter table "app_private"."idempotency_keys" add column if not exists "holder" uuid;
+alter table "app_private"."idempotency_keys" add column "holder" uuid;
 
 alter table "app_private"."idempotency_keys" enable row level security;
 revoke all on "app_private"."idempotency_keys" from public, anon, authenticated;
@@ -533,7 +533,7 @@ grant all on "app_private"."idempotency_keys" to service_role;
 -- state: 'started' (run it, with holder as the token complete and release
 -- need), 'replay' (send the stored response), 'running' (another request
 -- holds the key) or 'mismatch' (same key, different request).
-drop function if exists better_supabase.begin_idempotent(text, text, text, interval, interval);
+
 create or replace function better_supabase.begin_idempotent(
   scope text,
   key text,
@@ -582,7 +582,7 @@ $$;
 
 -- Stores the response for the holder that begin_idempotent returned; false
 -- when another request has taken the key over since.
-drop function if exists better_supabase.complete_idempotent(text, text, integer, jsonb);
+
 create or replace function better_supabase.complete_idempotent(
   scope text,
   key text,
@@ -631,7 +631,7 @@ $$;
 
 -- On failure: forget the key so the client can retry. False when another
 -- request holds it now.
-drop function if exists better_supabase.release_idempotent(text, text);
+
 create or replace function better_supabase.release_idempotent(scope text, key text, holder uuid)
 returns boolean
 language sql
@@ -649,7 +649,7 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists "app_private"."idempotency_leases" (
+create table "app_private"."idempotency_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
@@ -754,12 +754,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:c9bd4d37ce5233a4717c8338702fab3c31d15af223bc864f2acd20af380b233c
+-- @bsb-hash sha256:bfacca2f3f60b90526f91e77a234c748d4958044364401f7407c06524bde53e2
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists "better_supabase"."idempotency_keys" (
+create table "better_supabase"."idempotency_keys" (
   "scope" text not null default '',
   "key" text not null,
   "request_hash" text not null,
@@ -771,9 +771,9 @@ create table if not exists "better_supabase"."idempotency_keys" (
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
-create index if not exists "idempotency_keys_expiry_idx" on "better_supabase"."idempotency_keys" ("expires_at");
+create index "idempotency_keys_expiry_idx" on "better_supabase"."idempotency_keys" ("expires_at");
 -- The token of the request that holds the key while it runs.
-alter table "better_supabase"."idempotency_keys" add column if not exists "holder" uuid;
+alter table "better_supabase"."idempotency_keys" add column "holder" uuid;
 
 alter table "better_supabase"."idempotency_keys" enable row level security;
 revoke all on "better_supabase"."idempotency_keys" from public, anon, authenticated;
@@ -782,7 +782,7 @@ grant all on "better_supabase"."idempotency_keys" to service_role;
 -- state: 'started' (run it, with holder as the token complete and release
 -- need), 'replay' (send the stored response), 'running' (another request
 -- holds the key) or 'mismatch' (same key, different request).
-drop function if exists better_supabase.begin_idempotent(text, text, text, interval, interval);
+
 create or replace function better_supabase.begin_idempotent(
   scope text,
   key text,
@@ -831,7 +831,7 @@ $$;
 
 -- Stores the response for the holder that begin_idempotent returned; false
 -- when another request has taken the key over since.
-drop function if exists better_supabase.complete_idempotent(text, text, integer, jsonb);
+
 create or replace function better_supabase.complete_idempotent(
   scope text,
   key text,
@@ -880,7 +880,7 @@ $$;
 
 -- On failure: forget the key so the client can retry. False when another
 -- request holds it now.
-drop function if exists better_supabase.release_idempotent(text, text);
+
 create or replace function better_supabase.release_idempotent(scope text, key text, holder uuid)
 returns boolean
 language sql
@@ -898,7 +898,7 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists "better_supabase"."idempotency_leases" (
+create table "better_supabase"."idempotency_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
@@ -990,10 +990,6 @@ grant execute on function better_supabase.release_lease(text, uuid, text) to ser
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-drop function if exists "api"."begin_idempotent"(text, text, text, interval, interval);
-drop function if exists "api"."complete_idempotent"(text, text, integer, jsonb);
-drop function if exists "api"."release_idempotent"(text, text);
-
 create or replace function "api"."begin_idempotent"(scope text, key text, request_hash text, ttl interval default '24 hours', lock interval default '1 minute')
 returns table (state text, status_code integer, response jsonb, holder uuid)
 language sql
@@ -1083,7 +1079,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:fb6bd31da519e84a3ca79f1949c2c9d1fc1171970724f1b1b42df5dee9c10c72
+-- @bsb-hash sha256:7a70d7bb98e7b323b380526efb162ce9b7a2801c85e8ca17ccda673fa7bf366e
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1109,7 +1105,7 @@ grant all on "better_supabase"."idempotency_keys" to service_role;
 -- state: 'started' (run it, with holder as the token complete and release
 -- need), 'replay' (send the stored response), 'running' (another request
 -- holds the key) or 'mismatch' (same key, different request).
-drop function if exists better_supabase.begin_idempotent(text, text, text, interval, interval);
+
 create or replace function better_supabase.begin_idempotent(
   scope text,
   key text,
@@ -1158,7 +1154,7 @@ $$;
 
 -- Stores the response for the holder that begin_idempotent returned; false
 -- when another request has taken the key over since.
-drop function if exists better_supabase.complete_idempotent(text, text, integer, jsonb);
+
 create or replace function better_supabase.complete_idempotent(
   scope text,
   key text,
@@ -1207,7 +1203,7 @@ $$;
 
 -- On failure: forget the key so the client can retry. False when another
 -- request holds it now.
-drop function if exists better_supabase.release_idempotent(text, text);
+
 create or replace function better_supabase.release_idempotent(scope text, key text, holder uuid)
 returns boolean
 language sql

@@ -1,25 +1,10 @@
 -- ==== schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:1073968129881719b74555be51dd18ab71022b7d7e68550cbede47a2037a368b
+-- @bsb-hash sha256:e868b03bdcedd21ccec06492db646d5801b2e2041083eff365e6c89ac5257617
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."prescriptions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."prescriptions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."prescriptions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."prescriptions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."prescriptions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- E-prescribing: prescriptions over medication orders with states draft, signed,
 -- sent, dispensed and cancelled, a signature only the prescriber can give, and
@@ -30,7 +15,7 @@ end $$;
 -- the prescriber signs it (snapshot freezes the order), a gateway delivers it
 -- and the pharmacy dispenses it. Only the functions change it; a signed
 -- prescription always has a signer and a time.
-create table if not exists "better_supabase"."prescriptions" (
+create table "better_supabase"."prescriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null,
@@ -58,15 +43,14 @@ create table if not exists "better_supabase"."prescriptions" (
   check ("status" <> 'cancelled' or "cancelled_at" is not null),
   foreign key ("tenant_id", "order_id") references "better_supabase"."medication_orders" ("tenant_id", "id")
 );
-create unique index if not exists "prescriptions_live_order_key" on "better_supabase"."prescriptions" ("tenant_id", "order_id") where "status" <> 'cancelled';
-create index if not exists "prescriptions_order_idx" on "better_supabase"."prescriptions" ("tenant_id", "order_id");
-create index if not exists "prescriptions_subject_idx" on "better_supabase"."prescriptions" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "prescriptions_status_idx" on "better_supabase"."prescriptions" ("tenant_id", "status");
+create unique index "prescriptions_live_order_key" on "better_supabase"."prescriptions" ("tenant_id", "order_id") where "status" <> 'cancelled';
+create index "prescriptions_order_idx" on "better_supabase"."prescriptions" ("tenant_id", "order_id");
+create index "prescriptions_subject_idx" on "better_supabase"."prescriptions" ("tenant_id", "subject_type", "subject_id");
+create index "prescriptions_status_idx" on "better_supabase"."prescriptions" ("tenant_id", "status");
 alter table "better_supabase"."prescriptions" enable row level security;
 revoke all on "better_supabase"."prescriptions" from public, anon, authenticated;
 grant select on "better_supabase"."prescriptions" to authenticated;
 grant all on "better_supabase"."prescriptions" to service_role;
-drop policy if exists prescriptions_read on "better_supabase"."prescriptions";
 create policy prescriptions_read on "better_supabase"."prescriptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('e_prescribing.read')));
@@ -401,24 +385,19 @@ grant execute on function "better_supabase"."list_prescriptions"(uuid, jsonb) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."prescriptions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."prescriptions";
 create policy bsb_tenant_scope_select on "better_supabase"."prescriptions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('e_prescribing.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."prescriptions";
 create policy bsb_tenant_scope_insert on "better_supabase"."prescriptions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."prescriptions";
 create policy bsb_tenant_scope_update on "better_supabase"."prescriptions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."prescriptions";
 create policy bsb_tenant_scope_delete on "better_supabase"."prescriptions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

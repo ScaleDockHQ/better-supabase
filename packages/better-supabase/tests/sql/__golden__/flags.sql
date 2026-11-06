@@ -1,25 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:13f1ecd4b8a4c49e28c143379ef888841c32f2d1dfb05b99ddc6bec1cbaf7b2b
+-- @bsb-hash sha256:9d6203b309209e50822a7efcdb68955e8186f15286e53821104f5c654100801a
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."flag_overrides";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -29,7 +14,7 @@ create extension if not exists pgcrypto with schema extensions;
 -- context name, such as brand, to its values). The TypeScript provider
 -- evaluates the same way, so policies and the app agree. An archived flag
 -- serves its default variant.
-create table if not exists "better_supabase"."flags" (
+create table "better_supabase"."flags" (
   "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "type" text not null default 'boolean' check ("type" in ('boolean', 'string', 'number', 'object')),
   "description" text,
@@ -45,9 +30,6 @@ create table if not exists "better_supabase"."flags" (
   "updated_at" timestamptz not null default now(),
   check ("variants" ? "default_variant")
 );
-alter table "better_supabase"."flags" add column if not exists "created_at" timestamptz not null default now();
-alter table "better_supabase"."flags" add column if not exists "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array');
-alter table "better_supabase"."flags" add column if not exists "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object');
 alter table "better_supabase"."flags" enable row level security;
 revoke all on "better_supabase"."flags" from public, anon, authenticated;
 grant all on "better_supabase"."flags" to service_role;
@@ -55,7 +37,7 @@ grant all on "better_supabase"."flags" to service_role;
 -- A variant for one tenant, one user or one value of a custom context (such
 -- as brand acme). A user override beats a tenant one, and a tenant override
 -- beats a context one.
-create table if not exists "better_supabase"."flag_overrides" (
+create table "better_supabase"."flag_overrides" (
   "id" uuid primary key default gen_random_uuid(),
   "flag_key" text not null references "better_supabase"."flags" ("key") on delete cascade on update cascade,
   "organization_id" uuid,
@@ -67,9 +49,6 @@ create table if not exists "better_supabase"."flag_overrides" (
   constraint flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
   constraint flag_overrides_unique unique nulls not distinct ("flag_key", "organization_id", "user_id", "context", "context_key")
 );
-alter table "better_supabase"."flags" add column if not exists "archived" boolean not null default false;
-alter table "better_supabase"."flag_overrides" add column if not exists "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."flag_overrides" add column if not exists "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200);
 do $$
 declare
   v_name name;
@@ -90,14 +69,14 @@ begin
   end if;
 end;
 $$;
-create index if not exists flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
+create index flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
 revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
 -- Every state save_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
-create table if not exists "better_supabase"."flag_revisions" (
+create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
   "flag_key" text not null,
   "revision" integer not null check ("revision" > 0),
@@ -107,7 +86,7 @@ create table if not exists "better_supabase"."flag_revisions" (
   "changed_at" timestamptz not null default now(),
   constraint flag_revisions_unique unique ("flag_key", "revision")
 );
-create index if not exists flag_revisions_changed_by_idx on "better_supabase"."flag_revisions" ("changed_by");
+create index flag_revisions_changed_by_idx on "better_supabase"."flag_revisions" ("changed_by");
 alter table "better_supabase"."flag_revisions" enable row level security;
 revoke all on "better_supabase"."flag_revisions" from public, anon, authenticated;
 grant all on "better_supabase"."flag_revisions" to service_role;
@@ -115,7 +94,7 @@ grant all on "better_supabase"."flag_revisions" to service_role;
 -- Named audiences: rules is one condition, { tenants?, users?, plans?,
 -- roles?, contexts? }, and a rule's segments list matches a caller in any of
 -- them.
-create table if not exists "better_supabase"."flag_segments" (
+create table "better_supabase"."flag_segments" (
   "name" text primary key check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "description" text,
   "rules" jsonb not null default '{}'::jsonb check (jsonb_typeof("rules") = 'object'),
@@ -196,7 +175,7 @@ $$;
 -- {"brand": "acme"}; a declared context it leaves out is read from the
 -- tenant. Reasons follow OpenFeature: DISABLED, TARGETING_MATCH, SPLIT,
 -- DEFAULT.
-drop function if exists "better_supabase"."flag_evaluation"(text, uuid, uuid);
+
 create or replace function "better_supabase"."flag_evaluation"(key text, tenant uuid default null, member uuid default auth.uid(), contexts jsonb default null)
 returns jsonb
 language plpgsql
@@ -371,7 +350,7 @@ $$;
 -- steps: [{ percentage, durationSeconds }], finalPercentage }) and fields
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
-drop function if exists "better_supabase"."save_flag"(text, jsonb);
+
 create or replace function "better_supabase"."save_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
@@ -570,7 +549,7 @@ $$;
 -- Sets the variant of flag for one tenant, one user, or one context value
 -- (context and context_key together); pass exactly one target. A null
 -- variant removes the override. Returns whether a row changed.
-drop function if exists "better_supabase"."set_flag_override"(text, text, uuid, uuid);
+
 create or replace function "better_supabase"."set_flag_override"(key text, variant text, tenant uuid default null, member uuid default null, context text default null, context_key text default null)
 returns boolean
 language plpgsql
@@ -657,25 +636,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:1e734b052cdf50d96ad358dc0ac2c62fe9ecfacb4e13db0f2511a819e50ff134
+-- @bsb-hash sha256:46fd7db744e762202adf5050d9bbaab12900e8c9b60a4117036be78fbc38d38e
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."flag_overrides";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -685,7 +649,7 @@ create extension if not exists pgcrypto with schema extensions;
 -- context name, such as brand, to its values). The TypeScript provider
 -- evaluates the same way, so policies and the app agree. An archived flag
 -- serves its default variant.
-create table if not exists "better_supabase"."flags" (
+create table "better_supabase"."flags" (
   "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "type" text not null default 'boolean' check ("type" in ('boolean', 'string', 'number', 'object')),
   "description" text,
@@ -701,9 +665,6 @@ create table if not exists "better_supabase"."flags" (
   "updated_at" timestamptz not null default now(),
   check ("variants" ? "default_variant")
 );
-alter table "better_supabase"."flags" add column if not exists "created_at" timestamptz not null default now();
-alter table "better_supabase"."flags" add column if not exists "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array');
-alter table "better_supabase"."flags" add column if not exists "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object');
 alter table "better_supabase"."flags" enable row level security;
 revoke all on "better_supabase"."flags" from public, anon, authenticated;
 grant all on "better_supabase"."flags" to service_role;
@@ -711,7 +672,7 @@ grant all on "better_supabase"."flags" to service_role;
 -- A variant for one tenant, one user or one value of a custom context (such
 -- as brand acme). A user override beats a tenant one, and a tenant override
 -- beats a context one.
-create table if not exists "better_supabase"."flag_overrides" (
+create table "better_supabase"."flag_overrides" (
   "id" uuid primary key default gen_random_uuid(),
   "flag_key" text not null references "better_supabase"."flags" ("key") on delete cascade on update cascade,
   "organization_id" uuid,
@@ -723,9 +684,6 @@ create table if not exists "better_supabase"."flag_overrides" (
   constraint flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
   constraint flag_overrides_unique unique nulls not distinct ("flag_key", "organization_id", "user_id", "context", "context_key")
 );
-alter table "better_supabase"."flags" add column if not exists "archived" boolean not null default false;
-alter table "better_supabase"."flag_overrides" add column if not exists "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."flag_overrides" add column if not exists "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200);
 do $$
 declare
   v_name name;
@@ -746,14 +704,14 @@ begin
   end if;
 end;
 $$;
-create index if not exists flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
+create index flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
 revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
 -- Every state save_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
-create table if not exists "better_supabase"."flag_revisions" (
+create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
   "flag_key" text not null,
   "revision" integer not null check ("revision" > 0),
@@ -763,7 +721,7 @@ create table if not exists "better_supabase"."flag_revisions" (
   "changed_at" timestamptz not null default now(),
   constraint flag_revisions_unique unique ("flag_key", "revision")
 );
-create index if not exists flag_revisions_changed_by_idx on "better_supabase"."flag_revisions" ("changed_by");
+create index flag_revisions_changed_by_idx on "better_supabase"."flag_revisions" ("changed_by");
 alter table "better_supabase"."flag_revisions" enable row level security;
 revoke all on "better_supabase"."flag_revisions" from public, anon, authenticated;
 grant all on "better_supabase"."flag_revisions" to service_role;
@@ -771,7 +729,7 @@ grant all on "better_supabase"."flag_revisions" to service_role;
 -- Named audiences: rules is one condition, { tenants?, users?, plans?,
 -- roles?, contexts? }, and a rule's segments list matches a caller in any of
 -- them.
-create table if not exists "better_supabase"."flag_segments" (
+create table "better_supabase"."flag_segments" (
   "name" text primary key check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "description" text,
   "rules" jsonb not null default '{}'::jsonb check (jsonb_typeof("rules") = 'object'),
@@ -852,7 +810,7 @@ $$;
 -- {"brand": "acme"}; a declared context it leaves out is read from the
 -- tenant. Reasons follow OpenFeature: DISABLED, TARGETING_MATCH, SPLIT,
 -- DEFAULT.
-drop function if exists "better_supabase"."flag_evaluation"(text, uuid, uuid);
+
 create or replace function "better_supabase"."flag_evaluation"(key text, tenant uuid default null, member uuid default auth.uid(), contexts jsonb default null)
 returns jsonb
 language plpgsql
@@ -1027,7 +985,7 @@ $$;
 -- steps: [{ percentage, durationSeconds }], finalPercentage }) and fields
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
-drop function if exists "better_supabase"."save_flag"(text, jsonb);
+
 create or replace function "better_supabase"."save_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
@@ -1247,7 +1205,7 @@ $$;
 -- Sets the variant of flag for one tenant, one user, or one context value
 -- (context and context_key together); pass exactly one target. A null
 -- variant removes the override. Returns whether a row changed.
-drop function if exists "better_supabase"."set_flag_override"(text, text, uuid, uuid);
+
 create or replace function "better_supabase"."set_flag_override"(key text, variant text, tenant uuid default null, member uuid default null, context text default null, context_key text default null)
 returns boolean
 language plpgsql
@@ -1357,24 +1315,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:fa07de638a0599c1c9045bd186472a0fc0848cb9fdbd537b8f3f7b0dd4a7f080
+-- @bsb-hash sha256:f9643d0a4c4c0fa7504809f047d3e47677f3588a7511555cf61ea67a10f0cc05
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."flag_overrides";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -1389,7 +1333,7 @@ create extension if not exists pgcrypto with schema extensions;
 -- context name, such as brand, to its values). The TypeScript provider
 -- evaluates the same way, so policies and the app agree. An archived flag
 -- serves its default variant.
-create table if not exists "app_private"."flags" (
+create table "app_private"."flags" (
   "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "type" text not null default 'boolean' check ("type" in ('boolean', 'string', 'number', 'object')),
   "description" text,
@@ -1405,9 +1349,6 @@ create table if not exists "app_private"."flags" (
   "updated_at" timestamptz not null default now(),
   check ("variants" ? "default_variant")
 );
-alter table "app_private"."flags" add column if not exists "created_at" timestamptz not null default now();
-alter table "app_private"."flags" add column if not exists "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array');
-alter table "app_private"."flags" add column if not exists "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object');
 alter table "app_private"."flags" enable row level security;
 revoke all on "app_private"."flags" from public, anon, authenticated;
 grant all on "app_private"."flags" to service_role;
@@ -1415,7 +1356,7 @@ grant all on "app_private"."flags" to service_role;
 -- A variant for one tenant, one user or one value of a custom context (such
 -- as brand acme). A user override beats a tenant one, and a tenant override
 -- beats a context one.
-create table if not exists "app_private"."flag_overrides" (
+create table "app_private"."flag_overrides" (
   "id" uuid primary key default gen_random_uuid(),
   "flag_key" text not null references "app_private"."flags" ("key") on delete cascade on update cascade,
   "organization_id" uuid,
@@ -1427,9 +1368,6 @@ create table if not exists "app_private"."flag_overrides" (
   constraint flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
   constraint flag_overrides_unique unique nulls not distinct ("flag_key", "organization_id", "user_id", "context", "context_key")
 );
-alter table "app_private"."flags" add column if not exists "archived" boolean not null default false;
-alter table "app_private"."flag_overrides" add column if not exists "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "app_private"."flag_overrides" add column if not exists "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200);
 do $$
 declare
   v_name name;
@@ -1450,14 +1388,14 @@ begin
   end if;
 end;
 $$;
-create index if not exists flag_overrides_user_idx on "app_private"."flag_overrides" ("user_id");
+create index flag_overrides_user_idx on "app_private"."flag_overrides" ("user_id");
 alter table "app_private"."flag_overrides" enable row level security;
 revoke all on "app_private"."flag_overrides" from public, anon, authenticated;
 grant all on "app_private"."flag_overrides" to service_role;
 
 -- Every state save_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
-create table if not exists "app_private"."flag_revisions" (
+create table "app_private"."flag_revisions" (
   "id" bigint generated always as identity primary key,
   "flag_key" text not null,
   "revision" integer not null check ("revision" > 0),
@@ -1467,7 +1405,7 @@ create table if not exists "app_private"."flag_revisions" (
   "changed_at" timestamptz not null default now(),
   constraint flag_revisions_unique unique ("flag_key", "revision")
 );
-create index if not exists flag_revisions_changed_by_idx on "app_private"."flag_revisions" ("changed_by");
+create index flag_revisions_changed_by_idx on "app_private"."flag_revisions" ("changed_by");
 alter table "app_private"."flag_revisions" enable row level security;
 revoke all on "app_private"."flag_revisions" from public, anon, authenticated;
 grant all on "app_private"."flag_revisions" to service_role;
@@ -1475,7 +1413,7 @@ grant all on "app_private"."flag_revisions" to service_role;
 -- Named audiences: rules is one condition, { tenants?, users?, plans?,
 -- roles?, contexts? }, and a rule's segments list matches a caller in any of
 -- them.
-create table if not exists "app_private"."flag_segments" (
+create table "app_private"."flag_segments" (
   "name" text primary key check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "description" text,
   "rules" jsonb not null default '{}'::jsonb check (jsonb_typeof("rules") = 'object'),
@@ -1556,7 +1494,7 @@ $$;
 -- {"brand": "acme"}; a declared context it leaves out is read from the
 -- tenant. Reasons follow OpenFeature: DISABLED, TARGETING_MATCH, SPLIT,
 -- DEFAULT.
-drop function if exists "app_private"."flag_evaluation"(text, uuid, uuid);
+
 create or replace function "app_private"."flag_evaluation"(key text, tenant uuid default null, member uuid default auth.uid(), contexts jsonb default null)
 returns jsonb
 language plpgsql
@@ -1731,7 +1669,7 @@ $$;
 -- steps: [{ percentage, durationSeconds }], finalPercentage }) and fields
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
-drop function if exists "app_private"."save_flag"(text, jsonb);
+
 create or replace function "app_private"."save_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
@@ -1930,7 +1868,7 @@ $$;
 -- Sets the variant of flag for one tenant, one user, or one context value
 -- (context and context_key together); pass exactly one target. A null
 -- variant removes the override. Returns whether a row changed.
-drop function if exists "app_private"."set_flag_override"(text, text, uuid, uuid);
+
 create or replace function "app_private"."set_flag_override"(key text, variant text, tenant uuid default null, member uuid default null, context text default null, context_key text default null)
 returns boolean
 language plpgsql
@@ -2017,25 +1955,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:b2b0ce8f4e21db14ec0c1b486ecea0d9255175728bf08245f57a436b3cd5e181
+-- @bsb-hash sha256:9a39b586b2e1a68847c13fee2f92de607f6ef23e47842bce7ebcfb9310bb693b
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."flag_overrides";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -2045,7 +1968,7 @@ create extension if not exists pgcrypto with schema extensions;
 -- context name, such as brand, to its values). The TypeScript provider
 -- evaluates the same way, so policies and the app agree. An archived flag
 -- serves its default variant.
-create table if not exists "better_supabase"."flags" (
+create table "better_supabase"."flags" (
   "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "type" text not null default 'boolean' check ("type" in ('boolean', 'string', 'number', 'object')),
   "description" text,
@@ -2061,9 +1984,6 @@ create table if not exists "better_supabase"."flags" (
   "updated_at" timestamptz not null default now(),
   check ("variants" ? "default_variant")
 );
-alter table "better_supabase"."flags" add column if not exists "created_at" timestamptz not null default now();
-alter table "better_supabase"."flags" add column if not exists "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array');
-alter table "better_supabase"."flags" add column if not exists "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object');
 alter table "better_supabase"."flags" enable row level security;
 revoke all on "better_supabase"."flags" from public, anon, authenticated;
 grant all on "better_supabase"."flags" to service_role;
@@ -2071,7 +1991,7 @@ grant all on "better_supabase"."flags" to service_role;
 -- A variant for one tenant, one user or one value of a custom context (such
 -- as brand acme). A user override beats a tenant one, and a tenant override
 -- beats a context one.
-create table if not exists "better_supabase"."flag_overrides" (
+create table "better_supabase"."flag_overrides" (
   "id" uuid primary key default gen_random_uuid(),
   "flag_key" text not null references "better_supabase"."flags" ("key") on delete cascade on update cascade,
   "organization_id" uuid,
@@ -2083,9 +2003,6 @@ create table if not exists "better_supabase"."flag_overrides" (
   constraint flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
   constraint flag_overrides_unique unique nulls not distinct ("flag_key", "organization_id", "user_id", "context", "context_key")
 );
-alter table "better_supabase"."flags" add column if not exists "archived" boolean not null default false;
-alter table "better_supabase"."flag_overrides" add column if not exists "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."flag_overrides" add column if not exists "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200);
 do $$
 declare
   v_name name;
@@ -2106,14 +2023,14 @@ begin
   end if;
 end;
 $$;
-create index if not exists flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
+create index flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
 revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
 -- Every state save_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
-create table if not exists "better_supabase"."flag_revisions" (
+create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
   "flag_key" text not null,
   "revision" integer not null check ("revision" > 0),
@@ -2123,7 +2040,7 @@ create table if not exists "better_supabase"."flag_revisions" (
   "changed_at" timestamptz not null default now(),
   constraint flag_revisions_unique unique ("flag_key", "revision")
 );
-create index if not exists flag_revisions_changed_by_idx on "better_supabase"."flag_revisions" ("changed_by");
+create index flag_revisions_changed_by_idx on "better_supabase"."flag_revisions" ("changed_by");
 alter table "better_supabase"."flag_revisions" enable row level security;
 revoke all on "better_supabase"."flag_revisions" from public, anon, authenticated;
 grant all on "better_supabase"."flag_revisions" to service_role;
@@ -2131,7 +2048,7 @@ grant all on "better_supabase"."flag_revisions" to service_role;
 -- Named audiences: rules is one condition, { tenants?, users?, plans?,
 -- roles?, contexts? }, and a rule's segments list matches a caller in any of
 -- them.
-create table if not exists "better_supabase"."flag_segments" (
+create table "better_supabase"."flag_segments" (
   "name" text primary key check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "description" text,
   "rules" jsonb not null default '{}'::jsonb check (jsonb_typeof("rules") = 'object'),
@@ -2212,7 +2129,7 @@ $$;
 -- {"brand": "acme"}; a declared context it leaves out is read from the
 -- tenant. Reasons follow OpenFeature: DISABLED, TARGETING_MATCH, SPLIT,
 -- DEFAULT.
-drop function if exists "better_supabase"."flag_evaluation"(text, uuid, uuid);
+
 create or replace function "better_supabase"."flag_evaluation"(key text, tenant uuid default null, member uuid default auth.uid(), contexts jsonb default null)
 returns jsonb
 language plpgsql
@@ -2387,7 +2304,7 @@ $$;
 -- steps: [{ percentage, durationSeconds }], finalPercentage }) and fields
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
-drop function if exists "better_supabase"."save_flag"(text, jsonb);
+
 create or replace function "better_supabase"."save_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
@@ -2586,7 +2503,7 @@ $$;
 -- Sets the variant of flag for one tenant, one user, or one context value
 -- (context and context_key together); pass exactly one target. A null
 -- variant removes the override. Returns whether a row changed.
-drop function if exists "better_supabase"."set_flag_override"(text, text, uuid, uuid);
+
 create or replace function "better_supabase"."set_flag_override"(key text, variant text, tenant uuid default null, member uuid default null, context text default null, context_key text default null)
 returns boolean
 language plpgsql
@@ -2657,10 +2574,6 @@ grant execute on function "better_supabase"."flag_definitions"() to service_role
 -- blocks.flags.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."flag_evaluation"(text, uuid, uuid);
-drop function if exists "api"."save_flag"(text, jsonb);
-drop function if exists "api"."set_flag_override"(text, text, uuid, uuid);
 
 create or replace function "api"."list_flags"()
 returns jsonb
@@ -2835,25 +2748,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:b1ddec4f4f8924e6a3c08f0ef4ee8ad01f0a5049fb4531b80f7e67e2868ec04b
+-- @bsb-hash sha256:31d0cb88dce2f2d9011b4c76ecf2b027a3319c80ea62123bd608752e92302ba5
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."flag_overrides";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -2996,7 +2894,7 @@ $$;
 -- {"brand": "acme"}; a declared context it leaves out is read from the
 -- tenant. Reasons follow OpenFeature: DISABLED, TARGETING_MATCH, SPLIT,
 -- DEFAULT.
-drop function if exists "better_supabase"."flag_evaluation"(text, uuid, uuid);
+
 create or replace function "better_supabase"."flag_evaluation"(key text, tenant uuid default null, member uuid default auth.uid(), contexts jsonb default null)
 returns jsonb
 language plpgsql
@@ -3171,7 +3069,7 @@ $$;
 -- steps: [{ percentage, durationSeconds }], finalPercentage }) and fields
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
-drop function if exists "better_supabase"."save_flag"(text, jsonb);
+
 create or replace function "better_supabase"."save_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
@@ -3370,7 +3268,7 @@ $$;
 -- Sets the variant of flag for one tenant, one user, or one context value
 -- (context and context_key together); pass exactly one target. A null
 -- variant removes the override. Returns whether a row changed.
-drop function if exists "better_supabase"."set_flag_override"(text, text, uuid, uuid);
+
 create or replace function "better_supabase"."set_flag_override"(key text, variant text, tenant uuid default null, member uuid default null, context text default null, context_key text default null)
 returns boolean
 language plpgsql
@@ -3458,25 +3356,10 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:52d46f15a3a5c68b1b1dfd6e443768b2083420aa5fad306a1a42ac9951a8b1d2
+-- @bsb-hash sha256:07aef53bdf8879cf4785d74f792fecd3fa13e7ceeb2887b02e14c5d14e755ebf
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."flag_overrides";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."flag_overrides";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -3486,7 +3369,7 @@ create extension if not exists pgcrypto with schema extensions;
 -- context name, such as brand, to its values). The TypeScript provider
 -- evaluates the same way, so policies and the app agree. An archived flag
 -- serves its default variant.
-create table if not exists "better_supabase"."flags" (
+create table "better_supabase"."flags" (
   "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "type" text not null default 'boolean' check ("type" in ('boolean', 'string', 'number', 'object')),
   "description" text,
@@ -3502,9 +3385,6 @@ create table if not exists "better_supabase"."flags" (
   "updated_at" timestamptz not null default now(),
   check ("variants" ? "default_variant")
 );
-alter table "better_supabase"."flags" add column if not exists "created_at" timestamptz not null default now();
-alter table "better_supabase"."flags" add column if not exists "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array');
-alter table "better_supabase"."flags" add column if not exists "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object');
 alter table "better_supabase"."flags" enable row level security;
 revoke all on "better_supabase"."flags" from public, anon, authenticated;
 grant all on "better_supabase"."flags" to service_role;
@@ -3512,7 +3392,7 @@ grant all on "better_supabase"."flags" to service_role;
 -- A variant for one tenant, one user or one value of a custom context (such
 -- as brand acme). A user override beats a tenant one, and a tenant override
 -- beats a context one.
-create table if not exists "better_supabase"."flag_overrides" (
+create table "better_supabase"."flag_overrides" (
   "id" uuid primary key default gen_random_uuid(),
   "flag_key" text not null references "better_supabase"."flags" ("key") on delete cascade on update cascade,
   "org_id" uuid,
@@ -3524,9 +3404,6 @@ create table if not exists "better_supabase"."flag_overrides" (
   constraint flag_overrides_target check (num_nonnulls("org_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
   constraint flag_overrides_unique unique nulls not distinct ("flag_key", "org_id", "user_id", "context", "context_key")
 );
-alter table "better_supabase"."flags" add column if not exists "archived" boolean not null default false;
-alter table "better_supabase"."flag_overrides" add column if not exists "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."flag_overrides" add column if not exists "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200);
 do $$
 declare
   v_name name;
@@ -3547,14 +3424,14 @@ begin
   end if;
 end;
 $$;
-create index if not exists flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
+create index flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
 revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
 -- Every state save_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
-create table if not exists "better_supabase"."flag_revisions" (
+create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
   "flag_key" text not null,
   "revision" integer not null check ("revision" > 0),
@@ -3564,7 +3441,7 @@ create table if not exists "better_supabase"."flag_revisions" (
   "changed_at" timestamptz not null default now(),
   constraint flag_revisions_unique unique ("flag_key", "revision")
 );
-create index if not exists flag_revisions_changed_by_idx on "better_supabase"."flag_revisions" ("changed_by");
+create index flag_revisions_changed_by_idx on "better_supabase"."flag_revisions" ("changed_by");
 alter table "better_supabase"."flag_revisions" enable row level security;
 revoke all on "better_supabase"."flag_revisions" from public, anon, authenticated;
 grant all on "better_supabase"."flag_revisions" to service_role;
@@ -3572,7 +3449,7 @@ grant all on "better_supabase"."flag_revisions" to service_role;
 -- Named audiences: rules is one condition, { tenants?, users?, plans?,
 -- roles?, contexts? }, and a rule's segments list matches a caller in any of
 -- them.
-create table if not exists "better_supabase"."flag_segments" (
+create table "better_supabase"."flag_segments" (
   "name" text primary key check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "description" text,
   "rules" jsonb not null default '{}'::jsonb check (jsonb_typeof("rules") = 'object'),
@@ -3653,7 +3530,7 @@ $$;
 -- {"brand": "acme"}; a declared context it leaves out is read from the
 -- tenant. Reasons follow OpenFeature: DISABLED, TARGETING_MATCH, SPLIT,
 -- DEFAULT.
-drop function if exists "better_supabase"."flag_evaluation"(text, uuid, uuid);
+
 create or replace function "better_supabase"."flag_evaluation"(key text, tenant uuid default null, member uuid default auth.uid(), contexts jsonb default null)
 returns jsonb
 language plpgsql
@@ -3828,7 +3705,7 @@ $$;
 -- steps: [{ percentage, durationSeconds }], finalPercentage }) and fields
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
-drop function if exists "better_supabase"."save_flag"(text, jsonb);
+
 create or replace function "better_supabase"."save_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
@@ -4027,7 +3904,7 @@ $$;
 -- Sets the variant of flag for one tenant, one user, or one context value
 -- (context and context_key together); pass exactly one target. A null
 -- variant removes the override. Returns whether a row changed.
-drop function if exists "better_supabase"."set_flag_override"(text, text, uuid, uuid);
+
 create or replace function "better_supabase"."set_flag_override"(key text, variant text, tenant uuid default null, member uuid default null, context text default null, context_key text default null)
 returns boolean
 language plpgsql

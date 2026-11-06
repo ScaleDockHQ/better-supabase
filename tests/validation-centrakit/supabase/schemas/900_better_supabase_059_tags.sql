@@ -1,24 +1,9 @@
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:e20acc41acbdecce8ad4ba2e1387e5afd677ceae3ca974dd569202379cc52b04
+-- @bsb-hash sha256:3d2c6d5f6fea32a041984f303d478ff8a2456b7bdabac8919b6a22f9e2841ccd
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."organization_tags";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_tags";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_tags";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_tags";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_tags";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- centrakit.organization_tags is the app's table, and it has every column this block needs.
 alter table "centrakit"."organization_tags" enable row level security;
@@ -26,7 +11,7 @@ grant select on "centrakit"."organization_tags" to authenticated;
 grant all on "centrakit"."organization_tags" to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
 returns jsonb
 language plpgsql
@@ -116,8 +101,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb);
 create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
 returns boolean
 language plpgsql
@@ -282,21 +265,16 @@ grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "centrakit"."organization_tags";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_tags";
 create policy bsb_tenant_scope_select on "centrakit"."organization_tags" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_tags";
 create policy bsb_tenant_scope_insert on "centrakit"."organization_tags" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_tags";
 create policy bsb_tenant_scope_update on "centrakit"."organization_tags" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_tags";
 create policy bsb_tenant_scope_delete on "centrakit"."organization_tags" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

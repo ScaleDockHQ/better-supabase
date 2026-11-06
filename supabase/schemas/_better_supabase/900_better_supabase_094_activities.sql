@@ -1,35 +1,12 @@
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:547a20a1d2036e153ea3970b977630ebdcb776d5031bba6f610a79e88f093c70
+-- @bsb-hash sha256:844621ebe02ebab102dff07f921b59904bdcfd8f07f172b891bf4ad9237a6c5f
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."activities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."activities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."activities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."activities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."activities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Calls, emails, meetings, notes and tasks logged on one or more records.
-create table if not exists "better_supabase"."activities" (
+create table "better_supabase"."activities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type" text not null,
@@ -45,26 +22,26 @@ create table if not exists "better_supabase"."activities" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "activities_owner_open_idx" on "better_supabase"."activities" ("tenant_id", "owner_user_id", "due_at") where "done_at" is null;
-create index if not exists "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc);
-create unique index if not exists "activities_external_ref_idx" on "better_supabase"."activities" ("tenant_id", "external_ref") where "external_ref" is not null;
+create index "activities_owner_open_idx" on "better_supabase"."activities" ("tenant_id", "owner_user_id", "due_at") where "done_at" is null;
+create index "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc);
+create unique index "activities_external_ref_idx" on "better_supabase"."activities" ("tenant_id", "external_ref") where "external_ref" is not null;
 -- Progress notes: who reads an engagement, when it locks, its addenda and the
 -- in-error flag.
-alter table "better_supabase"."activities" add column if not exists "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'));
-alter table "better_supabase"."activities" add column if not exists "restricted_roles" text[];
-alter table "better_supabase"."activities" add column if not exists "category" text check (length("category") >= 1 and length("category") <= 63);
-alter table "better_supabase"."activities" add column if not exists "locked_at" timestamptz;
-alter table "better_supabase"."activities" add column if not exists "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade;
-alter table "better_supabase"."activities" add column if not exists "goal_id" uuid;
-alter table "better_supabase"."activities" add column if not exists "marked_error_at" timestamptz;
-alter table "better_supabase"."activities" add column if not exists "marked_error_by" uuid;
-alter table "better_supabase"."activities" add column if not exists "marked_error_reason" text check (length("marked_error_reason") >= 1 and length("marked_error_reason") <= 2000);
-create index if not exists "activities_amends_idx" on "better_supabase"."activities" ("amends_id");
+alter table "better_supabase"."activities" add column "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'));
+alter table "better_supabase"."activities" add column "restricted_roles" text[];
+alter table "better_supabase"."activities" add column "category" text check (length("category") >= 1 and length("category") <= 63);
+alter table "better_supabase"."activities" add column "locked_at" timestamptz;
+alter table "better_supabase"."activities" add column "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade;
+alter table "better_supabase"."activities" add column "goal_id" uuid;
+alter table "better_supabase"."activities" add column "marked_error_at" timestamptz;
+alter table "better_supabase"."activities" add column "marked_error_by" uuid;
+alter table "better_supabase"."activities" add column "marked_error_reason" text check (length("marked_error_reason") >= 1 and length("marked_error_reason") <= 2000);
+create index "activities_amends_idx" on "better_supabase"."activities" ("amends_id");
 alter table "better_supabase"."activities" enable row level security;
 revoke all on "better_supabase"."activities" from public, anon, authenticated;
 grant select on "better_supabase"."activities" to authenticated;
 grant all on "better_supabase"."activities" to service_role;
-create table if not exists "better_supabase"."engagement_subjects" (
+create table "better_supabase"."engagement_subjects" (
   "tenant_id" uuid not null,
   "activity_id" uuid not null references "better_supabase"."activities" ("id") on delete cascade,
   "subject_type" text not null,
@@ -72,7 +49,7 @@ create table if not exists "better_supabase"."engagement_subjects" (
   "position" integer not null default 1,
   primary key ("activity_id", "subject_type", "subject_id")
 );
-create index if not exists engagement_subjects_subject_idx on "better_supabase"."engagement_subjects" ("subject_type", "subject_id");
+create index engagement_subjects_subject_idx on "better_supabase"."engagement_subjects" ("subject_type", "subject_id");
 alter table "better_supabase"."engagement_subjects" enable row level security;
 revoke all on "better_supabase"."engagement_subjects" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_subjects" to authenticated;
@@ -98,11 +75,9 @@ revoke execute on function "better_supabase"."engagement_guest_readable"(uuid) f
 grant execute on function "better_supabase"."engagement_guest_readable"(uuid) to authenticated, service_role;
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none. A guest of a record reads its subject notes.
-drop policy if exists engagement_subjects_read on "better_supabase"."engagement_subjects";
 create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or ((("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) and "better_supabase"."engagement_guest_readable"("activity_id")));
-drop policy if exists activities_read on "better_supabase"."activities";
 create policy activities_read on "better_supabase"."activities"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
@@ -595,7 +570,7 @@ grant execute on function "better_supabase"."open_activities"(uuid, uuid, timest
 
 -- Recordings of calls and meetings: an ai-files file on an engagement,
 -- waiting for its transcript until a transcriber saves one.
-create table if not exists "better_supabase"."engagement_recordings" (
+create table "better_supabase"."engagement_recordings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "activity_id" uuid not null references "better_supabase"."activities" ("id") on delete cascade,
@@ -612,20 +587,19 @@ create table if not exists "better_supabase"."engagement_recordings" (
   "transcribed_at" timestamptz,
   unique ("activity_id", "file_id")
 );
-create index if not exists engagement_recordings_file_idx on "better_supabase"."engagement_recordings" ("file_id");
-create index if not exists engagement_recordings_pending_idx on "better_supabase"."engagement_recordings" ("created_at") where "status" = 'pending';
+create index engagement_recordings_file_idx on "better_supabase"."engagement_recordings" ("file_id");
+create index engagement_recordings_pending_idx on "better_supabase"."engagement_recordings" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."engagement_recordings" enable row level security;
 revoke all on "better_supabase"."engagement_recordings" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_recordings" to authenticated;
 grant all on "better_supabase"."engagement_recordings" to service_role;
-drop policy if exists engagement_recordings_read on "better_supabase"."engagement_recordings";
 create policy engagement_recordings_read on "better_supabase"."engagement_recordings"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."activities" ex where ex."id" = "activity_id"));
 
 -- A transcript, one row per speaker turn, offsets in milliseconds from the
 -- start of the recording.
-create table if not exists "better_supabase"."engagement_transcript_segments" (
+create table "better_supabase"."engagement_transcript_segments" (
   "recording_id" uuid not null references "better_supabase"."engagement_recordings" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "position" integer not null check ("position" >= 1),
@@ -642,14 +616,13 @@ alter table "better_supabase"."engagement_transcript_segments" enable row level 
 revoke all on "better_supabase"."engagement_transcript_segments" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_transcript_segments" to authenticated;
 grant all on "better_supabase"."engagement_transcript_segments" to service_role;
-drop policy if exists engagement_transcript_segments_read on "better_supabase"."engagement_transcript_segments";
 create policy engagement_transcript_segments_read on "better_supabase"."engagement_transcript_segments"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."engagement_recordings" rx where rx."id" = "recording_id"));
 
 -- Notes on an engagement: a summary and action items, written by an AI
 -- note taker or a member. One row per engagement; saving replaces it.
-create table if not exists "better_supabase"."engagement_notes" (
+create table "better_supabase"."engagement_notes" (
   "activity_id" uuid primary key references "better_supabase"."activities" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "summary" text not null check (length("summary") >= 1 and length("summary") <= 20000),
@@ -664,14 +637,13 @@ alter table "better_supabase"."engagement_notes" enable row level security;
 revoke all on "better_supabase"."engagement_notes" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_notes" to authenticated;
 grant all on "better_supabase"."engagement_notes" to service_role;
-drop policy if exists engagement_notes_read on "better_supabase"."engagement_notes";
 create policy engagement_notes_read on "better_supabase"."engagement_notes"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."activities" ex where ex."id" = "activity_id"));
 
 -- The action items of a note: each one is a task, so it is assigned, due and
 -- closed in the tasks block.
-create table if not exists "better_supabase"."activity_note_actions" (
+create table "better_supabase"."activity_note_actions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "activity_id" uuid not null references "better_supabase"."activities" ("id") on delete cascade,
@@ -679,12 +651,11 @@ create table if not exists "better_supabase"."activity_note_actions" (
   "created_at" timestamptz not null default now(),
   unique ("activity_id", "task_id")
 );
-create index if not exists "activity_note_actions_task_idx" on "better_supabase"."activity_note_actions" ("task_id");
+create index "activity_note_actions_task_idx" on "better_supabase"."activity_note_actions" ("task_id");
 alter table "better_supabase"."activity_note_actions" enable row level security;
 revoke all on "better_supabase"."activity_note_actions" from public, anon, authenticated;
 grant select on "better_supabase"."activity_note_actions" to authenticated;
 grant all on "better_supabase"."activity_note_actions" to service_role;
-drop policy if exists activity_note_actions_read on "better_supabase"."activity_note_actions";
 create policy activity_note_actions_read on "better_supabase"."activity_note_actions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."activities" ex where ex."id" = "activity_id"));
@@ -1079,7 +1050,6 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."bsb_booking_engagement"() from public, anon, authenticated;
-drop trigger if exists bookings_engagement on "better_supabase"."bookings";
 create trigger bookings_engagement
 after insert or update of "status", "during" on "better_supabase"."bookings"
 for each row execute function "better_supabase"."bsb_booking_engagement"();
@@ -1178,8 +1148,6 @@ grant execute on function "better_supabase"."mark_activity_error"(uuid, text) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."activities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."activities";
 create policy bsb_tenant_scope_select on "better_supabase"."activities" as restrictive
   for select to public
   using (
@@ -1189,42 +1157,32 @@ create policy bsb_tenant_scope_select on "better_supabase"."activities" as restr
   or exists (select 1 from "better_supabase"."engagement_subjects" lx where lx."activity_id" = "id" and "better_supabase"."can_subject"(lx."subject_type", lx."subject_id", 'read'))
 ) and ("audience" <> 'restricted' or "tenant_id" in (select better_supabase.tenant_ids_with('activities.read_restricted')) or "owner_user_id" = (select auth.uid()) or "created_by" = (select auth.uid()) or exists (select 1 from "better_supabase"."engagement_subjects" nx where nx."activity_id" = "id" and "better_supabase"."has_subject_role"(nx."subject_type", nx."subject_id", "restricted_roles")))) or ("audience" = 'subject' and "better_supabase"."engagement_guest_readable"("id")))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."activities";
 create policy bsb_tenant_scope_insert on "better_supabase"."activities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."activities";
 create policy bsb_tenant_scope_update on "better_supabase"."activities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."activities";
 create policy bsb_tenant_scope_delete on "better_supabase"."activities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagement_subjects";
 create policy bsb_tenant_scope_select on "better_supabase"."engagement_subjects" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or ((("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) and "better_supabase"."engagement_guest_readable"("activity_id")))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
 create policy bsb_tenant_scope_insert on "better_supabase"."engagement_subjects" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagement_subjects";
 create policy bsb_tenant_scope_update on "better_supabase"."engagement_subjects" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagement_subjects";
 create policy bsb_tenant_scope_delete on "better_supabase"."engagement_subjects" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-drop trigger if exists "bsb_search_activity_index" on "better_supabase"."activities";
 create trigger "bsb_search_activity_index"
   after insert or delete or update of "id", "tenant_id", "title", "body", "outcome" on "better_supabase"."activities"
   for each row execute function "better_supabase"."search_index_row"('activity', 'id');

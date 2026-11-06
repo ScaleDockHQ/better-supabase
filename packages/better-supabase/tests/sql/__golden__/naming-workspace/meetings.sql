@@ -1,62 +1,15 @@
 -- ==== schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:d238e25c7758ec37ae3f0ff0d09adc649742ff390307603a1d339c87f220f455
+-- @bsb-hash sha256:afd986c9a9616ac5d170df3aa9f17f9cd2ac3be6ed189ca6679e16b7eeda2245
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."meetings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."meetings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."meetings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."meetings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."meetings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."meeting_attendees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."meeting_attendees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."meeting_attendees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."meeting_attendees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."meeting_attendees";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."meeting_agenda_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."meeting_agenda_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."meeting_agenda_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."meeting_agenda_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."meeting_agenda_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."meeting_decisions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."meeting_decisions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."meeting_decisions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."meeting_decisions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."meeting_decisions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."meeting_action_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."meeting_action_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."meeting_action_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."meeting_action_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."meeting_action_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Meetings per organization: an agenda, attendees, minutes, decisions that
 -- members vote on, and action items that become tasks.
 
-create table if not exists "better_supabase"."meetings" (
+create table "better_supabase"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.kinds; the functions check it.
@@ -75,13 +28,13 @@ create table if not exists "better_supabase"."meetings" (
   unique ("tenant_id", "id"),
   check ("ends_at" is null or "ends_at" >= "starts_at")
 );
-create index if not exists "meetings_tenant_idx" on "better_supabase"."meetings" ("tenant_id", "status", "starts_at" desc);
+create index "meetings_tenant_idx" on "better_supabase"."meetings" ("tenant_id", "status", "starts_at" desc);
 alter table "better_supabase"."meetings" enable row level security;
 revoke all on "better_supabase"."meetings" from public, anon, authenticated;
 grant select on "better_supabase"."meetings" to authenticated;
 grant all on "better_supabase"."meetings" to service_role;
 
-create table if not exists "better_supabase"."meeting_attendees" (
+create table "better_supabase"."meeting_attendees" (
   "meeting_id" uuid not null,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -91,10 +44,10 @@ create table if not exists "better_supabase"."meeting_attendees" (
   primary key ("meeting_id", "user_id"),
   foreign key ("tenant_id", "meeting_id") references "better_supabase"."meetings" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "meeting_attendees_parent_idx" on "better_supabase"."meeting_attendees" ("tenant_id", "meeting_id");
-create index if not exists "meeting_attendees_user_idx" on "better_supabase"."meeting_attendees" ("user_id", "meeting_id");
+create index "meeting_attendees_parent_idx" on "better_supabase"."meeting_attendees" ("tenant_id", "meeting_id");
+create index "meeting_attendees_user_idx" on "better_supabase"."meeting_attendees" ("user_id", "meeting_id");
 -- One chair per meeting.
-create unique index if not exists "meeting_attendees_chair_key" on "better_supabase"."meeting_attendees" ("meeting_id") where "role" = 'chair';
+create unique index "meeting_attendees_chair_key" on "better_supabase"."meeting_attendees" ("meeting_id") where "role" = 'chair';
 alter table "better_supabase"."meeting_attendees" enable row level security;
 revoke all on "better_supabase"."meeting_attendees" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_attendees" to authenticated;
@@ -114,16 +67,14 @@ as $$
 $$;
 revoke execute on function "better_supabase"."meeting_role"(uuid) from public, anon;
 grant execute on function "better_supabase"."meeting_role"(uuid) to authenticated, service_role;
-drop policy if exists meetings_read on "better_supabase"."meetings";
 create policy meetings_read on "better_supabase"."meetings"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("id") is not null);
-drop policy if exists meeting_attendees_read on "better_supabase"."meeting_attendees";
 create policy meeting_attendees_read on "better_supabase"."meeting_attendees"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
-create table if not exists "better_supabase"."meeting_agenda_items" (
+create table "better_supabase"."meeting_agenda_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
@@ -140,17 +91,16 @@ create table if not exists "better_supabase"."meeting_agenda_items" (
   unique ("meeting_id", "ordinal") deferrable initially deferred,
   foreign key ("tenant_id", "meeting_id") references "better_supabase"."meetings" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "meeting_agenda_items_parent_idx" on "better_supabase"."meeting_agenda_items" ("tenant_id", "meeting_id", "ordinal");
+create index "meeting_agenda_items_parent_idx" on "better_supabase"."meeting_agenda_items" ("tenant_id", "meeting_id", "ordinal");
 alter table "better_supabase"."meeting_agenda_items" enable row level security;
 revoke all on "better_supabase"."meeting_agenda_items" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_agenda_items" to authenticated;
 grant all on "better_supabase"."meeting_agenda_items" to service_role;
-drop policy if exists meeting_agenda_items_read on "better_supabase"."meeting_agenda_items";
 create policy meeting_agenda_items_read on "better_supabase"."meeting_agenda_items"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
-create table if not exists "better_supabase"."meeting_decisions" (
+create table "better_supabase"."meeting_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
@@ -165,20 +115,19 @@ create table if not exists "better_supabase"."meeting_decisions" (
   foreign key ("tenant_id", "meeting_id") references "better_supabase"."meetings" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "agenda_item_id") references "better_supabase"."meeting_agenda_items" ("tenant_id", "id") on delete set null ("agenda_item_id")
 );
-create index if not exists "meeting_decisions_parent_idx" on "better_supabase"."meeting_decisions" ("tenant_id", "meeting_id");
-create index if not exists "meeting_decisions_agenda_idx" on "better_supabase"."meeting_decisions" ("tenant_id", "agenda_item_id");
+create index "meeting_decisions_parent_idx" on "better_supabase"."meeting_decisions" ("tenant_id", "meeting_id");
+create index "meeting_decisions_agenda_idx" on "better_supabase"."meeting_decisions" ("tenant_id", "agenda_item_id");
 alter table "better_supabase"."meeting_decisions" enable row level security;
 revoke all on "better_supabase"."meeting_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_decisions" to authenticated;
 grant all on "better_supabase"."meeting_decisions" to service_role;
-drop policy if exists meeting_decisions_read on "better_supabase"."meeting_decisions";
 create policy meeting_decisions_read on "better_supabase"."meeting_decisions"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
 -- The tasks opened from a meeting. The work item stays in the tasks block;
 -- this row only says where it came from.
-create table if not exists "better_supabase"."meeting_action_items" (
+create table "better_supabase"."meeting_action_items" (
   "task_id" uuid primary key references "better_supabase"."tasks" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
@@ -189,14 +138,13 @@ create table if not exists "better_supabase"."meeting_action_items" (
   foreign key ("tenant_id", "agenda_item_id") references "better_supabase"."meeting_agenda_items" ("tenant_id", "id") on delete set null ("agenda_item_id"),
   foreign key ("tenant_id", "decision_id") references "better_supabase"."meeting_decisions" ("tenant_id", "id") on delete set null ("decision_id")
 );
-create index if not exists "meeting_action_items_parent_idx" on "better_supabase"."meeting_action_items" ("tenant_id", "meeting_id");
-create index if not exists "meeting_action_items_agenda_idx" on "better_supabase"."meeting_action_items" ("tenant_id", "agenda_item_id");
-create index if not exists "meeting_action_items_decision_idx" on "better_supabase"."meeting_action_items" ("tenant_id", "decision_id");
+create index "meeting_action_items_parent_idx" on "better_supabase"."meeting_action_items" ("tenant_id", "meeting_id");
+create index "meeting_action_items_agenda_idx" on "better_supabase"."meeting_action_items" ("tenant_id", "agenda_item_id");
+create index "meeting_action_items_decision_idx" on "better_supabase"."meeting_action_items" ("tenant_id", "decision_id");
 alter table "better_supabase"."meeting_action_items" enable row level security;
 revoke all on "better_supabase"."meeting_action_items" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_action_items" to authenticated;
 grant all on "better_supabase"."meeting_action_items" to service_role;
-drop policy if exists meeting_action_items_read on "better_supabase"."meeting_action_items";
 create policy meeting_action_items_read on "better_supabase"."meeting_action_items"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
@@ -1056,108 +1004,83 @@ grant execute on function "better_supabase"."list_meetings"(uuid, jsonb) to auth
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."meetings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."meetings";
 create policy bsb_tenant_scope_select on "better_supabase"."meetings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("id") is not null)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."meetings";
 create policy bsb_tenant_scope_insert on "better_supabase"."meetings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."meetings";
 create policy bsb_tenant_scope_update on "better_supabase"."meetings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."meetings";
 create policy bsb_tenant_scope_delete on "better_supabase"."meetings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."meeting_attendees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."meeting_attendees";
 create policy bsb_tenant_scope_select on "better_supabase"."meeting_attendees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."meeting_attendees";
 create policy bsb_tenant_scope_insert on "better_supabase"."meeting_attendees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."meeting_attendees";
 create policy bsb_tenant_scope_update on "better_supabase"."meeting_attendees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."meeting_attendees";
 create policy bsb_tenant_scope_delete on "better_supabase"."meeting_attendees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."meeting_agenda_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."meeting_agenda_items";
 create policy bsb_tenant_scope_select on "better_supabase"."meeting_agenda_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."meeting_agenda_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."meeting_agenda_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."meeting_agenda_items";
 create policy bsb_tenant_scope_update on "better_supabase"."meeting_agenda_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."meeting_agenda_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."meeting_agenda_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."meeting_decisions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."meeting_decisions";
 create policy bsb_tenant_scope_select on "better_supabase"."meeting_decisions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."meeting_decisions";
 create policy bsb_tenant_scope_insert on "better_supabase"."meeting_decisions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."meeting_decisions";
 create policy bsb_tenant_scope_update on "better_supabase"."meeting_decisions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."meeting_decisions";
 create policy bsb_tenant_scope_delete on "better_supabase"."meeting_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."meeting_action_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."meeting_action_items";
 create policy bsb_tenant_scope_select on "better_supabase"."meeting_action_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."meeting_action_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."meeting_action_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."meeting_action_items";
 create policy bsb_tenant_scope_update on "better_supabase"."meeting_action_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."meeting_action_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."meeting_action_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

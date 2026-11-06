@@ -933,7 +933,7 @@ ${renderPolicy(
     using: `${c("tenant")} in (select ${ctx.fn("audit_read_tenants")}())
     or (select ${ctx.fn("audit_reads_all")}())`,
   }),
-  { drop: true, target: log },
+  { target: log },
 )}
 ${
   hidden.size > 0

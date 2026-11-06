@@ -22,13 +22,13 @@ describe("brand-scoped templates", () => {
     );
 
     expect(sql).toContain(
-      `add column if not exists "brand" text check (length("brand") >= 1 and length("brand") <= 100)`,
+      `add column "brand" text check (length("brand") >= 1 and length("brand") <= 100)`,
     );
     expect(sql).toContain(`check ("scope" in ('tenant', 'brand', 'system'))`);
     expect(sql).toContain(
       `when 'brand' then "tenant_id" is null and "brand" is not null`,
     );
-    expect(sql).toContain(
+    expect(sql).not.toContain(
       `drop index if exists "better_supabase".templates_key_idx;`,
     );
     expect(sql).toContain(

@@ -144,11 +144,9 @@ describe("extraColumns on the notifications to settings blocks", () => {
       expect(plain).not.toContain('"app_note"');
       expect(plain).not.toContain("'fields', jsonb_build_object(");
       expect(sql).toContain(
-        `alter table "better_supabase"."${entry.table}" add column if not exists "app_note" text;`,
+        `alter table "better_supabase"."${entry.table}" add column "app_note" text;`,
       );
-      expect(sql).toContain(
-        `add column if not exists "app_rank" integer default 0;`,
-      );
+      expect(sql).toContain(`add column "app_rank" integer default 0;`);
       expect(sql).toContain(`${entry.write} ? 'app_`);
       expect(sql).toContain(
         `jsonb_populate_record(null::"better_supabase"."${entry.table}", `,

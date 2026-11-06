@@ -215,7 +215,7 @@ describe("messaging module", () => {
   it("indexes record mentions on send and lists a record's backlinks", () => {
     const sql = body();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."message_record_mentions"',
+      'create table "better_supabase"."message_record_mentions"',
     );
     expect(sql).toContain(
       `perform "better_supabase"."index_record_mentions"(v_msg."id");`,

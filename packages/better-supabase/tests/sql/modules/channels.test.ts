@@ -6,7 +6,7 @@ describe("channels module", () => {
   it("builds the table and its functions on the messaging core", () => {
     const sql = moduleBody("channels", { modules: {} })!;
 
-    expect(sql).toContain("create table if not exists");
+    expect(sql).toContain("create table");
     expect(sql).toContain("open_conversation");
     expect(sql).toContain("channels_for_record");
   });

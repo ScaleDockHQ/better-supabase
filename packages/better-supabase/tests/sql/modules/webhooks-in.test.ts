@@ -16,9 +16,7 @@ describe("webhooks-in module", () => {
       },
     })!;
 
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."incoming_webhooks"',
-    );
+    expect(sql).toContain('create table "better_supabase"."incoming_webhooks"');
     expect(sql).toContain("token_hash text not null unique");
     expect(sql).toContain("default 65536 check (max_body_bytes > 0)");
     expect(sql).toContain("'integrations.manage'");

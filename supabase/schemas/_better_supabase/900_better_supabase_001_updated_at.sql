@@ -1,6 +1,6 @@
 -- better-supabase module: updated-at
 -- @bsb-block updated-at@1 managed
--- @bsb-hash sha256:4cb89aba288b5ce4e53ea67a32fc0260cecc9313d68c44e797cd06d68057e384
+-- @bsb-hash sha256:bcd28016d049f206a4ddfcace4943748f72faa36f8dc1a31ee4cf2a1eadf91ce
 -- Keeps an updated_at column current on every update.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21,8 +21,6 @@ begin
   return new;
 end;
 $$;
-
-drop function if exists better_supabase.track_updated_at(regclass, text);
 
 -- select better_supabase.track_updated_at('public.customers');
 -- replace_trigger => true drops another trigger that sets updated_at (moddatetime, touch_*).

@@ -12,9 +12,6 @@ describe("usage module", () => {
     expect(sql).toContain(
       `to_regprocedure('"public"."usage_billing_period"(uuid)')`,
     );
-    expect(sql).toContain(
-      'drop constraint if exists "usage_quotas_period_check"',
-    );
     expect(sql).not.toContain("USAGE_METER_UNKNOWN");
   });
 
@@ -99,9 +96,7 @@ describe("usage module", () => {
       },
     });
 
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."usage_distinct"',
-    );
+    expect(sql).toContain('create table "better_supabase"."usage_distinct"');
     expect(sql).toContain("track_usage");
     expect(sql).toContain("if track_usage.meter <> all (array['mau'])");
     expect(sql).toContain("usage_refresh");
@@ -180,7 +175,7 @@ describe("usage partitioned history", () => {
 
     const sql = render(["invoices", "usage"], true);
 
-    expect(sql).toContain("create table if not exists");
+    expect(sql).toContain("create table");
     expect(sql).toContain("usage_meter_prices");
     expect(sql).toContain("usage_billed_periods");
     expect(sql).toContain('"better_supabase"."bill_usage_period"(');

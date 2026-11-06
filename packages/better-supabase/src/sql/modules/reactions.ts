@@ -263,7 +263,7 @@ alter table ${emojiTable} enable row level security;
 revoke all on ${emojiTable} from public, anon, authenticated;
 grant select on ${emojiTable} to authenticated;
 grant all on ${emojiTable} to service_role;
-${renderPolicy(makePolicy({ table: emojiTable, name: "custom_emoji_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(e("tenant"), read) }), { drop: true, target: emojiTable })}
+${renderPolicy(makePolicy({ table: emojiTable, name: "custom_emoji_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(e("tenant"), read) }), { target: emojiTable })}
 `
     : "";
 
@@ -286,7 +286,7 @@ $$;
 revoke execute on function ${visible}(text, text, ${ctx.idType}) from public, anon;
 grant execute on function ${visible}(text, text, ${ctx.idType}) to authenticated, service_role;
 
-${renderPolicy(makePolicy({ table: reactions, name: sqlIdent(`${ctx.tableName("reactions").name}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})` }), { drop: true, target: reactions })}
+${renderPolicy(makePolicy({ table: reactions, name: sqlIdent(`${ctx.tableName("reactions").name}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})` }), { target: reactions })}
 ${renderPolicy(
   makePolicy({
     table: reactions,
@@ -298,13 +298,13 @@ ${renderPolicy(
     and ${ctx.scope.check(c("tenant"), create)}
     and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`,
   }),
-  { drop: true, target: reactions },
+  { target: reactions },
 )}
-${renderPolicy(makePolicy({ table: reactions, name: sqlIdent(`${ctx.tableName("reactions").name}_delete`), command: "delete", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { drop: true, target: reactions })}
+${renderPolicy(makePolicy({ table: reactions, name: sqlIdent(`${ctx.tableName("reactions").name}_delete`), command: "delete", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { target: reactions })}
 
 ${
   ctx.manages
-    ? `${renderPolicy(makePolicy({ table: scores, name: sqlIdent(`${scoresName}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(sc("tenant"), read)} and ${visible}(${sc("subjectType")}, ${sc("subjectId")}, ${sc("tenant")})` }), { drop: true, target: scores })}
+    ? `${renderPolicy(makePolicy({ table: scores, name: sqlIdent(`${scoresName}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(sc("tenant"), read)} and ${visible}(${sc("subjectType")}, ${sc("subjectId")}, ${sc("tenant")})` }), { target: scores })}
 `
     : ""
 }
@@ -663,7 +663,7 @@ begin
         and (select realtime.topic()) like ${sqlString(`${topic}:%`)}
         and substr((select realtime.topic()), ${String(topic.length + 2)}) in (select x::text from ${ctx.scope.ids(read)} x)`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
   end if;
 end;

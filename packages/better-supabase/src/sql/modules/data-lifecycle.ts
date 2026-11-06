@@ -329,7 +329,7 @@ alter table ${e} enable row level security;
 ${revokeTable(e)}
 grant select on ${e} to authenticated;
 grant all on ${e} to service_role;
-${renderPolicy(makePolicy({ table: e, name: "data_exports_read", command: "select", roles: ["authenticated"], using: `${ce("requestedBy")} = (select auth.uid()) or ${ctx.scope.check(ce("tenant"), ctx.permission("export", permissions.export))}` }), { drop: true, target: e })}
+${renderPolicy(makePolicy({ table: e, name: "data_exports_read", command: "select", roles: ["authenticated"], using: `${ce("requestedBy")} = (select auth.uid()) or ${ctx.scope.check(ce("tenant"), ctx.permission("export", permissions.export))}` }), { target: e })}
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -384,7 +384,7 @@ $$;
 revoke execute on function ${fn("data_export_object_allowed")}(text) from public, anon;
 grant execute on function ${fn("data_export_object_allowed")}(text) to authenticated, service_role;
 
-${renderPolicy(makePolicy({ table: "storage.objects", name: sqlIdent("bsb_data_exports_select"), command: "select", roles: ["authenticated"], using: `bucket_id = ${bucket} and ${fn("data_export_object_allowed")}(name)` }), { drop: true, target: "storage.objects" })}
+${renderPolicy(makePolicy({ table: "storage.objects", name: sqlIdent("bsb_data_exports_select"), command: "select", roles: ["authenticated"], using: `bucket_id = ${bucket} and ${fn("data_export_object_allowed")}(name)` }), { target: "storage.objects" })}
 
 -- The caller's own data (subject 'user') or a tenant's (needs the export
 -- permission). An open export for the same subject is returned instead

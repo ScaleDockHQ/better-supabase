@@ -1,35 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:d04e42da1b2a4305591ca57ebb4eb95083680aece98d6d9879e467b3f7847f3e
+-- @bsb-hash sha256:ded1a2a03b4066e4cf45e10fbee19ea89af86a2f075b86ad97aa909e0ed16a8e
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."import_runs" (
+create table "better_supabase"."import_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "source" text not null,
@@ -40,35 +17,24 @@ create table if not exists "better_supabase"."import_runs" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."import_runs" add column if not exists "dry_run" boolean not null default false;
-alter table "better_supabase"."import_runs" add column if not exists "full" boolean not null default false;
-alter table "better_supabase"."import_runs" add column if not exists "input_checksum" text;
-alter table "better_supabase"."import_runs" add column if not exists "correlation_id" text;
-alter table "better_supabase"."import_runs" add column if not exists "scope_aliases" jsonb not null default '[]'::jsonb;
-alter table "better_supabase"."import_runs" add column if not exists "started_at" timestamptz;
-alter table "better_supabase"."import_runs" add column if not exists "finished_at" timestamptz;
-alter table "better_supabase"."import_runs" drop constraint if exists "import_runs_status_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."import_runs"'::regclass and c.conname = 'bsb_import_runs_status'
-  ), 'pg_constraint'), '') <> 'better-supabase check 664f0f9f' then
-    alter table "better_supabase"."import_runs" drop constraint if exists "bsb_import_runs_status";
-    alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status" check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
-    comment on constraint "bsb_import_runs_status" on "better_supabase"."import_runs" is 'better-supabase check 664f0f9f';
-  end if;
-end;
-$$;
+alter table "better_supabase"."import_runs" add column "dry_run" boolean not null default false;
+alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
+alter table "better_supabase"."import_runs" add column "input_checksum" text;
+alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
+alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
+alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
+alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status"
+  check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
 alter table "better_supabase"."import_runs" enable row level security;
 revoke all on "better_supabase"."import_runs" from public, anon, authenticated;
 grant select on "better_supabase"."import_runs" to authenticated;
 grant all on "better_supabase"."import_runs" to service_role;
-create index if not exists "import_runs_tenant_idx" on "better_supabase"."import_runs" ("tenant_id");
+create index "import_runs_tenant_idx" on "better_supabase"."import_runs" ("tenant_id");
 -- One pending or running run per organization and source.
-create unique index if not exists "import_runs_active_idx" on "better_supabase"."import_runs" ("tenant_id", "source") where "status" in ('pending', 'running');
+create unique index "import_runs_active_idx" on "better_supabase"."import_runs" ("tenant_id", "source") where "status" in ('pending', 'running');
 
-create table if not exists "better_supabase"."import_records" (
+create table "better_supabase"."import_records" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "source" text not null,
@@ -85,7 +51,7 @@ create table if not exists "better_supabase"."import_records" (
   "missing_since" timestamptz,
   constraint "import_records_key" unique ("tenant_id", "source", "scope", "entity", "external_key", "role")
 );
-create index if not exists "import_records_subject_idx" on "better_supabase"."import_records" ("tenant_id", "subject_type", "subject_id");
+create index "import_records_subject_idx" on "better_supabase"."import_records" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."import_records" enable row level security;
 revoke all on "better_supabase"."import_records" from public, anon, authenticated;
 grant select on "better_supabase"."import_records" to authenticated;
@@ -684,39 +650,29 @@ grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."import_runs" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."import_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."import_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."import_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
 create policy bsb_tenant_scope_select on "better_supabase"."import_records" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
 create policy bsb_tenant_scope_insert on "better_supabase"."import_records" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
 create policy bsb_tenant_scope_update on "better_supabase"."import_records" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
 create policy bsb_tenant_scope_delete on "better_supabase"."import_records" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -738,35 +694,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:dd4bd28e8d1dcba4e592b0d47d4796569cc0f420cfd8ce4fb1b27c7b0e51bb92
+-- @bsb-hash sha256:01d454f869592ec7fecc71c3762f6a9ebc4a8bd75df32c3b397d5950b7a725f4
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."import_runs" (
+create table "better_supabase"."import_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "source" text not null,
@@ -777,35 +710,24 @@ create table if not exists "better_supabase"."import_runs" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."import_runs" add column if not exists "dry_run" boolean not null default false;
-alter table "better_supabase"."import_runs" add column if not exists "full" boolean not null default false;
-alter table "better_supabase"."import_runs" add column if not exists "input_checksum" text;
-alter table "better_supabase"."import_runs" add column if not exists "correlation_id" text;
-alter table "better_supabase"."import_runs" add column if not exists "scope_aliases" jsonb not null default '[]'::jsonb;
-alter table "better_supabase"."import_runs" add column if not exists "started_at" timestamptz;
-alter table "better_supabase"."import_runs" add column if not exists "finished_at" timestamptz;
-alter table "better_supabase"."import_runs" drop constraint if exists "import_runs_status_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."import_runs"'::regclass and c.conname = 'bsb_import_runs_status'
-  ), 'pg_constraint'), '') <> 'better-supabase check 664f0f9f' then
-    alter table "better_supabase"."import_runs" drop constraint if exists "bsb_import_runs_status";
-    alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status" check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
-    comment on constraint "bsb_import_runs_status" on "better_supabase"."import_runs" is 'better-supabase check 664f0f9f';
-  end if;
-end;
-$$;
+alter table "better_supabase"."import_runs" add column "dry_run" boolean not null default false;
+alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
+alter table "better_supabase"."import_runs" add column "input_checksum" text;
+alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
+alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
+alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
+alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status"
+  check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
 alter table "better_supabase"."import_runs" enable row level security;
 revoke all on "better_supabase"."import_runs" from public, anon, authenticated;
 grant select on "better_supabase"."import_runs" to authenticated;
 grant all on "better_supabase"."import_runs" to service_role;
-create index if not exists "import_runs_tenant_idx" on "better_supabase"."import_runs" ("tenant_id");
+create index "import_runs_tenant_idx" on "better_supabase"."import_runs" ("tenant_id");
 -- One pending or running run per organization and source.
-create unique index if not exists "import_runs_active_idx" on "better_supabase"."import_runs" ("tenant_id", "source") where "status" in ('pending', 'running');
+create unique index "import_runs_active_idx" on "better_supabase"."import_runs" ("tenant_id", "source") where "status" in ('pending', 'running');
 
-create table if not exists "better_supabase"."import_records" (
+create table "better_supabase"."import_records" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "source" text not null,
@@ -822,7 +744,7 @@ create table if not exists "better_supabase"."import_records" (
   "missing_since" timestamptz,
   constraint "import_records_key" unique ("tenant_id", "source", "scope", "entity", "external_key", "role")
 );
-create index if not exists "import_records_subject_idx" on "better_supabase"."import_records" ("tenant_id", "subject_type", "subject_id");
+create index "import_records_subject_idx" on "better_supabase"."import_records" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."import_records" enable row level security;
 revoke all on "better_supabase"."import_records" from public, anon, authenticated;
 grant select on "better_supabase"."import_records" to authenticated;
@@ -1525,39 +1447,29 @@ grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."import_runs" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."import_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."import_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."import_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
 create policy bsb_tenant_scope_select on "better_supabase"."import_records" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
 create policy bsb_tenant_scope_insert on "better_supabase"."import_records" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
 create policy bsb_tenant_scope_update on "better_supabase"."import_records" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
 create policy bsb_tenant_scope_delete on "better_supabase"."import_records" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1579,39 +1491,17 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:af8fcb61143cc76e9fbc76a2842b85a583b4efd8dbe8ab6890192588b68ae3bb
+-- @bsb-hash sha256:a94836ac6cb2a419c2b056796256116de29bd109b4804ff9e9e5cf2fd424fc40
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."import_runs";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."import_runs";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."import_runs";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."import_runs";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."import_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."import_records";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."import_records";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."import_records";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."import_records";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."import_records";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."import_runs" (
+create table "app_private"."import_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "source" text not null,
@@ -1622,35 +1512,24 @@ create table if not exists "app_private"."import_runs" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-alter table "app_private"."import_runs" add column if not exists "dry_run" boolean not null default false;
-alter table "app_private"."import_runs" add column if not exists "full" boolean not null default false;
-alter table "app_private"."import_runs" add column if not exists "input_checksum" text;
-alter table "app_private"."import_runs" add column if not exists "correlation_id" text;
-alter table "app_private"."import_runs" add column if not exists "scope_aliases" jsonb not null default '[]'::jsonb;
-alter table "app_private"."import_runs" add column if not exists "started_at" timestamptz;
-alter table "app_private"."import_runs" add column if not exists "finished_at" timestamptz;
-alter table "app_private"."import_runs" drop constraint if exists "import_runs_status_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"app_private"."import_runs"'::regclass and c.conname = 'bsb_import_runs_status'
-  ), 'pg_constraint'), '') <> 'better-supabase check 664f0f9f' then
-    alter table "app_private"."import_runs" drop constraint if exists "bsb_import_runs_status";
-    alter table "app_private"."import_runs" add constraint "bsb_import_runs_status" check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
-    comment on constraint "bsb_import_runs_status" on "app_private"."import_runs" is 'better-supabase check 664f0f9f';
-  end if;
-end;
-$$;
+alter table "app_private"."import_runs" add column "dry_run" boolean not null default false;
+alter table "app_private"."import_runs" add column "full" boolean not null default false;
+alter table "app_private"."import_runs" add column "input_checksum" text;
+alter table "app_private"."import_runs" add column "correlation_id" text;
+alter table "app_private"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
+alter table "app_private"."import_runs" add column "started_at" timestamptz;
+alter table "app_private"."import_runs" add column "finished_at" timestamptz;
+alter table "app_private"."import_runs" add constraint "bsb_import_runs_status"
+  check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
 alter table "app_private"."import_runs" enable row level security;
 revoke all on "app_private"."import_runs" from public, anon, authenticated;
 grant select on "app_private"."import_runs" to authenticated;
 grant all on "app_private"."import_runs" to service_role;
-create index if not exists "import_runs_tenant_idx" on "app_private"."import_runs" ("tenant_id");
+create index "import_runs_tenant_idx" on "app_private"."import_runs" ("tenant_id");
 -- One pending or running run per organization and source.
-create unique index if not exists "import_runs_active_idx" on "app_private"."import_runs" ("tenant_id", "source") where "status" in ('pending', 'running');
+create unique index "import_runs_active_idx" on "app_private"."import_runs" ("tenant_id", "source") where "status" in ('pending', 'running');
 
-create table if not exists "app_private"."import_records" (
+create table "app_private"."import_records" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "source" text not null,
@@ -1667,7 +1546,7 @@ create table if not exists "app_private"."import_records" (
   "missing_since" timestamptz,
   constraint "import_records_key" unique ("tenant_id", "source", "scope", "entity", "external_key", "role")
 );
-create index if not exists "import_records_subject_idx" on "app_private"."import_records" ("tenant_id", "subject_type", "subject_id");
+create index "import_records_subject_idx" on "app_private"."import_records" ("tenant_id", "subject_type", "subject_id");
 alter table "app_private"."import_records" enable row level security;
 revoke all on "app_private"."import_records" from public, anon, authenticated;
 grant select on "app_private"."import_records" to authenticated;
@@ -2266,39 +2145,29 @@ grant execute on function "app_private"."enqueue_import_chunks"(uuid, text, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."import_runs";
-drop policy if exists bsb_tenant_scope_select on "app_private"."import_runs";
 create policy bsb_tenant_scope_select on "app_private"."import_runs" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "app_private"."import_runs";
 create policy bsb_tenant_scope_insert on "app_private"."import_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."import_runs";
 create policy bsb_tenant_scope_update on "app_private"."import_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."import_runs";
 create policy bsb_tenant_scope_delete on "app_private"."import_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."import_records";
-drop policy if exists bsb_tenant_scope_select on "app_private"."import_records";
 create policy bsb_tenant_scope_select on "app_private"."import_records" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "app_private"."import_records";
 create policy bsb_tenant_scope_insert on "app_private"."import_records" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."import_records";
 create policy bsb_tenant_scope_update on "app_private"."import_records" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."import_records";
 create policy bsb_tenant_scope_delete on "app_private"."import_records" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2320,35 +2189,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:0b661cc1c9f32e9dccdbf6f8efeb014a372ed1db02ab561b1fd32ba50a9dff15
+-- @bsb-hash sha256:6c9e0899debbc30f72b35c818a3bc39d27f229b3487b96708d8b73a0ccc9deac
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."import_runs" (
+create table "better_supabase"."import_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "source" text not null,
@@ -2359,35 +2205,24 @@ create table if not exists "better_supabase"."import_runs" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."import_runs" add column if not exists "dry_run" boolean not null default false;
-alter table "better_supabase"."import_runs" add column if not exists "full" boolean not null default false;
-alter table "better_supabase"."import_runs" add column if not exists "input_checksum" text;
-alter table "better_supabase"."import_runs" add column if not exists "correlation_id" text;
-alter table "better_supabase"."import_runs" add column if not exists "scope_aliases" jsonb not null default '[]'::jsonb;
-alter table "better_supabase"."import_runs" add column if not exists "started_at" timestamptz;
-alter table "better_supabase"."import_runs" add column if not exists "finished_at" timestamptz;
-alter table "better_supabase"."import_runs" drop constraint if exists "import_runs_status_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."import_runs"'::regclass and c.conname = 'bsb_import_runs_status'
-  ), 'pg_constraint'), '') <> 'better-supabase check 664f0f9f' then
-    alter table "better_supabase"."import_runs" drop constraint if exists "bsb_import_runs_status";
-    alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status" check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
-    comment on constraint "bsb_import_runs_status" on "better_supabase"."import_runs" is 'better-supabase check 664f0f9f';
-  end if;
-end;
-$$;
+alter table "better_supabase"."import_runs" add column "dry_run" boolean not null default false;
+alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
+alter table "better_supabase"."import_runs" add column "input_checksum" text;
+alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
+alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
+alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
+alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status"
+  check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
 alter table "better_supabase"."import_runs" enable row level security;
 revoke all on "better_supabase"."import_runs" from public, anon, authenticated;
 grant select on "better_supabase"."import_runs" to authenticated;
 grant all on "better_supabase"."import_runs" to service_role;
-create index if not exists "import_runs_tenant_idx" on "better_supabase"."import_runs" ("tenant_id");
+create index "import_runs_tenant_idx" on "better_supabase"."import_runs" ("tenant_id");
 -- One pending or running run per organization and source.
-create unique index if not exists "import_runs_active_idx" on "better_supabase"."import_runs" ("tenant_id", "source") where "status" in ('pending', 'running');
+create unique index "import_runs_active_idx" on "better_supabase"."import_runs" ("tenant_id", "source") where "status" in ('pending', 'running');
 
-create table if not exists "better_supabase"."import_records" (
+create table "better_supabase"."import_records" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "source" text not null,
@@ -2404,7 +2239,7 @@ create table if not exists "better_supabase"."import_records" (
   "missing_since" timestamptz,
   constraint "import_records_key" unique ("tenant_id", "source", "scope", "entity", "external_key", "role")
 );
-create index if not exists "import_records_subject_idx" on "better_supabase"."import_records" ("tenant_id", "subject_type", "subject_id");
+create index "import_records_subject_idx" on "better_supabase"."import_records" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."import_records" enable row level security;
 revoke all on "better_supabase"."import_records" from public, anon, authenticated;
 grant select on "better_supabase"."import_records" to authenticated;
@@ -3003,39 +2838,29 @@ grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."import_runs" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."import_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."import_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."import_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
 create policy bsb_tenant_scope_select on "better_supabase"."import_records" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
 create policy bsb_tenant_scope_insert on "better_supabase"."import_records" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
 create policy bsb_tenant_scope_update on "better_supabase"."import_records" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
 create policy bsb_tenant_scope_delete on "better_supabase"."import_records" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3181,33 +3006,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:d1750d1f8f078e3ccbeb7769a971ce7c94e622b81270460fc36ef51046bb672a
+-- @bsb-hash sha256:658e916c36244f0e95041b5503d6573af1cb178775fa2d265ef3c7d2bdadd660
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- better_supabase.import_runs is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."import_runs" add column if not exists "id" uuid default gen_random_uuid();
@@ -3846,39 +3648,29 @@ grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."import_runs" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."import_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."import_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."import_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
 create policy bsb_tenant_scope_select on "better_supabase"."import_records" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
 create policy bsb_tenant_scope_insert on "better_supabase"."import_records" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
 create policy bsb_tenant_scope_update on "better_supabase"."import_records" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
 create policy bsb_tenant_scope_delete on "better_supabase"."import_records" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3900,35 +3692,12 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:37268d41821cc5ec93618af56e6ae2ebdb33b056a95becf8f5cf2dcbddc1724a
+-- @bsb-hash sha256:a86533ea6d79136b0a26f8581cd29d9538dfce7227f446008b124c9e2cc5cac9
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."import_runs" (
+create table "better_supabase"."import_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "source" text not null,
@@ -3939,35 +3708,24 @@ create table if not exists "better_supabase"."import_runs" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."import_runs" add column if not exists "dry_run" boolean not null default false;
-alter table "better_supabase"."import_runs" add column if not exists "full" boolean not null default false;
-alter table "better_supabase"."import_runs" add column if not exists "input_checksum" text;
-alter table "better_supabase"."import_runs" add column if not exists "correlation_id" text;
-alter table "better_supabase"."import_runs" add column if not exists "scope_aliases" jsonb not null default '[]'::jsonb;
-alter table "better_supabase"."import_runs" add column if not exists "started_at" timestamptz;
-alter table "better_supabase"."import_runs" add column if not exists "finished_at" timestamptz;
-alter table "better_supabase"."import_runs" drop constraint if exists "import_runs_status_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."import_runs"'::regclass and c.conname = 'bsb_import_runs_status'
-  ), 'pg_constraint'), '') <> 'better-supabase check 664f0f9f' then
-    alter table "better_supabase"."import_runs" drop constraint if exists "bsb_import_runs_status";
-    alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status" check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
-    comment on constraint "bsb_import_runs_status" on "better_supabase"."import_runs" is 'better-supabase check 664f0f9f';
-  end if;
-end;
-$$;
+alter table "better_supabase"."import_runs" add column "dry_run" boolean not null default false;
+alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
+alter table "better_supabase"."import_runs" add column "input_checksum" text;
+alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
+alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
+alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
+alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status"
+  check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
 alter table "better_supabase"."import_runs" enable row level security;
 revoke all on "better_supabase"."import_runs" from public, anon, authenticated;
 grant select on "better_supabase"."import_runs" to authenticated;
 grant all on "better_supabase"."import_runs" to service_role;
-create index if not exists "import_runs_tenant_idx" on "better_supabase"."import_runs" ("org_id");
+create index "import_runs_tenant_idx" on "better_supabase"."import_runs" ("org_id");
 -- One pending or running run per organization and source.
-create unique index if not exists "import_runs_active_idx" on "better_supabase"."import_runs" ("org_id", "source") where "status" in ('pending', 'running');
+create unique index "import_runs_active_idx" on "better_supabase"."import_runs" ("org_id", "source") where "status" in ('pending', 'running');
 
-create table if not exists "better_supabase"."import_records" (
+create table "better_supabase"."import_records" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "source" text not null,
@@ -3984,7 +3742,7 @@ create table if not exists "better_supabase"."import_records" (
   "missing_since" timestamptz,
   constraint "import_records_key" unique ("org_id", "source", "scope", "entity", "external_key", "role")
 );
-create index if not exists "import_records_subject_idx" on "better_supabase"."import_records" ("org_id", "subject_type", "subject_id");
+create index "import_records_subject_idx" on "better_supabase"."import_records" ("org_id", "subject_type", "subject_id");
 alter table "better_supabase"."import_records" enable row level security;
 revoke all on "better_supabase"."import_records" from public, anon, authenticated;
 grant select on "better_supabase"."import_records" to authenticated;
@@ -4583,39 +4341,29 @@ grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."import_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."import_runs" as restrictive
   for select to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."import_runs" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."import_runs" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."import_runs" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."import_records";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."import_records";
 create policy bsb_tenant_scope_select on "better_supabase"."import_records" as restrictive
   for select to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."import_records";
 create policy bsb_tenant_scope_insert on "better_supabase"."import_records" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."import_records";
 create policy bsb_tenant_scope_update on "better_supabase"."import_records" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."import_records";
 create policy bsb_tenant_scope_delete on "better_supabase"."import_records" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

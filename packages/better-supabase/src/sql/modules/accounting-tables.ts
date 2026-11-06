@@ -82,7 +82,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: ctx.scope.check(tenant, read),
   }),
-  { drop: true, target: ctx.table(logical) },
+  { target: ctx.table(logical) },
 )}`;
 
   const currency = (column: string): string =>

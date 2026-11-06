@@ -1,13 +1,13 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:d27fd8864ce3f1b33cffe49bc3baf0800d7dd0620f9791ea63af7aa1b9727d0a
+-- @bsb-hash sha256:55362bf4d80336e3df567122ae38197355290aef7ce3a6193ec30f22e016c6c7
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- One row per job the dispatcher ran: when, with what result, and how often.
-create table if not exists "better_supabase"."maintenance_state" (
+create table "better_supabase"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
   "last_status" text check ("last_status" in ('ok', 'error')),
@@ -136,13 +136,13 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:e80589c36c1c13750b3d34fd77065837bcbe62b59d628563174dce84d6b250d0
+-- @bsb-hash sha256:47594629cdf04a7e92468491e88e96150255a84821f54fc835fd2b419edd9403
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- One row per job the dispatcher ran: when, with what result, and how often.
-create table if not exists "better_supabase"."maintenance_state" (
+create table "better_supabase"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
   "last_status" text check ("last_status" in ('ok', 'error')),
@@ -282,7 +282,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:5d807f9ddd3e16c93a6a10cf4c52c55b17b4fd3e7ef7fdb73bcb9d593422a282
+-- @bsb-hash sha256:41fd54ac1deb932d8ecd47e5bb5243fa2c817a92c5febcd6a20d88ab88afa7f4
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -294,7 +294,7 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 
 -- One row per job the dispatcher ran: when, with what result, and how often.
-create table if not exists "app_private"."maintenance_state" (
+create table "app_private"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
   "last_status" text check ("last_status" in ('ok', 'error')),
@@ -423,13 +423,13 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:81bcb54c1c1914adbc341002b8c276027be1f0e6c4ba212232984d299c5b42cf
+-- @bsb-hash sha256:25b25ca6068b694de830ee294c879ecce8c968bee0ffc93589bb500761a504c6
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- One row per job the dispatcher ran: when, with what result, and how often.
-create table if not exists "better_supabase"."maintenance_state" (
+create table "better_supabase"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
   "last_status" text check ("last_status" in ('ok', 'error')),

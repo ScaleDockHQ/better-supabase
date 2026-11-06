@@ -151,7 +151,7 @@ function tables(ctx: BlockSqlContext, names: PromotionsNames): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   // A column definition, left out when the app maps the column to null.

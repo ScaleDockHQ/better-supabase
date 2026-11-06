@@ -236,7 +236,7 @@ ${lockTable(views, { read: true })}
 
   return `${schemaPreamble(ctx)}
 ${tables}
-${renderPolicy(makePolicy({ table: views, name: ctx.naming.rename("saved_views_read"), command: "select", roles: ["authenticated"], using: visible }), { drop: true, target: views })}
+${renderPolicy(makePolicy({ table: views, name: ctx.naming.rename("saved_views_read"), command: "select", roles: ["authenticated"], using: visible }), { target: views })}
 ${preferences?.ddl ?? ""}
 
 ${extraFieldsArg(extras).drop(fn("save_view"), `${ctx.idType}, text, text, text, text, text, jsonb, uuid`)}
@@ -561,7 +561,7 @@ ${lockTable(prefs, { read: true })}
     `jsonb_build_object('isDefault', coalesce(${alias}.${isDefault}, false), 'hidden', coalesce(${alias}.${hidden}, false), 'pinned', coalesce(${alias}.${pinned}, false))`;
 
   return {
-    ddl: `${table}${renderPolicy(makePolicy({ table: prefs, name: ctx.naming.rename("saved_view_preferences_read"), command: "select", roles: ["authenticated"], using: `${user} = (select auth.uid())` }), { drop: true, target: prefs })}
+    ddl: `${table}${renderPolicy(makePolicy({ table: prefs, name: ctx.naming.rename("saved_view_preferences_read"), command: "select", roles: ["authenticated"], using: `${user} = (select auth.uid())` }), { target: prefs })}
 `,
     functions: `
 -- The caller's own default, hidden and pinned flags for a view they see, so

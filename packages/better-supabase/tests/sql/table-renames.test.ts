@@ -64,11 +64,9 @@ describe("module table upgrades", () => {
       modules: { tasks: { entities: { task: "ticket" } } },
     });
 
-    expect(tickets).toContain(
-      `create table if not exists "better_supabase"."tickets"`,
-    );
+    expect(tickets).toContain(`create table "better_supabase"."tickets"`);
     expect(schemaOf(["tasks"])).toContain(
-      `create table if not exists "better_supabase"."tasks"`,
+      `create table "better_supabase"."tasks"`,
     );
   });
 

@@ -386,7 +386,7 @@ create table if not exists ${t.projects} (
 create index if not exists ${ctx.naming.rename("ai_projects_owner_idx")} on ${t.projects} (${p.owner}, ${p.tenant});${nullableTenant(ctx, names, "projects")}${addExtraColumns(t.projects, extras.projects)}
 ${lockTable(t.projects)}
 grant select on ${t.projects} to authenticated;
-${renderPolicy(makePolicy({ table: t.projects, name: ctx.naming.rename("ai_projects_owner_read"), command: "select", roles: ["authenticated"], using: `${p.owner} = (select auth.uid())` }), { drop: true, target: t.projects })}
+${renderPolicy(makePolicy({ table: t.projects, name: ctx.naming.rename("ai_projects_owner_read"), command: "select", roles: ["authenticated"], using: `${p.owner} = (select auth.uid())` }), { target: t.projects })}
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
 -- active_stream_id is the reply being written, claimed compare-and-set.
@@ -431,7 +431,7 @@ create index if not exists ${ctx.naming.rename("ai_chat_participants_chat_idx")}
 create index if not exists ${ctx.naming.rename("ai_chat_participants_user_idx")} on ${t.participants} (${pa.user});${ctx.has("participants", "customerUser") ? `\ncreate index if not exists ${ctx.naming.rename("ai_chat_participants_customer_user_idx")} on ${t.participants} (${pa.customerUser});` : ""}${ctx.has("participants", "addedBy") ? `\ncreate index if not exists ${ctx.naming.rename("ai_chat_participants_added_by_idx")} on ${t.participants} (${pa.addedBy});` : ""}${addExtraColumns(t.participants, extras.participants)}
 ${lockTable(t.participants)}
 grant select on ${t.participants} to authenticated;
-${renderPolicy(makePolicy({ table: t.participants, name: ctx.naming.rename("ai_chat_participants_own_read"), command: "select", roles: ["authenticated"], using: `${pa.user} = (select auth.uid())` }), { drop: true, target: t.participants })}
+${renderPolicy(makePolicy({ table: t.participants, name: ctx.naming.rename("ai_chat_participants_own_read"), command: "select", roles: ["authenticated"], using: `${pa.user} = (select auth.uid())` }), { target: t.participants })}
 ${renderPolicy(
   makePolicy({
     table: t.chats,
@@ -442,7 +442,7 @@ ${renderPolicy(
     or (${asText(ctx, "chats", ch.visibility)} = 'organization' and ${visible})
     or ${participates(ctx, names, t.chats, [], false)}`,
   }),
-  { drop: true, target: t.chats },
+  { target: t.chats },
 )}
 
 -- ${mode.tree ? "The message tree: (chat_id, id) is the key, parent_id the previous turn.\n-- Editing a prompt or regenerating a reply adds a sibling, never an update." : "One list of messages per chat, in seq order: a regenerated reply or an\n-- edited prompt replaces the messages after it."}
@@ -466,7 +466,7 @@ create index if not exists ai_messages_owner_idx on ${t.messages} (${m.owner});
 create index if not exists ai_messages_search_idx on ${t.messages} using gin (${m.search});${ctx.owns("messages") && ctx.has("messages", "author") ? `\nalter table ${t.messages} add column if not exists ${m.author} uuid references auth.users (id) on delete set null;` : ""}${ctx.has("messages", "author") ? `\ncreate index if not exists ai_messages_author_idx on ${t.messages} (${m.author});` : ""}${addExtraColumns(t.messages, extras.messages)}${appKey(ctx, "messages", "id", ["chat", "id"])}
 ${lockTable(t.messages)}
 grant select on ${t.messages} to authenticated;
-${renderPolicy(makePolicy({ table: t.messages, name: "ai_messages_read", command: "select", roles: ["authenticated"], using: `${m.chat} in (select x.${ch.id} from ${t.chats} x)` }), { drop: true, target: t.messages })}
+${renderPolicy(makePolicy({ table: t.messages, name: "ai_messages_read", command: "select", roles: ["authenticated"], using: `${m.chat} in (select x.${ch.id} from ${t.chats} x)` }), { target: t.messages })}
 
 -- One generation: the stream it wrote, its usage and cost.
 create table if not exists ${t.runs} (
@@ -488,7 +488,7 @@ create index if not exists ai_runs_owner_idx on ${t.runs} (${r.owner});${ctx.has
 create index if not exists ai_runs_external_idx on ${t.runs} (${r.engine}, ${r.externalRun}) where ${r.externalRun} is not null;
 ${lockTable(t.runs)}
 grant select on ${t.runs} to authenticated;
-${renderPolicy(makePolicy({ table: t.runs, name: "ai_runs_owner_read", command: "select", roles: ["authenticated"], using: `${r.owner} = (select auth.uid())` }), { drop: true, target: t.runs })}
+${renderPolicy(makePolicy({ table: t.runs, name: "ai_runs_owner_read", command: "select", roles: ["authenticated"], using: `${r.owner} = (select auth.uid())` }), { target: t.runs })}
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 create table if not exists ${t.approvals} (
@@ -507,7 +507,7 @@ create index if not exists ai_tool_approvals_run_idx on ${t.approvals} (${a.run}
 create index if not exists ai_tool_approvals_owner_idx on ${t.approvals} (${a.owner});${appKey(ctx, "approvals", "id", ["id"])}${addExtraColumns(t.approvals, extras.approvals)}
 ${lockTable(t.approvals)}
 grant select on ${t.approvals} to authenticated;
-${renderPolicy(makePolicy({ table: t.approvals, name: "ai_tool_approvals_owner_read", command: "select", roles: ["authenticated"], using: `${a.owner} = (select auth.uid())` }), { drop: true, target: t.approvals })}
+${renderPolicy(makePolicy({ table: t.approvals, name: "ai_tool_approvals_owner_read", command: "select", roles: ["authenticated"], using: `${a.owner} = (select auth.uid())` }), { target: t.approvals })}
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
 -- runs (deny).
@@ -534,7 +534,7 @@ create index if not exists ai_pending_inputs_run_idx on ${t.inputs} (${i.run});
 create index if not exists ai_pending_inputs_owner_idx on ${t.inputs} (${i.owner});${addExtraColumns(t.inputs, extras.inputs)}
 ${lockTable(t.inputs)}
 grant select on ${t.inputs} to authenticated;
-${renderPolicy(makePolicy({ table: t.inputs, name: "ai_pending_inputs_owner_read", command: "select", roles: ["authenticated"], using: `${i.owner} = (select auth.uid())` }), { drop: true, target: t.inputs })}
+${renderPolicy(makePolicy({ table: t.inputs, name: "ai_pending_inputs_owner_read", command: "select", roles: ["authenticated"], using: `${i.owner} = (select auth.uid())` }), { target: t.inputs })}
 
 -- The sources a reply cited, copied out of its parts when it is saved.
 create table if not exists ${t.sources} (
@@ -548,7 +548,7 @@ create table if not exists ${t.sources} (
 );${addExtraColumns(t.sources, extras.sources)}
 ${lockTable(t.sources)}
 grant select on ${t.sources} to authenticated;
-${renderPolicy(makePolicy({ table: t.sources, name: "ai_message_sources_read", command: "select", roles: ["authenticated"], using: `${s.chat} in (select x.${ch.id} from ${t.chats} x)` }), { drop: true, target: t.sources })}
+${renderPolicy(makePolicy({ table: t.sources, name: "ai_message_sources_read", command: "select", roles: ["authenticated"], using: `${s.chat} in (select x.${ch.id} from ${t.chats} x)` }), { target: t.sources })}
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
 create table if not exists ${t.feedback} (
@@ -562,7 +562,7 @@ create table if not exists ${t.feedback} (
 create index if not exists ai_message_feedback_user_idx on ${t.feedback} (${f.user});${appKey(ctx, "feedback", "user", ["chat", "message", "user"])}${addExtraColumns(t.feedback, extras.feedback)}
 ${lockTable(t.feedback)}
 grant select on ${t.feedback} to authenticated;
-${renderPolicy(makePolicy({ table: t.feedback, name: "ai_message_feedback_own_read", command: "select", roles: ["authenticated"], using: `${f.user} = (select auth.uid())` }), { drop: true, target: t.feedback })}
+${renderPolicy(makePolicy({ table: t.feedback, name: "ai_message_feedback_own_read", command: "select", roles: ["authenticated"], using: `${f.user} = (select auth.uid())` }), { target: t.feedback })}
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
 -- stored; the token is returned once.
@@ -634,7 +634,7 @@ create index if not exists ai_run_steps_chat_idx on ${t.steps} (${rs.chat});
 create index if not exists ai_run_steps_owner_idx on ${t.steps} (${rs.owner});${appKey(ctx, "steps", "key", ["run", "key"])}${addExtraColumns(t.steps, extras.steps)}
 ${lockTable(t.steps)}
 grant select on ${t.steps} to authenticated;
-${renderPolicy(makePolicy({ table: t.steps, name: "ai_run_steps_owner_read", command: "select", roles: ["authenticated"], using: `${rs.owner} = (select auth.uid())` }), { drop: true, target: t.steps })}
+${renderPolicy(makePolicy({ table: t.steps, name: "ai_run_steps_owner_read", command: "select", roles: ["authenticated"], using: `${rs.owner} = (select auth.uid())` }), { target: t.steps })}
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
 -- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until

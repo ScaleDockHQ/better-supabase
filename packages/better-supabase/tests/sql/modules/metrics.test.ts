@@ -32,9 +32,7 @@ const orders = {
 describe("metrics module", () => {
   it("rolls each stored grain up in the metric's time zone", () => {
     const sql = sqlOf({ metrics: [orders] });
-    expect(sql).toContain(
-      `create table if not exists "better_supabase"."metric_points"`,
-    );
+    expect(sql).toContain(`create table "better_supabase"."metric_points"`);
     expect(sql).toContain(
       `v_from := date_trunc('hour', v_since, 'Europe/Amsterdam');`,
     );

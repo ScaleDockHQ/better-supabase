@@ -1,26 +1,11 @@
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:84b73d6ef0dae2dd80d65691d49f7b756098a9c74fb890886df5c85713c997a4
+-- @bsb-hash sha256:69df8273a512433f962ffda51834d2e2e683417933dc63a2d5f0a8621f03dd0f
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."workflow_events";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."workflow_events";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."workflow_events";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."workflow_events";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."workflow_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."outbox_consumers" (
+create table "better_supabase"."outbox_consumers" (
   "name" text primary key,
   -- The last event passed, ordered by (transaction id, position). Without
   -- the xid column, cursor_xid stays 0 and the position alone orders.
@@ -36,16 +21,13 @@ create table if not exists "better_supabase"."outbox_consumers" (
   "retry_at" timestamptz,
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."outbox_consumers" add column if not exists "attempts" integer not null default 0;
-alter table "better_supabase"."outbox_consumers" add column if not exists "last_error" text;
-alter table "better_supabase"."outbox_consumers" add column if not exists "retry_at" timestamptz;
 alter table "better_supabase"."outbox_consumers" enable row level security;
 revoke all on "better_supabase"."outbox_consumers" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_consumers" to service_role;
 
 -- Events a consumer skipped after max_attempts failures, with a copy of the
 -- event, so one bad event can't stop the consumer.
-create table if not exists "better_supabase"."outbox_dead_letters" (
+create table "better_supabase"."outbox_dead_letters" (
   "consumer" text not null references "better_supabase"."outbox_consumers" ("name") on delete cascade,
   "position" bigint not null,
   "event_id" text not null,
@@ -56,14 +38,14 @@ create table if not exists "better_supabase"."outbox_dead_letters" (
   "dead_at" timestamptz not null default now(),
   primary key ("consumer", "position")
 );
-create index if not exists outbox_dead_letters_dead_at_idx on "better_supabase"."outbox_dead_letters" ("dead_at");
+create index outbox_dead_letters_dead_at_idx on "better_supabase"."outbox_dead_letters" ("dead_at");
 alter table "better_supabase"."outbox_dead_letters" enable row level security;
 revoke all on "better_supabase"."outbox_dead_letters" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_dead_letters" to service_role;
 
 
 -- create or replace can't change the return type of an earlier install.
-drop function if exists "better_supabase"."emit_event"(text, jsonb, text, text, text, text);
+
 -- Appends an event in the caller's transaction, so it exists only if the
 -- transaction commits, and returns its id. A repeated key (per tenant)
 -- returns the first event's id.
@@ -124,10 +106,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."emit_event"(text, jsonb, text, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."emit_event"(text, jsonb, text, text, text, text) to service_role;
-
-drop function if exists "better_supabase"."purge_outbox"(interval);
 -- The signature before purge_outbox could pass over idle consumers.
-drop function if exists "better_supabase"."purge_outbox"(interval, integer);
+
 
 -- Registers a consumer. A new one starts after the latest event, or at the
 -- first with from_start. Registering again changes only its types.

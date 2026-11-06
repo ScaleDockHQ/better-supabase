@@ -1,59 +1,12 @@
 -- ==== schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:30ad2e8db1041b0e4cf83d87f4693a6399527d892120ea82c7aea29599e58ad4
+-- @bsb-hash sha256:8d2c0663a5962e01b0a4c0af29e4ce70d68dfea7b1a473c3d9049cb83609e864
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."calendars";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendars";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendars";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendars";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendars";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_attendees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_attendees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_attendees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_attendees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_attendees";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_event_alarms";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_event_alarms";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_event_alarms";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_event_alarms";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_event_alarms";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_working_hours";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_working_hours";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_working_hours";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_working_hours";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_working_hours";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."calendars" (
+create table "better_supabase"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 120),
@@ -67,12 +20,11 @@ alter table "better_supabase"."calendars" enable row level security;
 revoke all on "better_supabase"."calendars" from public, anon, authenticated;
 grant select on "better_supabase"."calendars" to authenticated;
 grant all on "better_supabase"."calendars" to service_role;
-create index if not exists "calendars_tenant_idx" on "better_supabase"."calendars" ("tenant_id");
-drop policy if exists calendars_read on "better_supabase"."calendars";
+create index "calendars_tenant_idx" on "better_supabase"."calendars" ("tenant_id");
 create policy calendars_read on "better_supabase"."calendars"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
-create table if not exists "better_supabase"."calendar_events" (
+create table "better_supabase"."calendar_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "calendar_id" uuid not null references "better_supabase"."calendars" ("id") on delete cascade,
@@ -102,54 +54,20 @@ create table if not exists "better_supabase"."calendar_events" (
   check (("recurrence_id" is null) = ("original_start" is null)),
   unique nulls not distinct ("calendar_id", "uid", "original_start")
 );
-create index if not exists calendar_events_recurrence_idx on "better_supabase"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
-create index if not exists calendar_events_range_idx on "better_supabase"."calendar_events" ("calendar_id", "starts_at");
-alter table "better_supabase"."calendar_events" add column if not exists "kind" text not null default 'event';
-alter table "better_supabase"."calendar_events" add column if not exists "transparency" text not null default 'opaque';
-alter table "better_supabase"."calendar_events" add column if not exists "auto_decline" boolean not null default false;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."calendar_events"'::regclass and conname = 'calendar_events_kind_check'
-  ) then
-    alter table "better_supabase"."calendar_events" add constraint "calendar_events_kind_check"
-      check ("kind" in ('event', 'out_of_office', 'focus_time')) not valid;
-    begin
-      alter table "better_supabase"."calendar_events" validate constraint "calendar_events_kind_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."calendar_events"', 'calendar_events_kind_check', '"better_supabase"."calendar_events"', 'calendar_events_kind_check';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."calendar_events"'::regclass and conname = 'calendar_events_transparency_check'
-  ) then
-    alter table "better_supabase"."calendar_events" add constraint "calendar_events_transparency_check"
-      check ("transparency" in ('opaque', 'transparent')) not valid;
-    begin
-      alter table "better_supabase"."calendar_events" validate constraint "calendar_events_transparency_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."calendar_events"', 'calendar_events_transparency_check', '"better_supabase"."calendar_events"', 'calendar_events_transparency_check';
-    end;
-  end if;
-end;
-$$;
+create index calendar_events_recurrence_idx on "better_supabase"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
+create index calendar_events_range_idx on "better_supabase"."calendar_events" ("calendar_id", "starts_at");
+alter table "better_supabase"."calendar_events" add constraint "calendar_events_kind_check"
+  check ("kind" in ('event', 'out_of_office', 'focus_time'));
+alter table "better_supabase"."calendar_events" add constraint "calendar_events_transparency_check"
+  check ("transparency" in ('opaque', 'transparent'));
 alter table "better_supabase"."calendar_events" enable row level security;
 revoke all on "better_supabase"."calendar_events" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_events" to authenticated;
 grant all on "better_supabase"."calendar_events" to service_role;
-drop policy if exists calendar_events_read on "better_supabase"."calendar_events";
 create policy calendar_events_read on "better_supabase"."calendar_events"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
-create table if not exists "better_supabase"."calendar_attendees" (
+create table "better_supabase"."calendar_attendees" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "event_id" uuid not null references "better_supabase"."calendar_events" ("id") on delete cascade,
@@ -164,29 +82,13 @@ alter table "better_supabase"."calendar_attendees" enable row level security;
 revoke all on "better_supabase"."calendar_attendees" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_attendees" to authenticated;
 grant all on "better_supabase"."calendar_attendees" to service_role;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."calendar_attendees"'::regclass and conname = 'calendar_attendees_role_check'
-  ) then
-    alter table "better_supabase"."calendar_attendees" add constraint "calendar_attendees_role_check"
-      check ("role" in ('chair', 'required', 'optional', 'non-participant')) not valid;
-    begin
-      alter table "better_supabase"."calendar_attendees" validate constraint "calendar_attendees_role_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."calendar_attendees"', 'calendar_attendees_role_check', '"better_supabase"."calendar_attendees"', 'calendar_attendees_role_check';
-    end;
-  end if;
-end;
-$$;
-drop policy if exists calendar_attendees_read on "better_supabase"."calendar_attendees";
+alter table "better_supabase"."calendar_attendees" add constraint "calendar_attendees_role_check"
+  check ("role" in ('chair', 'required', 'optional', 'non-participant'));
 create policy calendar_attendees_read on "better_supabase"."calendar_attendees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."calendar_event_alarms" (
+create table "better_supabase"."calendar_event_alarms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "event_id" uuid not null references "better_supabase"."calendar_events" ("id") on delete cascade,
@@ -201,101 +103,25 @@ create table if not exists "better_supabase"."calendar_event_alarms" (
   "summary" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "calendar_event_alarms_event_idx" on "better_supabase"."calendar_event_alarms" ("event_id");
+create index "calendar_event_alarms_event_idx" on "better_supabase"."calendar_event_alarms" ("event_id");
 alter table "better_supabase"."calendar_event_alarms" enable row level security;
 revoke all on "better_supabase"."calendar_event_alarms" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_event_alarms" to authenticated;
 grant all on "better_supabase"."calendar_event_alarms" to service_role;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_method_check'
-  ) then
-    alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_method_check"
-      check ("method" in ('display', 'email', 'audio')) not valid;
-    begin
-      alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_method_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_method_check', '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_method_check';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_offset_check'
-  ) then
-    alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
-      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
-    begin
-      alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_offset_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_offset_check', '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_offset_check';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_trigger_check'
-  ) then
-    alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_trigger_check"
-      check (("offset_minutes" is null) <> ("trigger_at" is null)) not valid;
-    begin
-      alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_trigger_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_trigger_check', '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_trigger_check';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_related_check'
-  ) then
-    alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_related_check"
-      check ("related_to" in ('start', 'end')) not valid;
-    begin
-      alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_related_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_related_check', '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_related_check';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."calendar_event_alarms"'::regclass and conname = 'calendar_event_alarms_repeat_check'
-  ) then
-    alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_repeat_check"
-      check ("repeat_count" >= 0 and ("repeat_count" = 0) = ("repeat_minutes" is null) and coalesce("repeat_minutes", 1) > 0) not valid;
-    begin
-      alter table "better_supabase"."calendar_event_alarms" validate constraint "calendar_event_alarms_repeat_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_repeat_check', '"better_supabase"."calendar_event_alarms"', 'calendar_event_alarms_repeat_check';
-    end;
-  end if;
-end;
-$$;
-drop policy if exists calendar_event_alarms_read on "better_supabase"."calendar_event_alarms";
+alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_method_check"
+  check ("method" in ('display', 'email', 'audio'));
+alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
+  check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
+alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_trigger_check"
+  check (("offset_minutes" is null) <> ("trigger_at" is null));
+alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_related_check"
+  check ("related_to" in ('start', 'end'));
+alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_repeat_check"
+  check ("repeat_count" >= 0 and ("repeat_count" = 0) = ("repeat_minutes" is null) and coalesce("repeat_minutes", 1) > 0);
 create policy calendar_event_alarms_read on "better_supabase"."calendar_event_alarms"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) and ("user_id" is null or "user_id" = (select auth.uid())));
-create table if not exists "better_supabase"."calendar_working_hours" (
+create table "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -310,7 +136,6 @@ alter table "better_supabase"."calendar_working_hours" enable row level security
 revoke all on "better_supabase"."calendar_working_hours" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_working_hours" to authenticated;
 grant all on "better_supabase"."calendar_working_hours" to service_role;
-drop policy if exists calendar_working_hours_read on "better_supabase"."calendar_working_hours";
 create policy calendar_working_hours_read on "better_supabase"."calendar_working_hours"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
@@ -376,7 +201,7 @@ grant execute on function "better_supabase"."delete_calendar"(uuid) to authentic
 -- occurrence of that series and takes the series' uid. Only the service role
 -- may pass an actor other than the caller; a new event's creator and owner are
 -- the actor, else the caller.
-drop function if exists "better_supabase"."save_calendar_event"(uuid, jsonb);
+
 create or replace function "better_supabase"."save_calendar_event"(calendar_id uuid, item jsonb, actor uuid default null)
 returns jsonb
 language plpgsql
@@ -1054,7 +879,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_attendee_auto_decline"() from public, anon, authenticated;
-drop trigger if exists "calendar_attendees_auto_decline" on "better_supabase"."calendar_attendees";
 create trigger "calendar_attendees_auto_decline"
 before insert or update of "user_id" on "better_supabase"."calendar_attendees"
 for each row
@@ -1093,7 +917,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_block_auto_decline"() from public, anon, authenticated;
-drop trigger if exists "calendar_events_auto_decline" on "better_supabase"."calendar_events";
 create trigger "calendar_events_auto_decline"
 after insert or update of "starts_at", "ends_at", "kind", "auto_decline", "status" on "better_supabase"."calendar_events"
 for each row
@@ -1887,108 +1710,83 @@ grant execute on function "better_supabase"."seed_calendar_defaults"(uuid, text,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."calendars";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendars";
 create policy bsb_tenant_scope_select on "better_supabase"."calendars" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendars";
 create policy bsb_tenant_scope_insert on "better_supabase"."calendars" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendars";
 create policy bsb_tenant_scope_update on "better_supabase"."calendars" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendars";
 create policy bsb_tenant_scope_delete on "better_supabase"."calendars" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_events";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_events";
 create policy bsb_tenant_scope_select on "better_supabase"."calendar_events" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_events";
 create policy bsb_tenant_scope_insert on "better_supabase"."calendar_events" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_events";
 create policy bsb_tenant_scope_update on "better_supabase"."calendar_events" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_events";
 create policy bsb_tenant_scope_delete on "better_supabase"."calendar_events" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_attendees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_attendees";
 create policy bsb_tenant_scope_select on "better_supabase"."calendar_attendees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_attendees";
 create policy bsb_tenant_scope_insert on "better_supabase"."calendar_attendees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_attendees";
 create policy bsb_tenant_scope_update on "better_supabase"."calendar_attendees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_attendees";
 create policy bsb_tenant_scope_delete on "better_supabase"."calendar_attendees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_event_alarms";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_event_alarms";
 create policy bsb_tenant_scope_select on "better_supabase"."calendar_event_alarms" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) and ("user_id" is null or "user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_event_alarms";
 create policy bsb_tenant_scope_insert on "better_supabase"."calendar_event_alarms" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_event_alarms";
 create policy bsb_tenant_scope_update on "better_supabase"."calendar_event_alarms" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_event_alarms";
 create policy bsb_tenant_scope_delete on "better_supabase"."calendar_event_alarms" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."calendar_working_hours";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."calendar_working_hours";
 create policy bsb_tenant_scope_select on "better_supabase"."calendar_working_hours" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."calendar_working_hours";
 create policy bsb_tenant_scope_insert on "better_supabase"."calendar_working_hours" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."calendar_working_hours";
 create policy bsb_tenant_scope_update on "better_supabase"."calendar_working_hours" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."calendar_working_hours";
 create policy bsb_tenant_scope_delete on "better_supabase"."calendar_working_hours" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

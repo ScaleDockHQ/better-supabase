@@ -1,43 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:8305f4da6415365a752d004a9f64c6686b19564c7b1969282262839281493ca9
+-- @bsb-hash sha256:ed71a2572f0844461c03de0f33b93fbde9552633c659d5da1d7726fb66ad4f52
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."drive_nodes" (
+create table "better_supabase"."drive_nodes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   
@@ -62,35 +31,19 @@ create table if not exists "better_supabase"."drive_nodes" (
   "updated_at" timestamptz not null default now(),
   check ("external_id" is null or "source" <> 'internal')
 );
-create unique index if not exists "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
-create index if not exists "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
-create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
-create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
-create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
-create unique index if not exists "drive_nodes_external_idx" on "better_supabase"."drive_nodes" ("tenant_id", "source", "external_id") where "external_id" is not null and "deleted_at" is null;
-alter table "better_supabase"."drive_nodes" add column if not exists "locked_by" uuid;
-alter table "better_supabase"."drive_nodes" add column if not exists "locked_until" timestamptz;
-alter table "better_supabase"."drive_nodes" add column if not exists "lock_note" text check (length("lock_note") <= 500);
-alter table "better_supabase"."drive_nodes" add column if not exists "download_blocked" boolean not null default false;
-alter table "better_supabase"."drive_nodes" add column if not exists "preview_pages" integer check ("preview_pages" >= 0);
-alter table "better_supabase"."drive_nodes" drop constraint if exists "drive_nodes_source_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_nodes"'::regclass and c.conname = 'bsb_drive_nodes_source'
-  ), 'pg_constraint'), '') <> 'better-supabase check 91469035' then
-    alter table "better_supabase"."drive_nodes" drop constraint if exists "bsb_drive_nodes_source";
-    alter table "better_supabase"."drive_nodes" add constraint "bsb_drive_nodes_source" check ("source" = any (array['internal', 'request', 'google-drive', 'onedrive']::text[]));
-    comment on constraint "bsb_drive_nodes_source" on "better_supabase"."drive_nodes" is 'better-supabase check 91469035';
-  end if;
-end;
-$$;
+create unique index "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
+create index "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
+create index "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
+create index "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
+create index "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
+create unique index "drive_nodes_external_idx" on "better_supabase"."drive_nodes" ("tenant_id", "source", "external_id") where "external_id" is not null and "deleted_at" is null;
+alter table "better_supabase"."drive_nodes" add constraint "bsb_drive_nodes_source"
+  check ("source" = any (array['internal', 'request', 'google-drive', 'onedrive']::text[]));
 alter table "better_supabase"."drive_nodes" enable row level security;
 revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;
 grant all on "better_supabase"."drive_nodes" to service_role;
-create table if not exists "better_supabase"."drive_grants" (
+create table "better_supabase"."drive_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null references "better_supabase"."drive_nodes" ("id") on delete cascade,
@@ -103,20 +56,9 @@ create table if not exists "better_supabase"."drive_grants" (
   "created_at" timestamptz not null default now(),
   unique ("node_id", "principal_type", "principal_id")
 );
-alter table "better_supabase"."drive_grants" add column if not exists "access_request" boolean not null default false;
-create index if not exists "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bsb_drive_grants_role'
-  ), 'pg_constraint'), '') <> 'better-supabase check d20245e0' then
-    alter table "better_supabase"."drive_grants" drop constraint if exists "bsb_drive_grants_role";
-    alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
-    comment on constraint "bsb_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
-  end if;
-end;
-$$;
+create index "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
+alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role"
+  check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
 alter table "better_supabase"."drive_grants" enable row level security;
 revoke all on "better_supabase"."drive_grants" from public, anon, authenticated;
 grant all on "better_supabase"."drive_grants" to service_role;
@@ -406,7 +348,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
-drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
 create policy drive_nodes_read on "better_supabase"."drive_nodes"
   for select to authenticated
   using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
@@ -442,7 +383,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_path" on "better_supabase"."drive_nodes";
 create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
@@ -458,7 +398,6 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_moved" on "better_supabase"."drive_nodes";
 create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "better_supabase"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
@@ -587,9 +526,7 @@ revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid, uu
 
 -- It returns the node table's row type, which differs between managed and
 -- adopted tables.
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb, text);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
+
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets owner. source 'request' marks a
 -- file request upload, which has no creator.
@@ -1365,7 +1302,7 @@ revoke execute on function "better_supabase"."drive_set_download_blocked"(text, 
 grant execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
 -- The text drive_set_text stored for each file's current content.
-create table if not exists "better_supabase"."drive_node_texts" (
+create table "better_supabase"."drive_node_texts" (
   "node_id" uuid primary key references "better_supabase"."drive_nodes" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "attachment_id" uuid not null,
@@ -1373,12 +1310,11 @@ create table if not exists "better_supabase"."drive_node_texts" (
   "content" text not null,
   "extracted_at" timestamptz not null default now()
 );
-create index if not exists "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("tenant_id");
+create index "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("tenant_id");
 alter table "better_supabase"."drive_node_texts" enable row level security;
 revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_texts" to authenticated;
 grant all on "better_supabase"."drive_node_texts" to service_role;
-drop policy if exists drive_node_texts_read on "better_supabase"."drive_node_texts";
 create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
   for select to authenticated
   using ("better_supabase"."drive_can"("node_id", 'viewer'));
@@ -1532,45 +1468,35 @@ grant execute on function "better_supabase"."drive_transfer_ownership"(uuid, uui
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_select on "better_supabase"."drive_nodes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_insert on "better_supabase"."drive_nodes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_update on "better_supabase"."drive_nodes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_select on "better_supabase"."drive_node_texts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("better_supabase"."drive_can"("node_id", 'viewer'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_insert on "better_supabase"."drive_node_texts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_update on "better_supabase"."drive_node_texts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1592,43 +1518,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:9d92165b550b5479546fc7128b25349b791488ae4b1eb62d294962c4c6280049
+-- @bsb-hash sha256:23682b6cb8724b6f07301823267e8d36b6fdced72fa3838ea835eed104e5f790
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."drive_nodes" (
+create table "better_supabase"."drive_nodes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   
@@ -1653,35 +1548,19 @@ create table if not exists "better_supabase"."drive_nodes" (
   "updated_at" timestamptz not null default now(),
   check ("external_id" is null or "source" <> 'internal')
 );
-create unique index if not exists "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
-create index if not exists "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
-create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
-create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
-create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
-create unique index if not exists "drive_nodes_external_idx" on "better_supabase"."drive_nodes" ("tenant_id", "source", "external_id") where "external_id" is not null and "deleted_at" is null;
-alter table "better_supabase"."drive_nodes" add column if not exists "locked_by" uuid;
-alter table "better_supabase"."drive_nodes" add column if not exists "locked_until" timestamptz;
-alter table "better_supabase"."drive_nodes" add column if not exists "lock_note" text check (length("lock_note") <= 500);
-alter table "better_supabase"."drive_nodes" add column if not exists "download_blocked" boolean not null default false;
-alter table "better_supabase"."drive_nodes" add column if not exists "preview_pages" integer check ("preview_pages" >= 0);
-alter table "better_supabase"."drive_nodes" drop constraint if exists "drive_nodes_source_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_nodes"'::regclass and c.conname = 'bsb_drive_nodes_source'
-  ), 'pg_constraint'), '') <> 'better-supabase check 91469035' then
-    alter table "better_supabase"."drive_nodes" drop constraint if exists "bsb_drive_nodes_source";
-    alter table "better_supabase"."drive_nodes" add constraint "bsb_drive_nodes_source" check ("source" = any (array['internal', 'request', 'google-drive', 'onedrive']::text[]));
-    comment on constraint "bsb_drive_nodes_source" on "better_supabase"."drive_nodes" is 'better-supabase check 91469035';
-  end if;
-end;
-$$;
+create unique index "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
+create index "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
+create index "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
+create index "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
+create index "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
+create unique index "drive_nodes_external_idx" on "better_supabase"."drive_nodes" ("tenant_id", "source", "external_id") where "external_id" is not null and "deleted_at" is null;
+alter table "better_supabase"."drive_nodes" add constraint "bsb_drive_nodes_source"
+  check ("source" = any (array['internal', 'request', 'google-drive', 'onedrive']::text[]));
 alter table "better_supabase"."drive_nodes" enable row level security;
 revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;
 grant all on "better_supabase"."drive_nodes" to service_role;
-create table if not exists "better_supabase"."drive_grants" (
+create table "better_supabase"."drive_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null references "better_supabase"."drive_nodes" ("id") on delete cascade,
@@ -1694,20 +1573,9 @@ create table if not exists "better_supabase"."drive_grants" (
   "created_at" timestamptz not null default now(),
   unique ("node_id", "principal_type", "principal_id")
 );
-alter table "better_supabase"."drive_grants" add column if not exists "access_request" boolean not null default false;
-create index if not exists "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bsb_drive_grants_role'
-  ), 'pg_constraint'), '') <> 'better-supabase check d20245e0' then
-    alter table "better_supabase"."drive_grants" drop constraint if exists "bsb_drive_grants_role";
-    alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
-    comment on constraint "bsb_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
-  end if;
-end;
-$$;
+create index "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
+alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role"
+  check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
 alter table "better_supabase"."drive_grants" enable row level security;
 revoke all on "better_supabase"."drive_grants" from public, anon, authenticated;
 grant all on "better_supabase"."drive_grants" to service_role;
@@ -2000,7 +1868,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
-drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
 create policy drive_nodes_read on "better_supabase"."drive_nodes"
   for select to authenticated
   using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
@@ -2036,7 +1903,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_path" on "better_supabase"."drive_nodes";
 create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
@@ -2052,7 +1918,6 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_moved" on "better_supabase"."drive_nodes";
 create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "better_supabase"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
@@ -2181,9 +2046,7 @@ revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid, uu
 
 -- It returns the node table's row type, which differs between managed and
 -- adopted tables.
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb, text);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
+
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets owner. source 'request' marks a
 -- file request upload, which has no creator.
@@ -3059,7 +2922,7 @@ revoke execute on function "better_supabase"."drive_set_download_blocked"(text, 
 grant execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
 -- The text drive_set_text stored for each file's current content.
-create table if not exists "better_supabase"."drive_node_texts" (
+create table "better_supabase"."drive_node_texts" (
   "node_id" uuid primary key references "better_supabase"."drive_nodes" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "attachment_id" uuid not null,
@@ -3067,12 +2930,11 @@ create table if not exists "better_supabase"."drive_node_texts" (
   "content" text not null,
   "extracted_at" timestamptz not null default now()
 );
-create index if not exists "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("tenant_id");
+create index "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("tenant_id");
 alter table "better_supabase"."drive_node_texts" enable row level security;
 revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_texts" to authenticated;
 grant all on "better_supabase"."drive_node_texts" to service_role;
-drop policy if exists drive_node_texts_read on "better_supabase"."drive_node_texts";
 create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
   for select to authenticated
   using ("better_supabase"."drive_can"("node_id", 'viewer'));
@@ -3269,45 +3131,35 @@ revoke execute on function "better_supabase"."drive_sharing"(uuid) from public, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_select on "better_supabase"."drive_nodes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_insert on "better_supabase"."drive_nodes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_update on "better_supabase"."drive_nodes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_select on "better_supabase"."drive_node_texts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("better_supabase"."drive_can"("node_id", 'viewer'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_insert on "better_supabase"."drive_node_texts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_update on "better_supabase"."drive_node_texts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3336,47 +3188,17 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:75581a086e6ed6af59dbdd245f603eebf996735250843a7105253421d752743b
+-- @bsb-hash sha256:56b1112bfe1974c4c1cc9daa43f6a7df69ca31417d2ea06d7ec607ff2078a349
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_nodes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."drive_grants";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."drive_grants";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."drive_grants";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."drive_grants";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_node_texts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."drive_nodes" (
+create table "app_private"."drive_nodes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   
@@ -3401,35 +3223,19 @@ create table if not exists "app_private"."drive_nodes" (
   "updated_at" timestamptz not null default now(),
   check ("external_id" is null or "source" <> 'internal')
 );
-create unique index if not exists "drive_nodes_sibling_name_idx" on "app_private"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
-create index if not exists "drive_nodes_parent_idx" on "app_private"."drive_nodes" ("tenant_id", "parent_id", "rank");
-create index if not exists "drive_nodes_parent_fk_idx" on "app_private"."drive_nodes" ("parent_id") where "parent_id" is not null;
-create index if not exists "drive_nodes_path_idx" on "app_private"."drive_nodes" ("path" text_pattern_ops);
-create index if not exists "drive_nodes_attachment_idx" on "app_private"."drive_nodes" ("attachment_id");
-create unique index if not exists "drive_nodes_external_idx" on "app_private"."drive_nodes" ("tenant_id", "source", "external_id") where "external_id" is not null and "deleted_at" is null;
-alter table "app_private"."drive_nodes" add column if not exists "locked_by" uuid;
-alter table "app_private"."drive_nodes" add column if not exists "locked_until" timestamptz;
-alter table "app_private"."drive_nodes" add column if not exists "lock_note" text check (length("lock_note") <= 500);
-alter table "app_private"."drive_nodes" add column if not exists "download_blocked" boolean not null default false;
-alter table "app_private"."drive_nodes" add column if not exists "preview_pages" integer check ("preview_pages" >= 0);
-alter table "app_private"."drive_nodes" drop constraint if exists "drive_nodes_source_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"app_private"."drive_nodes"'::regclass and c.conname = 'bsb_drive_nodes_source'
-  ), 'pg_constraint'), '') <> 'better-supabase check 91469035' then
-    alter table "app_private"."drive_nodes" drop constraint if exists "bsb_drive_nodes_source";
-    alter table "app_private"."drive_nodes" add constraint "bsb_drive_nodes_source" check ("source" = any (array['internal', 'request', 'google-drive', 'onedrive']::text[]));
-    comment on constraint "bsb_drive_nodes_source" on "app_private"."drive_nodes" is 'better-supabase check 91469035';
-  end if;
-end;
-$$;
+create unique index "drive_nodes_sibling_name_idx" on "app_private"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
+create index "drive_nodes_parent_idx" on "app_private"."drive_nodes" ("tenant_id", "parent_id", "rank");
+create index "drive_nodes_parent_fk_idx" on "app_private"."drive_nodes" ("parent_id") where "parent_id" is not null;
+create index "drive_nodes_path_idx" on "app_private"."drive_nodes" ("path" text_pattern_ops);
+create index "drive_nodes_attachment_idx" on "app_private"."drive_nodes" ("attachment_id");
+create unique index "drive_nodes_external_idx" on "app_private"."drive_nodes" ("tenant_id", "source", "external_id") where "external_id" is not null and "deleted_at" is null;
+alter table "app_private"."drive_nodes" add constraint "bsb_drive_nodes_source"
+  check ("source" = any (array['internal', 'request', 'google-drive', 'onedrive']::text[]));
 alter table "app_private"."drive_nodes" enable row level security;
 revoke all on "app_private"."drive_nodes" from public, anon, authenticated;
 grant select on "app_private"."drive_nodes" to authenticated;
 grant all on "app_private"."drive_nodes" to service_role;
-create table if not exists "app_private"."drive_grants" (
+create table "app_private"."drive_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null references "app_private"."drive_nodes" ("id") on delete cascade,
@@ -3442,20 +3248,9 @@ create table if not exists "app_private"."drive_grants" (
   "created_at" timestamptz not null default now(),
   unique ("node_id", "principal_type", "principal_id")
 );
-alter table "app_private"."drive_grants" add column if not exists "access_request" boolean not null default false;
-create index if not exists "drive_grants_principal_idx" on "app_private"."drive_grants" ("principal_type", "principal_id");
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"app_private"."drive_grants"'::regclass and c.conname = 'bsb_drive_grants_role'
-  ), 'pg_constraint'), '') <> 'better-supabase check d20245e0' then
-    alter table "app_private"."drive_grants" drop constraint if exists "bsb_drive_grants_role";
-    alter table "app_private"."drive_grants" add constraint "bsb_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
-    comment on constraint "bsb_drive_grants_role" on "app_private"."drive_grants" is 'better-supabase check d20245e0';
-  end if;
-end;
-$$;
+create index "drive_grants_principal_idx" on "app_private"."drive_grants" ("principal_type", "principal_id");
+alter table "app_private"."drive_grants" add constraint "bsb_drive_grants_role"
+  check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
 alter table "app_private"."drive_grants" enable row level security;
 revoke all on "app_private"."drive_grants" from public, anon, authenticated;
 grant all on "app_private"."drive_grants" to service_role;
@@ -3745,7 +3540,6 @@ as $$
 $$;
 revoke execute on function "app_private"."drive_node_json"("app_private"."drive_nodes") from public, anon, authenticated;
 
-drop policy if exists drive_nodes_read on "app_private"."drive_nodes";
 create policy drive_nodes_read on "app_private"."drive_nodes"
   for select to authenticated
   using ("deleted_at" is null and "id" in (select "app_private"."drive_readable_ids"()));
@@ -3781,7 +3575,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_path" on "app_private"."drive_nodes";
 create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "app_private"."drive_nodes"
   for each row execute function "app_private"."drive_node_path"();
@@ -3797,7 +3590,6 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_moved" on "app_private"."drive_nodes";
 create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "app_private"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
@@ -3926,9 +3718,7 @@ revoke execute on function "app_private"."drive_check_parent"(uuid, uuid, uuid) 
 
 -- It returns the node table's row type, which differs between managed and
 -- adopted tables.
-drop function if exists "app_private"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb, text);
-drop function if exists "app_private"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb);
-drop function if exists "app_private"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
+
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets owner. source 'request' marks a
 -- file request upload, which has no creator.
@@ -4704,7 +4494,7 @@ revoke execute on function "app_private"."drive_set_download_blocked"(text, uuid
 grant execute on function "app_private"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
 -- The text drive_set_text stored for each file's current content.
-create table if not exists "app_private"."drive_node_texts" (
+create table "app_private"."drive_node_texts" (
   "node_id" uuid primary key references "app_private"."drive_nodes" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "attachment_id" uuid not null,
@@ -4712,12 +4502,11 @@ create table if not exists "app_private"."drive_node_texts" (
   "content" text not null,
   "extracted_at" timestamptz not null default now()
 );
-create index if not exists "drive_node_texts_tenant_idx" on "app_private"."drive_node_texts" ("tenant_id");
+create index "drive_node_texts_tenant_idx" on "app_private"."drive_node_texts" ("tenant_id");
 alter table "app_private"."drive_node_texts" enable row level security;
 revoke all on "app_private"."drive_node_texts" from public, anon, authenticated;
 grant select on "app_private"."drive_node_texts" to authenticated;
 grant all on "app_private"."drive_node_texts" to service_role;
-drop policy if exists drive_node_texts_read on "app_private"."drive_node_texts";
 create policy drive_node_texts_read on "app_private"."drive_node_texts"
   for select to authenticated
   using ("app_private"."drive_can"("node_id", 'viewer'));
@@ -4871,45 +4660,35 @@ grant execute on function "app_private"."drive_transfer_ownership"(uuid, uuid, u
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."drive_nodes";
-drop policy if exists bsb_tenant_scope_select on "app_private"."drive_nodes";
 create policy bsb_tenant_scope_select on "app_private"."drive_nodes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "app_private"."drive_readable_ids"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."drive_nodes";
 create policy bsb_tenant_scope_insert on "app_private"."drive_nodes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."drive_nodes";
 create policy bsb_tenant_scope_update on "app_private"."drive_nodes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_nodes";
 create policy bsb_tenant_scope_delete on "app_private"."drive_nodes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."drive_node_texts";
-drop policy if exists bsb_tenant_scope_select on "app_private"."drive_node_texts";
 create policy bsb_tenant_scope_select on "app_private"."drive_node_texts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("app_private"."drive_can"("node_id", 'viewer'))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."drive_node_texts";
 create policy bsb_tenant_scope_insert on "app_private"."drive_node_texts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."drive_node_texts";
 create policy bsb_tenant_scope_update on "app_private"."drive_node_texts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_node_texts";
 create policy bsb_tenant_scope_delete on "app_private"."drive_node_texts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4931,43 +4710,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:588fe26127cb420fcb087a0d3914d214fe2bfd170f1f8d63fbf0d08dbb8d1de8
+-- @bsb-hash sha256:bb7d2c58c947c035e25b4e6433932d771610542f60b83350d16f195f3629c2e4
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."drive_nodes" (
+create table "better_supabase"."drive_nodes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   
@@ -4992,35 +4740,19 @@ create table if not exists "better_supabase"."drive_nodes" (
   "updated_at" timestamptz not null default now(),
   check ("external_id" is null or "source" <> 'internal')
 );
-create unique index if not exists "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
-create index if not exists "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
-create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
-create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
-create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
-create unique index if not exists "drive_nodes_external_idx" on "better_supabase"."drive_nodes" ("tenant_id", "source", "external_id") where "external_id" is not null and "deleted_at" is null;
-alter table "better_supabase"."drive_nodes" add column if not exists "locked_by" uuid;
-alter table "better_supabase"."drive_nodes" add column if not exists "locked_until" timestamptz;
-alter table "better_supabase"."drive_nodes" add column if not exists "lock_note" text check (length("lock_note") <= 500);
-alter table "better_supabase"."drive_nodes" add column if not exists "download_blocked" boolean not null default false;
-alter table "better_supabase"."drive_nodes" add column if not exists "preview_pages" integer check ("preview_pages" >= 0);
-alter table "better_supabase"."drive_nodes" drop constraint if exists "drive_nodes_source_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_nodes"'::regclass and c.conname = 'bsb_drive_nodes_source'
-  ), 'pg_constraint'), '') <> 'better-supabase check 91469035' then
-    alter table "better_supabase"."drive_nodes" drop constraint if exists "bsb_drive_nodes_source";
-    alter table "better_supabase"."drive_nodes" add constraint "bsb_drive_nodes_source" check ("source" = any (array['internal', 'request', 'google-drive', 'onedrive']::text[]));
-    comment on constraint "bsb_drive_nodes_source" on "better_supabase"."drive_nodes" is 'better-supabase check 91469035';
-  end if;
-end;
-$$;
+create unique index "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
+create index "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
+create index "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
+create index "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
+create index "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
+create unique index "drive_nodes_external_idx" on "better_supabase"."drive_nodes" ("tenant_id", "source", "external_id") where "external_id" is not null and "deleted_at" is null;
+alter table "better_supabase"."drive_nodes" add constraint "bsb_drive_nodes_source"
+  check ("source" = any (array['internal', 'request', 'google-drive', 'onedrive']::text[]));
 alter table "better_supabase"."drive_nodes" enable row level security;
 revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;
 grant all on "better_supabase"."drive_nodes" to service_role;
-create table if not exists "better_supabase"."drive_grants" (
+create table "better_supabase"."drive_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null references "better_supabase"."drive_nodes" ("id") on delete cascade,
@@ -5033,20 +4765,9 @@ create table if not exists "better_supabase"."drive_grants" (
   "created_at" timestamptz not null default now(),
   unique ("node_id", "principal_type", "principal_id")
 );
-alter table "better_supabase"."drive_grants" add column if not exists "access_request" boolean not null default false;
-create index if not exists "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bsb_drive_grants_role'
-  ), 'pg_constraint'), '') <> 'better-supabase check d20245e0' then
-    alter table "better_supabase"."drive_grants" drop constraint if exists "bsb_drive_grants_role";
-    alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
-    comment on constraint "bsb_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
-  end if;
-end;
-$$;
+create index "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
+alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role"
+  check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
 alter table "better_supabase"."drive_grants" enable row level security;
 revoke all on "better_supabase"."drive_grants" from public, anon, authenticated;
 grant all on "better_supabase"."drive_grants" to service_role;
@@ -5336,7 +5057,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
-drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
 create policy drive_nodes_read on "better_supabase"."drive_nodes"
   for select to authenticated
   using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
@@ -5372,7 +5092,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_path" on "better_supabase"."drive_nodes";
 create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
@@ -5388,7 +5107,6 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_moved" on "better_supabase"."drive_nodes";
 create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "better_supabase"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
@@ -5517,9 +5235,7 @@ revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid, uu
 
 -- It returns the node table's row type, which differs between managed and
 -- adopted tables.
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb, text);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
+
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets owner. source 'request' marks a
 -- file request upload, which has no creator.
@@ -6295,7 +6011,7 @@ revoke execute on function "better_supabase"."drive_set_download_blocked"(text, 
 grant execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
 -- The text drive_set_text stored for each file's current content.
-create table if not exists "better_supabase"."drive_node_texts" (
+create table "better_supabase"."drive_node_texts" (
   "node_id" uuid primary key references "better_supabase"."drive_nodes" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "attachment_id" uuid not null,
@@ -6303,12 +6019,11 @@ create table if not exists "better_supabase"."drive_node_texts" (
   "content" text not null,
   "extracted_at" timestamptz not null default now()
 );
-create index if not exists "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("tenant_id");
+create index "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("tenant_id");
 alter table "better_supabase"."drive_node_texts" enable row level security;
 revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_texts" to authenticated;
 grant all on "better_supabase"."drive_node_texts" to service_role;
-drop policy if exists drive_node_texts_read on "better_supabase"."drive_node_texts";
 create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
   for select to authenticated
   using ("better_supabase"."drive_can"("node_id", 'viewer'));
@@ -6462,45 +6177,35 @@ grant execute on function "better_supabase"."drive_transfer_ownership"(uuid, uui
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_select on "better_supabase"."drive_nodes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_insert on "better_supabase"."drive_nodes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_update on "better_supabase"."drive_nodes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_select on "better_supabase"."drive_node_texts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("better_supabase"."drive_can"("node_id", 'viewer'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_insert on "better_supabase"."drive_node_texts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_update on "better_supabase"."drive_node_texts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -6814,42 +6519,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:ed4ca68a082091ed70e8329bb52938ddbcc82f27ed1c2292641b86470e988c6e
+-- @bsb-hash sha256:bad502d6e98ad913bb882f981136abdf2359b5d55a6514350a34fb8697e0d4b4
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 
 -- The node's ancestors and itself, root first.
 create or replace function "better_supabase"."drive_ancestors"(node uuid)
@@ -7136,7 +6809,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
-drop policy if exists bsb_drive_nodes_select on "better_supabase"."drive_nodes";
 create policy bsb_drive_nodes_select on "better_supabase"."drive_nodes"
   for select to authenticated
   using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
@@ -7172,7 +6844,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_path" on "better_supabase"."drive_nodes";
 create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
@@ -7188,7 +6859,6 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_moved" on "better_supabase"."drive_nodes";
 create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "better_supabase"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
@@ -7317,9 +6987,7 @@ revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid, uu
 
 -- It returns the node table's row type, which differs between managed and
 -- adopted tables.
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb, text);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
+
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets owner. source 'request' marks a
 -- file request upload, which has no creator.
@@ -8249,24 +7917,19 @@ grant execute on function "better_supabase"."drive_transfer_ownership"(uuid, uui
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_select on "better_supabase"."drive_nodes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_insert on "better_supabase"."drive_nodes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_update on "better_supabase"."drive_nodes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -8288,43 +7951,12 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:2bb15e5fb94ba1a73e6b7b6226d7fb30128ff65210c979b4b1bbb87dd3ef41b1
+-- @bsb-hash sha256:e2eca5c6d861efa07b75b11bfe0867c299f643b29dca56dbec272063bb5e46ba
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."drive_nodes" (
+create table "better_supabase"."drive_nodes" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   
@@ -8349,35 +7981,19 @@ create table if not exists "better_supabase"."drive_nodes" (
   "updated_at" timestamptz not null default now(),
   check ("external_id" is null or "source" <> 'internal')
 );
-create unique index if not exists "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("org_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
-create index if not exists "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("org_id", "parent_id", "rank");
-create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
-create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
-create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
-create unique index if not exists "drive_nodes_external_idx" on "better_supabase"."drive_nodes" ("org_id", "source", "external_id") where "external_id" is not null and "deleted_at" is null;
-alter table "better_supabase"."drive_nodes" add column if not exists "locked_by" uuid;
-alter table "better_supabase"."drive_nodes" add column if not exists "locked_until" timestamptz;
-alter table "better_supabase"."drive_nodes" add column if not exists "lock_note" text check (length("lock_note") <= 500);
-alter table "better_supabase"."drive_nodes" add column if not exists "download_blocked" boolean not null default false;
-alter table "better_supabase"."drive_nodes" add column if not exists "preview_pages" integer check ("preview_pages" >= 0);
-alter table "better_supabase"."drive_nodes" drop constraint if exists "drive_nodes_source_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_nodes"'::regclass and c.conname = 'bsb_drive_nodes_source'
-  ), 'pg_constraint'), '') <> 'better-supabase check 91469035' then
-    alter table "better_supabase"."drive_nodes" drop constraint if exists "bsb_drive_nodes_source";
-    alter table "better_supabase"."drive_nodes" add constraint "bsb_drive_nodes_source" check ("source" = any (array['internal', 'request', 'google-drive', 'onedrive']::text[]));
-    comment on constraint "bsb_drive_nodes_source" on "better_supabase"."drive_nodes" is 'better-supabase check 91469035';
-  end if;
-end;
-$$;
+create unique index "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("org_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
+create index "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("org_id", "parent_id", "rank");
+create index "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;
+create index "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
+create index "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
+create unique index "drive_nodes_external_idx" on "better_supabase"."drive_nodes" ("org_id", "source", "external_id") where "external_id" is not null and "deleted_at" is null;
+alter table "better_supabase"."drive_nodes" add constraint "bsb_drive_nodes_source"
+  check ("source" = any (array['internal', 'request', 'google-drive', 'onedrive']::text[]));
 alter table "better_supabase"."drive_nodes" enable row level security;
 revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;
 grant all on "better_supabase"."drive_nodes" to service_role;
-create table if not exists "better_supabase"."drive_grants" (
+create table "better_supabase"."drive_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "node_id" uuid not null references "better_supabase"."drive_nodes" ("id") on delete cascade,
@@ -8390,20 +8006,9 @@ create table if not exists "better_supabase"."drive_grants" (
   "created_at" timestamptz not null default now(),
   unique ("node_id", "principal_type", "principal_id")
 );
-alter table "better_supabase"."drive_grants" add column if not exists "access_request" boolean not null default false;
-create index if not exists "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bsb_drive_grants_role'
-  ), 'pg_constraint'), '') <> 'better-supabase check d20245e0' then
-    alter table "better_supabase"."drive_grants" drop constraint if exists "bsb_drive_grants_role";
-    alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
-    comment on constraint "bsb_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
-  end if;
-end;
-$$;
+create index "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
+alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role"
+  check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
 alter table "better_supabase"."drive_grants" enable row level security;
 revoke all on "better_supabase"."drive_grants" from public, anon, authenticated;
 grant all on "better_supabase"."drive_grants" to service_role;
@@ -8693,7 +8298,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
-drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
 create policy drive_nodes_read on "better_supabase"."drive_nodes"
   for select to authenticated
   using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
@@ -8729,7 +8333,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_path" on "better_supabase"."drive_nodes";
 create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
@@ -8745,7 +8348,6 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_moved" on "better_supabase"."drive_nodes";
 create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "better_supabase"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
@@ -8874,9 +8476,7 @@ revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid, uu
 
 -- It returns the node table's row type, which differs between managed and
 -- adopted tables.
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb, text);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
+
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets owner. source 'request' marks a
 -- file request upload, which has no creator.
@@ -9652,7 +9252,7 @@ revoke execute on function "better_supabase"."drive_set_download_blocked"(text, 
 grant execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
 -- The text drive_set_text stored for each file's current content.
-create table if not exists "better_supabase"."drive_node_texts" (
+create table "better_supabase"."drive_node_texts" (
   "node_id" uuid primary key references "better_supabase"."drive_nodes" ("id") on delete cascade,
   "org_id" uuid not null,
   "attachment_id" uuid not null,
@@ -9660,12 +9260,11 @@ create table if not exists "better_supabase"."drive_node_texts" (
   "content" text not null,
   "extracted_at" timestamptz not null default now()
 );
-create index if not exists "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("org_id");
+create index "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("org_id");
 alter table "better_supabase"."drive_node_texts" enable row level security;
 revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_texts" to authenticated;
 grant all on "better_supabase"."drive_node_texts" to service_role;
-drop policy if exists drive_node_texts_read on "better_supabase"."drive_node_texts";
 create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
   for select to authenticated
   using ("better_supabase"."drive_can"("node_id", 'viewer'));
@@ -9819,45 +9418,35 @@ grant execute on function "better_supabase"."drive_transfer_ownership"(uuid, uui
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."drive_nodes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_select on "better_supabase"."drive_nodes" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_insert on "better_supabase"."drive_nodes" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_update on "better_supabase"."drive_nodes" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_select on "better_supabase"."drive_node_texts" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("better_supabase"."drive_can"("node_id", 'viewer'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_insert on "better_supabase"."drive_node_texts" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_update on "better_supabase"."drive_node_texts" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

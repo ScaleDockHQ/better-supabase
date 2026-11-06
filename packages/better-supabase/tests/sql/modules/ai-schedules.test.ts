@@ -17,11 +17,9 @@ describe("ai-schedules module", () => {
   it("owns tasks and runs", () => {
     const sql = body();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."ai_scheduled_tasks" (',
+      'create table "better_supabase"."ai_scheduled_tasks" (',
     );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."ai_task_runs" (',
-    );
+    expect(sql).toContain('create table "better_supabase"."ai_task_runs" (');
     expect(sql).toContain("for update skip locked");
   });
 

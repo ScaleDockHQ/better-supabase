@@ -153,9 +153,6 @@ describe("organizations module", () => {
       'perform "better_supabase"."request_organization_deletion"(organization);',
     );
     const none = body({ organizations: { options: { deleteMode: "none" } } });
-    expect(none).toContain(
-      'drop function if exists "better_supabase"."delete_organization"(uuid);',
-    );
     expect(none).not.toContain(
       'create or replace function "better_supabase"."delete_organization"',
     );
@@ -189,9 +186,7 @@ describe("organizations module", () => {
 
   it("owns its table and makes the creator the owner", () => {
     const sql = body({});
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."organizations" (',
-    );
+    expect(sql).toContain('create table "better_supabase"."organizations" (');
     expect(sql).toContain(
       'insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")\n  values (organization, owner, \'owner\');',
     );
@@ -204,7 +199,7 @@ describe("organizations module", () => {
     expect(sql).toContain('"slug" text not null');
     expect(sql).toContain("coalesce(attrs ->> 'slug', '')");
     expect(sql).toContain("memberships_organization_fkey");
-    expect(sql).toContain("on delete cascade not valid;");
+    expect(sql).toContain("on delete cascade;");
     expect(sql).toContain("deferrable initially deferred");
     expect(sql).toContain("hint = 'ORGANIZATION_ROLE_CEILING'");
     expect(sql).not.toContain("better_supabase.trusted");
@@ -282,7 +277,7 @@ describe("organizations module", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."organizations" add column if not exists "plan" text not null default 'free';`,
+      `alter table "better_supabase"."organizations" add column "plan" text not null default 'free';`,
     );
     expect(sql).toContain(`from unnest(array['plan']) c`);
     expect(sql).toContain(
@@ -330,9 +325,6 @@ describe("organizations module", () => {
 
     expect(external).not.toContain(
       'create or replace function "better_supabase"."guard_membership"',
-    );
-    expect(external).toContain(
-      'drop trigger if exists "bsb_organization_role_guard" on "public"."team_members";',
     );
     expect(external).toContain("bsb_organization_owner");
     expect(external).toContain("better_supabase.can_assign(organization,");

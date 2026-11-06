@@ -1,42 +1,11 @@
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:8279c3ffd7eb34d3ceab05d8917e58342a4391c936749424f59def7b3fe755fb
+-- @bsb-hash sha256:c4c0fc00faf5673c88c41f118b7fcb09e297288e583e670fadc94d88bf5de294
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."score_models";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."score_models";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."score_models";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."score_models";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."score_models";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."score_model_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."score_model_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."score_model_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."score_model_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."score_model_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."scores";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scores";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scores";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scores";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scores";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."score_models" (
+create table "better_supabase"."score_models" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- lead, health, or the app's own key.
@@ -58,9 +27,9 @@ create table if not exists "better_supabase"."score_models" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
-create index if not exists "score_models_subject_idx" on "better_supabase"."score_models" ("tenant_id", "subject_type");
+create index "score_models_subject_idx" on "better_supabase"."score_models" ("tenant_id", "subject_type");
 
-create table if not exists "better_supabase"."score_model_versions" (
+create table "better_supabase"."score_model_versions" (
   "model_id" uuid not null references "better_supabase"."score_models" ("id") on delete cascade,
   "version" integer not null,
   "tenant_id" uuid not null,
@@ -72,7 +41,7 @@ create table if not exists "better_supabase"."score_model_versions" (
   primary key ("model_id", "version")
 );
 
-create table if not exists "better_supabase"."scores" (
+create table "better_supabase"."scores" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "model_id" uuid not null references "better_supabase"."score_models" ("id") on delete cascade,
@@ -86,16 +55,15 @@ create table if not exists "better_supabase"."scores" (
   "is_current" boolean not null default true,
   "computed_at" timestamptz not null default now()
 );
-create unique index if not exists "scores_current_idx" on "better_supabase"."scores" ("model_id", "subject_type", "subject_id") where "is_current";
-create index if not exists "scores_rank_idx" on "better_supabase"."scores" ("tenant_id", "model_id", "score" desc) where "is_current";
-create index if not exists "scores_subject_idx" on "better_supabase"."scores" ("tenant_id", "subject_type", "subject_id") where "is_current";
-create index if not exists "scores_history_idx" on "better_supabase"."scores" ("model_id", "subject_type", "subject_id", "computed_at" desc);
+create unique index "scores_current_idx" on "better_supabase"."scores" ("model_id", "subject_type", "subject_id") where "is_current";
+create index "scores_rank_idx" on "better_supabase"."scores" ("tenant_id", "model_id", "score" desc) where "is_current";
+create index "scores_subject_idx" on "better_supabase"."scores" ("tenant_id", "subject_type", "subject_id") where "is_current";
+create index "scores_history_idx" on "better_supabase"."scores" ("model_id", "subject_type", "subject_id", "computed_at" desc);
 
 alter table "better_supabase"."score_models" enable row level security;
 revoke all on "better_supabase"."score_models" from public, anon, authenticated;
 grant select on "better_supabase"."score_models" to authenticated;
 grant all on "better_supabase"."score_models" to service_role;
-drop policy if exists "score_models_read" on "better_supabase"."score_models";
 create policy score_models_read on "better_supabase"."score_models"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
@@ -103,7 +71,6 @@ alter table "better_supabase"."score_model_versions" enable row level security;
 revoke all on "better_supabase"."score_model_versions" from public, anon, authenticated;
 grant select on "better_supabase"."score_model_versions" to authenticated;
 grant all on "better_supabase"."score_model_versions" to service_role;
-drop policy if exists "score_model_versions_read" on "better_supabase"."score_model_versions";
 create policy score_model_versions_read on "better_supabase"."score_model_versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
@@ -111,7 +78,6 @@ alter table "better_supabase"."scores" enable row level security;
 revoke all on "better_supabase"."scores" from public, anon, authenticated;
 grant select on "better_supabase"."scores" to authenticated;
 grant all on "better_supabase"."scores" to service_role;
-drop policy if exists "scores_read" on "better_supabase"."scores";
 create policy scores_read on "better_supabase"."scores"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')));
@@ -547,66 +513,51 @@ grant execute on function "better_supabase"."top_scores"(uuid, text, text, numer
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."score_models";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."score_models";
 create policy bsb_tenant_scope_select on "better_supabase"."score_models" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."score_models";
 create policy bsb_tenant_scope_insert on "better_supabase"."score_models" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."score_models";
 create policy bsb_tenant_scope_update on "better_supabase"."score_models" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."score_models";
 create policy bsb_tenant_scope_delete on "better_supabase"."score_models" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."score_model_versions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."score_model_versions";
 create policy bsb_tenant_scope_select on "better_supabase"."score_model_versions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."score_model_versions";
 create policy bsb_tenant_scope_insert on "better_supabase"."score_model_versions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."score_model_versions";
 create policy bsb_tenant_scope_update on "better_supabase"."score_model_versions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."score_model_versions";
 create policy bsb_tenant_scope_delete on "better_supabase"."score_model_versions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."scores";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."scores";
 create policy bsb_tenant_scope_select on "better_supabase"."scores" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scores";
 create policy bsb_tenant_scope_insert on "better_supabase"."scores" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."scores";
 create policy bsb_tenant_scope_update on "better_supabase"."scores" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scores";
 create policy bsb_tenant_scope_delete on "better_supabase"."scores" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

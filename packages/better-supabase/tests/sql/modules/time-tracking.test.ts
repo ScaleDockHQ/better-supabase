@@ -126,10 +126,10 @@ describe("time-tracking module", () => {
     );
     expect(sql).not.toContain("numeric(12, 2)");
     expect(sql).toContain(
-      `add constraint "time_entries_rate_currency_check"\n      check ("rate_currency" is null or "rate_currency" ~ '^[A-Z]{3}$') not valid;`,
+      `add constraint "time_entries_rate_currency_check"\n  check ("rate_currency" is null or "rate_currency" ~ '^[A-Z]{3}$');`,
     );
     expect(sql).toContain(
-      `add constraint "time_entries_rate_needs_currency_check"\n      check ("rate" is null or "rate_currency" is not null) not valid;`,
+      `add constraint "time_entries_rate_needs_currency_check"\n  check ("rate" is null or "rate_currency" is not null);`,
     );
     expect(sql).toContain(
       `'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency"`,
@@ -140,12 +140,6 @@ describe("time-tracking module", () => {
     const sql = sqlOf(BASE);
     expect(sql).toContain(
       "rate bigint default null, rate_currency text default null, note text default null",
-    );
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."start_timer"(uuid, text, text, boolean, numeric, text);`,
-    );
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid, jsonb);`,
     );
     expect(sql).toContain("TIME_RATE_INVALID");
     expect(sql).toContain(`v_row."rate" := (v_patch ->> 'rate')::bigint;`);

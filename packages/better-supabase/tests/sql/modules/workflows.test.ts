@@ -85,7 +85,7 @@ describe("workflows module, registry only", () => {
       workflows: { options: { runExtraColumns: { region: "text" } } },
     });
 
-    expect(sql).toContain('add column if not exists "region" text');
+    expect(sql).toContain('add column "region" text');
     expect(sql).toContain("fields jsonb default null");
   });
 

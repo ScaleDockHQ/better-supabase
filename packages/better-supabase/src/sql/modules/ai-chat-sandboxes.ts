@@ -104,7 +104,7 @@ alter table ${sandboxes} enable row level security;
 ${revokeTable(sandboxes)}
 grant select on ${sandboxes} to authenticated;
 grant all on ${sandboxes} to service_role;
-${renderPolicy(makePolicy({ table: sandboxes, name: "ai_sandboxes_read", command: "select", roles: ["authenticated"], using: `${s.user} = (select auth.uid()) or ${ctx.scope.check(s.tenant, perm.admin)}` }), { drop: true, target: sandboxes })}`;
+${renderPolicy(makePolicy({ table: sandboxes, name: "ai_sandboxes_read", command: "select", roles: ["authenticated"], using: `${s.user} = (select auth.uid()) or ${ctx.scope.check(s.tenant, perm.admin)}` }), { target: sandboxes })}`;
 }
 
 /** The running sandbox id of a harness session, as a SQL expression. */

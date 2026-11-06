@@ -1,43 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:9481bac1f95e7c1c8dda884fd14afbe28139dffab1ea6cb53d4cda5249c1863a
+-- @bsb-hash sha256:452783f07cbba670edb7effa138a7bf42b4e8584ed4fc4c562c2060fbf957482
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."approval_requests" (
+create table "better_supabase"."approval_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -56,20 +25,17 @@ create table if not exists "better_supabase"."approval_requests" (
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."approval_requests" add column if not exists "fingerprint" text check ("fingerprint" is null or "fingerprint" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."approval_requests" add column if not exists "consumed_at" timestamptz;
-create unique index if not exists "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
-create index if not exists "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
+create unique index "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
 create policy approval_requests_read on "better_supabase"."approval_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
-create table if not exists "better_supabase"."approval_decisions" (
+create table "better_supabase"."approval_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -82,17 +48,16 @@ create table if not exists "better_supabase"."approval_decisions" (
   check (("decision" = 'delegated') = ("delegate_to" is not null)),
   unique ("request_id", "step", "approver")
 );
-create index if not exists "approval_decisions_delegate_idx" on "better_supabase"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
+create index "approval_decisions_delegate_idx" on "better_supabase"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
 alter table "better_supabase"."approval_decisions" enable row level security;
 revoke all on "better_supabase"."approval_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
 create policy approval_decisions_read on "better_supabase"."approval_decisions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
-create table if not exists "better_supabase"."approval_items" (
+create table "better_supabase"."approval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -110,12 +75,11 @@ create table if not exists "better_supabase"."approval_items" (
   unique ("request_id", "key"),
   check (("created_type" is null) = ("created_id" is null))
 );
-create index if not exists "approval_items_tenant_idx" on "better_supabase"."approval_items" ("tenant_id", "status");
+create index "approval_items_tenant_idx" on "better_supabase"."approval_items" ("tenant_id", "status");
 alter table "better_supabase"."approval_items" enable row level security;
 revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
 grant select on "better_supabase"."approval_items" to authenticated;
 grant all on "better_supabase"."approval_items" to service_role;
-drop policy if exists approval_items_read on "better_supabase"."approval_items";
 create policy approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
@@ -144,7 +108,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."approval_memo_bump"() from public, anon, authenticated;
-drop trigger if exists "bsb_approval_memo" on "better_supabase"."memberships";
 create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."memberships"
   for each statement execute function "better_supabase"."approval_memo_bump"();
 
@@ -360,7 +323,7 @@ revoke execute on function "better_supabase"."approval_finalize"(uuid) from publ
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
 -- defaults to the caller.
-drop function if exists "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb);
+
 create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
 returns jsonb
 language plpgsql
@@ -540,12 +503,6 @@ exception
 end;
 $$;
 revoke execute on function "better_supabase"."approval_policy_tighten"(jsonb, jsonb) from public, anon, authenticated;
-
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, text);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text, jsonb, uuid);
 -- fingerprint: the hex SHA-256 of the request's canonical form, which
 -- consume_approval checks before the approved action runs. The service role
 -- may pass its own policy, which only tightens the configured and stored ones,
@@ -648,7 +605,7 @@ grant execute on function "better_supabase"."consume_approval"(uuid, text) to au
 -- escalates. The service
 -- role decides for the user in decided_by, who is recorded as the approver;
 -- it skips the approver check, never the requester's.
-drop function if exists "better_supabase"."decide_approval"(uuid, text, text);
+
 create or replace function "better_supabase"."decide_approval"(request_id uuid, decision text, comment text default null, decided_by uuid default null)
 returns jsonb
 language plpgsql
@@ -1349,66 +1306,51 @@ grant execute on function "better_supabase"."escalate_approvals"(integer) to ser
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_decisions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_decisions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_decisions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1471,43 +1413,12 @@ rollback;
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:7a0a3bb64a7e33b133d0d68cff53b453d85002303c95b6e99609db97cf26c89f
+-- @bsb-hash sha256:09b7e2caec766fa05441a5edc254ef0100968608d0f4378ec8e08c148b206d88
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."approval_requests" (
+create table "better_supabase"."approval_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1526,20 +1437,17 @@ create table if not exists "better_supabase"."approval_requests" (
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."approval_requests" add column if not exists "fingerprint" text check ("fingerprint" is null or "fingerprint" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."approval_requests" add column if not exists "consumed_at" timestamptz;
-create unique index if not exists "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
-create index if not exists "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
+create unique index "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
 create policy approval_requests_read on "better_supabase"."approval_requests"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) and not "subject_type" in ('support_request', 'ai_tool_approval')) or "requested_by" = (select auth.uid()));
 
-create table if not exists "better_supabase"."approval_decisions" (
+create table "better_supabase"."approval_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -1552,17 +1460,16 @@ create table if not exists "better_supabase"."approval_decisions" (
   check (("decision" = 'delegated') = ("delegate_to" is not null)),
   unique ("request_id", "step", "approver")
 );
-create index if not exists "approval_decisions_delegate_idx" on "better_supabase"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
+create index "approval_decisions_delegate_idx" on "better_supabase"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
 alter table "better_supabase"."approval_decisions" enable row level security;
 revoke all on "better_supabase"."approval_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
 create policy approval_decisions_read on "better_supabase"."approval_decisions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
-create table if not exists "better_supabase"."approval_items" (
+create table "better_supabase"."approval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -1580,12 +1487,11 @@ create table if not exists "better_supabase"."approval_items" (
   unique ("request_id", "key"),
   check (("created_type" is null) = ("created_id" is null))
 );
-create index if not exists "approval_items_tenant_idx" on "better_supabase"."approval_items" ("tenant_id", "status");
+create index "approval_items_tenant_idx" on "better_supabase"."approval_items" ("tenant_id", "status");
 alter table "better_supabase"."approval_items" enable row level security;
 revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
 grant select on "better_supabase"."approval_items" to authenticated;
 grant all on "better_supabase"."approval_items" to service_role;
-drop policy if exists approval_items_read on "better_supabase"."approval_items";
 create policy approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
@@ -1614,10 +1520,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."approval_memo_bump"() from public, anon, authenticated;
-drop trigger if exists "bsb_approval_memo" on "better_supabase"."memberships";
 create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."memberships"
   for each statement execute function "better_supabase"."approval_memo_bump"();
-drop trigger if exists "bsb_approval_memo" on "better_supabase"."team_members";
 create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."team_members"
   for each statement execute function "better_supabase"."approval_memo_bump"();
 
@@ -1987,7 +1891,7 @@ revoke execute on function "better_supabase"."approval_finalize"(uuid) from publ
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
 -- defaults to the caller.
-drop function if exists "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb);
+
 create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
 returns jsonb
 language plpgsql
@@ -2245,12 +2149,6 @@ exception
 end;
 $$;
 revoke execute on function "better_supabase"."approval_policy_tighten"(jsonb, jsonb) from public, anon, authenticated;
-
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, text);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text, jsonb, uuid);
 -- fingerprint: the hex SHA-256 of the request's canonical form, which
 -- consume_approval checks before the approved action runs. The service role
 -- may pass its own policy, which only tightens the configured and stored ones,
@@ -2362,7 +2260,7 @@ grant execute on function "better_supabase"."consume_approval"(uuid, text) to au
 -- escalates. The service
 -- role decides for the user in decided_by, who is recorded as the approver;
 -- it skips the approver check, never the requester's.
-drop function if exists "better_supabase"."decide_approval"(uuid, text, text);
+
 create or replace function "better_supabase"."decide_approval"(request_id uuid, decision text, comment text default null, decided_by uuid default null)
 returns jsonb
 language plpgsql
@@ -3132,66 +3030,51 @@ grant execute on function "better_supabase"."escalate_approvals"(integer) to ser
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) and not "subject_type" in ('support_request', 'ai_tool_approval')) or "requested_by" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_decisions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_decisions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_decisions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3261,47 +3144,17 @@ rollback;
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:0bc1077406a9a19008fc1ddc0ebf5a58babb6673f92d3dae4ec7e7a351fe92bb
+-- @bsb-hash sha256:f1fdbe9d7a6a23922087312b52d19b8ebeabb0f00bc308a3c1051f377c1269a0
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."approval_requests";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."approval_requests";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."approval_requests";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."approval_requests";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."approval_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."approval_decisions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."approval_items";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."approval_items";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."approval_items";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."approval_items";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."approval_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."approval_requests" (
+create table "app_private"."approval_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -3320,20 +3173,17 @@ create table if not exists "app_private"."approval_requests" (
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-alter table "app_private"."approval_requests" add column if not exists "fingerprint" text check ("fingerprint" is null or "fingerprint" ~ '^[0-9a-f]{64}$');
-alter table "app_private"."approval_requests" add column if not exists "consumed_at" timestamptz;
-create unique index if not exists "approval_requests_pending_idx" on "app_private"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
-create index if not exists "approval_requests_tenant_idx" on "app_private"."approval_requests" ("tenant_id", "status", "created_at" desc);
+create unique index "approval_requests_pending_idx" on "app_private"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index "approval_requests_tenant_idx" on "app_private"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "app_private"."approval_requests" enable row level security;
 revoke all on "app_private"."approval_requests" from public, anon, authenticated;
 grant select on "app_private"."approval_requests" to authenticated;
 grant all on "app_private"."approval_requests" to service_role;
-drop policy if exists approval_requests_read on "app_private"."approval_requests";
 create policy approval_requests_read on "app_private"."approval_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
-create table if not exists "app_private"."approval_decisions" (
+create table "app_private"."approval_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "app_private"."approval_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -3346,17 +3196,16 @@ create table if not exists "app_private"."approval_decisions" (
   check (("decision" = 'delegated') = ("delegate_to" is not null)),
   unique ("request_id", "step", "approver")
 );
-create index if not exists "approval_decisions_delegate_idx" on "app_private"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
+create index "approval_decisions_delegate_idx" on "app_private"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
 alter table "app_private"."approval_decisions" enable row level security;
 revoke all on "app_private"."approval_decisions" from public, anon, authenticated;
 grant select on "app_private"."approval_decisions" to authenticated;
 grant all on "app_private"."approval_decisions" to service_role;
-drop policy if exists approval_decisions_read on "app_private"."approval_decisions";
 create policy approval_decisions_read on "app_private"."approval_decisions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
-create table if not exists "app_private"."approval_items" (
+create table "app_private"."approval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "app_private"."approval_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -3374,12 +3223,11 @@ create table if not exists "app_private"."approval_items" (
   unique ("request_id", "key"),
   check (("created_type" is null) = ("created_id" is null))
 );
-create index if not exists "approval_items_tenant_idx" on "app_private"."approval_items" ("tenant_id", "status");
+create index "approval_items_tenant_idx" on "app_private"."approval_items" ("tenant_id", "status");
 alter table "app_private"."approval_items" enable row level security;
 revoke all on "app_private"."approval_items" from public, anon, authenticated;
 grant select on "app_private"."approval_items" to authenticated;
 grant all on "app_private"."approval_items" to service_role;
-drop policy if exists approval_items_read on "app_private"."approval_items";
 create policy approval_items_read on "app_private"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
@@ -3408,7 +3256,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."approval_memo_bump"() from public, anon, authenticated;
-drop trigger if exists "bsb_approval_memo" on "better_supabase"."memberships";
 create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."memberships"
   for each statement execute function "app_private"."approval_memo_bump"();
 
@@ -3624,7 +3471,7 @@ revoke execute on function "app_private"."approval_finalize"(uuid) from public, 
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
 -- defaults to the caller.
-drop function if exists "app_private"."open_approval"(uuid, text, text, text, jsonb, text, jsonb);
+
 create or replace function "app_private"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
 returns jsonb
 language plpgsql
@@ -3804,12 +3651,6 @@ exception
 end;
 $$;
 revoke execute on function "app_private"."approval_policy_tighten"(jsonb, jsonb) from public, anon, authenticated;
-
-drop function if exists "app_private"."request_approval"(uuid, text, text, text, text, jsonb);
-drop function if exists "app_private"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
-drop function if exists "app_private"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text);
-drop function if exists "app_private"."request_approval"(uuid, text, text, text, text, jsonb, text);
-drop function if exists "app_private"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text, jsonb, uuid);
 -- fingerprint: the hex SHA-256 of the request's canonical form, which
 -- consume_approval checks before the approved action runs. The service role
 -- may pass its own policy, which only tightens the configured and stored ones,
@@ -3912,7 +3753,7 @@ grant execute on function "app_private"."consume_approval"(uuid, text) to authen
 -- escalates. The service
 -- role decides for the user in decided_by, who is recorded as the approver;
 -- it skips the approver check, never the requester's.
-drop function if exists "app_private"."decide_approval"(uuid, text, text);
+
 create or replace function "app_private"."decide_approval"(request_id uuid, decision text, comment text default null, decided_by uuid default null)
 returns jsonb
 language plpgsql
@@ -4613,66 +4454,51 @@ grant execute on function "app_private"."escalate_approvals"(integer) to service
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."approval_requests";
-drop policy if exists bsb_tenant_scope_select on "app_private"."approval_requests";
 create policy bsb_tenant_scope_select on "app_private"."approval_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."approval_requests";
 create policy bsb_tenant_scope_insert on "app_private"."approval_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."approval_requests";
 create policy bsb_tenant_scope_update on "app_private"."approval_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."approval_requests";
 create policy bsb_tenant_scope_delete on "app_private"."approval_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."approval_decisions";
-drop policy if exists bsb_tenant_scope_select on "app_private"."approval_decisions";
 create policy bsb_tenant_scope_select on "app_private"."approval_decisions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."approval_decisions";
 create policy bsb_tenant_scope_insert on "app_private"."approval_decisions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."approval_decisions";
 create policy bsb_tenant_scope_update on "app_private"."approval_decisions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."approval_decisions";
 create policy bsb_tenant_scope_delete on "app_private"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."approval_items";
-drop policy if exists bsb_tenant_scope_select on "app_private"."approval_items";
 create policy bsb_tenant_scope_select on "app_private"."approval_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."approval_items";
 create policy bsb_tenant_scope_insert on "app_private"."approval_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."approval_items";
 create policy bsb_tenant_scope_update on "app_private"."approval_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."approval_items";
 create policy bsb_tenant_scope_delete on "app_private"."approval_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4735,43 +4561,12 @@ rollback;
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:6eb17c3bb606aa87385a83c2cc8ffc935a4d4c4c63d680389b4e5833756fc1f2
+-- @bsb-hash sha256:078a14deb325ab97c5a2a1e417e7dd6d638adbde11670ecad66f67b8d9f69453
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."approval_requests" (
+create table "better_supabase"."approval_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -4790,20 +4585,17 @@ create table if not exists "better_supabase"."approval_requests" (
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."approval_requests" add column if not exists "fingerprint" text check ("fingerprint" is null or "fingerprint" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."approval_requests" add column if not exists "consumed_at" timestamptz;
-create unique index if not exists "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
-create index if not exists "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
+create unique index "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
 create policy approval_requests_read on "better_supabase"."approval_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
-create table if not exists "better_supabase"."approval_decisions" (
+create table "better_supabase"."approval_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -4816,17 +4608,16 @@ create table if not exists "better_supabase"."approval_decisions" (
   check (("decision" = 'delegated') = ("delegate_to" is not null)),
   unique ("request_id", "step", "approver")
 );
-create index if not exists "approval_decisions_delegate_idx" on "better_supabase"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
+create index "approval_decisions_delegate_idx" on "better_supabase"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
 alter table "better_supabase"."approval_decisions" enable row level security;
 revoke all on "better_supabase"."approval_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
 create policy approval_decisions_read on "better_supabase"."approval_decisions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
-create table if not exists "better_supabase"."approval_items" (
+create table "better_supabase"."approval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -4844,12 +4635,11 @@ create table if not exists "better_supabase"."approval_items" (
   unique ("request_id", "key"),
   check (("created_type" is null) = ("created_id" is null))
 );
-create index if not exists "approval_items_tenant_idx" on "better_supabase"."approval_items" ("tenant_id", "status");
+create index "approval_items_tenant_idx" on "better_supabase"."approval_items" ("tenant_id", "status");
 alter table "better_supabase"."approval_items" enable row level security;
 revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
 grant select on "better_supabase"."approval_items" to authenticated;
 grant all on "better_supabase"."approval_items" to service_role;
-drop policy if exists approval_items_read on "better_supabase"."approval_items";
 create policy approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
@@ -4878,7 +4668,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."approval_memo_bump"() from public, anon, authenticated;
-drop trigger if exists "bsb_approval_memo" on "better_supabase"."memberships";
 create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."memberships"
   for each statement execute function "better_supabase"."approval_memo_bump"();
 
@@ -5094,7 +4883,7 @@ revoke execute on function "better_supabase"."approval_finalize"(uuid) from publ
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
 -- defaults to the caller.
-drop function if exists "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb);
+
 create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
 returns jsonb
 language plpgsql
@@ -5274,12 +5063,6 @@ exception
 end;
 $$;
 revoke execute on function "better_supabase"."approval_policy_tighten"(jsonb, jsonb) from public, anon, authenticated;
-
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, text);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text, jsonb, uuid);
 -- fingerprint: the hex SHA-256 of the request's canonical form, which
 -- consume_approval checks before the approved action runs. The service role
 -- may pass its own policy, which only tightens the configured and stored ones,
@@ -5382,7 +5165,7 @@ grant execute on function "better_supabase"."consume_approval"(uuid, text) to au
 -- escalates. The service
 -- role decides for the user in decided_by, who is recorded as the approver;
 -- it skips the approver check, never the requester's.
-drop function if exists "better_supabase"."decide_approval"(uuid, text, text);
+
 create or replace function "better_supabase"."decide_approval"(request_id uuid, decision text, comment text default null, decided_by uuid default null)
 returns jsonb
 language plpgsql
@@ -6083,66 +5866,51 @@ grant execute on function "better_supabase"."escalate_approvals"(integer) to ser
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_decisions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_decisions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_decisions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -6150,13 +5918,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as r
 -- blocks.approvals.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb);
-drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
-drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text);
-drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, text);
-drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text, jsonb, uuid);
-drop function if exists "api"."decide_approval"(uuid, text, text);
 
 create or replace function "api"."approval_policy"(subject_type text, action text)
 returns jsonb
@@ -6404,41 +6165,10 @@ rollback;
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:cd7c05ad8287a36fbe7426c74af2c73214a2e6308b5e2013d36c1019daf4278e
+-- @bsb-hash sha256:5472ead5bdf581ed6c4d4c168db93f5f203ad98661aa98c71d81b5afeb57db35
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- better_supabase.approval_requests is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."approval_requests" add column if not exists "id" uuid default gen_random_uuid();
@@ -6465,7 +6195,6 @@ create index if not exists "approval_requests_tenant_idx" on "better_supabase"."
 alter table "better_supabase"."approval_requests" enable row level security;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-drop policy if exists bsb_approval_requests_select on "better_supabase"."approval_requests";
 create policy bsb_approval_requests_select on "better_supabase"."approval_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
@@ -6485,7 +6214,6 @@ create index if not exists "approval_decisions_delegate_idx" on "better_supabase
 alter table "better_supabase"."approval_decisions" enable row level security;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-drop policy if exists bsb_approval_decisions_select on "better_supabase"."approval_decisions";
 create policy bsb_approval_decisions_select on "better_supabase"."approval_decisions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
@@ -6509,7 +6237,6 @@ create index if not exists "approval_items_tenant_idx" on "better_supabase"."app
 alter table "better_supabase"."approval_items" enable row level security;
 grant select on "better_supabase"."approval_items" to authenticated;
 grant all on "better_supabase"."approval_items" to service_role;
-drop policy if exists bsb_approval_items_select on "better_supabase"."approval_items";
 create policy bsb_approval_items_select on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
@@ -6538,7 +6265,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."approval_memo_bump"() from public, anon, authenticated;
-drop trigger if exists "bsb_approval_memo" on "better_supabase"."memberships";
 create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."memberships"
   for each statement execute function "better_supabase"."approval_memo_bump"();
 
@@ -6754,7 +6480,7 @@ revoke execute on function "better_supabase"."approval_finalize"(uuid) from publ
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
 -- defaults to the caller.
-drop function if exists "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb);
+
 create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
 returns jsonb
 language plpgsql
@@ -6934,12 +6660,6 @@ exception
 end;
 $$;
 revoke execute on function "better_supabase"."approval_policy_tighten"(jsonb, jsonb) from public, anon, authenticated;
-
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, text);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text, jsonb, uuid);
 -- fingerprint: the hex SHA-256 of the request's canonical form, which
 -- consume_approval checks before the approved action runs. The service role
 -- may pass its own policy, which only tightens the configured and stored ones,
@@ -7042,7 +6762,7 @@ grant execute on function "better_supabase"."consume_approval"(uuid, text) to au
 -- escalates. The service
 -- role decides for the user in decided_by, who is recorded as the approver;
 -- it skips the approver check, never the requester's.
-drop function if exists "better_supabase"."decide_approval"(uuid, text, text);
+
 create or replace function "better_supabase"."decide_approval"(request_id uuid, decision text, comment text default null, decided_by uuid default null)
 returns jsonb
 language plpgsql
@@ -7743,66 +7463,51 @@ grant execute on function "better_supabase"."escalate_approvals"(integer) to ser
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_decisions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_decisions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_decisions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -7865,43 +7570,12 @@ rollback;
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:a61c9144393c87ffecd946450bb99ac175fb5197f822eb0a98714e84af4b67dc
+-- @bsb-hash sha256:0b2aeb2efcabc72ed6d4277c9e4a8eea0b1aa011d28acb048c790a67e7b348c6
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."approval_requests" (
+create table "better_supabase"."approval_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -7920,20 +7594,17 @@ create table if not exists "better_supabase"."approval_requests" (
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."approval_requests" add column if not exists "fingerprint" text check ("fingerprint" is null or "fingerprint" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."approval_requests" add column if not exists "consumed_at" timestamptz;
-create unique index if not exists "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
-create index if not exists "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("org_id", "status", "created_at" desc);
+create unique index "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("org_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
 create policy approval_requests_read on "better_supabase"."approval_requests"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
-create table if not exists "better_supabase"."approval_decisions" (
+create table "better_supabase"."approval_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
   "org_id" uuid not null,
@@ -7946,17 +7617,16 @@ create table if not exists "better_supabase"."approval_decisions" (
   check (("decision" = 'delegated') = ("delegate_to" is not null)),
   unique ("request_id", "step", "approver")
 );
-create index if not exists "approval_decisions_delegate_idx" on "better_supabase"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
+create index "approval_decisions_delegate_idx" on "better_supabase"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
 alter table "better_supabase"."approval_decisions" enable row level security;
 revoke all on "better_supabase"."approval_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
 create policy approval_decisions_read on "better_supabase"."approval_decisions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
-create table if not exists "better_supabase"."approval_items" (
+create table "better_supabase"."approval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
   "org_id" uuid not null,
@@ -7974,12 +7644,11 @@ create table if not exists "better_supabase"."approval_items" (
   unique ("request_id", "key"),
   check (("created_type" is null) = ("created_id" is null))
 );
-create index if not exists "approval_items_tenant_idx" on "better_supabase"."approval_items" ("org_id", "status");
+create index "approval_items_tenant_idx" on "better_supabase"."approval_items" ("org_id", "status");
 alter table "better_supabase"."approval_items" enable row level security;
 revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
 grant select on "better_supabase"."approval_items" to authenticated;
 grant all on "better_supabase"."approval_items" to service_role;
-drop policy if exists approval_items_read on "better_supabase"."approval_items";
 create policy approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')));
@@ -8008,7 +7677,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."approval_memo_bump"() from public, anon, authenticated;
-drop trigger if exists "bsb_approval_memo" on "better_supabase"."memberships";
 create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."memberships"
   for each statement execute function "better_supabase"."approval_memo_bump"();
 
@@ -8224,7 +7892,7 @@ revoke execute on function "better_supabase"."approval_finalize"(uuid) from publ
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
 -- defaults to the caller.
-drop function if exists "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb);
+
 create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
 returns jsonb
 language plpgsql
@@ -8404,12 +8072,6 @@ exception
 end;
 $$;
 revoke execute on function "better_supabase"."approval_policy_tighten"(jsonb, jsonb) from public, anon, authenticated;
-
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, text);
-drop function if exists "better_supabase"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text, jsonb, uuid);
 -- fingerprint: the hex SHA-256 of the request's canonical form, which
 -- consume_approval checks before the approved action runs. The service role
 -- may pass its own policy, which only tightens the configured and stored ones,
@@ -8512,7 +8174,7 @@ grant execute on function "better_supabase"."consume_approval"(uuid, text) to au
 -- escalates. The service
 -- role decides for the user in decided_by, who is recorded as the approver;
 -- it skips the approver check, never the requester's.
-drop function if exists "better_supabase"."decide_approval"(uuid, text, text);
+
 create or replace function "better_supabase"."decide_approval"(request_id uuid, decision text, comment text default null, decided_by uuid default null)
 returns jsonb
 language plpgsql
@@ -9213,66 +8875,51 @@ grant execute on function "better_supabase"."escalate_approvals"(integer) to ser
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_requests" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_requests" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_requests" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_requests" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_decisions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_decisions" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_decisions" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_decisions" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_decisions";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_decisions" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."approval_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_select on "better_supabase"."approval_items" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_items" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_update on "better_supabase"."approval_items" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."approval_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

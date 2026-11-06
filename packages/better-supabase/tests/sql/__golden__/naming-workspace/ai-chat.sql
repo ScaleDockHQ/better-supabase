@@ -1,60 +1,13 @@
 -- ==== schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:dbb1105eb406c40e032aefaf2ee92dd93eb34d6c6385eef2d1a4ea549d564060
+-- @bsb-hash sha256:b784a29955a62750a549ba1bbbf3f0b73cd166bdeb6ae8d59eb061388cf0408f
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_tool_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_moderation_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Projects group chats and carry instructions and a default model.
-create table if not exists "better_supabase"."ai_projects" (
+create table "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -66,19 +19,18 @@ create table if not exists "better_supabase"."ai_projects" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "workspace_id");
+create index ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "workspace_id");
 alter table "better_supabase"."ai_projects" enable row level security;
 revoke all on "better_supabase"."ai_projects" from public, anon, authenticated;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
-drop policy if exists ai_projects_owner_read on "better_supabase"."ai_projects";
 create policy ai_projects_owner_read on "better_supabase"."ai_projects"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
 -- active_stream_id is the reply being written, claimed compare-and-set.
-create table if not exists "better_supabase"."ai_chats" (
+create table "better_supabase"."ai_chats" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -101,11 +53,11 @@ create table if not exists "better_supabase"."ai_chats" (
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored,
   check (not "is_temporary" or "expires_at" is not null)
 );
-create index if not exists ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
-create index if not exists ai_chats_tenant_idx on "better_supabase"."ai_chats" ("workspace_id");
-create index if not exists ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
-create index if not exists ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
-create index if not exists ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
+create index ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
+create index ai_chats_tenant_idx on "better_supabase"."ai_chats" ("workspace_id");
+create index ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
+create index ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
+create index ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
 alter table "better_supabase"."ai_chats" enable row level security;
 revoke all on "better_supabase"."ai_chats" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;
@@ -115,7 +67,7 @@ grant select on "better_supabase"."ai_chats" to authenticated;
 -- to it (editor): a user, every member of a team, a customer with guest
 -- access, or an external email that reads only through the live link. Each
 -- user sees only their own rows.
-create table if not exists "better_supabase"."ai_chat_participants" (
+create table "better_supabase"."ai_chat_participants" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "user_id" uuid references auth.users (id) on delete cascade,
@@ -133,23 +85,21 @@ create table if not exists "better_supabase"."ai_chat_participants" (
     or ("kind" = 'external' and "email" is not null)
   )
 );
-create unique index if not exists ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
-create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
-create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
-create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
-create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
-create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
-create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
-create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
+create unique index ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
+create unique index ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
+create unique index ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
+create unique index ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
+create index ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
+create index ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
 grant select on "better_supabase"."ai_chat_participants" to authenticated;
-drop policy if exists ai_chat_participants_own_read on "better_supabase"."ai_chat_participants";
 create policy ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
 create policy ai_chats_read on "better_supabase"."ai_chats"
   for select to authenticated
   using ("owner_id" = (select auth.uid())
@@ -159,7 +109,7 @@ create policy ai_chats_read on "better_supabase"."ai_chats"
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
 -- parts holds the canonical AI message parts; native the SDK's own shape.
-create table if not exists "better_supabase"."ai_messages" (
+create table "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "id" text not null check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
@@ -181,22 +131,20 @@ create table if not exists "better_supabase"."ai_messages" (
   primary key ("chat_id", "id"),
   foreign key ("chat_id", "parent_id") references "better_supabase"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messages" ("chat_id", "parent_id");
-create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
-create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
-alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
-create index if not exists ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
+create index ai_messages_parent_idx on "better_supabase"."ai_messages" ("chat_id", "parent_id");
+create index ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
+create index ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
+create index ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
 alter table "better_supabase"."ai_messages" enable row level security;
 revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
-drop policy if exists ai_messages_read on "better_supabase"."ai_messages";
 create policy ai_messages_read on "better_supabase"."ai_messages"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
-create table if not exists "better_supabase"."ai_runs" (
+create table "better_supabase"."ai_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
@@ -213,21 +161,20 @@ create table if not exists "better_supabase"."ai_runs" (
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz
 );
-create index if not exists ai_runs_chat_idx on "better_supabase"."ai_runs" ("chat_id", "started_at" desc);
-create index if not exists ai_runs_owner_idx on "better_supabase"."ai_runs" ("owner_id");
-create index if not exists ai_runs_generation_idx on "better_supabase"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
-create index if not exists ai_runs_external_idx on "better_supabase"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
+create index ai_runs_chat_idx on "better_supabase"."ai_runs" ("chat_id", "started_at" desc);
+create index ai_runs_owner_idx on "better_supabase"."ai_runs" ("owner_id");
+create index ai_runs_generation_idx on "better_supabase"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
+create index ai_runs_external_idx on "better_supabase"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
 alter table "better_supabase"."ai_runs" enable row level security;
 revoke all on "better_supabase"."ai_runs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
-drop policy if exists ai_runs_owner_read on "better_supabase"."ai_runs";
 create policy ai_runs_owner_read on "better_supabase"."ai_runs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
-create table if not exists "better_supabase"."ai_tool_approvals" (
+create table "better_supabase"."ai_tool_approvals" (
   "approval_id" text primary key check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
@@ -243,21 +190,20 @@ create table if not exists "better_supabase"."ai_tool_approvals" (
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_tool_approvals_chat_idx on "better_supabase"."ai_tool_approvals" ("chat_id");
-create index if not exists ai_tool_approvals_run_idx on "better_supabase"."ai_tool_approvals" ("run_id");
-create index if not exists ai_tool_approvals_owner_idx on "better_supabase"."ai_tool_approvals" ("owner_id");
+create index ai_tool_approvals_chat_idx on "better_supabase"."ai_tool_approvals" ("chat_id");
+create index ai_tool_approvals_run_idx on "better_supabase"."ai_tool_approvals" ("run_id");
+create index ai_tool_approvals_owner_idx on "better_supabase"."ai_tool_approvals" ("owner_id");
 alter table "better_supabase"."ai_tool_approvals" enable row level security;
 revoke all on "better_supabase"."ai_tool_approvals" from public, anon, authenticated;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
-drop policy if exists ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals";
 create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
 -- runs (deny).
-create table if not exists "better_supabase"."ai_tool_policies" (
+create table "better_supabase"."ai_tool_policies" (
   "workspace_id" uuid not null,
   "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
   "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
@@ -269,7 +215,7 @@ revoke all on "better_supabase"."ai_tool_policies" from public, anon, authentica
 grant all on "better_supabase"."ai_tool_policies" to service_role;
 
 -- A question the model asked the user mid-run (a form or a choice).
-create table if not exists "better_supabase"."ai_pending_inputs" (
+create table "better_supabase"."ai_pending_inputs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
@@ -281,20 +227,19 @@ create table if not exists "better_supabase"."ai_pending_inputs" (
   "answered_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_pending_inputs_chat_idx on "better_supabase"."ai_pending_inputs" ("chat_id");
-create index if not exists ai_pending_inputs_run_idx on "better_supabase"."ai_pending_inputs" ("run_id");
-create index if not exists ai_pending_inputs_owner_idx on "better_supabase"."ai_pending_inputs" ("owner_id");
+create index ai_pending_inputs_chat_idx on "better_supabase"."ai_pending_inputs" ("chat_id");
+create index ai_pending_inputs_run_idx on "better_supabase"."ai_pending_inputs" ("run_id");
+create index ai_pending_inputs_owner_idx on "better_supabase"."ai_pending_inputs" ("owner_id");
 alter table "better_supabase"."ai_pending_inputs" enable row level security;
 revoke all on "better_supabase"."ai_pending_inputs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
-drop policy if exists ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs";
 create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
-create table if not exists "better_supabase"."ai_message_sources" (
+create table "better_supabase"."ai_message_sources" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "source_id" text not null,
@@ -309,13 +254,12 @@ alter table "better_supabase"."ai_message_sources" enable row level security;
 revoke all on "better_supabase"."ai_message_sources" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
-drop policy if exists ai_message_sources_read on "better_supabase"."ai_message_sources";
 create policy ai_message_sources_read on "better_supabase"."ai_message_sources"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
-create table if not exists "better_supabase"."ai_message_feedback" (
+create table "better_supabase"."ai_message_feedback" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -327,19 +271,18 @@ create table if not exists "better_supabase"."ai_message_feedback" (
   primary key ("chat_id", "message_id", "user_id"),
   foreign key ("chat_id", "message_id") references "better_supabase"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
+create index ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
 alter table "better_supabase"."ai_message_feedback" enable row level security;
 revoke all on "better_supabase"."ai_message_feedback" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
-drop policy if exists ai_message_feedback_own_read on "better_supabase"."ai_message_feedback";
 create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
 -- stored; the token is returned once.
-create table if not exists "better_supabase"."ai_chat_shares" (
+create table "better_supabase"."ai_chat_shares" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "token_hash" text not null unique check ("token_hash" ~ '^[0-9a-f]{64}$'),
@@ -348,8 +291,8 @@ create table if not exists "better_supabase"."ai_chat_shares" (
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index if not exists ai_chat_shares_chat_idx on "better_supabase"."ai_chat_shares" ("chat_id");
-create index if not exists ai_chat_shares_created_by_idx on "better_supabase"."ai_chat_shares" ("created_by");
+create index ai_chat_shares_chat_idx on "better_supabase"."ai_chat_shares" ("chat_id");
+create index ai_chat_shares_created_by_idx on "better_supabase"."ai_chat_shares" ("created_by");
 alter table "better_supabase"."ai_chat_shares" enable row level security;
 revoke all on "better_supabase"."ai_chat_shares" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_shares" to service_role;
@@ -357,20 +300,20 @@ grant all on "better_supabase"."ai_chat_shares" to service_role;
 -- The live link of a chat: one row, whose salt makes the token
 -- <chat>.<sha256(salt || chat)>. Rotating the salt invalidates every old token.
 -- Only the SQL functions read the salt.
-create table if not exists "better_supabase"."ai_chat_links" (
+create table "better_supabase"."ai_chat_links" (
   "chat_id" uuid primary key references "better_supabase"."ai_chats" ("id") on delete cascade,
   "salt" text not null check (length("salt") >= 16),
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "rotated_at" timestamptz not null default now()
 );
-create index if not exists ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
+create index ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
 alter table "better_supabase"."ai_chat_links" enable row level security;
 revoke all on "better_supabase"."ai_chat_links" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_links" to service_role;
 
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
-create table if not exists "better_supabase"."ai_model_catalog" (
+create table "better_supabase"."ai_model_catalog" (
   "model_id" text primary key check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
@@ -385,7 +328,7 @@ revoke all on "better_supabase"."ai_model_catalog" from public, anon, authentica
 grant all on "better_supabase"."ai_model_catalog" to service_role;
 
 -- What moderation decided about an input, an output or a tool call.
-create table if not exists "better_supabase"."ai_moderation_events" (
+create table "better_supabase"."ai_moderation_events" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete set null,
@@ -397,15 +340,15 @@ create table if not exists "better_supabase"."ai_moderation_events" (
   "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("workspace_id", "created_at" desc);
-create index if not exists ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
-create index if not exists ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
+create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("workspace_id", "created_at" desc);
+create index ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
+create index ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;
 revoke all on "better_supabase"."ai_moderation_events" from public, anon, authenticated;
 grant all on "better_supabase"."ai_moderation_events" to service_role;
 
 -- The progress of a long run, one row per step key, so a reload shows it.
-create table if not exists "better_supabase"."ai_run_steps" (
+create table "better_supabase"."ai_run_steps" (
   "id" uuid primary key default gen_random_uuid(),
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
@@ -418,13 +361,12 @@ create table if not exists "better_supabase"."ai_run_steps" (
   "ended_at" timestamptz,
   unique ("run_id", "step_key")
 );
-create index if not exists ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
-create index if not exists ai_run_steps_owner_idx on "better_supabase"."ai_run_steps" ("owner_id");
+create index ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
+create index ai_run_steps_owner_idx on "better_supabase"."ai_run_steps" ("owner_id");
 alter table "better_supabase"."ai_run_steps" enable row level security;
 revoke all on "better_supabase"."ai_run_steps" from public, anon, authenticated;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
-drop policy if exists ai_run_steps_owner_read on "better_supabase"."ai_run_steps";
 create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
@@ -432,7 +374,7 @@ create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
 -- What a coding-agent harness needs to pick up a chat again: its resume and
 -- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
 -- keep two turns from driving one sandbox. Experimental.
-create table if not exists "better_supabase"."ai_harness_sessions" (
+create table "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "harness_id" text not null check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
@@ -446,14 +388,14 @@ create table if not exists "better_supabase"."ai_harness_sessions" (
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "harness_id")
 );
-create index if not exists ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
-create index if not exists ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
+create index ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
+create index ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
 alter table "better_supabase"."ai_harness_sessions" enable row level security;
 revoke all on "better_supabase"."ai_harness_sessions" from public, anon, authenticated;
 grant all on "better_supabase"."ai_harness_sessions" to service_role;
 -- Resume state can carry harness credentials and sandbox ids, so only the
 -- service role reads it, through load_ai_harness_session.
-drop policy if exists ai_harness_sessions_owner_read on "better_supabase"."ai_harness_sessions";
+
 
 -- Whether the caller may read a chat: its owner, the service role, a member
 -- with 'ai_chat.read' when the chat is visible to the organization, or someone
@@ -1476,7 +1418,7 @@ grant execute on function "better_supabase"."save_ai_assistant_message"(uuid, js
 -- run_id }: the active stream when another reply holds the chat.
 -- external_run_id is the durable engine's own run id, such as a Workflow
 -- SDK run, so stop and resume can reach that run.
-drop function if exists "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text);
+
 create or replace function "better_supabase"."claim_ai_chat_stream"(chat uuid, stream text, model text default null, message_id text default null, engine text default 'ai-sdk', external_run_id text default null)
 returns jsonb
 language plpgsql
@@ -2200,7 +2142,7 @@ grant execute on function "better_supabase"."purge_ai_chats"(integer) to service
 -- Sandboxes and provider containers a chat started, harness sessions'
 -- included, so one idle-stop claim stops the ones nobody used for
 -- idle_seconds or past expires_at.
-create table if not exists "better_supabase"."ai_sandboxes" (
+create table "better_supabase"."ai_sandboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
@@ -2220,16 +2162,15 @@ create table if not exists "better_supabase"."ai_sandboxes" (
   "updated_at" timestamptz not null default now(),
   unique ("provider", "sandbox_id")
 );
-create index if not exists ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
-create index if not exists ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
-create index if not exists ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
-create index if not exists ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("workspace_id");
-create index if not exists ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
+create index ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
+create index ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
+create index ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
+create index ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("workspace_id");
+create index ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
 alter table "better_supabase"."ai_sandboxes" enable row level security;
 revoke all on "better_supabase"."ai_sandboxes" from public, anon, authenticated;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
-drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
 create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
@@ -2757,15 +2698,13 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_ai_chat_receive on realtime.messages;
-create policy bsb_ai_chat_receive on realtime.messages
+        create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        drop policy if exists bsb_ai_chats_receive on realtime.messages;
-create policy bsb_ai_chats_receive on realtime.messages
+        create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
@@ -2776,29 +2715,22 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_projects" as restrictive
   for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_projects" as restrictive
   for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_projects" as restrictive
   for update to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()))
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_projects" as restrictive
   for delete to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_chats" as restrictive
   for select to public
   using (
@@ -2807,37 +2739,29 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_chats" as restric
     or ("visibility" = 'organization' and "workspace_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
     or ("better_supabase"."ai_chats"."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())))))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_chats" as restrictive
   for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_chats" as restrictive
   for update to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()))
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_chats" as restrictive
   for delete to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_sandboxes" as restrictive
   for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes" as restrictive
   for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_sandboxes" as restrictive
   for update to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()))
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes" as restrictive
   for delete to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()));

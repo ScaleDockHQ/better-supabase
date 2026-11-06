@@ -413,7 +413,7 @@ create trigger ${trigger} after insert or update or delete on ${a}
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: `realtime.messages.extension = 'broadcast' and (select realtime.topic()) = ${sqlString(topic)}` }), { drop: true, target: "realtime.messages" })}
+        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: `realtime.messages.extension = 'broadcast' and (select realtime.topic()) = ${sqlString(topic)}` }), { target: "realtime.messages" })}
   end if;
 end;
 $$;

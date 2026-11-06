@@ -52,7 +52,7 @@ describe("attachments module", () => {
 
   it("creates a private bucket whose reads need a clean file", () => {
     const sql = sqlOf(["attachments"]);
-    expect(sql).toMatch(/create table if not exists \S+attachments/);
+    expect(sql).toMatch(/create table \S+attachments/);
     expect(sql).toContain(
       "values ('attachments', 'attachments', false, 52428800, null)",
     );
@@ -299,9 +299,6 @@ describe("attachments module", () => {
     expect(sql).toContain("create trigger bsb_object_scan_pending");
     expect(sql).toContain("when (new.bucket_id in ('files'))");
     expect(sql).toContain("bsb_attachments_receipt_cascade");
-    expect(sqlOf(["attachments"])).toContain(
-      "drop trigger if exists bsb_object_scan_pending on storage.objects;",
-    );
 
     for (const [options, message] of [
       [{ path: "{organization_id}/x" }, /must contain \{id\}/],

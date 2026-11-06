@@ -1,27 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:b6af7a585de2c1b8d4b14501f79bfa94c5bb1528d5a9d0755718bef567bbe62b
+-- @bsb-hash sha256:d20464205ff9acf8a6caa4250fffb34a5a2c03c44a1556084a84839f939ee53c
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."relations" (
+create table "better_supabase"."relations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null,
@@ -35,13 +20,12 @@ create table if not exists "better_supabase"."relations" (
   unique ("tenant_id", "kind", "source_type", "source_id", "target_type", "target_id"),
   check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
-create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
+create index relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
 revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
-drop policy if exists relations_read on "better_supabase"."relations";
 create policy relations_read on "better_supabase"."relations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
@@ -49,7 +33,7 @@ create policy relations_read on "better_supabase"."relations"
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
-drop function if exists "better_supabase"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
@@ -428,24 +412,19 @@ grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
 create policy bsb_tenant_scope_select on "better_supabase"."relations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
 create policy bsb_tenant_scope_insert on "better_supabase"."relations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
 create policy bsb_tenant_scope_update on "better_supabase"."relations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
 create policy bsb_tenant_scope_delete on "better_supabase"."relations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -467,27 +446,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:a1f1d487da662c2836935d20054c2d4ffd87c8e4bdc6a376b9b68f6918bf2d09
+-- @bsb-hash sha256:62be2af2d3d33c5586d6bc8474179906c0cabecab6a41df38e4027bca2b005dd
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."relations" (
+create table "better_supabase"."relations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null,
@@ -501,13 +465,12 @@ create table if not exists "better_supabase"."relations" (
   unique ("tenant_id", "kind", "source_type", "source_id", "target_type", "target_id"),
   check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
-create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
+create index relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
 revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
-drop policy if exists relations_read on "better_supabase"."relations";
 create policy relations_read on "better_supabase"."relations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
@@ -515,7 +478,7 @@ create policy relations_read on "better_supabase"."relations"
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
-drop function if exists "better_supabase"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
@@ -933,24 +896,19 @@ grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
 create policy bsb_tenant_scope_select on "better_supabase"."relations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
 create policy bsb_tenant_scope_insert on "better_supabase"."relations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
 create policy bsb_tenant_scope_update on "better_supabase"."relations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
 create policy bsb_tenant_scope_delete on "better_supabase"."relations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -979,31 +937,17 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:cdfa189db7d9f668d15da4561014735fad2e57c1adc2568b1dadf5d687bbca28
+-- @bsb-hash sha256:4613a4cd5bde1deb4baf65fda8445d40ba24904ebc1d1013457dc50def2365dc
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."relations";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."relations";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."relations";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."relations";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."relations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."relations" (
+create table "app_private"."relations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null,
@@ -1017,13 +961,12 @@ create table if not exists "app_private"."relations" (
   unique ("tenant_id", "kind", "source_type", "source_id", "target_type", "target_id"),
   check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
-create index if not exists relations_target_idx on "app_private"."relations" ("tenant_id", "target_type", "target_id", "kind");
+create index relations_target_idx on "app_private"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "app_private"."relations" enable row level security;
 revoke all on "app_private"."relations" from public, anon, authenticated;
 grant select on "app_private"."relations" to authenticated;
 grant all on "app_private"."relations" to service_role;
 
-drop policy if exists relations_read on "app_private"."relations";
 create policy relations_read on "app_private"."relations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
@@ -1031,7 +974,7 @@ create policy relations_read on "app_private"."relations"
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
-drop function if exists "app_private"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
+
 create or replace function "app_private"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
@@ -1410,24 +1353,19 @@ grant execute on function "app_private"."relation_rollup"(uuid, text, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."relations";
-drop policy if exists bsb_tenant_scope_select on "app_private"."relations";
 create policy bsb_tenant_scope_select on "app_private"."relations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."relations";
 create policy bsb_tenant_scope_insert on "app_private"."relations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."relations";
 create policy bsb_tenant_scope_update on "app_private"."relations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."relations";
 create policy bsb_tenant_scope_delete on "app_private"."relations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1449,27 +1387,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:183be2ba8830a263b727974c8b6f78f3532419b23f608eef6412cd5d5d95f51d
+-- @bsb-hash sha256:5bff206ec3a5a4ca1c9515267ea42d966f0b5ec5e6316b589f3c8bc240960ff4
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."relations" (
+create table "better_supabase"."relations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null,
@@ -1483,13 +1406,12 @@ create table if not exists "better_supabase"."relations" (
   unique ("tenant_id", "kind", "source_type", "source_id", "target_type", "target_id"),
   check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
-create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
+create index relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
 revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
-drop policy if exists relations_read on "better_supabase"."relations";
 create policy relations_read on "better_supabase"."relations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
@@ -1497,7 +1419,7 @@ create policy relations_read on "better_supabase"."relations"
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
-drop function if exists "better_supabase"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
@@ -1876,24 +1798,19 @@ grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
 create policy bsb_tenant_scope_select on "better_supabase"."relations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
 create policy bsb_tenant_scope_insert on "better_supabase"."relations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
 create policy bsb_tenant_scope_update on "better_supabase"."relations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
 create policy bsb_tenant_scope_delete on "better_supabase"."relations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1901,8 +1818,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."relations" as restri
 -- blocks.relations.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
 
 create or replace function "api"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
@@ -2009,25 +1924,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:ee7524d653bb11642023661ac15caf0ba0f53cd5198ba54827ff32715f9df412
+-- @bsb-hash sha256:bd3bc51bf216250d8a8ccb02008a128c8b99146a382baf40352f5a564a0c4166
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- better_supabase.relations is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."relations" add column if not exists "id" uuid default gen_random_uuid();
@@ -2045,7 +1945,6 @@ alter table "better_supabase"."relations" enable row level security;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
-drop policy if exists bsb_relations_select on "better_supabase"."relations";
 create policy bsb_relations_select on "better_supabase"."relations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
@@ -2053,7 +1952,7 @@ create policy bsb_relations_select on "better_supabase"."relations"
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
-drop function if exists "better_supabase"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
@@ -2432,24 +2331,19 @@ grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
 create policy bsb_tenant_scope_select on "better_supabase"."relations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
 create policy bsb_tenant_scope_insert on "better_supabase"."relations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
 create policy bsb_tenant_scope_update on "better_supabase"."relations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
 create policy bsb_tenant_scope_delete on "better_supabase"."relations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2471,27 +2365,12 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:0b43ba6cf8175af3c4b6b2dfc86c0e7cb19d286ff28b784e1a0022f5368370d0
+-- @bsb-hash sha256:5731217858f96e547a14064576c89c722a68c866cf50645ad4c21ab861c8c6f6
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."relations" (
+create table "better_supabase"."relations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "kind" text not null,
@@ -2505,13 +2384,12 @@ create table if not exists "better_supabase"."relations" (
   unique ("org_id", "kind", "source_type", "source_id", "target_type", "target_id"),
   check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
-create index if not exists relations_target_idx on "better_supabase"."relations" ("org_id", "target_type", "target_id", "kind");
+create index relations_target_idx on "better_supabase"."relations" ("org_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
 revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
-drop policy if exists relations_read on "better_supabase"."relations";
 create policy relations_read on "better_supabase"."relations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('relations.read')));
@@ -2519,7 +2397,7 @@ create policy relations_read on "better_supabase"."relations"
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
-drop function if exists "better_supabase"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
@@ -2898,24 +2776,19 @@ grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
 create policy bsb_tenant_scope_select on "better_supabase"."relations" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('relations.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
 create policy bsb_tenant_scope_insert on "better_supabase"."relations" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
 create policy bsb_tenant_scope_update on "better_supabase"."relations" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
 create policy bsb_tenant_scope_delete on "better_supabase"."relations" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

@@ -73,7 +73,7 @@ describe.each([
     const sql = render(module, { searchColumn: true });
 
     expect(sql).toContain(
-      `add column if not exists ${SEARCH_COLUMN} tsvector generated always as`,
+      `add column ${SEARCH_COLUMN} tsvector generated always as`,
     );
     expect(sql).toContain(`${table}_search_tsv_idx`);
     expect(sql).toContain(`using gin (${SEARCH_COLUMN})`);

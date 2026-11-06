@@ -13,9 +13,7 @@ describe("domains module", () => {
   it("keeps one verified owner per hostname and one primary per organization", () => {
     const sql = body();
 
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."hostnames"',
-    );
+    expect(sql).toContain('create table "better_supabase"."hostnames"');
     expect(sql).toContain(
       'on "better_supabase"."hostnames" ("hostname") where "verified_at" is not null;',
     );

@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:d9efa24c6624aedd4bee8a69b76f59a066149cd51215db852f50f857d56e30b1
+-- @bsb-hash sha256:fbf62c573f6b99d981437d8449f927b279a135344c7ed4792903f9668873fffa
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -185,82 +185,66 @@ grant execute on function better_supabase.sessions_overview() to authenticated;
 
 -- blocks['sessions'].options.policies: every table in the schema files,
 -- except blocks['sessions'].options.exclude. `upgrade` rewrites these.
-drop policy if exists bsb_session_active on "public"."change_requests";
 create policy bsb_session_active on "public"."change_requests" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."client_notes";
 create policy bsb_session_active on "public"."client_notes" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."contacts";
 create policy bsb_session_active on "public"."contacts" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."customer_tags";
 create policy bsb_session_active on "public"."customer_tags" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."customers";
 create policy bsb_session_active on "public"."customers" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."locations";
 create policy bsb_session_active on "public"."locations" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."memberships";
 create policy bsb_session_active on "public"."memberships" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."notes";
 create policy bsb_session_active on "public"."notes" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."organizations";
 create policy bsb_session_active on "public"."organizations" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."plan_features";
 create policy bsb_session_active on "public"."plan_features" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."plans";
 create policy bsb_session_active on "public"."plans" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."projects";
 create policy bsb_session_active on "public"."projects" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."saved_views";
 create policy bsb_session_active on "public"."saved_views" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."subscriptions";
 create policy bsb_session_active on "public"."subscriptions" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."tags";
 create policy bsb_session_active on "public"."tags" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."tasks";
 create policy bsb_session_active on "public"."tasks" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
@@ -269,7 +253,7 @@ create policy bsb_session_active on "public"."tasks" as restrictive
 -- blocks['sessions'].options.authzVersions: one authorization version per
 -- user. Attach better_supabase.bump_authz_version() to the tables a user's
 -- access comes from; the access token hook reads better_supabase.authz_version().
-create table if not exists better_supabase.user_authz_versions (
+create table better_supabase.user_authz_versions (
   user_id uuid primary key references auth.users on delete cascade,
   version bigint not null default 1,
   updated_at timestamptz not null default now()
@@ -281,7 +265,6 @@ revoke all on better_supabase.user_authz_versions from public, anon, authenticat
 grant select on better_supabase.user_authz_versions to supabase_auth_admin;
 grant all on better_supabase.user_authz_versions to service_role;
 
-drop policy if exists bsb_authz_versions_auth_admin on better_supabase.user_authz_versions;
 create policy bsb_authz_versions_auth_admin on better_supabase.user_authz_versions
   for select to supabase_auth_admin
   using (true);
@@ -362,8 +345,6 @@ end;
 $$;
 
 revoke execute on function better_supabase.broadcast_authz_version() from public, anon, authenticated;
-
-drop trigger if exists bsb_authz_versions_broadcast on better_supabase.user_authz_versions;
 create trigger bsb_authz_versions_broadcast
   after insert or update on better_supabase.user_authz_versions
   for each row execute function better_supabase.broadcast_authz_version();
@@ -371,8 +352,7 @@ create trigger bsb_authz_versions_broadcast
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists bsb_authz_versions_receive on realtime.messages;
-create policy bsb_authz_versions_receive on realtime.messages
+    create policy bsb_authz_versions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'authz:' || (select auth.uid())::text);
   end if;
@@ -439,8 +419,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."session_active"();
-drop function if exists "api"."session_end_reason"();
+
 
 create or replace function "api"."last_sign_ins"(p_users uuid[])
 returns table (user_id uuid, last_sign_in_at timestamptz)

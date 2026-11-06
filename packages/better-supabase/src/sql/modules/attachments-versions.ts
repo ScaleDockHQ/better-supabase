@@ -190,7 +190,7 @@ alter table ${versions} enable row level security;
 ${revokeTable(versions)}
 grant select on ${versions} to authenticated;
 grant all on ${versions} to service_role;
-${renderPolicy(makePolicy({ table: versions, name: sqlIdent(`${versionsName}_read`), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t} a where a.${c("id")} = ${vc("attachment")})` }), { drop: true, target: versions })}
+${renderPolicy(makePolicy({ table: versions, name: sqlIdent(`${versionsName}_read`), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t} a where a.${c("id")} = ${vc("attachment")})` }), { target: versions })}
 `;
 
   const functions = `

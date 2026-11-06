@@ -145,7 +145,7 @@ create table if not exists ${activity} (
 create index if not exists ${sqlIdent(`${ctx.tableName("activity").name}_feed_idx`)} on ${activity} (${a("tenant")}, ${a("occurredAt")} desc, ${a("id")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("activity").name}_subject_idx`)} on ${activity} (${a("tenant")}, ${a("subjectType")}, ${a("subjectId")});
 ${ctx.has("activity", "actor") ? `create index if not exists ${sqlIdent(`${ctx.tableName("activity").name}_actor_idx`)} on ${activity} (${a("actor")});\n` : ""}${lockModuleTable(ctx, "activity", { read: true })}
-${reads.readable}${renderPolicy(makePolicy({ table: activity, name: sqlIdent(`${ctx.tableName("activity").name}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(a("tenant"), read)}${reads.rowCheck}` }), { drop: true, target: activity })}${reads.dropReadable}${reads.helpers}
+${reads.readable}${renderPolicy(makePolicy({ table: activity, name: sqlIdent(`${ctx.tableName("activity").name}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(a("tenant"), read)}${reads.rowCheck}` }), { target: activity })}${reads.dropReadable}${reads.helpers}
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen

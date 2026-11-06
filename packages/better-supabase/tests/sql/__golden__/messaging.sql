@@ -1,80 +1,17 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:b32079ad1324fd472f05f8ed9e8d707cb5cc9b57689ff5838788691cf7e48862
+-- @bsb-hash sha256:c9eb486c6b52a51b58f9c0aa543a2be5654b568382e7fd52c2c4adb920ec5ad9
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Messaging: conversations (channels, direct and group messages, one per
 -- record, the inbox's) with members, messages with threads, mentions, edits,
 -- pins and resolution, scheduled sends and read markers. Writes go through
 -- the functions; Realtime pings carry ids only.
 
-create table if not exists "better_supabase"."conversations" (
+create table "better_supabase"."conversations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('channel', 'dm', 'group_dm', 'subject', 'inbox')),
@@ -91,15 +28,15 @@ create table if not exists "better_supabase"."conversations" (
   check (("subject_type" is null) = ("subject_id" is null)),
   check ("access" <> 'subject' or "subject_type" is not null)
 );
-create unique index if not exists messaging_conversations_subject_idx on "better_supabase"."conversations" ("tenant_id", "subject_type", "subject_id") where "kind" = 'subject';
-create unique index if not exists messaging_conversations_member_key_idx on "better_supabase"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
-create index if not exists messaging_conversations_list_idx on "better_supabase"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
+create unique index messaging_conversations_subject_idx on "better_supabase"."conversations" ("tenant_id", "subject_type", "subject_id") where "kind" = 'subject';
+create unique index messaging_conversations_member_key_idx on "better_supabase"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
+create index messaging_conversations_list_idx on "better_supabase"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
 alter table "better_supabase"."conversations" enable row level security;
 revoke all on "better_supabase"."conversations" from public, anon, authenticated;
 grant select on "better_supabase"."conversations" to authenticated;
 grant all on "better_supabase"."conversations" to service_role;
 
-create table if not exists "better_supabase"."conversation_members" (
+create table "better_supabase"."conversation_members" (
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -109,7 +46,7 @@ create table if not exists "better_supabase"."conversation_members" (
   "joined_at" timestamptz not null default now(),
   primary key ("conversation_id", "user_id")
 );
-create index if not exists messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "tenant_id");
+create index messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "tenant_id");
 alter table "better_supabase"."conversation_members" enable row level security;
 revoke all on "better_supabase"."conversation_members" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_members" to authenticated;
@@ -131,8 +68,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."is_conversation_member"(uuid) from public, anon;
 grant execute on function "better_supabase"."is_conversation_member"(uuid) to authenticated, service_role;
-
-drop policy if exists conversations_read on "better_supabase"."conversations";
 create policy conversations_read on "better_supabase"."conversations"
   for select to authenticated
   using (("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
@@ -142,14 +77,12 @@ create policy conversations_read on "better_supabase"."conversations"
       when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
       else false
     end));
-
-drop policy if exists conversation_members_read on "better_supabase"."conversation_members";
 create policy conversation_members_read on "better_supabase"."conversation_members"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
 
-create table if not exists "better_supabase"."messages" (
+create table "better_supabase"."messages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -177,13 +110,13 @@ create table if not exists "better_supabase"."messages" (
   "created_at" timestamptz not null default now(),
   check (("thread_id" is null) = ("parent_id" is null))
 );
-create index if not exists messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
-create index if not exists messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
-create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
-create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
-create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
-create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
-create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
+create index messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
+create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
+create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
+create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
+create index messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
 revoke all on "better_supabase"."messages" from public, anon, authenticated;
 grant select on "better_supabase"."messages" to authenticated;
@@ -191,13 +124,13 @@ grant all on "better_supabase"."messages" to service_role;
 
 -- A message shows to whoever reads its conversation once it is sent; a
 -- scheduled one shows to its author only.
-drop policy if exists messages_read on "better_supabase"."messages";
+
 create policy messages_read on "better_supabase"."messages"
   for select to authenticated
   using (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
 
-create table if not exists "better_supabase"."message_edits" (
+create table "better_supabase"."message_edits" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."messages" ("id") on delete cascade,
@@ -206,13 +139,11 @@ create table if not exists "better_supabase"."message_edits" (
   "edited_by" uuid,
   "edited_at" timestamptz not null default now()
 );
-create index if not exists messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
+create index messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
 alter table "better_supabase"."message_edits" enable row level security;
 revoke all on "better_supabase"."message_edits" from public, anon, authenticated;
 grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
-
-drop policy if exists message_edits_read on "better_supabase"."message_edits";
 create policy message_edits_read on "better_supabase"."message_edits"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
@@ -220,7 +151,7 @@ create policy message_edits_read on "better_supabase"."message_edits"
 -- Where a user has read to, per conversation (thread null) or per thread
 -- root. Members keep the conversation marker on their member row too; a
 -- record's thread has no members, so its readers keep it here.
-create table if not exists "better_supabase"."thread_reads" (
+create table "better_supabase"."thread_reads" (
   "tenant_id" uuid not null,
   "user_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -228,21 +159,19 @@ create table if not exists "better_supabase"."thread_reads" (
   "last_read_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "conversation_id", "thread_id")
 );
-create index if not exists messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
-create index if not exists messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
+create index messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
+create index messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
 alter table "better_supabase"."thread_reads" enable row level security;
 revoke all on "better_supabase"."thread_reads" from public, anon, authenticated;
 grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
-
-drop policy if exists thread_reads_read on "better_supabase"."thread_reads";
 create policy thread_reads_read on "better_supabase"."thread_reads"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The records a sent message mentions, for a record's backlinks. A row shows
 -- with its message; list_record_mentions also asks can_subject on the record.
-create table if not exists "better_supabase"."message_record_mentions" (
+create table "better_supabase"."message_record_mentions" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."messages" ("id") on delete cascade,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -251,21 +180,19 @@ create table if not exists "better_supabase"."message_record_mentions" (
   "created_at" timestamptz not null default now(),
   primary key ("message_id", "subject_type", "subject_id")
 );
-create index if not exists messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
-create index if not exists messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
+create index messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
+create index messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
 alter table "better_supabase"."message_record_mentions" enable row level security;
 revoke all on "better_supabase"."message_record_mentions" from public, anon, authenticated;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
-
-drop policy if exists message_record_mentions_read on "better_supabase"."message_record_mentions";
 create policy message_record_mentions_read on "better_supabase"."message_record_mentions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
 -- through save_thread_summary. It shows to whoever reads the conversation.
-create table if not exists "better_supabase"."thread_summaries" (
+create table "better_supabase"."thread_summaries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -278,13 +205,11 @@ create table if not exists "better_supabase"."thread_summaries" (
   "updated_at" timestamptz not null default now(),
   unique nulls not distinct ("conversation_id", "thread_id")
 );
-create index if not exists messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
+create index messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
 alter table "better_supabase"."thread_summaries" enable row level security;
 revoke all on "better_supabase"."thread_summaries" from public, anon, authenticated;
 grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
-
-drop policy if exists thread_summaries_read on "better_supabase"."thread_summaries";
 create policy thread_summaries_read on "better_supabase"."thread_summaries"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
@@ -323,7 +248,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_written"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_written" on "better_supabase"."messages";
 create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_written"();
 
@@ -800,7 +724,7 @@ grant execute on function "better_supabase"."set_conversation_notify"(uuid, text
 -- Broadcasts that the caller is typing (or stopped) on the conversation's
 -- private topic, for clients that don't send the broadcast themselves. The
 -- service names who types in actor (a bot's name), default 'bot'.
-drop function if exists "better_supabase"."set_typing"(uuid, boolean);
+
 create or replace function "better_supabase"."set_typing"(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language plpgsql
@@ -1516,21 +1440,18 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_broadcast"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_broadcast" on "better_supabase"."messages";
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_messaging_receive on realtime.messages;
-create policy bsb_messaging_receive on realtime.messages
+        create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        drop policy if exists bsb_messaging_broadcast on realtime.messages;
-create policy bsb_messaging_broadcast on realtime.messages
+        create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
@@ -1542,8 +1463,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
 create policy bsb_tenant_scope_select on "better_supabase"."conversations" as restrictive
   for select to public
   using (
@@ -1556,21 +1475,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversations" as re
       else false
     end))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
 create policy bsb_tenant_scope_insert on "better_supabase"."conversations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
 create policy bsb_tenant_scope_update on "better_supabase"."conversations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
 create policy bsb_tenant_scope_delete on "better_supabase"."conversations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_select on "better_supabase"."conversation_members" as restrictive
   for select to public
   using (
@@ -1578,21 +1492,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversation_members
     or ("user_id" = (select auth.uid())
   or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."conversation_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_update on "better_supabase"."conversation_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."conversation_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
 create policy bsb_tenant_scope_select on "better_supabase"."messages" as restrictive
   for select to public
   using (
@@ -1600,100 +1509,77 @@ create policy bsb_tenant_scope_select on "better_supabase"."messages" as restric
     or (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
 create policy bsb_tenant_scope_insert on "better_supabase"."messages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
 create policy bsb_tenant_scope_update on "better_supabase"."messages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
 create policy bsb_tenant_scope_delete on "better_supabase"."messages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_select on "better_supabase"."message_edits" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_insert on "better_supabase"."message_edits" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_update on "better_supabase"."message_edits" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_delete on "better_supabase"."message_edits" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_select on "better_supabase"."thread_reads" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_insert on "better_supabase"."thread_reads" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_update on "better_supabase"."thread_reads" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_delete on "better_supabase"."thread_reads" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_select on "better_supabase"."message_record_mentions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_insert on "better_supabase"."message_record_mentions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_update on "better_supabase"."message_record_mentions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_delete on "better_supabase"."message_record_mentions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_select on "better_supabase"."thread_summaries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_insert on "better_supabase"."thread_summaries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_update on "better_supabase"."thread_summaries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1715,80 +1601,17 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:066a968b08b8c070441021a2dd1c9e2f12d6cdf9bc09171eb0ee5105fc3402ff
+-- @bsb-hash sha256:be474a522ab7bd196abe8802e7d4b075ea5bfaa38382da16d84fcc9e09cc9c84
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Messaging: conversations (channels, direct and group messages, one per
 -- record, the inbox's) with members, messages with threads, mentions, edits,
 -- pins and resolution, scheduled sends and read markers. Writes go through
 -- the functions; Realtime pings carry ids only.
 
-create table if not exists "better_supabase"."conversations" (
+create table "better_supabase"."conversations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('channel', 'dm', 'group_dm', 'subject', 'inbox')),
@@ -1805,15 +1628,15 @@ create table if not exists "better_supabase"."conversations" (
   check (("subject_type" is null) = ("subject_id" is null)),
   check ("access" <> 'subject' or "subject_type" is not null)
 );
-create unique index if not exists messaging_conversations_subject_idx on "better_supabase"."conversations" ("tenant_id", "subject_type", "subject_id") where "kind" = 'subject';
-create unique index if not exists messaging_conversations_member_key_idx on "better_supabase"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
-create index if not exists messaging_conversations_list_idx on "better_supabase"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
+create unique index messaging_conversations_subject_idx on "better_supabase"."conversations" ("tenant_id", "subject_type", "subject_id") where "kind" = 'subject';
+create unique index messaging_conversations_member_key_idx on "better_supabase"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
+create index messaging_conversations_list_idx on "better_supabase"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
 alter table "better_supabase"."conversations" enable row level security;
 revoke all on "better_supabase"."conversations" from public, anon, authenticated;
 grant select on "better_supabase"."conversations" to authenticated;
 grant all on "better_supabase"."conversations" to service_role;
 
-create table if not exists "better_supabase"."conversation_members" (
+create table "better_supabase"."conversation_members" (
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -1823,7 +1646,7 @@ create table if not exists "better_supabase"."conversation_members" (
   "joined_at" timestamptz not null default now(),
   primary key ("conversation_id", "user_id")
 );
-create index if not exists messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "tenant_id");
+create index messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "tenant_id");
 alter table "better_supabase"."conversation_members" enable row level security;
 revoke all on "better_supabase"."conversation_members" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_members" to authenticated;
@@ -1845,8 +1668,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."is_conversation_member"(uuid) from public, anon;
 grant execute on function "better_supabase"."is_conversation_member"(uuid) to authenticated, service_role;
-
-drop policy if exists conversations_read on "better_supabase"."conversations";
 create policy conversations_read on "better_supabase"."conversations"
   for select to authenticated
   using ((case when "better_supabase"."conversations"."kind" = 'inbox'
@@ -1859,14 +1680,12 @@ create policy conversations_read on "better_supabase"."conversations"
       else false
     end)
     or ("better_supabase"."conversations"."kind" = 'subject' and (("better_supabase"."conversations"."tenant_id")::text, ("better_supabase"."conversations"."subject_type")::text, ("better_supabase"."conversations"."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end));
-
-drop policy if exists conversation_members_read on "better_supabase"."conversation_members";
 create policy conversation_members_read on "better_supabase"."conversation_members"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
 
-create table if not exists "better_supabase"."messages" (
+create table "better_supabase"."messages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -1894,13 +1713,13 @@ create table if not exists "better_supabase"."messages" (
   "created_at" timestamptz not null default now(),
   check (("thread_id" is null) = ("parent_id" is null))
 );
-create index if not exists messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
-create index if not exists messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
-create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
-create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
-create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
-create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
-create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
+create index messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
+create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
+create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
+create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
+create index messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
 revoke all on "better_supabase"."messages" from public, anon, authenticated;
 grant select on "better_supabase"."messages" to authenticated;
@@ -1908,14 +1727,14 @@ grant all on "better_supabase"."messages" to service_role;
 
 -- A message shows to whoever reads its conversation once it is sent; a
 -- scheduled one shows to its author only.
-drop policy if exists messages_read on "better_supabase"."messages";
+
 create policy messages_read on "better_supabase"."messages"
   for select to authenticated
   using (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id")
   and ("kind" = 'message' or "better_supabase"."inbox_note_readable"("conversation_id")));
 
-create table if not exists "better_supabase"."message_edits" (
+create table "better_supabase"."message_edits" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."messages" ("id") on delete cascade,
@@ -1924,13 +1743,11 @@ create table if not exists "better_supabase"."message_edits" (
   "edited_by" uuid,
   "edited_at" timestamptz not null default now()
 );
-create index if not exists messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
+create index messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
 alter table "better_supabase"."message_edits" enable row level security;
 revoke all on "better_supabase"."message_edits" from public, anon, authenticated;
 grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
-
-drop policy if exists message_edits_read on "better_supabase"."message_edits";
 create policy message_edits_read on "better_supabase"."message_edits"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
@@ -1938,7 +1755,7 @@ create policy message_edits_read on "better_supabase"."message_edits"
 -- Where a user has read to, per conversation (thread null) or per thread
 -- root. Members keep the conversation marker on their member row too; a
 -- record's thread has no members, so its readers keep it here.
-create table if not exists "better_supabase"."thread_reads" (
+create table "better_supabase"."thread_reads" (
   "tenant_id" uuid not null,
   "user_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -1946,21 +1763,19 @@ create table if not exists "better_supabase"."thread_reads" (
   "last_read_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "conversation_id", "thread_id")
 );
-create index if not exists messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
-create index if not exists messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
+create index messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
+create index messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
 alter table "better_supabase"."thread_reads" enable row level security;
 revoke all on "better_supabase"."thread_reads" from public, anon, authenticated;
 grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
-
-drop policy if exists thread_reads_read on "better_supabase"."thread_reads";
 create policy thread_reads_read on "better_supabase"."thread_reads"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The records a sent message mentions, for a record's backlinks. A row shows
 -- with its message; list_record_mentions also asks can_subject on the record.
-create table if not exists "better_supabase"."message_record_mentions" (
+create table "better_supabase"."message_record_mentions" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."messages" ("id") on delete cascade,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -1969,21 +1784,19 @@ create table if not exists "better_supabase"."message_record_mentions" (
   "created_at" timestamptz not null default now(),
   primary key ("message_id", "subject_type", "subject_id")
 );
-create index if not exists messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
-create index if not exists messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
+create index messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
+create index messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
 alter table "better_supabase"."message_record_mentions" enable row level security;
 revoke all on "better_supabase"."message_record_mentions" from public, anon, authenticated;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
-
-drop policy if exists message_record_mentions_read on "better_supabase"."message_record_mentions";
 create policy message_record_mentions_read on "better_supabase"."message_record_mentions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
 -- through save_thread_summary. It shows to whoever reads the conversation.
-create table if not exists "better_supabase"."thread_summaries" (
+create table "better_supabase"."thread_summaries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -1996,13 +1809,11 @@ create table if not exists "better_supabase"."thread_summaries" (
   "updated_at" timestamptz not null default now(),
   unique nulls not distinct ("conversation_id", "thread_id")
 );
-create index if not exists messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
+create index messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
 alter table "better_supabase"."thread_summaries" enable row level security;
 revoke all on "better_supabase"."thread_summaries" from public, anon, authenticated;
 grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
-
-drop policy if exists thread_summaries_read on "better_supabase"."thread_summaries";
 create policy thread_summaries_read on "better_supabase"."thread_summaries"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
@@ -2041,7 +1852,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_written"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_written" on "better_supabase"."messages";
 create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_written"();
 
@@ -2678,7 +2488,7 @@ grant execute on function "better_supabase"."set_conversation_notify"(uuid, text
 -- Broadcasts that the caller is typing (or stopped) on the conversation's
 -- private topic, for clients that don't send the broadcast themselves. The
 -- service names who types in actor (a bot's name), default 'bot'.
-drop function if exists "better_supabase"."set_typing"(uuid, boolean);
+
 create or replace function "better_supabase"."set_typing"(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language plpgsql
@@ -3465,21 +3275,18 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_broadcast"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_broadcast" on "better_supabase"."messages";
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_messaging_receive on realtime.messages;
-create policy bsb_messaging_receive on realtime.messages
+        create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        drop policy if exists bsb_messaging_broadcast on realtime.messages;
-create policy bsb_messaging_broadcast on realtime.messages
+        create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
@@ -3490,17 +3297,13 @@ $$;
 
 
 -- The inbox's conversations and message details belong to core rows.
-alter table "better_supabase"."inbox_conversations" drop constraint if exists "inbox_conversations_core_fkey";
+
 alter table "better_supabase"."inbox_conversations" add constraint "inbox_conversations_core_fkey"
   foreign key ("id") references "better_supabase"."conversations" ("id") on delete cascade;
-alter table "better_supabase"."inbox_message_details" drop constraint if exists "inbox_message_details_core_fkey";
 alter table "better_supabase"."inbox_message_details" add constraint "inbox_message_details_core_fkey"
   foreign key ("message_id") references "better_supabase"."messages" ("id") on delete cascade;
-
-drop trigger if exists "bsb_messaging_inbox_broadcast" on "better_supabase"."messages";
 create trigger "bsb_messaging_inbox_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."inbox_message_broadcast"();
-drop policy if exists messages_moderation on "better_supabase"."messages";
 create policy messages_moderation on "better_supabase"."messages" as restrictive
   for select to authenticated
   using ("author_id" = (select auth.uid())
@@ -3522,7 +3325,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messages_moderation_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_messages_moderation_guard" on "better_supabase"."messages";
 create trigger "bsb_messages_moderation_guard"
   before insert on "better_supabase"."messages"
   for each row execute function "better_supabase"."messages_moderation_guard"();
@@ -3530,8 +3332,6 @@ create trigger "bsb_messages_moderation_guard"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
 create policy bsb_tenant_scope_select on "better_supabase"."conversations" as restrictive
   for select to public
   using (
@@ -3547,21 +3347,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversations" as re
     end)
     or ("better_supabase"."conversations"."kind" = 'subject' and (("better_supabase"."conversations"."tenant_id")::text, ("better_supabase"."conversations"."subject_type")::text, ("better_supabase"."conversations"."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
 create policy bsb_tenant_scope_insert on "better_supabase"."conversations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
 create policy bsb_tenant_scope_update on "better_supabase"."conversations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
 create policy bsb_tenant_scope_delete on "better_supabase"."conversations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_select on "better_supabase"."conversation_members" as restrictive
   for select to public
   using (
@@ -3569,21 +3364,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversation_members
     or ("user_id" = (select auth.uid())
   or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."conversation_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_update on "better_supabase"."conversation_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."conversation_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
 create policy bsb_tenant_scope_select on "better_supabase"."messages" as restrictive
   for select to public
   using (
@@ -3592,100 +3382,77 @@ create policy bsb_tenant_scope_select on "better_supabase"."messages" as restric
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id")
   and ("kind" = 'message' or "better_supabase"."inbox_note_readable"("conversation_id")))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
 create policy bsb_tenant_scope_insert on "better_supabase"."messages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
 create policy bsb_tenant_scope_update on "better_supabase"."messages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
 create policy bsb_tenant_scope_delete on "better_supabase"."messages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_select on "better_supabase"."message_edits" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_insert on "better_supabase"."message_edits" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_update on "better_supabase"."message_edits" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_delete on "better_supabase"."message_edits" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_select on "better_supabase"."thread_reads" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_insert on "better_supabase"."thread_reads" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_update on "better_supabase"."thread_reads" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_delete on "better_supabase"."thread_reads" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_select on "better_supabase"."message_record_mentions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_insert on "better_supabase"."message_record_mentions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_update on "better_supabase"."message_record_mentions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_delete on "better_supabase"."message_record_mentions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_select on "better_supabase"."thread_summaries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_insert on "better_supabase"."thread_summaries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_update on "better_supabase"."thread_summaries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3715,72 +3482,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:22a9cd39bbc2c3af065eaf2e29287e244b43aa1ad40f8560cc637edc29d73d8a
+-- @bsb-hash sha256:57ec28c7c0cd689957bf775b1568abc2684e93a235a9eef4bda9add8a49cce11
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."conversations";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."conversations";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."conversations";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."conversations";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."conversations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."conversation_members";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."conversation_members";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."conversation_members";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."conversation_members";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."conversation_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."messages";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."messages";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."messages";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."messages";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."messages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."message_edits";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."message_edits";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."message_edits";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."message_edits";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."message_edits";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."thread_reads";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."thread_reads";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."thread_reads";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."thread_reads";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."thread_reads";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."message_record_mentions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."thread_summaries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -3792,7 +3497,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- pins and resolution, scheduled sends and read markers. Writes go through
 -- the functions; Realtime pings carry ids only.
 
-create table if not exists "app_private"."conversations" (
+create table "app_private"."conversations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('channel', 'dm', 'group_dm', 'subject', 'inbox')),
@@ -3809,15 +3514,15 @@ create table if not exists "app_private"."conversations" (
   check (("subject_type" is null) = ("subject_id" is null)),
   check ("access" <> 'subject' or "subject_type" is not null)
 );
-create unique index if not exists messaging_conversations_subject_idx on "app_private"."conversations" ("tenant_id", "subject_type", "subject_id") where "kind" = 'subject';
-create unique index if not exists messaging_conversations_member_key_idx on "app_private"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
-create index if not exists messaging_conversations_list_idx on "app_private"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
+create unique index messaging_conversations_subject_idx on "app_private"."conversations" ("tenant_id", "subject_type", "subject_id") where "kind" = 'subject';
+create unique index messaging_conversations_member_key_idx on "app_private"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
+create index messaging_conversations_list_idx on "app_private"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
 alter table "app_private"."conversations" enable row level security;
 revoke all on "app_private"."conversations" from public, anon, authenticated;
 grant select on "app_private"."conversations" to authenticated;
 grant all on "app_private"."conversations" to service_role;
 
-create table if not exists "app_private"."conversation_members" (
+create table "app_private"."conversation_members" (
   "conversation_id" uuid not null references "app_private"."conversations" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -3827,7 +3532,7 @@ create table if not exists "app_private"."conversation_members" (
   "joined_at" timestamptz not null default now(),
   primary key ("conversation_id", "user_id")
 );
-create index if not exists messaging_members_user_idx on "app_private"."conversation_members" ("user_id", "tenant_id");
+create index messaging_members_user_idx on "app_private"."conversation_members" ("user_id", "tenant_id");
 alter table "app_private"."conversation_members" enable row level security;
 revoke all on "app_private"."conversation_members" from public, anon, authenticated;
 grant select on "app_private"."conversation_members" to authenticated;
@@ -3849,8 +3554,6 @@ as $$
 $$;
 revoke execute on function "app_private"."is_conversation_member"(uuid) from public, anon;
 grant execute on function "app_private"."is_conversation_member"(uuid) to authenticated, service_role;
-
-drop policy if exists conversations_read on "app_private"."conversations";
 create policy conversations_read on "app_private"."conversations"
   for select to authenticated
   using (("app_private"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
@@ -3860,14 +3563,12 @@ create policy conversations_read on "app_private"."conversations"
       when 'subject' then coalesce("better_supabase"."can_subject"("app_private"."conversations"."subject_type", "app_private"."conversations"."subject_id", 'read'), false)
       else false
     end));
-
-drop policy if exists conversation_members_read on "app_private"."conversation_members";
 create policy conversation_members_read on "app_private"."conversation_members"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   or exists (select 1 from "app_private"."conversations" c where c."id" = "conversation_id"));
 
-create table if not exists "app_private"."messages" (
+create table "app_private"."messages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "app_private"."conversations" ("id") on delete cascade,
@@ -3895,13 +3596,13 @@ create table if not exists "app_private"."messages" (
   "created_at" timestamptz not null default now(),
   check (("thread_id" is null) = ("parent_id" is null))
 );
-create index if not exists messaging_messages_conversation_idx on "app_private"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
-create index if not exists messaging_messages_thread_idx on "app_private"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
-create index if not exists messaging_messages_parent_idx on "app_private"."messages" ("parent_id") where "parent_id" is not null;
-create index if not exists messaging_messages_author_idx on "app_private"."messages" ("author_id");
-create index if not exists messaging_messages_due_idx on "app_private"."messages" ("scheduled_for") where "sent_at" is null;
-create index if not exists messaging_messages_file_anchor_idx on "app_private"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
-create index if not exists messaging_messages_pinned_idx on "app_private"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
+create index messaging_messages_conversation_idx on "app_private"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index messaging_messages_thread_idx on "app_private"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
+create index messaging_messages_parent_idx on "app_private"."messages" ("parent_id") where "parent_id" is not null;
+create index messaging_messages_author_idx on "app_private"."messages" ("author_id");
+create index messaging_messages_due_idx on "app_private"."messages" ("scheduled_for") where "sent_at" is null;
+create index messaging_messages_file_anchor_idx on "app_private"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
+create index messaging_messages_pinned_idx on "app_private"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "app_private"."messages" enable row level security;
 revoke all on "app_private"."messages" from public, anon, authenticated;
 grant select on "app_private"."messages" to authenticated;
@@ -3909,13 +3610,13 @@ grant all on "app_private"."messages" to service_role;
 
 -- A message shows to whoever reads its conversation once it is sent; a
 -- scheduled one shows to its author only.
-drop policy if exists messages_read on "app_private"."messages";
+
 create policy messages_read on "app_private"."messages"
   for select to authenticated
   using (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "app_private"."conversations" c where c."id" = "conversation_id"));
 
-create table if not exists "app_private"."message_edits" (
+create table "app_private"."message_edits" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "message_id" uuid not null references "app_private"."messages" ("id") on delete cascade,
@@ -3924,13 +3625,11 @@ create table if not exists "app_private"."message_edits" (
   "edited_by" uuid,
   "edited_at" timestamptz not null default now()
 );
-create index if not exists messaging_edits_message_idx on "app_private"."message_edits" ("message_id", "edited_at");
+create index messaging_edits_message_idx on "app_private"."message_edits" ("message_id", "edited_at");
 alter table "app_private"."message_edits" enable row level security;
 revoke all on "app_private"."message_edits" from public, anon, authenticated;
 grant select on "app_private"."message_edits" to authenticated;
 grant all on "app_private"."message_edits" to service_role;
-
-drop policy if exists message_edits_read on "app_private"."message_edits";
 create policy message_edits_read on "app_private"."message_edits"
   for select to authenticated
   using (exists (select 1 from "app_private"."messages" m where m."id" = "message_id"));
@@ -3938,7 +3637,7 @@ create policy message_edits_read on "app_private"."message_edits"
 -- Where a user has read to, per conversation (thread null) or per thread
 -- root. Members keep the conversation marker on their member row too; a
 -- record's thread has no members, so its readers keep it here.
-create table if not exists "app_private"."thread_reads" (
+create table "app_private"."thread_reads" (
   "tenant_id" uuid not null,
   "user_id" uuid not null,
   "conversation_id" uuid not null references "app_private"."conversations" ("id") on delete cascade,
@@ -3946,21 +3645,19 @@ create table if not exists "app_private"."thread_reads" (
   "last_read_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "conversation_id", "thread_id")
 );
-create index if not exists messaging_reads_conversation_idx on "app_private"."thread_reads" ("conversation_id");
-create index if not exists messaging_reads_thread_idx on "app_private"."thread_reads" ("thread_id");
+create index messaging_reads_conversation_idx on "app_private"."thread_reads" ("conversation_id");
+create index messaging_reads_thread_idx on "app_private"."thread_reads" ("thread_id");
 alter table "app_private"."thread_reads" enable row level security;
 revoke all on "app_private"."thread_reads" from public, anon, authenticated;
 grant select on "app_private"."thread_reads" to authenticated;
 grant all on "app_private"."thread_reads" to service_role;
-
-drop policy if exists thread_reads_read on "app_private"."thread_reads";
 create policy thread_reads_read on "app_private"."thread_reads"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The records a sent message mentions, for a record's backlinks. A row shows
 -- with its message; list_record_mentions also asks can_subject on the record.
-create table if not exists "app_private"."message_record_mentions" (
+create table "app_private"."message_record_mentions" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "app_private"."messages" ("id") on delete cascade,
   "conversation_id" uuid not null references "app_private"."conversations" ("id") on delete cascade,
@@ -3969,21 +3666,19 @@ create table if not exists "app_private"."message_record_mentions" (
   "created_at" timestamptz not null default now(),
   primary key ("message_id", "subject_type", "subject_id")
 );
-create index if not exists messaging_record_mentions_subject_idx on "app_private"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
-create index if not exists messaging_record_mentions_conversation_idx on "app_private"."message_record_mentions" ("conversation_id");
+create index messaging_record_mentions_subject_idx on "app_private"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
+create index messaging_record_mentions_conversation_idx on "app_private"."message_record_mentions" ("conversation_id");
 alter table "app_private"."message_record_mentions" enable row level security;
 revoke all on "app_private"."message_record_mentions" from public, anon, authenticated;
 grant select on "app_private"."message_record_mentions" to authenticated;
 grant all on "app_private"."message_record_mentions" to service_role;
-
-drop policy if exists message_record_mentions_read on "app_private"."message_record_mentions";
 create policy message_record_mentions_read on "app_private"."message_record_mentions"
   for select to authenticated
   using (exists (select 1 from "app_private"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
 -- through save_thread_summary. It shows to whoever reads the conversation.
-create table if not exists "app_private"."thread_summaries" (
+create table "app_private"."thread_summaries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "app_private"."conversations" ("id") on delete cascade,
@@ -3996,13 +3691,11 @@ create table if not exists "app_private"."thread_summaries" (
   "updated_at" timestamptz not null default now(),
   unique nulls not distinct ("conversation_id", "thread_id")
 );
-create index if not exists messaging_thread_summaries_thread_idx on "app_private"."thread_summaries" ("thread_id");
+create index messaging_thread_summaries_thread_idx on "app_private"."thread_summaries" ("thread_id");
 alter table "app_private"."thread_summaries" enable row level security;
 revoke all on "app_private"."thread_summaries" from public, anon, authenticated;
 grant select on "app_private"."thread_summaries" to authenticated;
 grant all on "app_private"."thread_summaries" to service_role;
-
-drop policy if exists thread_summaries_read on "app_private"."thread_summaries";
 create policy thread_summaries_read on "app_private"."thread_summaries"
   for select to authenticated
   using (exists (select 1 from "app_private"."conversations" c where c."id" = "conversation_id"));
@@ -4041,7 +3734,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."messaging_message_written"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_written" on "app_private"."messages";
 create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "app_private"."messages"
   for each row execute function "app_private"."messaging_message_written"();
 
@@ -4518,7 +4210,7 @@ grant execute on function "app_private"."set_conversation_notify"(uuid, text) to
 -- Broadcasts that the caller is typing (or stopped) on the conversation's
 -- private topic, for clients that don't send the broadcast themselves. The
 -- service names who types in actor (a bot's name), default 'bot'.
-drop function if exists "app_private"."set_typing"(uuid, boolean);
+
 create or replace function "app_private"."set_typing"(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language plpgsql
@@ -5234,21 +4926,18 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."messaging_message_broadcast"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_broadcast" on "app_private"."messages";
 create trigger "bsb_messaging_message_broadcast" after insert or update on "app_private"."messages"
   for each row execute function "app_private"."messaging_message_broadcast"();
 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_messaging_receive on realtime.messages;
-create policy bsb_messaging_receive on realtime.messages
+        create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "app_private"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        drop policy if exists bsb_messaging_broadcast on realtime.messages;
-create policy bsb_messaging_broadcast on realtime.messages
+        create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
@@ -5260,8 +4949,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."conversations";
-drop policy if exists bsb_tenant_scope_select on "app_private"."conversations";
 create policy bsb_tenant_scope_select on "app_private"."conversations" as restrictive
   for select to public
   using (
@@ -5274,21 +4961,16 @@ create policy bsb_tenant_scope_select on "app_private"."conversations" as restri
       else false
     end))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."conversations";
 create policy bsb_tenant_scope_insert on "app_private"."conversations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."conversations";
 create policy bsb_tenant_scope_update on "app_private"."conversations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."conversations";
 create policy bsb_tenant_scope_delete on "app_private"."conversations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."conversation_members";
-drop policy if exists bsb_tenant_scope_select on "app_private"."conversation_members";
 create policy bsb_tenant_scope_select on "app_private"."conversation_members" as restrictive
   for select to public
   using (
@@ -5296,21 +4978,16 @@ create policy bsb_tenant_scope_select on "app_private"."conversation_members" as
     or ("user_id" = (select auth.uid())
   or exists (select 1 from "app_private"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."conversation_members";
 create policy bsb_tenant_scope_insert on "app_private"."conversation_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."conversation_members";
 create policy bsb_tenant_scope_update on "app_private"."conversation_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."conversation_members";
 create policy bsb_tenant_scope_delete on "app_private"."conversation_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."messages";
-drop policy if exists bsb_tenant_scope_select on "app_private"."messages";
 create policy bsb_tenant_scope_select on "app_private"."messages" as restrictive
   for select to public
   using (
@@ -5318,100 +4995,77 @@ create policy bsb_tenant_scope_select on "app_private"."messages" as restrictive
     or (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "app_private"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."messages";
 create policy bsb_tenant_scope_insert on "app_private"."messages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."messages";
 create policy bsb_tenant_scope_update on "app_private"."messages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."messages";
 create policy bsb_tenant_scope_delete on "app_private"."messages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."message_edits";
-drop policy if exists bsb_tenant_scope_select on "app_private"."message_edits";
 create policy bsb_tenant_scope_select on "app_private"."message_edits" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "app_private"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."message_edits";
 create policy bsb_tenant_scope_insert on "app_private"."message_edits" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."message_edits";
 create policy bsb_tenant_scope_update on "app_private"."message_edits" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."message_edits";
 create policy bsb_tenant_scope_delete on "app_private"."message_edits" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."thread_reads";
-drop policy if exists bsb_tenant_scope_select on "app_private"."thread_reads";
 create policy bsb_tenant_scope_select on "app_private"."thread_reads" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."thread_reads";
 create policy bsb_tenant_scope_insert on "app_private"."thread_reads" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."thread_reads";
 create policy bsb_tenant_scope_update on "app_private"."thread_reads" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."thread_reads";
 create policy bsb_tenant_scope_delete on "app_private"."thread_reads" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."message_record_mentions";
-drop policy if exists bsb_tenant_scope_select on "app_private"."message_record_mentions";
 create policy bsb_tenant_scope_select on "app_private"."message_record_mentions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "app_private"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."message_record_mentions";
 create policy bsb_tenant_scope_insert on "app_private"."message_record_mentions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."message_record_mentions";
 create policy bsb_tenant_scope_update on "app_private"."message_record_mentions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."message_record_mentions";
 create policy bsb_tenant_scope_delete on "app_private"."message_record_mentions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."thread_summaries";
-drop policy if exists bsb_tenant_scope_select on "app_private"."thread_summaries";
 create policy bsb_tenant_scope_select on "app_private"."thread_summaries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "app_private"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."thread_summaries";
 create policy bsb_tenant_scope_insert on "app_private"."thread_summaries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."thread_summaries";
 create policy bsb_tenant_scope_update on "app_private"."thread_summaries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."thread_summaries";
 create policy bsb_tenant_scope_delete on "app_private"."thread_summaries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -5433,80 +5087,17 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:cb04e8f485157cd8eed80790f8c29da418d1051b31a023fe6835ab0d06c9f537
+-- @bsb-hash sha256:252995baf0f20e6c6c5be70018daca4d84e742804d53fcf4f30e3532f906cebe
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Messaging: conversations (channels, direct and group messages, one per
 -- record, the inbox's) with members, messages with threads, mentions, edits,
 -- pins and resolution, scheduled sends and read markers. Writes go through
 -- the functions; Realtime pings carry ids only.
 
-create table if not exists "better_supabase"."conversations" (
+create table "better_supabase"."conversations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('channel', 'dm', 'group_dm', 'subject', 'inbox')),
@@ -5523,15 +5114,15 @@ create table if not exists "better_supabase"."conversations" (
   check (("subject_type" is null) = ("subject_id" is null)),
   check ("access" <> 'subject' or "subject_type" is not null)
 );
-create unique index if not exists messaging_conversations_subject_idx on "better_supabase"."conversations" ("tenant_id", "subject_type", "subject_id") where "kind" = 'subject';
-create unique index if not exists messaging_conversations_member_key_idx on "better_supabase"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
-create index if not exists messaging_conversations_list_idx on "better_supabase"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
+create unique index messaging_conversations_subject_idx on "better_supabase"."conversations" ("tenant_id", "subject_type", "subject_id") where "kind" = 'subject';
+create unique index messaging_conversations_member_key_idx on "better_supabase"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
+create index messaging_conversations_list_idx on "better_supabase"."conversations" ("tenant_id", "last_message_at" desc nulls last, "id");
 alter table "better_supabase"."conversations" enable row level security;
 revoke all on "better_supabase"."conversations" from public, anon, authenticated;
 grant select on "better_supabase"."conversations" to authenticated;
 grant all on "better_supabase"."conversations" to service_role;
 
-create table if not exists "better_supabase"."conversation_members" (
+create table "better_supabase"."conversation_members" (
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -5541,7 +5132,7 @@ create table if not exists "better_supabase"."conversation_members" (
   "joined_at" timestamptz not null default now(),
   primary key ("conversation_id", "user_id")
 );
-create index if not exists messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "tenant_id");
+create index messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "tenant_id");
 alter table "better_supabase"."conversation_members" enable row level security;
 revoke all on "better_supabase"."conversation_members" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_members" to authenticated;
@@ -5563,8 +5154,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."is_conversation_member"(uuid) from public, anon;
 grant execute on function "better_supabase"."is_conversation_member"(uuid) to authenticated, service_role;
-
-drop policy if exists conversations_read on "better_supabase"."conversations";
 create policy conversations_read on "better_supabase"."conversations"
   for select to authenticated
   using (("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
@@ -5574,14 +5163,12 @@ create policy conversations_read on "better_supabase"."conversations"
       when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
       else false
     end));
-
-drop policy if exists conversation_members_read on "better_supabase"."conversation_members";
 create policy conversation_members_read on "better_supabase"."conversation_members"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
 
-create table if not exists "better_supabase"."messages" (
+create table "better_supabase"."messages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -5609,13 +5196,13 @@ create table if not exists "better_supabase"."messages" (
   "created_at" timestamptz not null default now(),
   check (("thread_id" is null) = ("parent_id" is null))
 );
-create index if not exists messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
-create index if not exists messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
-create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
-create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
-create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
-create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
-create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
+create index messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
+create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
+create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
+create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
+create index messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
 revoke all on "better_supabase"."messages" from public, anon, authenticated;
 grant select on "better_supabase"."messages" to authenticated;
@@ -5623,13 +5210,13 @@ grant all on "better_supabase"."messages" to service_role;
 
 -- A message shows to whoever reads its conversation once it is sent; a
 -- scheduled one shows to its author only.
-drop policy if exists messages_read on "better_supabase"."messages";
+
 create policy messages_read on "better_supabase"."messages"
   for select to authenticated
   using (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
 
-create table if not exists "better_supabase"."message_edits" (
+create table "better_supabase"."message_edits" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."messages" ("id") on delete cascade,
@@ -5638,13 +5225,11 @@ create table if not exists "better_supabase"."message_edits" (
   "edited_by" uuid,
   "edited_at" timestamptz not null default now()
 );
-create index if not exists messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
+create index messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
 alter table "better_supabase"."message_edits" enable row level security;
 revoke all on "better_supabase"."message_edits" from public, anon, authenticated;
 grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
-
-drop policy if exists message_edits_read on "better_supabase"."message_edits";
 create policy message_edits_read on "better_supabase"."message_edits"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
@@ -5652,7 +5237,7 @@ create policy message_edits_read on "better_supabase"."message_edits"
 -- Where a user has read to, per conversation (thread null) or per thread
 -- root. Members keep the conversation marker on their member row too; a
 -- record's thread has no members, so its readers keep it here.
-create table if not exists "better_supabase"."thread_reads" (
+create table "better_supabase"."thread_reads" (
   "tenant_id" uuid not null,
   "user_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -5660,21 +5245,19 @@ create table if not exists "better_supabase"."thread_reads" (
   "last_read_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "conversation_id", "thread_id")
 );
-create index if not exists messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
-create index if not exists messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
+create index messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
+create index messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
 alter table "better_supabase"."thread_reads" enable row level security;
 revoke all on "better_supabase"."thread_reads" from public, anon, authenticated;
 grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
-
-drop policy if exists thread_reads_read on "better_supabase"."thread_reads";
 create policy thread_reads_read on "better_supabase"."thread_reads"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The records a sent message mentions, for a record's backlinks. A row shows
 -- with its message; list_record_mentions also asks can_subject on the record.
-create table if not exists "better_supabase"."message_record_mentions" (
+create table "better_supabase"."message_record_mentions" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."messages" ("id") on delete cascade,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -5683,21 +5266,19 @@ create table if not exists "better_supabase"."message_record_mentions" (
   "created_at" timestamptz not null default now(),
   primary key ("message_id", "subject_type", "subject_id")
 );
-create index if not exists messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
-create index if not exists messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
+create index messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
+create index messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
 alter table "better_supabase"."message_record_mentions" enable row level security;
 revoke all on "better_supabase"."message_record_mentions" from public, anon, authenticated;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
-
-drop policy if exists message_record_mentions_read on "better_supabase"."message_record_mentions";
 create policy message_record_mentions_read on "better_supabase"."message_record_mentions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
 -- through save_thread_summary. It shows to whoever reads the conversation.
-create table if not exists "better_supabase"."thread_summaries" (
+create table "better_supabase"."thread_summaries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -5710,13 +5291,11 @@ create table if not exists "better_supabase"."thread_summaries" (
   "updated_at" timestamptz not null default now(),
   unique nulls not distinct ("conversation_id", "thread_id")
 );
-create index if not exists messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
+create index messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
 alter table "better_supabase"."thread_summaries" enable row level security;
 revoke all on "better_supabase"."thread_summaries" from public, anon, authenticated;
 grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
-
-drop policy if exists thread_summaries_read on "better_supabase"."thread_summaries";
 create policy thread_summaries_read on "better_supabase"."thread_summaries"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
@@ -5755,7 +5334,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_written"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_written" on "better_supabase"."messages";
 create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_written"();
 
@@ -6232,7 +5810,7 @@ grant execute on function "better_supabase"."set_conversation_notify"(uuid, text
 -- Broadcasts that the caller is typing (or stopped) on the conversation's
 -- private topic, for clients that don't send the broadcast themselves. The
 -- service names who types in actor (a bot's name), default 'bot'.
-drop function if exists "better_supabase"."set_typing"(uuid, boolean);
+
 create or replace function "better_supabase"."set_typing"(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language plpgsql
@@ -6948,21 +6526,18 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_broadcast"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_broadcast" on "better_supabase"."messages";
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_messaging_receive on realtime.messages;
-create policy bsb_messaging_receive on realtime.messages
+        create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        drop policy if exists bsb_messaging_broadcast on realtime.messages;
-create policy bsb_messaging_broadcast on realtime.messages
+        create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
@@ -6974,8 +6549,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
 create policy bsb_tenant_scope_select on "better_supabase"."conversations" as restrictive
   for select to public
   using (
@@ -6988,21 +6561,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversations" as re
       else false
     end))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
 create policy bsb_tenant_scope_insert on "better_supabase"."conversations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
 create policy bsb_tenant_scope_update on "better_supabase"."conversations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
 create policy bsb_tenant_scope_delete on "better_supabase"."conversations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_select on "better_supabase"."conversation_members" as restrictive
   for select to public
   using (
@@ -7010,21 +6578,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversation_members
     or ("user_id" = (select auth.uid())
   or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."conversation_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_update on "better_supabase"."conversation_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."conversation_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
 create policy bsb_tenant_scope_select on "better_supabase"."messages" as restrictive
   for select to public
   using (
@@ -7032,100 +6595,77 @@ create policy bsb_tenant_scope_select on "better_supabase"."messages" as restric
     or (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
 create policy bsb_tenant_scope_insert on "better_supabase"."messages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
 create policy bsb_tenant_scope_update on "better_supabase"."messages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
 create policy bsb_tenant_scope_delete on "better_supabase"."messages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_select on "better_supabase"."message_edits" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_insert on "better_supabase"."message_edits" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_update on "better_supabase"."message_edits" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_delete on "better_supabase"."message_edits" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_select on "better_supabase"."thread_reads" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_insert on "better_supabase"."thread_reads" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_update on "better_supabase"."thread_reads" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_delete on "better_supabase"."thread_reads" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_select on "better_supabase"."message_record_mentions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_insert on "better_supabase"."message_record_mentions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_update on "better_supabase"."message_record_mentions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_delete on "better_supabase"."message_record_mentions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_select on "better_supabase"."thread_summaries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_insert on "better_supabase"."thread_summaries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_update on "better_supabase"."thread_summaries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -7135,12 +6675,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."is_conversation_member"(uuid);
-drop function if exists "api"."messaging_messages_json"(uuid[]);
-drop function if exists "api"."parse_mentions"(text);
-drop function if exists "api"."conversation_topic_allowed"(text);
 
-drop function if exists "api"."set_typing"(uuid, boolean);
 
 create or replace function "api"."can_conversation"(conversation uuid, action text)
 returns boolean
@@ -7415,73 +6950,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:d4f3b38840cc1639f8b7b594e16b62da52ba6d5977592e39750cd890de452c3d
+-- @bsb-hash sha256:0aa267be5e3d0955af655e51728606732f6f3b5604adc0656eb6f8542a3286ec
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Messaging: conversations (channels, direct and group messages, one per
 -- record, the inbox's) with members, messages with threads, mentions, edits,
@@ -7539,8 +7011,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."is_conversation_member"(uuid) from public, anon;
 grant execute on function "better_supabase"."is_conversation_member"(uuid) to authenticated, service_role;
-
-drop policy if exists bsb_conversations_select on "better_supabase"."conversations";
 create policy bsb_conversations_select on "better_supabase"."conversations"
   for select to authenticated
   using (("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
@@ -7550,8 +7020,6 @@ create policy bsb_conversations_select on "better_supabase"."conversations"
       when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
       else false
     end));
-
-drop policy if exists bsb_conversation_members_select on "better_supabase"."conversation_members";
 create policy bsb_conversation_members_select on "better_supabase"."conversation_members"
   for select to authenticated
   using ("user_id" = (select auth.uid())
@@ -7596,7 +7064,7 @@ grant all on "better_supabase"."messages" to service_role;
 
 -- A message shows to whoever reads its conversation once it is sent; a
 -- scheduled one shows to its author only.
-drop policy if exists bsb_messages_select on "better_supabase"."messages";
+
 create policy bsb_messages_select on "better_supabase"."messages"
   for select to authenticated
   using (("sent_at" is not null or "author_id" = (select auth.uid()))
@@ -7614,8 +7082,6 @@ create index if not exists messaging_edits_message_idx on "better_supabase"."mes
 alter table "better_supabase"."message_edits" enable row level security;
 grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
-
-drop policy if exists bsb_message_edits_select on "better_supabase"."message_edits";
 create policy bsb_message_edits_select on "better_supabase"."message_edits"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
@@ -7635,8 +7101,6 @@ create index if not exists messaging_reads_thread_idx on "better_supabase"."thre
 alter table "better_supabase"."thread_reads" enable row level security;
 grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
-
-drop policy if exists bsb_thread_reads_select on "better_supabase"."thread_reads";
 create policy bsb_thread_reads_select on "better_supabase"."thread_reads"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
@@ -7656,8 +7120,6 @@ create index if not exists messaging_record_mentions_conversation_idx on "better
 alter table "better_supabase"."message_record_mentions" enable row level security;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
-
-drop policy if exists bsb_message_record_mentions_select on "better_supabase"."message_record_mentions";
 create policy bsb_message_record_mentions_select on "better_supabase"."message_record_mentions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
@@ -7680,8 +7142,6 @@ create index if not exists messaging_thread_summaries_thread_idx on "better_supa
 alter table "better_supabase"."thread_summaries" enable row level security;
 grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
-
-drop policy if exists bsb_thread_summaries_select on "better_supabase"."thread_summaries";
 create policy bsb_thread_summaries_select on "better_supabase"."thread_summaries"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
@@ -7720,7 +7180,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_written"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_written" on "better_supabase"."messages";
 create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_written"();
 
@@ -8197,7 +7656,7 @@ grant execute on function "better_supabase"."set_conversation_notify"(uuid, text
 -- Broadcasts that the caller is typing (or stopped) on the conversation's
 -- private topic, for clients that don't send the broadcast themselves. The
 -- service names who types in actor (a bot's name), default 'bot'.
-drop function if exists "better_supabase"."set_typing"(uuid, boolean);
+
 create or replace function "better_supabase"."set_typing"(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language plpgsql
@@ -8913,21 +8372,18 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_broadcast"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_broadcast" on "better_supabase"."messages";
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_messaging_receive on realtime.messages;
-create policy bsb_messaging_receive on realtime.messages
+        create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        drop policy if exists bsb_messaging_broadcast on realtime.messages;
-create policy bsb_messaging_broadcast on realtime.messages
+        create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
@@ -8939,8 +8395,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
 create policy bsb_tenant_scope_select on "better_supabase"."conversations" as restrictive
   for select to public
   using (
@@ -8953,21 +8407,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversations" as re
       else false
     end))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
 create policy bsb_tenant_scope_insert on "better_supabase"."conversations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
 create policy bsb_tenant_scope_update on "better_supabase"."conversations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
 create policy bsb_tenant_scope_delete on "better_supabase"."conversations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_select on "better_supabase"."conversation_members" as restrictive
   for select to public
   using (
@@ -8975,21 +8424,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversation_members
     or ("user_id" = (select auth.uid())
   or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."conversation_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_update on "better_supabase"."conversation_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."conversation_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
 create policy bsb_tenant_scope_select on "better_supabase"."messages" as restrictive
   for select to public
   using (
@@ -8997,100 +8441,77 @@ create policy bsb_tenant_scope_select on "better_supabase"."messages" as restric
     or (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
 create policy bsb_tenant_scope_insert on "better_supabase"."messages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
 create policy bsb_tenant_scope_update on "better_supabase"."messages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
 create policy bsb_tenant_scope_delete on "better_supabase"."messages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_select on "better_supabase"."message_edits" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_insert on "better_supabase"."message_edits" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_update on "better_supabase"."message_edits" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_delete on "better_supabase"."message_edits" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_select on "better_supabase"."thread_reads" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_insert on "better_supabase"."thread_reads" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_update on "better_supabase"."thread_reads" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_delete on "better_supabase"."thread_reads" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_select on "better_supabase"."message_record_mentions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_insert on "better_supabase"."message_record_mentions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_update on "better_supabase"."message_record_mentions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_delete on "better_supabase"."message_record_mentions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_select on "better_supabase"."thread_summaries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_insert on "better_supabase"."thread_summaries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_update on "better_supabase"."thread_summaries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -9112,80 +8533,17 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:6f5bf2378630d2ea1aacd2818bf645a3f362fdf29720650adab4adfdd34b4b0b
+-- @bsb-hash sha256:9a01a4ca9f479e964245565c30bdcf7766b30315239944314db22e35ed0b9895
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Messaging: conversations (channels, direct and group messages, one per
 -- record, the inbox's) with members, messages with threads, mentions, edits,
 -- pins and resolution, scheduled sends and read markers. Writes go through
 -- the functions; Realtime pings carry ids only.
 
-create table if not exists "better_supabase"."conversations" (
+create table "better_supabase"."conversations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "kind" text not null check ("kind" in ('channel', 'dm', 'group_dm', 'subject', 'inbox')),
@@ -9202,15 +8560,15 @@ create table if not exists "better_supabase"."conversations" (
   check (("subject_type" is null) = ("subject_id" is null)),
   check ("access" <> 'subject' or "subject_type" is not null)
 );
-create unique index if not exists messaging_conversations_subject_idx on "better_supabase"."conversations" ("org_id", "subject_type", "subject_id") where "kind" = 'subject';
-create unique index if not exists messaging_conversations_member_key_idx on "better_supabase"."conversations" ("org_id", "kind", "member_key") where "member_key" is not null;
-create index if not exists messaging_conversations_list_idx on "better_supabase"."conversations" ("org_id", "last_message_at" desc nulls last, "id");
+create unique index messaging_conversations_subject_idx on "better_supabase"."conversations" ("org_id", "subject_type", "subject_id") where "kind" = 'subject';
+create unique index messaging_conversations_member_key_idx on "better_supabase"."conversations" ("org_id", "kind", "member_key") where "member_key" is not null;
+create index messaging_conversations_list_idx on "better_supabase"."conversations" ("org_id", "last_message_at" desc nulls last, "id");
 alter table "better_supabase"."conversations" enable row level security;
 revoke all on "better_supabase"."conversations" from public, anon, authenticated;
 grant select on "better_supabase"."conversations" to authenticated;
 grant all on "better_supabase"."conversations" to service_role;
 
-create table if not exists "better_supabase"."conversation_members" (
+create table "better_supabase"."conversation_members" (
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
   "org_id" uuid not null,
   "user_id" uuid not null,
@@ -9220,7 +8578,7 @@ create table if not exists "better_supabase"."conversation_members" (
   "joined_at" timestamptz not null default now(),
   primary key ("conversation_id", "user_id")
 );
-create index if not exists messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "org_id");
+create index messaging_members_user_idx on "better_supabase"."conversation_members" ("user_id", "org_id");
 alter table "better_supabase"."conversation_members" enable row level security;
 revoke all on "better_supabase"."conversation_members" from public, anon, authenticated;
 grant select on "better_supabase"."conversation_members" to authenticated;
@@ -9242,8 +8600,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."is_conversation_member"(uuid) from public, anon;
 grant execute on function "better_supabase"."is_conversation_member"(uuid) to authenticated, service_role;
-
-drop policy if exists conversations_read on "better_supabase"."conversations";
 create policy conversations_read on "better_supabase"."conversations"
   for select to authenticated
   using (("better_supabase"."conversations"."org_id" in (select better_supabase.tenant_ids_with('messages.read'))
@@ -9253,14 +8609,12 @@ create policy conversations_read on "better_supabase"."conversations"
       when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
       else false
     end));
-
-drop policy if exists conversation_members_read on "better_supabase"."conversation_members";
 create policy conversation_members_read on "better_supabase"."conversation_members"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
 
-create table if not exists "better_supabase"."messages" (
+create table "better_supabase"."messages" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -9288,13 +8642,13 @@ create table if not exists "better_supabase"."messages" (
   "created_at" timestamptz not null default now(),
   check (("thread_id" is null) = ("parent_id" is null))
 );
-create index if not exists messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
-create index if not exists messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
-create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
-create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
-create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
-create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
-create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
+create index messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
+create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
+create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
+create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
+create index messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
 revoke all on "better_supabase"."messages" from public, anon, authenticated;
 grant select on "better_supabase"."messages" to authenticated;
@@ -9302,13 +8656,13 @@ grant all on "better_supabase"."messages" to service_role;
 
 -- A message shows to whoever reads its conversation once it is sent; a
 -- scheduled one shows to its author only.
-drop policy if exists messages_read on "better_supabase"."messages";
+
 create policy messages_read on "better_supabase"."messages"
   for select to authenticated
   using (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
 
-create table if not exists "better_supabase"."message_edits" (
+create table "better_supabase"."message_edits" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."messages" ("id") on delete cascade,
@@ -9317,13 +8671,11 @@ create table if not exists "better_supabase"."message_edits" (
   "edited_by" uuid,
   "edited_at" timestamptz not null default now()
 );
-create index if not exists messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
+create index messaging_edits_message_idx on "better_supabase"."message_edits" ("message_id", "edited_at");
 alter table "better_supabase"."message_edits" enable row level security;
 revoke all on "better_supabase"."message_edits" from public, anon, authenticated;
 grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
-
-drop policy if exists message_edits_read on "better_supabase"."message_edits";
 create policy message_edits_read on "better_supabase"."message_edits"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
@@ -9331,7 +8683,7 @@ create policy message_edits_read on "better_supabase"."message_edits"
 -- Where a user has read to, per conversation (thread null) or per thread
 -- root. Members keep the conversation marker on their member row too; a
 -- record's thread has no members, so its readers keep it here.
-create table if not exists "better_supabase"."thread_reads" (
+create table "better_supabase"."thread_reads" (
   "org_id" uuid not null,
   "user_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -9339,21 +8691,19 @@ create table if not exists "better_supabase"."thread_reads" (
   "last_read_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "conversation_id", "thread_id")
 );
-create index if not exists messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
-create index if not exists messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
+create index messaging_reads_conversation_idx on "better_supabase"."thread_reads" ("conversation_id");
+create index messaging_reads_thread_idx on "better_supabase"."thread_reads" ("thread_id");
 alter table "better_supabase"."thread_reads" enable row level security;
 revoke all on "better_supabase"."thread_reads" from public, anon, authenticated;
 grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
-
-drop policy if exists thread_reads_read on "better_supabase"."thread_reads";
 create policy thread_reads_read on "better_supabase"."thread_reads"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The records a sent message mentions, for a record's backlinks. A row shows
 -- with its message; list_record_mentions also asks can_subject on the record.
-create table if not exists "better_supabase"."message_record_mentions" (
+create table "better_supabase"."message_record_mentions" (
   "org_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."messages" ("id") on delete cascade,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -9362,21 +8712,19 @@ create table if not exists "better_supabase"."message_record_mentions" (
   "created_at" timestamptz not null default now(),
   primary key ("message_id", "subject_type", "subject_id")
 );
-create index if not exists messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
-create index if not exists messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
+create index messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
+create index messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
 alter table "better_supabase"."message_record_mentions" enable row level security;
 revoke all on "better_supabase"."message_record_mentions" from public, anon, authenticated;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
-
-drop policy if exists message_record_mentions_read on "better_supabase"."message_record_mentions";
 create policy message_record_mentions_read on "better_supabase"."message_record_mentions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
 -- through save_thread_summary. It shows to whoever reads the conversation.
-create table if not exists "better_supabase"."thread_summaries" (
+create table "better_supabase"."thread_summaries" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
@@ -9389,13 +8737,11 @@ create table if not exists "better_supabase"."thread_summaries" (
   "updated_at" timestamptz not null default now(),
   unique nulls not distinct ("conversation_id", "thread_id")
 );
-create index if not exists messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
+create index messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
 alter table "better_supabase"."thread_summaries" enable row level security;
 revoke all on "better_supabase"."thread_summaries" from public, anon, authenticated;
 grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
-
-drop policy if exists thread_summaries_read on "better_supabase"."thread_summaries";
 create policy thread_summaries_read on "better_supabase"."thread_summaries"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
@@ -9434,7 +8780,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_written"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_written" on "better_supabase"."messages";
 create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_written"();
 
@@ -9911,7 +9256,7 @@ grant execute on function "better_supabase"."set_conversation_notify"(uuid, text
 -- Broadcasts that the caller is typing (or stopped) on the conversation's
 -- private topic, for clients that don't send the broadcast themselves. The
 -- service names who types in actor (a bot's name), default 'bot'.
-drop function if exists "better_supabase"."set_typing"(uuid, boolean);
+
 create or replace function "better_supabase"."set_typing"(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language plpgsql
@@ -10627,21 +9972,18 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_broadcast"() from public, anon, authenticated;
-drop trigger if exists "bsb_messaging_message_broadcast" on "better_supabase"."messages";
 create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_messaging_receive on realtime.messages;
-create policy bsb_messaging_receive on realtime.messages
+        create policy bsb_messaging_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10)));
-        drop policy if exists bsb_messaging_broadcast on realtime.messages;
-create policy bsb_messaging_broadcast on realtime.messages
+        create policy bsb_messaging_broadcast on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
@@ -10653,8 +9995,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."conversations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversations";
 create policy bsb_tenant_scope_select on "better_supabase"."conversations" as restrictive
   for select to public
   using (
@@ -10667,21 +10007,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversations" as re
       else false
     end))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversations";
 create policy bsb_tenant_scope_insert on "better_supabase"."conversations" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversations";
 create policy bsb_tenant_scope_update on "better_supabase"."conversations" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversations";
 create policy bsb_tenant_scope_delete on "better_supabase"."conversations" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."conversation_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_select on "better_supabase"."conversation_members" as restrictive
   for select to public
   using (
@@ -10689,21 +10024,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."conversation_members
     or ("user_id" = (select auth.uid())
   or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."conversation_members" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_update on "better_supabase"."conversation_members" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."conversation_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."conversation_members" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."messages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."messages";
 create policy bsb_tenant_scope_select on "better_supabase"."messages" as restrictive
   for select to public
   using (
@@ -10711,100 +10041,77 @@ create policy bsb_tenant_scope_select on "better_supabase"."messages" as restric
     or (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."messages";
 create policy bsb_tenant_scope_insert on "better_supabase"."messages" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."messages";
 create policy bsb_tenant_scope_update on "better_supabase"."messages" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."messages";
 create policy bsb_tenant_scope_delete on "better_supabase"."messages" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."message_edits";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_select on "better_supabase"."message_edits" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_insert on "better_supabase"."message_edits" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_update on "better_supabase"."message_edits" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_edits";
 create policy bsb_tenant_scope_delete on "better_supabase"."message_edits" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."thread_reads";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_select on "better_supabase"."thread_reads" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_insert on "better_supabase"."thread_reads" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_update on "better_supabase"."thread_reads" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_reads";
 create policy bsb_tenant_scope_delete on "better_supabase"."thread_reads" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."message_record_mentions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_select on "better_supabase"."message_record_mentions" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_insert on "better_supabase"."message_record_mentions" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_update on "better_supabase"."message_record_mentions" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."message_record_mentions";
 create policy bsb_tenant_scope_delete on "better_supabase"."message_record_mentions" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."thread_summaries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_select on "better_supabase"."thread_summaries" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_insert on "better_supabase"."thread_summaries" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_update on "better_supabase"."thread_summaries" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."thread_summaries";
 create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

@@ -118,16 +118,12 @@ describe("access module", () => {
       tables: { overrides: null, platformAssignments: null },
     });
 
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."roles"',
-    );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."role_permissions"',
-    );
+    expect(sql).toContain('create table "better_supabase"."roles"');
+    expect(sql).toContain('create table "better_supabase"."role_permissions"');
     expect(sql).not.toContain("permission_overrides");
     expect(sql).not.toContain("platform_roles");
     expect(access({ model: "catalog" })).toContain(
-      'create table if not exists "better_supabase"."platform_roles"',
+      'create table "better_supabase"."platform_roles"',
     );
   });
 
@@ -509,9 +505,6 @@ describe("access module", () => {
     expect(sql).toContain("PERMISSIONS_SELF_LOCKOUT");
 
     const roles = access({ model: "roles" });
-    expect(roles).toContain(
-      'drop function if exists "better_supabase"."list_roles"(uuid);',
-    );
     expect(roles).not.toContain(
       'function "better_supabase"."list_roles"(tenant',
     );

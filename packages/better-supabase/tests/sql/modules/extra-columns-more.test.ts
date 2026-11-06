@@ -18,7 +18,7 @@ describe("extra columns on more tables", () => {
       },
     });
 
-    expect(sql).toContain('add column if not exists "region" text not null');
+    expect(sql).toContain('add column "region" text not null');
     expect(sql).toContain("owner_id text, fields jsonb default null)");
     expect(sql).toContain(
       `(jsonb_populate_record(null::"better_supabase"."calendars", jsonb_build_object('region', create_calendar.fields -> 'region')))."region"`,

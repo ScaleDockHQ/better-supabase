@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:ff2d17881c92840707aefb9ad0271daccfadd918faccd15febc9eddce7eef776
+-- @bsb-hash sha256:740cb36f8ca98bb7dd3ed930b5a8cc5856595a8b86224763b0eb897a68ad29b8
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,7 +9,7 @@
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
-create table if not exists "better_supabase"."announcements" (
+create table "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "body" text not null default '' check (length("body") <= 10000),
@@ -28,21 +28,21 @@ create table if not exists "better_supabase"."announcements" (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "better_supabase"."announcements" drop constraint if exists bsb_announcements_audience;
+
 alter table "better_supabase"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
-create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
-create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
+create index announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
+create index announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
 revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
-create table if not exists "better_supabase"."announcement_dismissals" (
+create table "better_supabase"."announcement_dismissals" (
   "announcement_id" uuid not null references "better_supabase"."announcements" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "dismissed_at" timestamptz not null default now(),
   primary key ("announcement_id", "user_id")
 );
-create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
+create index announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
 revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
@@ -234,14 +234,12 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_announcements_receive on realtime.messages;
-create policy bsb_announcements_receive on realtime.messages
+        create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;

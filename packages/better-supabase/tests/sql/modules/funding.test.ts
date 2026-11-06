@@ -236,7 +236,7 @@ describe("funding module", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."funding_awards" add column if not exists "indication" text;`,
+      `alter table "better_supabase"."funding_awards" add column "indication" text;`,
     );
     expect(sql).toContain("'fields', jsonb_build_object('indication'");
     expect(() =>

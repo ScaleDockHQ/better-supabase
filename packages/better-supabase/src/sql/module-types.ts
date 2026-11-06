@@ -298,6 +298,12 @@ export interface BlockSqlLayout {
   /** Directory for schema modules. Defaults to `supabase/schemas`. */
   readonly dir?: string;
   /**
+   * Render each statement so it can run again. The migrations workflow writes
+   * every module into each migration; the other workflows read the files as
+   * declarative DDL and leave this unset.
+   */
+  readonly rerunnable?: boolean;
+  /**
    * The declarative schema folder the diff engine loads. Defaults to
    * `supabase/schemas`.
    */

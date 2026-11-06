@@ -27,12 +27,8 @@ describe("catalog discount matrix", () => {
   const sql = moduleSql("catalog", ["catalog"]);
 
   it("declares groups, a party membership and the rule matrix", () => {
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."discount_groups"',
-    );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."discount_rules"',
-    );
+    expect(sql).toContain('create table "better_supabase"."discount_groups"');
+    expect(sql).toContain('create table "better_supabase"."discount_rules"');
     expect(sql).toContain("CATALOG_DISCOUNT_RULE_INVALID");
   });
 

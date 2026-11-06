@@ -1,56 +1,9 @@
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:fe07527a007472b6487abde81044d33d9bdaf6f48cc3c907477671ef6a935d3d
+-- @bsb-hash sha256:2048239e6ed9af5e98221e219598e09e16c91349184d1569f6813d37ba5881cb
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tills";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tills";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tills";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tills";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tills";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."till_sessions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."till_sessions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."till_sessions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."till_sessions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."till_sessions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."till_movements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."till_movements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."till_movements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."till_movements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."till_movements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."till_counts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."till_counts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."till_counts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."till_counts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."till_counts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."till_deposits";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."till_deposits";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."till_deposits";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."till_deposits";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."till_deposits";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Tills: sessions with an opening float, cash movements, an end-of-day count
 -- that books its difference, deposits to the bank and their reconciliation.
@@ -58,7 +11,7 @@ end $$;
 -- A cash register or drawer. account_id is the accounting account that holds its
 -- cash; without it the till books nothing in accounting. archived tills open no
 -- sessions.
-create table if not exists "better_supabase"."tills" (
+create table "better_supabase"."tills" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 100),
@@ -74,14 +27,13 @@ alter table "better_supabase"."tills" enable row level security;
 revoke all on "better_supabase"."tills" from public, anon, authenticated;
 grant select on "better_supabase"."tills" to authenticated;
 grant all on "better_supabase"."tills" to service_role;
-drop policy if exists tills_read on "better_supabase"."tills";
 create policy tills_read on "better_supabase"."tills"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')));
 
 -- One shift at a till, from the opening float to the closing count. A till has
 -- at most one open session. Amounts are minor units of the till's currency.
-create table if not exists "better_supabase"."till_sessions" (
+create table "better_supabase"."till_sessions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "till_id" uuid not null references "better_supabase"."tills" ("id") on delete cascade,
@@ -93,13 +45,12 @@ create table if not exists "better_supabase"."till_sessions" (
   "closed_at" timestamptz,
   "notes" text check ("notes" is null or length("notes") <= 2000)
 );
-create index if not exists "till_sessions_opened_idx" on "better_supabase"."till_sessions" ("till_id", "opened_at" desc);
-create unique index if not exists "till_sessions_open_key" on "better_supabase"."till_sessions" ("till_id") where "status" = 'open';
+create index "till_sessions_opened_idx" on "better_supabase"."till_sessions" ("till_id", "opened_at" desc);
+create unique index "till_sessions_open_key" on "better_supabase"."till_sessions" ("till_id") where "status" = 'open';
 alter table "better_supabase"."till_sessions" enable row level security;
 revoke all on "better_supabase"."till_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."till_sessions" to authenticated;
 grant all on "better_supabase"."till_sessions" to service_role;
-drop policy if exists till_sessions_read on "better_supabase"."till_sessions";
 create policy till_sessions_read on "better_supabase"."till_sessions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')));
@@ -107,7 +58,7 @@ create policy till_sessions_read on "better_supabase"."till_sessions"
 -- Cash that went into or out of the drawer during a session: cash sales and
 -- refunds, and cash put in or taken out. The amount is above zero; the kind
 -- gives the direction.
-create table if not exists "better_supabase"."till_movements" (
+create table "better_supabase"."till_movements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "session_id" uuid not null references "better_supabase"."till_sessions" ("id") on delete cascade,
@@ -118,12 +69,11 @@ create table if not exists "better_supabase"."till_movements" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "till_movements_session_idx" on "better_supabase"."till_movements" ("session_id", "created_at");
+create index "till_movements_session_idx" on "better_supabase"."till_movements" ("session_id", "created_at");
 alter table "better_supabase"."till_movements" enable row level security;
 revoke all on "better_supabase"."till_movements" from public, anon, authenticated;
 grant select on "better_supabase"."till_movements" to authenticated;
 grant all on "better_supabase"."till_movements" to service_role;
-drop policy if exists till_movements_read on "better_supabase"."till_movements";
 create policy till_movements_read on "better_supabase"."till_movements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')));
@@ -131,7 +81,7 @@ create policy till_movements_read on "better_supabase"."till_movements"
 -- The end-of-day count of a session: what the drawer should hold, what was
 -- counted (from denominations or a total) and the difference. entry_id is the
 -- accounting entry that books a non-zero difference.
-create table if not exists "better_supabase"."till_counts" (
+create table "better_supabase"."till_counts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "session_id" uuid not null references "better_supabase"."till_sessions" ("id") on delete cascade,
@@ -149,14 +99,13 @@ alter table "better_supabase"."till_counts" enable row level security;
 revoke all on "better_supabase"."till_counts" from public, anon, authenticated;
 grant select on "better_supabase"."till_counts" to authenticated;
 grant all on "better_supabase"."till_counts" to service_role;
-drop policy if exists till_counts_read on "better_supabase"."till_counts";
 create policy till_counts_read on "better_supabase"."till_counts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')));
 
 -- Counted cash taken to the bank. A deposit is pending until it is matched to a
 -- bank transaction in the banking block, then reconciled.
-create table if not exists "better_supabase"."till_deposits" (
+create table "better_supabase"."till_deposits" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "session_id" uuid not null references "better_supabase"."till_sessions" ("id") on delete cascade,
@@ -170,12 +119,11 @@ create table if not exists "better_supabase"."till_deposits" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "till_deposits_session_idx" on "better_supabase"."till_deposits" ("session_id");
+create index "till_deposits_session_idx" on "better_supabase"."till_deposits" ("session_id");
 alter table "better_supabase"."till_deposits" enable row level security;
 revoke all on "better_supabase"."till_deposits" from public, anon, authenticated;
 grant select on "better_supabase"."till_deposits" to authenticated;
 grant all on "better_supabase"."till_deposits" to service_role;
-drop policy if exists till_deposits_read on "better_supabase"."till_deposits";
 create policy till_deposits_read on "better_supabase"."till_deposits"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')));
@@ -850,108 +798,83 @@ revoke execute on function "better_supabase"."accounting_till_deposit_lines"(tex
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."tills";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tills";
 create policy bsb_tenant_scope_select on "better_supabase"."tills" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tills";
 create policy bsb_tenant_scope_insert on "better_supabase"."tills" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tills";
 create policy bsb_tenant_scope_update on "better_supabase"."tills" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tills";
 create policy bsb_tenant_scope_delete on "better_supabase"."tills" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."till_sessions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."till_sessions";
 create policy bsb_tenant_scope_select on "better_supabase"."till_sessions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."till_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."till_sessions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."till_sessions";
 create policy bsb_tenant_scope_update on "better_supabase"."till_sessions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."till_sessions";
 create policy bsb_tenant_scope_delete on "better_supabase"."till_sessions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."till_movements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."till_movements";
 create policy bsb_tenant_scope_select on "better_supabase"."till_movements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."till_movements";
 create policy bsb_tenant_scope_insert on "better_supabase"."till_movements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."till_movements";
 create policy bsb_tenant_scope_update on "better_supabase"."till_movements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."till_movements";
 create policy bsb_tenant_scope_delete on "better_supabase"."till_movements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."till_counts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."till_counts";
 create policy bsb_tenant_scope_select on "better_supabase"."till_counts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."till_counts";
 create policy bsb_tenant_scope_insert on "better_supabase"."till_counts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."till_counts";
 create policy bsb_tenant_scope_update on "better_supabase"."till_counts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."till_counts";
 create policy bsb_tenant_scope_delete on "better_supabase"."till_counts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."till_deposits";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."till_deposits";
 create policy bsb_tenant_scope_select on "better_supabase"."till_deposits" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."till_deposits";
 create policy bsb_tenant_scope_insert on "better_supabase"."till_deposits" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."till_deposits";
 create policy bsb_tenant_scope_update on "better_supabase"."till_deposits" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."till_deposits";
 create policy bsb_tenant_scope_delete on "better_supabase"."till_deposits" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

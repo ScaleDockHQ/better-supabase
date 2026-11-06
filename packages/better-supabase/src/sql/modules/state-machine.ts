@@ -566,7 +566,7 @@ ${list.map((item) => `      when ${sqlString(item.name)} then exists (select 1 f
       roles: ["authenticated"],
       using: visible,
     }),
-    { drop: true, target: table },
+    { target: table },
   );
 }
 

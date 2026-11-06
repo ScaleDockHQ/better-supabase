@@ -555,7 +555,7 @@ export function workingHoursTable(ctx: BlockSqlContext): string {
   unique (${h("tenant")}, ${h("user")}, ${h("weekday")}, ${h("startsAt")})
 );
 ${lockTable(hours, { read: true })}
-${renderPolicy(makePolicy({ table: hours, name: `${name}_read`, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), read)} or ${h("user")} = (select auth.uid())` }), { drop: true, target: hours })}
+${renderPolicy(makePolicy({ table: hours, name: `${name}_read`, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), read)} or ${h("user")} = (select auth.uid())` }), { target: hours })}
 `;
 }
 

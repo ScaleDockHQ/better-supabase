@@ -1,48 +1,17 @@
 -- ==== schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:1573c1dcf434bb6ab00774e822a361968d167bd43c295a49b84555f6414e8711
+-- @bsb-hash sha256:3a6f405694873fe80117405ffdb0a4967aab491e32357a4cdabed01fee9f0a3a
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_definitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_definitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_definitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_definitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_definitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_opt_outs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_opt_outs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_opt_outs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_opt_outs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_opt_outs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_credentials";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_credentials";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_credentials";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_credentials";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_credentials";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
 -- Workflow definitions a tenant builds, by slug. Each has numbered versions:
 -- at most one draft that the editor saves, at most one published version
 -- that runs start from, and archived ones.
-create table if not exists "better_supabase"."workflow_definitions" (
+create table "better_supabase"."workflow_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "slug" text not null check ("slug" ~ '^[a-z0-9][a-z0-9-]{0,99}$'),
@@ -53,7 +22,7 @@ create table if not exists "better_supabase"."workflow_definitions" (
   "updated_at" timestamptz not null default now(),
   constraint workflow_definitions_tenant_slug_key unique nulls not distinct ("tenant_id", "slug")
 );
-create index if not exists workflow_definitions_created_by_idx on "better_supabase"."workflow_definitions" ("created_by");
+create index workflow_definitions_created_by_idx on "better_supabase"."workflow_definitions" ("created_by");
 -- subject_types: the record types a run of the definition may belong to.
 -- scope: a system definition has no tenant, every member with
 -- workflow.read reads it, only the service role saves and publishes it, and
@@ -61,73 +30,51 @@ create index if not exists workflow_definitions_created_by_idx on "better_supaba
 -- forked_from: the definition and version a fork copied.
 -- restricted: running or editing it also needs a workflow_definition_grants
 -- row (or workflow.admin).
-alter table "better_supabase"."workflow_definitions" add column if not exists "subject_types" text[] not null default '{}';
-alter table "better_supabase"."workflow_definitions" add column if not exists "scope" text not null default 'tenant'
+alter table "better_supabase"."workflow_definitions" add column "subject_types" text[] not null default '{}';
+alter table "better_supabase"."workflow_definitions" add column "scope" text not null default 'tenant'
   check ("scope" in ('tenant', 'system'));
-alter table "better_supabase"."workflow_definitions" add column if not exists "forked_from" uuid references "better_supabase"."workflow_definitions" ("id") on delete set null;
-alter table "better_supabase"."workflow_definitions" add column if not exists "forked_from_version" integer check ("forked_from_version" > 0);
-alter table "better_supabase"."workflow_definitions" add column if not exists "restricted" boolean not null default false;
-alter table "better_supabase"."workflow_definitions" add column if not exists "purpose" text not null default 'automation'
+alter table "better_supabase"."workflow_definitions" add column "forked_from" uuid references "better_supabase"."workflow_definitions" ("id") on delete set null;
+alter table "better_supabase"."workflow_definitions" add column "forked_from_version" integer check ("forked_from_version" > 0);
+alter table "better_supabase"."workflow_definitions" add column "restricted" boolean not null default false;
+alter table "better_supabase"."workflow_definitions" add column "purpose" text not null default 'automation'
   check ("purpose" in ('automation', 'lifecycle'));
-alter table "better_supabase"."workflow_definitions" add column if not exists "is_default" boolean not null default false;
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."workflow_definitions"'::regclass and c.conname = 'workflow_definitions_system_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 02e502e1' then
-    alter table "better_supabase"."workflow_definitions" drop constraint if exists "workflow_definitions_system_check";
-    alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_system_check" check ("scope" = 'tenant' or "tenant_id" is null);
-    comment on constraint "workflow_definitions_system_check" on "better_supabase"."workflow_definitions" is 'better-supabase check 02e502e1';
-  end if;
-end;
-$$;
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."workflow_definitions"'::regclass and c.conname = 'workflow_definitions_subject_types_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check bdb3cf6a' then
-    alter table "better_supabase"."workflow_definitions" drop constraint if exists "workflow_definitions_subject_types_check";
-    alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_subject_types_check" check (cardinality("subject_types") <= 50 and array_position("subject_types", null) is null);
-    comment on constraint "workflow_definitions_subject_types_check" on "better_supabase"."workflow_definitions" is 'better-supabase check bdb3cf6a';
-  end if;
-end;
-$$;
-create index if not exists workflow_definitions_forked_from_idx on "better_supabase"."workflow_definitions" ("forked_from") where "forked_from" is not null;
-alter table "better_supabase"."workflow_definitions" add column if not exists "app_note" text;
+alter table "better_supabase"."workflow_definitions" add column "is_default" boolean not null default false;
+alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_system_check"
+  check ("scope" = 'tenant' or "tenant_id" is null);
+alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_subject_types_check"
+  check (cardinality("subject_types") <= 50 and array_position("subject_types", null) is null);
+create index workflow_definitions_forked_from_idx on "better_supabase"."workflow_definitions" ("forked_from") where "forked_from" is not null;
+alter table "better_supabase"."workflow_definitions" add column "app_note" text;
 alter table "better_supabase"."workflow_definitions" enable row level security;
 revoke all on "better_supabase"."workflow_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
-drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
 create policy workflow_definitions_read on "better_supabase"."workflow_definitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow_editor.read'))));
 
 -- The tenants that opted out of a definition, usually a system one: its
 -- triggers and starts skip them (WORKFLOW_OPTED_OUT).
-create table if not exists "better_supabase"."workflow_opt_outs" (
+create table "better_supabase"."workflow_opt_outs" (
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "definition_id")
 );
-create index if not exists workflow_opt_outs_definition_idx on "better_supabase"."workflow_opt_outs" ("definition_id");
-create index if not exists workflow_opt_outs_created_by_idx on "better_supabase"."workflow_opt_outs" ("created_by");
+create index workflow_opt_outs_definition_idx on "better_supabase"."workflow_opt_outs" ("definition_id");
+create index workflow_opt_outs_created_by_idx on "better_supabase"."workflow_opt_outs" ("created_by");
 alter table "better_supabase"."workflow_opt_outs" enable row level security;
 revoke all on "better_supabase"."workflow_opt_outs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_opt_outs" to authenticated;
 grant all on "better_supabase"."workflow_opt_outs" to service_role;
-drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
 create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')));
 
 -- Who may run or edit a restricted definition: a user, a team or an
 -- organization role. An edit grant also runs it.
-create table if not exists "better_supabase"."workflow_definition_grants" (
+create table "better_supabase"."workflow_definition_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
   "principal_kind" text not null check ("principal_kind" in ('user', 'team', 'role')),
@@ -137,18 +84,17 @@ create table if not exists "better_supabase"."workflow_definition_grants" (
   "created_at" timestamptz not null default now(),
   constraint workflow_definition_grants_key unique ("definition_id", "principal_kind", "principal_id", "action")
 );
-create index if not exists workflow_definition_grants_principal_idx on "better_supabase"."workflow_definition_grants" ("principal_kind", "principal_id");
-create index if not exists workflow_definition_grants_created_by_idx on "better_supabase"."workflow_definition_grants" ("created_by");
+create index workflow_definition_grants_principal_idx on "better_supabase"."workflow_definition_grants" ("principal_kind", "principal_id");
+create index workflow_definition_grants_created_by_idx on "better_supabase"."workflow_definition_grants" ("created_by");
 alter table "better_supabase"."workflow_definition_grants" enable row level security;
 revoke all on "better_supabase"."workflow_definition_grants" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definition_grants" to authenticated;
 grant all on "better_supabase"."workflow_definition_grants" to service_role;
-drop policy if exists workflow_definition_grants_read on "better_supabase"."workflow_definition_grants";
 create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants"
   for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
-create table if not exists "better_supabase"."workflow_versions" (
+create table "better_supabase"."workflow_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
   "version" integer not null check ("version" > 0),
@@ -164,22 +110,21 @@ create table if not exists "better_supabase"."workflow_versions" (
 -- user, narrowed to permissions, or as the app's service principal when an
 -- organization owns it (published by the service role). A deleted user
 -- leaves published_by null with owner_kind 'user', so the steps fail.
-alter table "better_supabase"."workflow_versions" add column if not exists "published_by" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."workflow_versions" add column if not exists "owner_kind" text check ("owner_kind" in ('user', 'organization'));
-alter table "better_supabase"."workflow_versions" add column if not exists "permissions" text[] not null default '{}';
+alter table "better_supabase"."workflow_versions" add column "published_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."workflow_versions" add column "owner_kind" text check ("owner_kind" in ('user', 'organization'));
+alter table "better_supabase"."workflow_versions" add column "permissions" text[] not null default '{}';
 -- input_schema: the JSON Schema of the input a run of the version takes, as
 -- the editor saved it; callers such as template attachments check against it.
-alter table "better_supabase"."workflow_versions" add column if not exists "input_schema" jsonb
+alter table "better_supabase"."workflow_versions" add column "input_schema" jsonb
   check ("input_schema" is null or jsonb_typeof("input_schema") = 'object');
-create index if not exists workflow_versions_published_by_idx on "better_supabase"."workflow_versions" ("published_by");
-create unique index if not exists workflow_versions_one_draft_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'draft';
-create unique index if not exists workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
-create index if not exists workflow_versions_created_by_idx on "better_supabase"."workflow_versions" ("created_by");
+create index workflow_versions_published_by_idx on "better_supabase"."workflow_versions" ("published_by");
+create unique index workflow_versions_one_draft_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'draft';
+create unique index workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
+create index workflow_versions_created_by_idx on "better_supabase"."workflow_versions" ("created_by");
 alter table "better_supabase"."workflow_versions" enable row level security;
 revoke all on "better_supabase"."workflow_versions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
-drop policy if exists workflow_versions_read on "better_supabase"."workflow_versions";
 create policy workflow_versions_read on "better_supabase"."workflow_versions"
   for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
@@ -187,7 +132,7 @@ create policy workflow_versions_read on "better_supabase"."workflow_versions"
 -- How runs of a definition start. A webhook trigger's token is stored as its
 -- SHA-256 only; schedule, form and chat triggers keep their settings
 -- in config for the app to bind.
-create table if not exists "better_supabase"."workflow_triggers" (
+create table "better_supabase"."workflow_triggers" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
   "kind" text not null check ("kind" in ('manual', 'webhook', 'schedule', 'form', 'chat')),
@@ -196,19 +141,18 @@ create table if not exists "better_supabase"."workflow_triggers" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists workflow_triggers_definition_idx on "better_supabase"."workflow_triggers" ("definition_id");
-create index if not exists workflow_triggers_event_type_idx on "better_supabase"."workflow_triggers" (("config" ->> 'type'))
+create index workflow_triggers_definition_idx on "better_supabase"."workflow_triggers" ("definition_id");
+create index workflow_triggers_event_type_idx on "better_supabase"."workflow_triggers" (("config" ->> 'type'))
   where "kind" = 'event' and "enabled";
 alter table "better_supabase"."workflow_triggers" enable row level security;
 revoke all on "better_supabase"."workflow_triggers" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
-drop policy if exists workflow_triggers_read on "better_supabase"."workflow_triggers";
 create policy workflow_triggers_read on "better_supabase"."workflow_triggers"
   for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
-create table if not exists "better_supabase"."workflow_webhook_tokens" (
+create table "better_supabase"."workflow_webhook_tokens" (
   "token_hash" bytea primary key,
   "trigger_id" uuid not null unique references "better_supabase"."workflow_triggers" ("id") on delete cascade,
   "created_at" timestamptz not null default now()
@@ -220,7 +164,7 @@ grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 -- Credentials the steps of a tenant's workflows use. A row names the secret
 -- with a credential_ref that a CredentialProvider resolves; it never holds
 -- the secret, so graphs and run state never see a token.
-create table if not exists "better_supabase"."workflow_credentials" (
+create table "better_supabase"."workflow_credentials" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "kind" text not null check (length("kind") >= 1 and length("kind") <= 100),
@@ -231,19 +175,18 @@ create table if not exists "better_supabase"."workflow_credentials" (
   "created_at" timestamptz not null default now(),
   constraint workflow_credentials_tenant_name_key unique nulls not distinct ("tenant_id", "name")
 );
-create index if not exists workflow_credentials_created_by_idx on "better_supabase"."workflow_credentials" ("created_by");
+create index workflow_credentials_created_by_idx on "better_supabase"."workflow_credentials" ("created_by");
 alter table "better_supabase"."workflow_credentials" enable row level security;
 revoke all on "better_supabase"."workflow_credentials" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
-drop policy if exists workflow_credentials_read on "better_supabase"."workflow_credentials";
 create policy workflow_credentials_read on "better_supabase"."workflow_credentials"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')));
 
 -- The steps the deployment provides, synced from code: the palette of the
 -- builder and the names a published graph may use.
-create table if not exists "better_supabase"."workflow_step_library" (
+create table "better_supabase"."workflow_step_library" (
   "name" text primary key check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
@@ -252,20 +195,19 @@ create table if not exists "better_supabase"."workflow_step_library" (
   "credential_kind" text,
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."workflow_step_library" add column if not exists "operation" text
+alter table "better_supabase"."workflow_step_library" add column "operation" text
   check (length("operation") >= 1 and length("operation") <= 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
 revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
-drop policy if exists workflow_step_library_read on "better_supabase"."workflow_step_library";
 create policy workflow_step_library_read on "better_supabase"."workflow_step_library"
   for select to authenticated
   using (true);
 
 -- The app's own node kinds (defineNodeKind), synced from code. branches:
 -- whether the kind's edges take a true or false branch.
-create table if not exists "better_supabase"."workflow_node_kinds" (
+create table "better_supabase"."workflow_node_kinds" (
   "kind" text primary key check ("kind" ~ '^[a-z][a-z0-9_.-]{0,62}$' and "kind" not in ('trigger', 'step', 'sleep', 'approval', 'condition')),
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
   "description" text,
@@ -277,13 +219,12 @@ alter table "better_supabase"."workflow_node_kinds" enable row level security;
 revoke all on "better_supabase"."workflow_node_kinds" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_node_kinds" to authenticated;
 grant all on "better_supabase"."workflow_node_kinds" to service_role;
-drop policy if exists workflow_node_kinds_read on "better_supabase"."workflow_node_kinds";
 create policy workflow_node_kinds_read on "better_supabase"."workflow_node_kinds"
   for select to authenticated
   using (true);
 
 -- The status of each node of a run, by node id, written by the engine.
-create table if not exists "better_supabase"."workflow_node_runs" (
+create table "better_supabase"."workflow_node_runs" (
   "run_id" uuid not null references "better_supabase"."workflow_runs" ("id") on delete cascade,
   "node_id" text not null check (length("node_id") >= 1 and length("node_id") <= 100),
   "status" text not null check ("status" in ('running', 'waiting', 'completed', 'failed', 'skipped')),
@@ -298,7 +239,6 @@ alter table "better_supabase"."workflow_node_runs" enable row level security;
 revoke all on "better_supabase"."workflow_node_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_node_runs" to authenticated;
 grant all on "better_supabase"."workflow_node_runs" to service_role;
-drop policy if exists workflow_node_runs_read on "better_supabase"."workflow_node_runs";
 create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs"
   for select to authenticated
   using ("run_id" in (select x."id" from "better_supabase"."workflow_runs" x));
@@ -306,7 +246,7 @@ create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs"
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
 -- run is still unfinished after threshold (check_workflow_alerts). Each
 -- fires once per run and writes a workflow_alert.triggered outbox event.
-create table if not exists "better_supabase"."workflow_alerts" (
+create table "better_supabase"."workflow_alerts" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
   "on_event" text not null check ("on_event" in ('failed', 'slow')),
@@ -316,24 +256,23 @@ create table if not exists "better_supabase"."workflow_alerts" (
   "created_at" timestamptz not null default now(),
   constraint workflow_alerts_threshold_check check ("on_event" <> 'slow' or "threshold" > interval '0')
 );
-create index if not exists workflow_alerts_definition_idx on "better_supabase"."workflow_alerts" ("definition_id");
-create index if not exists workflow_alerts_created_by_idx on "better_supabase"."workflow_alerts" ("created_by");
+create index workflow_alerts_definition_idx on "better_supabase"."workflow_alerts" ("definition_id");
+create index workflow_alerts_created_by_idx on "better_supabase"."workflow_alerts" ("created_by");
 alter table "better_supabase"."workflow_alerts" enable row level security;
 revoke all on "better_supabase"."workflow_alerts" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
-drop policy if exists workflow_alerts_read on "better_supabase"."workflow_alerts";
 create policy workflow_alerts_read on "better_supabase"."workflow_alerts"
   for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
-create table if not exists "better_supabase"."workflow_alert_fires" (
+create table "better_supabase"."workflow_alert_fires" (
   "alert_id" uuid not null references "better_supabase"."workflow_alerts" ("id") on delete cascade,
   "run_id" uuid not null references "better_supabase"."workflow_runs" ("id") on delete cascade,
   "fired_at" timestamptz not null default now(),
   primary key ("alert_id", "run_id")
 );
-create index if not exists workflow_alert_fires_run_idx on "better_supabase"."workflow_alert_fires" ("run_id");
+create index workflow_alert_fires_run_idx on "better_supabase"."workflow_alert_fires" ("run_id");
 alter table "better_supabase"."workflow_alert_fires" enable row level security;
 revoke all on "better_supabase"."workflow_alert_fires" from public, anon, authenticated;
 grant all on "better_supabase"."workflow_alert_fires" to service_role;
@@ -461,9 +400,9 @@ grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to 
 -- only workflow.admin changes restricted. A system definition (scope
 -- 'system') has no tenant and only the service role saves it; the scope of
 -- a saved definition never changes.
-drop function if exists "better_supabase"."save_workflow_definition"(uuid, text, text, text);
+
 -- fields: the extra columns (blocks["workflow-editor"].options.extraColumns) to set.
-drop function if exists "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean);
+
 create or replace function "better_supabase"."save_workflow_definition"(
   tenant uuid,
   slug text,
@@ -568,7 +507,7 @@ grant execute on function "better_supabase"."save_workflow_definition"(uuid, tex
 -- only the definitions that run on it. A fork has upstreamVersion (its
 -- source's published version) and behind (whether that is newer than the
 -- version it copied).
-drop function if exists "better_supabase"."workflow_definitions_list"(uuid);
+
 create or replace function "better_supabase"."workflow_definitions_list"(tenant uuid default null, subject_type text default null)
 returns jsonb
 language sql
@@ -665,7 +604,7 @@ grant execute on function "better_supabase"."remove_workflow_definition"(uuid) t
 -- numbered after the last version. workflow.edit in its tenant, and an edit
 -- grant on a restricted definition. A null input_schema keeps the draft's
 -- current one.
-drop function if exists "better_supabase"."save_workflow_draft"(uuid, jsonb);
+
 create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
@@ -775,7 +714,7 @@ grant execute on function "better_supabase"."workflow_graph_permissions"(jsonb) 
 -- principal. A system definition has no tenant, so pass the
 -- tenant its run belongs to; a tenant definition ignores tenant. The
 -- trigger that started the run never changes the answer.
-drop function if exists "better_supabase"."workflow_run_principal"(uuid);
+
 create or replace function "better_supabase"."workflow_run_principal"(version uuid, tenant uuid default null)
 returns jsonb
 language plpgsql
@@ -990,7 +929,7 @@ $$;
 revoke execute on function "better_supabase"."workflow_version_get"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_version_get"(uuid) to authenticated, service_role;
 
-create index if not exists workflow_definitions_default_idx on "better_supabase"."workflow_definitions" ("tenant_id", "purpose") where "is_default";
+create index workflow_definitions_default_idx on "better_supabase"."workflow_definitions" ("tenant_id", "purpose") where "is_default";
 
 -- Sets what a definition is for and whether it is its tenant's default
 -- (workflow.admin, or the service role for a system one). Only a lifecycle
@@ -1124,7 +1063,7 @@ grant execute on function "better_supabase"."resolve_workflow_definition"(uuid, 
 -- restricted definition), or the service role. A system definition runs in
 -- tenant, which it needs; a tenant that opted out of the definition gets
 -- WORKFLOW_OPTED_OUT.
-drop function if exists "better_supabase"."workflow_start_target"(uuid);
+
 create or replace function "better_supabase"."workflow_start_target"(definition uuid, tenant uuid default null)
 returns jsonb
 language plpgsql
@@ -2102,7 +2041,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_alert"() from public, anon, authenticated;
-drop trigger if exists "bsb_workflow_runs_alert" on "better_supabase"."workflow_runs";
 create trigger "bsb_workflow_runs_alert" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_alert"();
 
@@ -2148,66 +2086,51 @@ grant execute on function "better_supabase"."check_workflow_alerts"(integer) to 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_definitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_definitions";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_definitions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow_editor.read'))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_definitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_definitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_definitions";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_definitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_definitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_definitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_opt_outs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_opt_outs";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_opt_outs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_opt_outs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_opt_outs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_opt_outs";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_opt_outs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_opt_outs";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_opt_outs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."workflow_credentials";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."workflow_credentials";
 create policy bsb_tenant_scope_select on "better_supabase"."workflow_credentials" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_credentials";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_credentials" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."workflow_credentials";
 create policy bsb_tenant_scope_update on "better_supabase"."workflow_credentials" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."workflow_credentials";
 create policy bsb_tenant_scope_delete on "better_supabase"."workflow_credentials" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

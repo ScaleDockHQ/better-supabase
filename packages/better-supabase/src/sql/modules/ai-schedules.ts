@@ -215,7 +215,7 @@ alter table ${tasks} enable row level security;
 ${revokeTable(tasks)}
 grant select on ${tasks} to authenticated;
 grant all on ${tasks} to service_role;
-${renderPolicy(makePolicy({ table: tasks, name: ctx.naming.rename("ai_scheduled_tasks_read"), command: "select", roles: ["authenticated"], using: `${t.user} = (select auth.uid()) or ${ctx.scope.check(t.tenant, manage)}` }), { drop: true, target: tasks })}
+${renderPolicy(makePolicy({ table: tasks, name: ctx.naming.rename("ai_scheduled_tasks_read"), command: "select", roles: ["authenticated"], using: `${t.user} = (select auth.uid()) or ${ctx.scope.check(t.tenant, manage)}` }), { target: tasks })}
 
 create table if not exists ${runs} (
   ${r.id} uuid primary key default gen_random_uuid(),
@@ -234,7 +234,7 @@ alter table ${runs} enable row level security;
 ${revokeTable(runs)}
 grant select on ${runs} to authenticated;
 grant all on ${runs} to service_role;
-${renderPolicy(makePolicy({ table: runs, name: "ai_task_runs_read", command: "select", roles: ["authenticated"], using: `${r.user} = (select auth.uid()) or ${ctx.scope.check(r.tenant, manage)}` }), { drop: true, target: runs })}
+${renderPolicy(makePolicy({ table: runs, name: "ai_task_runs_read", command: "select", roles: ["authenticated"], using: `${r.user} = (select auth.uid()) or ${ctx.scope.check(r.tenant, manage)}` }), { target: runs })}
 
 -- Creates (id null) or changes a task. Only the service role sets
 -- next_run_at; for anyone else a new task, or a changed cron or timezone,

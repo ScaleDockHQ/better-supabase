@@ -67,7 +67,7 @@ describe("catalog module", () => {
 
   it("adds anon storefront policies only when the storefront is public", () => {
     expect(sqlOf()).not.toContain("to anon, authenticated\nusing");
-    expect(sqlOf()).toContain("drop policy if exists products_storefront");
+    expect(sqlOf()).not.toContain("drop policy if exists products_storefront");
 
     const open = sqlOf({
       modules: { catalog: { options: { storefront: "public" } } },
@@ -127,19 +127,15 @@ describe("catalog module", () => {
     expect(sql).not.toContain("publish_storefront");
     expect(sql).toContain("this catalog has no price lists");
     expect(sql).toContain("a product without options has one variant");
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."catalog_channels"',
-    );
+    expect(sql).toContain('create table "better_supabase"."catalog_channels"');
     expect(sql).toContain("save_catalog_channel");
   });
 
   it("adds channels with listings and a price per channel", () => {
     const sql = sqlOf();
+    expect(sql).toContain('create table "better_supabase"."catalog_channels"');
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."catalog_channels"',
-    );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."catalog_channel_products"',
+      'create table "better_supabase"."catalog_channel_products"',
     );
     expect(sql).toContain(
       'create or replace function "better_supabase"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)',
@@ -168,10 +164,10 @@ describe("catalog module", () => {
     });
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."product_translations"',
+      'create table "better_supabase"."product_translations"',
     );
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."product_variant_translations"',
+      'create table "better_supabase"."product_variant_translations"',
     );
     expect(sql).toContain("'{en,de,pt-BR}'::text[]");
     expect(sql).toContain("CATALOG_LOCALE_DEFAULT");
@@ -201,9 +197,7 @@ describe("catalog module", () => {
     expect(sqlOf()).not.toContain("product_media");
 
     const sql = sqlOf({}, ["catalog", "attachments"]);
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."product_media"',
-    );
+    expect(sql).toContain('create table "better_supabase"."product_media"');
     expect(sql).toContain('references "better_supabase"."attachments"');
     expect(sql).toContain(
       'create or replace function "better_supabase"."add_product_media"',
@@ -245,9 +239,7 @@ describe("catalog module", () => {
       "supplier_items",
       "supplier_item_mappings",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}"`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}"`);
     }
 
     expect(sql).toContain(

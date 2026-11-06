@@ -1,47 +1,16 @@
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:42f816becfe496798a892ac4ce0f0ead06b461a092a35b012a36a2371a02b413
+-- @bsb-hash sha256:10cccbf9097b2fa3945c9be53b9e7c1bf374b74e66b81f71e4a6151e4c94def9
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."case_kinds";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."case_kinds";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."case_kinds";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."case_kinds";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."case_kinds";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."cases";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."cases";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."cases";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."cases";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."cases";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."case_actions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."case_actions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."case_actions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."case_actions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."case_actions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Cases per organization: nonconformities, complaints, incidents, near misses,
 -- changes and findings of tenant-editable kinds, each on its kind's pipeline,
 -- with a root cause, actions as work items, an effectiveness check and a close
 -- guard that names what still blocks closing.
 
-create table if not exists "better_supabase"."case_kinds" (
+create table "better_supabase"."case_kinds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
@@ -67,12 +36,11 @@ alter table "better_supabase"."case_kinds" enable row level security;
 revoke all on "better_supabase"."case_kinds" from public, anon, authenticated;
 grant select on "better_supabase"."case_kinds" to authenticated;
 grant all on "better_supabase"."case_kinds" to service_role;
-drop policy if exists case_kinds_read on "better_supabase"."case_kinds";
 create policy case_kinds_read on "better_supabase"."case_kinds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
-create table if not exists "better_supabase"."cases" (
+create table "better_supabase"."cases" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind_id" uuid not null,
@@ -115,21 +83,20 @@ create table if not exists "better_supabase"."cases" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "kind_id") references "better_supabase"."case_kinds" ("tenant_id", "id") on delete restrict
 );
-create index if not exists "cases_status_idx" on "better_supabase"."cases" ("tenant_id", "status");
-create index if not exists "cases_kind_stage_idx" on "better_supabase"."cases" ("tenant_id", "kind_id", "stage_id");
-create index if not exists "cases_board_idx" on "better_supabase"."cases" ("pipeline_id", "stage_id", "rank");
-create index if not exists "cases_owner_idx" on "better_supabase"."cases" ("owner_id") where "owner_id" is not null;
-create index if not exists "cases_effectiveness_idx" on "better_supabase"."cases" ("effectiveness_due_on") where "effective" is null and "status" = 'open';
+create index "cases_status_idx" on "better_supabase"."cases" ("tenant_id", "status");
+create index "cases_kind_stage_idx" on "better_supabase"."cases" ("tenant_id", "kind_id", "stage_id");
+create index "cases_board_idx" on "better_supabase"."cases" ("pipeline_id", "stage_id", "rank");
+create index "cases_owner_idx" on "better_supabase"."cases" ("owner_id") where "owner_id" is not null;
+create index "cases_effectiveness_idx" on "better_supabase"."cases" ("effectiveness_due_on") where "effective" is null and "status" = 'open';
 alter table "better_supabase"."cases" enable row level security;
 revoke all on "better_supabase"."cases" from public, anon, authenticated;
 grant select on "better_supabase"."cases" to authenticated;
 grant all on "better_supabase"."cases" to service_role;
-drop policy if exists cases_read on "better_supabase"."cases";
 create policy cases_read on "better_supabase"."cases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
-create table if not exists "better_supabase"."case_actions" (
+create table "better_supabase"."case_actions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "case_id" uuid not null,
@@ -142,13 +109,12 @@ create table if not exists "better_supabase"."case_actions" (
   unique ("case_id", "task_id"),
   foreign key ("tenant_id", "case_id") references "better_supabase"."cases" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "case_actions_tenant_parent_idx" on "better_supabase"."case_actions" ("tenant_id", "case_id");
-create index if not exists "case_actions_task_idx" on "better_supabase"."case_actions" ("task_id");
+create index "case_actions_tenant_parent_idx" on "better_supabase"."case_actions" ("tenant_id", "case_id");
+create index "case_actions_task_idx" on "better_supabase"."case_actions" ("task_id");
 alter table "better_supabase"."case_actions" enable row level security;
 revoke all on "better_supabase"."case_actions" from public, anon, authenticated;
 grant select on "better_supabase"."case_actions" to authenticated;
 grant all on "better_supabase"."case_actions" to service_role;
-drop policy if exists case_actions_read on "better_supabase"."case_actions";
 create policy case_actions_read on "better_supabase"."case_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
@@ -1123,7 +1089,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_case_guard() from public, anon, authenticated;
-drop trigger if exists bsb_case_guard on "better_supabase"."cases";
 create trigger bsb_case_guard before update of "stage_id" on "better_supabase"."cases"
 for each row execute function better_supabase.bsb_case_guard();
 
@@ -1648,71 +1613,54 @@ grant execute on function "better_supabase"."seed_cases_defaults"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."case_kinds";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."case_kinds";
 create policy bsb_tenant_scope_select on "better_supabase"."case_kinds" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."case_kinds";
 create policy bsb_tenant_scope_insert on "better_supabase"."case_kinds" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."case_kinds";
 create policy bsb_tenant_scope_update on "better_supabase"."case_kinds" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."case_kinds";
 create policy bsb_tenant_scope_delete on "better_supabase"."case_kinds" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."cases";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."cases";
 create policy bsb_tenant_scope_select on "better_supabase"."cases" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."cases";
 create policy bsb_tenant_scope_insert on "better_supabase"."cases" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."cases";
 create policy bsb_tenant_scope_update on "better_supabase"."cases" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."cases";
 create policy bsb_tenant_scope_delete on "better_supabase"."cases" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."case_actions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."case_actions";
 create policy bsb_tenant_scope_select on "better_supabase"."case_actions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."case_actions";
 create policy bsb_tenant_scope_insert on "better_supabase"."case_actions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."case_actions";
 create policy bsb_tenant_scope_update on "better_supabase"."case_actions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."case_actions";
 create policy bsb_tenant_scope_delete on "better_supabase"."case_actions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-drop trigger if exists "bsb_search_case_index" on "better_supabase"."cases";
 create trigger "bsb_search_case_index"
   after insert or delete or update of "id", "tenant_id", "title", "number", "description", "root_cause", "archived_at" on "better_supabase"."cases"
   for each row execute function "better_supabase"."search_index_row"('case', 'id');

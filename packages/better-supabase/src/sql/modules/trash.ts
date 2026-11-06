@@ -434,7 +434,7 @@ function build(ctx: BlockSqlContext): string {
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_tenant_idx`)} on ${items} (${c("tenant")}, ${c("trashedAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_batch_idx`)} on ${items} (${c("batch")});
 ${lockTable(items, { read: true })}
-${renderPolicy(makePolicy({ table: items, name: "trash_items_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: items })}
+${renderPolicy(makePolicy({ table: items, name: "trash_items_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { target: items })}
 `
     : "";
 

@@ -1,57 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:81eb57c5642566697285892e5446ecdf68d79a0cc9db6b82fd948ca942a2c5ea
+-- @bsb-hash sha256:e7101db0c9e38f8faf7583cbc057e7114c5cdbb3d652005c4dbed61371a089d3
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_returns";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Tax per organization and optional legal entity: tax codes with a rate
 -- history, the tax of a document computed per code (the margin scheme and a
@@ -62,7 +15,7 @@ end $$;
 -- says how a line is taxed; its rates sit in tax_rates, so a rate change keeps
 -- the history. The accounts are plain ids that the functions check against the
 -- chart of accounts, because accounting is installed after this block.
-create table if not exists "better_supabase"."tax_codes" (
+create table "better_supabase"."tax_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -77,20 +30,19 @@ create table if not exists "better_supabase"."tax_codes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "tax_codes_code_key" on "better_supabase"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
-create index if not exists "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("tenant_id", "code");
+create unique index "tax_codes_code_key" on "better_supabase"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
+create index "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("tenant_id", "code");
 alter table "better_supabase"."tax_codes" enable row level security;
 revoke all on "better_supabase"."tax_codes" from public, anon, authenticated;
 grant select on "better_supabase"."tax_codes" to authenticated;
 grant all on "better_supabase"."tax_codes" to service_role;
-drop policy if exists tax_codes_read on "better_supabase"."tax_codes";
 create policy tax_codes_read on "better_supabase"."tax_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- What a code charges from a day until another. valid_to is the last day the
 -- rate applies; without one it runs until a later rate starts.
-create table if not exists "better_supabase"."tax_rates" (
+create table "better_supabase"."tax_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "tax_code_id" uuid not null references "better_supabase"."tax_codes" ("id") on delete cascade,
@@ -101,12 +53,11 @@ create table if not exists "better_supabase"."tax_rates" (
   "created_at" timestamptz not null default now(),
   check ("valid_to" is null or "valid_to" >= "valid_from")
 );
-create unique index if not exists "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
+create unique index "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
 alter table "better_supabase"."tax_rates" enable row level security;
 revoke all on "better_supabase"."tax_rates" from public, anon, authenticated;
 grant select on "better_supabase"."tax_rates" to authenticated;
 grant all on "better_supabase"."tax_rates" to service_role;
-drop policy if exists tax_rates_read on "better_supabase"."tax_rates";
 create policy tax_rates_read on "better_supabase"."tax_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -115,7 +66,7 @@ create policy tax_rates_read on "better_supabase"."tax_rates"
 -- quote_tax_lines, written when the invoice is issued. customer_vat_number is
 -- the customer's VAT number at that moment; show_tax is false on a margin
 -- scheme invoice, which prints no tax amount.
-create table if not exists "better_supabase"."invoice_tax_lines" (
+create table "better_supabase"."invoice_tax_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null,
@@ -129,20 +80,19 @@ create table if not exists "better_supabase"."invoice_tax_lines" (
   "customer_vat_number" text,
   "show_tax" boolean not null default true
 );
-create index if not exists "invoice_tax_lines_parent_idx" on "better_supabase"."invoice_tax_lines" ("invoice_id");
-create index if not exists "invoice_tax_lines_tenant_code_idx" on "better_supabase"."invoice_tax_lines" ("tenant_id", "tax_code_id");
+create index "invoice_tax_lines_parent_idx" on "better_supabase"."invoice_tax_lines" ("invoice_id");
+create index "invoice_tax_lines_tenant_code_idx" on "better_supabase"."invoice_tax_lines" ("tenant_id", "tax_code_id");
 alter table "better_supabase"."invoice_tax_lines" enable row level security;
 revoke all on "better_supabase"."invoice_tax_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_tax_lines" to authenticated;
 grant all on "better_supabase"."invoice_tax_lines" to service_role;
-drop policy if exists invoice_tax_lines_read on "better_supabase"."invoice_tax_lines";
 create policy invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- A return of one period, prepared from the issued invoices of that period.
 -- boxes holds the totals per return box as decimal text.
-create table if not exists "better_supabase"."tax_returns" (
+create table "better_supabase"."tax_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -160,19 +110,18 @@ create table if not exists "better_supabase"."tax_returns" (
   check ("period_end" >= "period_start"),
   check (("status" = 'filed') = ("filed_at" is not null))
 );
-create unique index if not exists "tax_returns_period_key" on "better_supabase"."tax_returns" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "period_start", "period_end");
+create unique index "tax_returns_period_key" on "better_supabase"."tax_returns" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "period_start", "period_end");
 alter table "better_supabase"."tax_returns" enable row level security;
 revoke all on "better_supabase"."tax_returns" from public, anon, authenticated;
 grant select on "better_supabase"."tax_returns" to authenticated;
 grant all on "better_supabase"."tax_returns" to service_role;
-drop policy if exists tax_returns_read on "better_supabase"."tax_returns";
 create policy tax_returns_read on "better_supabase"."tax_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- The intra-community sales list (ICP) of a return: what was sold to each
 -- customer VAT number, as goods or as services.
-create table if not exists "better_supabase"."eu_sales_list_lines" (
+create table "better_supabase"."eu_sales_list_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "tax_return_id" uuid not null references "better_supabase"."tax_returns" ("id") on delete cascade,
@@ -183,12 +132,11 @@ create table if not exists "better_supabase"."eu_sales_list_lines" (
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_count" integer not null check ("invoice_count" > 0)
 );
-create unique index if not exists "eu_sales_list_lines_key" on "better_supabase"."eu_sales_list_lines" ("tax_return_id", "customer_vat_number", "kind", "currency");
+create unique index "eu_sales_list_lines_key" on "better_supabase"."eu_sales_list_lines" ("tax_return_id", "customer_vat_number", "kind", "currency");
 alter table "better_supabase"."eu_sales_list_lines" enable row level security;
 revoke all on "better_supabase"."eu_sales_list_lines" from public, anon, authenticated;
 grant select on "better_supabase"."eu_sales_list_lines" to authenticated;
 grant all on "better_supabase"."eu_sales_list_lines" to service_role;
-drop policy if exists eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines";
 create policy eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -936,108 +884,83 @@ grant execute on function "better_supabase"."seed_tax_defaults"(uuid, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_tax_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_returns";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_returns" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_returns" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_returns" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_returns" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."eu_sales_list_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1059,57 +982,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:b1fae4cdd6197f052d57a8dd02e2fb5396d79ce5ac4d790c00b855587fbb2528
+-- @bsb-hash sha256:849f0e14c5b01b0a29aecbd5014734618b65077b819a07727badadccba7d35c4
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_returns";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Tax per organization and optional legal entity: tax codes with a rate
 -- history, the tax of a document computed per code (the margin scheme and a
@@ -1120,7 +996,7 @@ end $$;
 -- says how a line is taxed; its rates sit in tax_rates, so a rate change keeps
 -- the history. The accounts are plain ids that the functions check against the
 -- chart of accounts, because accounting is installed after this block.
-create table if not exists "better_supabase"."tax_codes" (
+create table "better_supabase"."tax_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -1135,20 +1011,19 @@ create table if not exists "better_supabase"."tax_codes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "tax_codes_code_key" on "better_supabase"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
-create index if not exists "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("tenant_id", "code");
+create unique index "tax_codes_code_key" on "better_supabase"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
+create index "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("tenant_id", "code");
 alter table "better_supabase"."tax_codes" enable row level security;
 revoke all on "better_supabase"."tax_codes" from public, anon, authenticated;
 grant select on "better_supabase"."tax_codes" to authenticated;
 grant all on "better_supabase"."tax_codes" to service_role;
-drop policy if exists tax_codes_read on "better_supabase"."tax_codes";
 create policy tax_codes_read on "better_supabase"."tax_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- What a code charges from a day until another. valid_to is the last day the
 -- rate applies; without one it runs until a later rate starts.
-create table if not exists "better_supabase"."tax_rates" (
+create table "better_supabase"."tax_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "tax_code_id" uuid not null references "better_supabase"."tax_codes" ("id") on delete cascade,
@@ -1159,12 +1034,11 @@ create table if not exists "better_supabase"."tax_rates" (
   "created_at" timestamptz not null default now(),
   check ("valid_to" is null or "valid_to" >= "valid_from")
 );
-create unique index if not exists "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
+create unique index "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
 alter table "better_supabase"."tax_rates" enable row level security;
 revoke all on "better_supabase"."tax_rates" from public, anon, authenticated;
 grant select on "better_supabase"."tax_rates" to authenticated;
 grant all on "better_supabase"."tax_rates" to service_role;
-drop policy if exists tax_rates_read on "better_supabase"."tax_rates";
 create policy tax_rates_read on "better_supabase"."tax_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -1173,7 +1047,7 @@ create policy tax_rates_read on "better_supabase"."tax_rates"
 -- quote_tax_lines, written when the invoice is issued. customer_vat_number is
 -- the customer's VAT number at that moment; show_tax is false on a margin
 -- scheme invoice, which prints no tax amount.
-create table if not exists "better_supabase"."invoice_tax_lines" (
+create table "better_supabase"."invoice_tax_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -1187,20 +1061,19 @@ create table if not exists "better_supabase"."invoice_tax_lines" (
   "customer_vat_number" text,
   "show_tax" boolean not null default true
 );
-create index if not exists "invoice_tax_lines_parent_idx" on "better_supabase"."invoice_tax_lines" ("invoice_id");
-create index if not exists "invoice_tax_lines_tenant_code_idx" on "better_supabase"."invoice_tax_lines" ("tenant_id", "tax_code_id");
+create index "invoice_tax_lines_parent_idx" on "better_supabase"."invoice_tax_lines" ("invoice_id");
+create index "invoice_tax_lines_tenant_code_idx" on "better_supabase"."invoice_tax_lines" ("tenant_id", "tax_code_id");
 alter table "better_supabase"."invoice_tax_lines" enable row level security;
 revoke all on "better_supabase"."invoice_tax_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_tax_lines" to authenticated;
 grant all on "better_supabase"."invoice_tax_lines" to service_role;
-drop policy if exists invoice_tax_lines_read on "better_supabase"."invoice_tax_lines";
 create policy invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."invoices" z where z."id" = "invoice_id"));
 
 -- A return of one period, prepared from the issued invoices of that period.
 -- boxes holds the totals per return box as decimal text.
-create table if not exists "better_supabase"."tax_returns" (
+create table "better_supabase"."tax_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -1218,19 +1091,18 @@ create table if not exists "better_supabase"."tax_returns" (
   check ("period_end" >= "period_start"),
   check (("status" = 'filed') = ("filed_at" is not null))
 );
-create unique index if not exists "tax_returns_period_key" on "better_supabase"."tax_returns" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "period_start", "period_end");
+create unique index "tax_returns_period_key" on "better_supabase"."tax_returns" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "period_start", "period_end");
 alter table "better_supabase"."tax_returns" enable row level security;
 revoke all on "better_supabase"."tax_returns" from public, anon, authenticated;
 grant select on "better_supabase"."tax_returns" to authenticated;
 grant all on "better_supabase"."tax_returns" to service_role;
-drop policy if exists tax_returns_read on "better_supabase"."tax_returns";
 create policy tax_returns_read on "better_supabase"."tax_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- The intra-community sales list (ICP) of a return: what was sold to each
 -- customer VAT number, as goods or as services.
-create table if not exists "better_supabase"."eu_sales_list_lines" (
+create table "better_supabase"."eu_sales_list_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "tax_return_id" uuid not null references "better_supabase"."tax_returns" ("id") on delete cascade,
@@ -1241,12 +1113,11 @@ create table if not exists "better_supabase"."eu_sales_list_lines" (
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_count" integer not null check ("invoice_count" > 0)
 );
-create unique index if not exists "eu_sales_list_lines_key" on "better_supabase"."eu_sales_list_lines" ("tax_return_id", "customer_vat_number", "kind", "currency");
+create unique index "eu_sales_list_lines_key" on "better_supabase"."eu_sales_list_lines" ("tax_return_id", "customer_vat_number", "kind", "currency");
 alter table "better_supabase"."eu_sales_list_lines" enable row level security;
 revoke all on "better_supabase"."eu_sales_list_lines" from public, anon, authenticated;
 grant select on "better_supabase"."eu_sales_list_lines" to authenticated;
 grant all on "better_supabase"."eu_sales_list_lines" to service_role;
-drop policy if exists eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines";
 create policy eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -2093,108 +1964,83 @@ grant execute on function "better_supabase"."seed_tax_defaults"(uuid, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_tax_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."invoices" z where z."id" = "invoice_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_returns";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_returns" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_returns" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_returns" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_returns" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."eu_sales_list_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2225,56 +2071,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:82e45d22a58b65767e53a5ae7833ca8df35aefd85709b6c0db055e13bef8e279
+-- @bsb-hash sha256:de8932741c82fe0b50c1fb283eb7900811ecb1d216ceb316b28b85eb4e366b39
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."tax_codes";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."tax_codes";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."tax_codes";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."tax_codes";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."tax_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."tax_rates";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."tax_rates";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."tax_rates";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."tax_rates";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."tax_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_tax_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."tax_returns";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."tax_returns";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."tax_returns";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."tax_returns";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."tax_returns";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."eu_sales_list_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -2290,7 +2090,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- says how a line is taxed; its rates sit in tax_rates, so a rate change keeps
 -- the history. The accounts are plain ids that the functions check against the
 -- chart of accounts, because accounting is installed after this block.
-create table if not exists "app_private"."tax_codes" (
+create table "app_private"."tax_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -2305,20 +2105,19 @@ create table if not exists "app_private"."tax_codes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "tax_codes_code_key" on "app_private"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
-create index if not exists "tax_codes_tenant_idx" on "app_private"."tax_codes" ("tenant_id", "code");
+create unique index "tax_codes_code_key" on "app_private"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
+create index "tax_codes_tenant_idx" on "app_private"."tax_codes" ("tenant_id", "code");
 alter table "app_private"."tax_codes" enable row level security;
 revoke all on "app_private"."tax_codes" from public, anon, authenticated;
 grant select on "app_private"."tax_codes" to authenticated;
 grant all on "app_private"."tax_codes" to service_role;
-drop policy if exists tax_codes_read on "app_private"."tax_codes";
 create policy tax_codes_read on "app_private"."tax_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- What a code charges from a day until another. valid_to is the last day the
 -- rate applies; without one it runs until a later rate starts.
-create table if not exists "app_private"."tax_rates" (
+create table "app_private"."tax_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "tax_code_id" uuid not null references "app_private"."tax_codes" ("id") on delete cascade,
@@ -2329,12 +2128,11 @@ create table if not exists "app_private"."tax_rates" (
   "created_at" timestamptz not null default now(),
   check ("valid_to" is null or "valid_to" >= "valid_from")
 );
-create unique index if not exists "tax_rates_from_key" on "app_private"."tax_rates" ("tax_code_id", "valid_from");
+create unique index "tax_rates_from_key" on "app_private"."tax_rates" ("tax_code_id", "valid_from");
 alter table "app_private"."tax_rates" enable row level security;
 revoke all on "app_private"."tax_rates" from public, anon, authenticated;
 grant select on "app_private"."tax_rates" to authenticated;
 grant all on "app_private"."tax_rates" to service_role;
-drop policy if exists tax_rates_read on "app_private"."tax_rates";
 create policy tax_rates_read on "app_private"."tax_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -2343,7 +2141,7 @@ create policy tax_rates_read on "app_private"."tax_rates"
 -- quote_tax_lines, written when the invoice is issued. customer_vat_number is
 -- the customer's VAT number at that moment; show_tax is false on a margin
 -- scheme invoice, which prints no tax amount.
-create table if not exists "app_private"."invoice_tax_lines" (
+create table "app_private"."invoice_tax_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null,
@@ -2357,20 +2155,19 @@ create table if not exists "app_private"."invoice_tax_lines" (
   "customer_vat_number" text,
   "show_tax" boolean not null default true
 );
-create index if not exists "invoice_tax_lines_parent_idx" on "app_private"."invoice_tax_lines" ("invoice_id");
-create index if not exists "invoice_tax_lines_tenant_code_idx" on "app_private"."invoice_tax_lines" ("tenant_id", "tax_code_id");
+create index "invoice_tax_lines_parent_idx" on "app_private"."invoice_tax_lines" ("invoice_id");
+create index "invoice_tax_lines_tenant_code_idx" on "app_private"."invoice_tax_lines" ("tenant_id", "tax_code_id");
 alter table "app_private"."invoice_tax_lines" enable row level security;
 revoke all on "app_private"."invoice_tax_lines" from public, anon, authenticated;
 grant select on "app_private"."invoice_tax_lines" to authenticated;
 grant all on "app_private"."invoice_tax_lines" to service_role;
-drop policy if exists invoice_tax_lines_read on "app_private"."invoice_tax_lines";
 create policy invoice_tax_lines_read on "app_private"."invoice_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- A return of one period, prepared from the issued invoices of that period.
 -- boxes holds the totals per return box as decimal text.
-create table if not exists "app_private"."tax_returns" (
+create table "app_private"."tax_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -2388,19 +2185,18 @@ create table if not exists "app_private"."tax_returns" (
   check ("period_end" >= "period_start"),
   check (("status" = 'filed') = ("filed_at" is not null))
 );
-create unique index if not exists "tax_returns_period_key" on "app_private"."tax_returns" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "period_start", "period_end");
+create unique index "tax_returns_period_key" on "app_private"."tax_returns" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "period_start", "period_end");
 alter table "app_private"."tax_returns" enable row level security;
 revoke all on "app_private"."tax_returns" from public, anon, authenticated;
 grant select on "app_private"."tax_returns" to authenticated;
 grant all on "app_private"."tax_returns" to service_role;
-drop policy if exists tax_returns_read on "app_private"."tax_returns";
 create policy tax_returns_read on "app_private"."tax_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- The intra-community sales list (ICP) of a return: what was sold to each
 -- customer VAT number, as goods or as services.
-create table if not exists "app_private"."eu_sales_list_lines" (
+create table "app_private"."eu_sales_list_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "tax_return_id" uuid not null references "app_private"."tax_returns" ("id") on delete cascade,
@@ -2411,12 +2207,11 @@ create table if not exists "app_private"."eu_sales_list_lines" (
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_count" integer not null check ("invoice_count" > 0)
 );
-create unique index if not exists "eu_sales_list_lines_key" on "app_private"."eu_sales_list_lines" ("tax_return_id", "customer_vat_number", "kind", "currency");
+create unique index "eu_sales_list_lines_key" on "app_private"."eu_sales_list_lines" ("tax_return_id", "customer_vat_number", "kind", "currency");
 alter table "app_private"."eu_sales_list_lines" enable row level security;
 revoke all on "app_private"."eu_sales_list_lines" from public, anon, authenticated;
 grant select on "app_private"."eu_sales_list_lines" to authenticated;
 grant all on "app_private"."eu_sales_list_lines" to service_role;
-drop policy if exists eu_sales_list_lines_read on "app_private"."eu_sales_list_lines";
 create policy eu_sales_list_lines_read on "app_private"."eu_sales_list_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -3164,108 +2959,83 @@ grant execute on function "app_private"."seed_tax_defaults"(uuid, text, text) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."tax_codes";
-drop policy if exists bsb_tenant_scope_select on "app_private"."tax_codes";
 create policy bsb_tenant_scope_select on "app_private"."tax_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."tax_codes";
 create policy bsb_tenant_scope_insert on "app_private"."tax_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."tax_codes";
 create policy bsb_tenant_scope_update on "app_private"."tax_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."tax_codes";
 create policy bsb_tenant_scope_delete on "app_private"."tax_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."tax_rates";
-drop policy if exists bsb_tenant_scope_select on "app_private"."tax_rates";
 create policy bsb_tenant_scope_select on "app_private"."tax_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."tax_rates";
 create policy bsb_tenant_scope_insert on "app_private"."tax_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."tax_rates";
 create policy bsb_tenant_scope_update on "app_private"."tax_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."tax_rates";
 create policy bsb_tenant_scope_delete on "app_private"."tax_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."invoice_tax_lines";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_tax_lines";
 create policy bsb_tenant_scope_select on "app_private"."invoice_tax_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_tax_lines";
 create policy bsb_tenant_scope_insert on "app_private"."invoice_tax_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_tax_lines";
 create policy bsb_tenant_scope_update on "app_private"."invoice_tax_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_tax_lines";
 create policy bsb_tenant_scope_delete on "app_private"."invoice_tax_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."tax_returns";
-drop policy if exists bsb_tenant_scope_select on "app_private"."tax_returns";
 create policy bsb_tenant_scope_select on "app_private"."tax_returns" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."tax_returns";
 create policy bsb_tenant_scope_insert on "app_private"."tax_returns" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."tax_returns";
 create policy bsb_tenant_scope_update on "app_private"."tax_returns" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."tax_returns";
 create policy bsb_tenant_scope_delete on "app_private"."tax_returns" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."eu_sales_list_lines";
-drop policy if exists bsb_tenant_scope_select on "app_private"."eu_sales_list_lines";
 create policy bsb_tenant_scope_select on "app_private"."eu_sales_list_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."eu_sales_list_lines";
 create policy bsb_tenant_scope_insert on "app_private"."eu_sales_list_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."eu_sales_list_lines";
 create policy bsb_tenant_scope_update on "app_private"."eu_sales_list_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."eu_sales_list_lines";
 create policy bsb_tenant_scope_delete on "app_private"."eu_sales_list_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3287,57 +3057,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:73a2272e11be3db5337e895a359aabeacf5a8cbd1542e58b40d8792fc6a3c281
+-- @bsb-hash sha256:b3424bff7dbd2c4e2dea16e19800bdbb821dd7af71b83da767ce16f9afdf087f
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_returns";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Tax per organization and optional legal entity: tax codes with a rate
 -- history, the tax of a document computed per code (the margin scheme and a
@@ -3348,7 +3071,7 @@ end $$;
 -- says how a line is taxed; its rates sit in tax_rates, so a rate change keeps
 -- the history. The accounts are plain ids that the functions check against the
 -- chart of accounts, because accounting is installed after this block.
-create table if not exists "better_supabase"."tax_codes" (
+create table "better_supabase"."tax_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -3363,20 +3086,19 @@ create table if not exists "better_supabase"."tax_codes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "tax_codes_code_key" on "better_supabase"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
-create index if not exists "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("tenant_id", "code");
+create unique index "tax_codes_code_key" on "better_supabase"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
+create index "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("tenant_id", "code");
 alter table "better_supabase"."tax_codes" enable row level security;
 revoke all on "better_supabase"."tax_codes" from public, anon, authenticated;
 grant select on "better_supabase"."tax_codes" to authenticated;
 grant all on "better_supabase"."tax_codes" to service_role;
-drop policy if exists tax_codes_read on "better_supabase"."tax_codes";
 create policy tax_codes_read on "better_supabase"."tax_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- What a code charges from a day until another. valid_to is the last day the
 -- rate applies; without one it runs until a later rate starts.
-create table if not exists "better_supabase"."tax_rates" (
+create table "better_supabase"."tax_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "tax_code_id" uuid not null references "better_supabase"."tax_codes" ("id") on delete cascade,
@@ -3387,12 +3109,11 @@ create table if not exists "better_supabase"."tax_rates" (
   "created_at" timestamptz not null default now(),
   check ("valid_to" is null or "valid_to" >= "valid_from")
 );
-create unique index if not exists "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
+create unique index "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
 alter table "better_supabase"."tax_rates" enable row level security;
 revoke all on "better_supabase"."tax_rates" from public, anon, authenticated;
 grant select on "better_supabase"."tax_rates" to authenticated;
 grant all on "better_supabase"."tax_rates" to service_role;
-drop policy if exists tax_rates_read on "better_supabase"."tax_rates";
 create policy tax_rates_read on "better_supabase"."tax_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -3401,7 +3122,7 @@ create policy tax_rates_read on "better_supabase"."tax_rates"
 -- quote_tax_lines, written when the invoice is issued. customer_vat_number is
 -- the customer's VAT number at that moment; show_tax is false on a margin
 -- scheme invoice, which prints no tax amount.
-create table if not exists "better_supabase"."invoice_tax_lines" (
+create table "better_supabase"."invoice_tax_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null,
@@ -3415,20 +3136,19 @@ create table if not exists "better_supabase"."invoice_tax_lines" (
   "customer_vat_number" text,
   "show_tax" boolean not null default true
 );
-create index if not exists "invoice_tax_lines_parent_idx" on "better_supabase"."invoice_tax_lines" ("invoice_id");
-create index if not exists "invoice_tax_lines_tenant_code_idx" on "better_supabase"."invoice_tax_lines" ("tenant_id", "tax_code_id");
+create index "invoice_tax_lines_parent_idx" on "better_supabase"."invoice_tax_lines" ("invoice_id");
+create index "invoice_tax_lines_tenant_code_idx" on "better_supabase"."invoice_tax_lines" ("tenant_id", "tax_code_id");
 alter table "better_supabase"."invoice_tax_lines" enable row level security;
 revoke all on "better_supabase"."invoice_tax_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_tax_lines" to authenticated;
 grant all on "better_supabase"."invoice_tax_lines" to service_role;
-drop policy if exists invoice_tax_lines_read on "better_supabase"."invoice_tax_lines";
 create policy invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- A return of one period, prepared from the issued invoices of that period.
 -- boxes holds the totals per return box as decimal text.
-create table if not exists "better_supabase"."tax_returns" (
+create table "better_supabase"."tax_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -3446,19 +3166,18 @@ create table if not exists "better_supabase"."tax_returns" (
   check ("period_end" >= "period_start"),
   check (("status" = 'filed') = ("filed_at" is not null))
 );
-create unique index if not exists "tax_returns_period_key" on "better_supabase"."tax_returns" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "period_start", "period_end");
+create unique index "tax_returns_period_key" on "better_supabase"."tax_returns" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "period_start", "period_end");
 alter table "better_supabase"."tax_returns" enable row level security;
 revoke all on "better_supabase"."tax_returns" from public, anon, authenticated;
 grant select on "better_supabase"."tax_returns" to authenticated;
 grant all on "better_supabase"."tax_returns" to service_role;
-drop policy if exists tax_returns_read on "better_supabase"."tax_returns";
 create policy tax_returns_read on "better_supabase"."tax_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- The intra-community sales list (ICP) of a return: what was sold to each
 -- customer VAT number, as goods or as services.
-create table if not exists "better_supabase"."eu_sales_list_lines" (
+create table "better_supabase"."eu_sales_list_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "tax_return_id" uuid not null references "better_supabase"."tax_returns" ("id") on delete cascade,
@@ -3469,12 +3188,11 @@ create table if not exists "better_supabase"."eu_sales_list_lines" (
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_count" integer not null check ("invoice_count" > 0)
 );
-create unique index if not exists "eu_sales_list_lines_key" on "better_supabase"."eu_sales_list_lines" ("tax_return_id", "customer_vat_number", "kind", "currency");
+create unique index "eu_sales_list_lines_key" on "better_supabase"."eu_sales_list_lines" ("tax_return_id", "customer_vat_number", "kind", "currency");
 alter table "better_supabase"."eu_sales_list_lines" enable row level security;
 revoke all on "better_supabase"."eu_sales_list_lines" from public, anon, authenticated;
 grant select on "better_supabase"."eu_sales_list_lines" to authenticated;
 grant all on "better_supabase"."eu_sales_list_lines" to service_role;
-drop policy if exists eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines";
 create policy eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -4222,108 +3940,83 @@ grant execute on function "better_supabase"."seed_tax_defaults"(uuid, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_tax_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_returns";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_returns" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_returns" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_returns" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_returns" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."eu_sales_list_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4492,57 +4185,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:7ae05806d39632770f86ec942841a5a3e4659d95c664640ffcc2fda89b46692b
+-- @bsb-hash sha256:17cde48e0c6a26b6cd69cf3ceed2b6c5f418b37aafadff99be1ca549aa07cf61
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_returns";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Tax per organization and optional legal entity: tax codes with a rate
 -- history, the tax of a document computed per code (the margin scheme and a
@@ -4571,7 +4217,6 @@ create index if not exists "tax_codes_tenant_idx" on "better_supabase"."tax_code
 alter table "better_supabase"."tax_codes" enable row level security;
 grant select on "better_supabase"."tax_codes" to authenticated;
 grant all on "better_supabase"."tax_codes" to service_role;
-drop policy if exists bsb_tax_codes_read on "better_supabase"."tax_codes";
 create policy bsb_tax_codes_read on "better_supabase"."tax_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -4590,7 +4235,6 @@ create unique index if not exists "bsb_tax_rates_from_key" on "better_supabase".
 alter table "better_supabase"."tax_rates" enable row level security;
 grant select on "better_supabase"."tax_rates" to authenticated;
 grant all on "better_supabase"."tax_rates" to service_role;
-drop policy if exists bsb_tax_rates_read on "better_supabase"."tax_rates";
 create policy bsb_tax_rates_read on "better_supabase"."tax_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -4617,7 +4261,6 @@ create index if not exists "invoice_tax_lines_tenant_code_idx" on "better_supaba
 alter table "better_supabase"."invoice_tax_lines" enable row level security;
 grant select on "better_supabase"."invoice_tax_lines" to authenticated;
 grant all on "better_supabase"."invoice_tax_lines" to service_role;
-drop policy if exists bsb_invoice_tax_lines_read on "better_supabase"."invoice_tax_lines";
 create policy bsb_invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -4643,7 +4286,6 @@ create unique index if not exists "bsb_tax_returns_period_key" on "better_supaba
 alter table "better_supabase"."tax_returns" enable row level security;
 grant select on "better_supabase"."tax_returns" to authenticated;
 grant all on "better_supabase"."tax_returns" to service_role;
-drop policy if exists bsb_tax_returns_read on "better_supabase"."tax_returns";
 create policy bsb_tax_returns_read on "better_supabase"."tax_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -4664,7 +4306,6 @@ create unique index if not exists "bsb_eu_sales_list_lines_key" on "better_supab
 alter table "better_supabase"."eu_sales_list_lines" enable row level security;
 grant select on "better_supabase"."eu_sales_list_lines" to authenticated;
 grant all on "better_supabase"."eu_sales_list_lines" to service_role;
-drop policy if exists bsb_eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines";
 create policy bsb_eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -5412,108 +5053,83 @@ grant execute on function "better_supabase"."seed_tax_defaults"(uuid, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_tax_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_returns";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_returns" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_returns" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_returns" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_returns" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."eu_sales_list_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -5535,57 +5151,10 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:da9421c2fb507dfa6aff9c0177babf2681724d033a4e0528d2f43e103fbf9b84
+-- @bsb-hash sha256:d9097fe0382cf501200bdf132a03ece47125ffee1bae7d58999ef28534ea6e22
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_returns";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_returns";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Tax per organization and optional legal entity: tax codes with a rate
 -- history, the tax of a document computed per code (the margin scheme and a
@@ -5596,7 +5165,7 @@ end $$;
 -- says how a line is taxed; its rates sit in tax_rates, so a rate change keeps
 -- the history. The accounts are plain ids that the functions check against the
 -- chart of accounts, because accounting is installed after this block.
-create table if not exists "better_supabase"."tax_codes" (
+create table "better_supabase"."tax_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "legal_entity_id" uuid,
@@ -5611,20 +5180,19 @@ create table if not exists "better_supabase"."tax_codes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "tax_codes_code_key" on "better_supabase"."tax_codes" ("org_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
-create index if not exists "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("org_id", "code");
+create unique index "tax_codes_code_key" on "better_supabase"."tax_codes" ("org_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
+create index "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("org_id", "code");
 alter table "better_supabase"."tax_codes" enable row level security;
 revoke all on "better_supabase"."tax_codes" from public, anon, authenticated;
 grant select on "better_supabase"."tax_codes" to authenticated;
 grant all on "better_supabase"."tax_codes" to service_role;
-drop policy if exists tax_codes_read on "better_supabase"."tax_codes";
 create policy tax_codes_read on "better_supabase"."tax_codes"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- What a code charges from a day until another. valid_to is the last day the
 -- rate applies; without one it runs until a later rate starts.
-create table if not exists "better_supabase"."tax_rates" (
+create table "better_supabase"."tax_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "tax_code_id" uuid not null references "better_supabase"."tax_codes" ("id") on delete cascade,
@@ -5635,12 +5203,11 @@ create table if not exists "better_supabase"."tax_rates" (
   "created_at" timestamptz not null default now(),
   check ("valid_to" is null or "valid_to" >= "valid_from")
 );
-create unique index if not exists "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
+create unique index "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
 alter table "better_supabase"."tax_rates" enable row level security;
 revoke all on "better_supabase"."tax_rates" from public, anon, authenticated;
 grant select on "better_supabase"."tax_rates" to authenticated;
 grant all on "better_supabase"."tax_rates" to service_role;
-drop policy if exists tax_rates_read on "better_supabase"."tax_rates";
 create policy tax_rates_read on "better_supabase"."tax_rates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -5649,7 +5216,7 @@ create policy tax_rates_read on "better_supabase"."tax_rates"
 -- quote_tax_lines, written when the invoice is issued. customer_vat_number is
 -- the customer's VAT number at that moment; show_tax is false on a margin
 -- scheme invoice, which prints no tax amount.
-create table if not exists "better_supabase"."invoice_tax_lines" (
+create table "better_supabase"."invoice_tax_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "invoice_id" uuid not null,
@@ -5663,20 +5230,19 @@ create table if not exists "better_supabase"."invoice_tax_lines" (
   "customer_vat_number" text,
   "show_tax" boolean not null default true
 );
-create index if not exists "invoice_tax_lines_parent_idx" on "better_supabase"."invoice_tax_lines" ("invoice_id");
-create index if not exists "invoice_tax_lines_tenant_code_idx" on "better_supabase"."invoice_tax_lines" ("org_id", "tax_code_id");
+create index "invoice_tax_lines_parent_idx" on "better_supabase"."invoice_tax_lines" ("invoice_id");
+create index "invoice_tax_lines_tenant_code_idx" on "better_supabase"."invoice_tax_lines" ("org_id", "tax_code_id");
 alter table "better_supabase"."invoice_tax_lines" enable row level security;
 revoke all on "better_supabase"."invoice_tax_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_tax_lines" to authenticated;
 grant all on "better_supabase"."invoice_tax_lines" to service_role;
-drop policy if exists invoice_tax_lines_read on "better_supabase"."invoice_tax_lines";
 create policy invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- A return of one period, prepared from the issued invoices of that period.
 -- boxes holds the totals per return box as decimal text.
-create table if not exists "better_supabase"."tax_returns" (
+create table "better_supabase"."tax_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "legal_entity_id" uuid,
@@ -5694,19 +5260,18 @@ create table if not exists "better_supabase"."tax_returns" (
   check ("period_end" >= "period_start"),
   check (("status" = 'filed') = ("filed_at" is not null))
 );
-create unique index if not exists "tax_returns_period_key" on "better_supabase"."tax_returns" ("org_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "period_start", "period_end");
+create unique index "tax_returns_period_key" on "better_supabase"."tax_returns" ("org_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "period_start", "period_end");
 alter table "better_supabase"."tax_returns" enable row level security;
 revoke all on "better_supabase"."tax_returns" from public, anon, authenticated;
 grant select on "better_supabase"."tax_returns" to authenticated;
 grant all on "better_supabase"."tax_returns" to service_role;
-drop policy if exists tax_returns_read on "better_supabase"."tax_returns";
 create policy tax_returns_read on "better_supabase"."tax_returns"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
 -- The intra-community sales list (ICP) of a return: what was sold to each
 -- customer VAT number, as goods or as services.
-create table if not exists "better_supabase"."eu_sales_list_lines" (
+create table "better_supabase"."eu_sales_list_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "tax_return_id" uuid not null references "better_supabase"."tax_returns" ("id") on delete cascade,
@@ -5717,12 +5282,11 @@ create table if not exists "better_supabase"."eu_sales_list_lines" (
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_count" integer not null check ("invoice_count" > 0)
 );
-create unique index if not exists "eu_sales_list_lines_key" on "better_supabase"."eu_sales_list_lines" ("tax_return_id", "customer_vat_number", "kind", "currency");
+create unique index "eu_sales_list_lines_key" on "better_supabase"."eu_sales_list_lines" ("tax_return_id", "customer_vat_number", "kind", "currency");
 alter table "better_supabase"."eu_sales_list_lines" enable row level security;
 revoke all on "better_supabase"."eu_sales_list_lines" from public, anon, authenticated;
 grant select on "better_supabase"."eu_sales_list_lines" to authenticated;
 grant all on "better_supabase"."eu_sales_list_lines" to service_role;
-drop policy if exists eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines";
 create policy eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tax.read')));
@@ -6470,108 +6034,83 @@ grant execute on function "better_supabase"."seed_tax_defaults"(uuid, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_codes" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_codes" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_codes" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_codes" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_rates" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_rates" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_rates" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_rates" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_tax_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_tax_lines" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_tax_lines" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_tax_lines" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_tax_lines" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."tax_returns";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_select on "better_supabase"."tax_returns" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_insert on "better_supabase"."tax_returns" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_update on "better_supabase"."tax_returns" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tax_returns";
 create policy bsb_tenant_scope_delete on "better_supabase"."tax_returns" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."eu_sales_list_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."eu_sales_list_lines" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('tax.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."eu_sales_list_lines" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

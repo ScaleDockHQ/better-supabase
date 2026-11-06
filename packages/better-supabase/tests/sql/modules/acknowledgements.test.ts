@@ -53,9 +53,7 @@ describe("acknowledgements module", () => {
       "acknowledgements",
       "acknowledgement_notices",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}"`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}"`);
     }
 
     expect(sql).toContain(

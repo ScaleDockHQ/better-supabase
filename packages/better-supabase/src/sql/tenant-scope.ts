@@ -177,7 +177,7 @@ export function tenantScopePolicy(table: TenantScopeTarget): string {
         using: command === "insert" ? null : using,
         check: command === "insert" || command === "update" ? check : null,
       }),
-      { drop: true, target: table.target },
+      { target: table.target },
     );
   };
 
@@ -192,7 +192,6 @@ export function tenantScopePolicy(table: TenantScopeTarget): string {
   ];
 
   return [
-    `drop policy if exists ${TENANT_SCOPE_POLICY} on ${table.target};`,
     ...SCOPE_COMMANDS.map(make),
     ...(roles.length === 0 ? [] : [exemptGrants(clauses, roles)]),
   ].join("\n");
@@ -336,26 +335,11 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
 -- table to the caller's organizations and what the block's policies grant.
 ${statements.join("\n")}`;
 
-  return `-- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-${targets
-  .map(
-    (target) => `  begin
-    drop policy if exists ${TENANT_SCOPE_POLICY} on ${target};
-${TENANT_SCOPE_NAMES.map((name) => `    drop policy if exists ${name} on ${target};`).join("\n")}
-  exception when undefined_table or invalid_schema_name then null;
-  end;`,
-  )
-  .join("\n")}
-end $$;
-
-${sql.trimEnd()}${scope}
+  return `${sql.trimEnd()}${scope}
 `;
 }
 
-/** A `drop` and `create` of one policy `to authenticated` on `table`. */
+/** A `create policy` `to authenticated` on `table`. */
 export function authenticatedPolicy(
   table: string,
   name: string,
@@ -364,6 +348,6 @@ export function authenticatedPolicy(
 ): string {
   return renderPolicy(
     buildPolicy({ table, name, command, roles: ["authenticated"], ...spec }),
-    { drop: true, target: table },
+    { target: table },
   );
 }

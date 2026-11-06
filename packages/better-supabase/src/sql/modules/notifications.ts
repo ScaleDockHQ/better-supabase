@@ -364,7 +364,7 @@ function tables(ctx: BlockSqlContext, n: NotifyNames): string {
         roles: ["authenticated"],
         ...spec,
       }),
-      { drop: true, target: n.table(table) },
+      { target: n.table(table) },
     )}`;
 
   parts.push(`
@@ -556,7 +556,6 @@ grant select, insert, update, delete on ${n.table(table)} to authenticated;
 grant all on ${n.table(table)} to service_role;
 ${ownRowPolicies({
   table: n.table(table),
-  legacy: `bsb_notification_${table}_own`,
   name: (command) => `bsb_notification_${table}_own_${command}`,
   using: mine,
   check: `${mine}${
@@ -711,7 +710,7 @@ create trigger ${updateTrigger} after update of ${changed.join(", ")} on ${t}
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: `realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ (${pattern})` }), { drop: true, target: "realtime.messages" })}
+        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: `realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ (${pattern})` }), { target: "realtime.messages" })}
   end if;
 end;
 $$;`;

@@ -38,7 +38,8 @@ import {
   overApp,
   renameQualifiers,
 } from "./pipeline/prepare.ts";
-import { ownTablesCreatedBy } from "./pipeline/resolve.ts";
+import { appTableSet, ownTablesCreatedBy } from "./pipeline/resolve.ts";
+import { rerunnableDdl, staticDdl } from "./pipeline/static.ts";
 import { withoutCoveredPolicies } from "./policy-cover.ts";
 import {
   checkMigrationOptions,
@@ -67,16 +68,18 @@ export function moduleBody(
     modules.map((entry) => entry.name),
   );
 
-  return ctx.mode === "custom"
-    ? undefined
-    : withoutCoveredPolicies(
-        overApp(
-          renameQualifiers(moduleSql(module, ctx, layout), ctx),
-          ctx,
-          layout,
-        ),
-        layout.ownPolicies,
-      );
+  if (ctx.mode === "custom") {
+    return undefined;
+  }
+
+  const body = withoutCoveredPolicies(
+    overApp(renameQualifiers(moduleSql(module, ctx, layout), ctx), ctx, layout),
+    layout.ownPolicies,
+  );
+
+  return layout.rerunnable === true
+    ? rerunnableDdl(body)
+    : staticDdl(body, appTableSet(ctx));
 }
 
 /**
@@ -112,7 +115,15 @@ export function renderBlocks(
   // read-only support or agent session can't write through them either.
   const appFiles = appTablesFiles(layout, installed).map((file) =>
     file.kind === "schema"
-      ? { ...file, contents: guardBelowHeader(file.contents, layout) }
+      ? {
+          ...file,
+          contents:
+            layout.rerunnable === true
+              ? rerunnableDdl(guardBelowHeader(file.contents, layout))
+              : staticDdl(guardBelowHeader(file.contents, layout), new Set(), {
+                  keepIfNotExists: true,
+                }),
+        }
       : file,
   );
 
@@ -240,6 +251,13 @@ function moduleFiles(
       )
     : "";
 
+  // The migrations workflow repeats every statement in each migration; the
+  // others read the files as declarative DDL.
+  const settled = (sql: string): string =>
+    layout.rerunnable === true
+      ? rerunnableDdl(sql)
+      : staticDdl(sql, appTableSet(ctx));
+
   const file = (
     kind: BlockSqlFile["kind"],
     path: string,
@@ -295,7 +313,7 @@ function moduleFiles(
     file(
       "schema",
       modulePath(module, layout, ctx.instance),
-      `${header}\n\n${body}\n${extra}${wrappers}${api}`,
+      settled(`${header}\n\n${body}\n${extra}${wrappers}${api}`),
     ),
     file(
       "data",

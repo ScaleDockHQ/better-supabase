@@ -39,7 +39,7 @@ describe("signing-keys module", () => {
       'delete from vault.secrets vs where vs.id = old."vault_secret_id";',
     );
     expect(sql).toContain(
-      'create unique index if not exists signing_keys_active_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id") where "state" = \'active\';',
+      'create unique index signing_keys_active_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id") where "state" = \'active\';',
     );
   });
 

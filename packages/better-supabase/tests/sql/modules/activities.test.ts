@@ -72,15 +72,13 @@ describe("engagements module, recordings", () => {
   it("stores recordings on ai-files with transcripts and notes", () => {
     const sql = sqlOf({ recordings: true });
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."engagement_recordings"',
+      'create table "better_supabase"."engagement_recordings"',
     );
     expect(sql).toContain('references "better_supabase"."ai_files"');
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."engagement_transcript_segments"',
+      'create table "better_supabase"."engagement_transcript_segments"',
     );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."engagement_notes"',
-    );
+    expect(sql).toContain('create table "better_supabase"."engagement_notes"');
     expect(sql).toContain(
       'function "better_supabase"."attach_activity_recording"',
     );

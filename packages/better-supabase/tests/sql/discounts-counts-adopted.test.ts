@@ -73,7 +73,7 @@ describe("discounts, counts and Intrastat over the app's tables", () => {
     );
 
     expect(partial).toContain(
-      'create table if not exists "better_supabase"."discount_groups"',
+      'create table "better_supabase"."discount_groups"',
     );
   });
 });

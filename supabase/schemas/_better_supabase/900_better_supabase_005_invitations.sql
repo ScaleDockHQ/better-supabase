@@ -1,27 +1,11 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:fe2c48dc61ac8b6ae8c5e6f1f666113ae89cfa987d53b8de9c8a27c1e33a6bb6
+-- @bsb-hash sha256:848fe6c6b32d9c9f7e8d171749fec577704af62a3ad7a35ba82b21d0349e32be
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-
-create table if not exists "better_supabase"."invitations" (
+create table "better_supabase"."invitations" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "email" text not null,
@@ -32,24 +16,20 @@ create table if not exists "better_supabase"."invitations" (
 );
 alter table "better_supabase"."invitations" alter column "organization_id" set not null;
 alter table "better_supabase"."invitations" alter column "role" drop default;
-alter table "better_supabase"."invitations" add column if not exists "invited_by" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."invitations" add column if not exists "created_at" timestamptz not null default now();
-alter table "better_supabase"."invitations" add column if not exists "accepted_by" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."invitations" add column if not exists "declined_at" timestamptz;
-alter table "better_supabase"."invitations" add column if not exists "revoked_at" timestamptz;
-
-drop index if exists "better_supabase".invitations_open_idx;
-create unique index if not exists invitations_open_email_idx
+alter table "better_supabase"."invitations" add column "invited_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."invitations" add column "created_at" timestamptz not null default now();
+alter table "better_supabase"."invitations" add column "accepted_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."invitations" add column "declined_at" timestamptz;
+alter table "better_supabase"."invitations" add column "revoked_at" timestamptz;
+create unique index invitations_open_email_idx
   on "better_supabase"."invitations" ("organization_id", lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;
-create index if not exists invitations_tenant_created_idx on "better_supabase"."invitations" ("organization_id", "created_at");
-alter table "better_supabase"."invitations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."invitations";
+create index invitations_tenant_created_idx on "better_supabase"."invitations" ("organization_id", "created_at");
+alter table "better_supabase"."invitations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."invitations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
-create index if not exists invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
-create index if not exists invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
-
-alter table "better_supabase"."invitations" drop constraint if exists invitations_role_check;
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
+create index invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
+create index invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
 
 alter table "better_supabase"."invitations" enable row level security;
 revoke all on "better_supabase"."invitations" from public, anon, authenticated;
@@ -71,13 +51,12 @@ end;
 $$;
 revoke execute on function "better_supabase"."invitation_tenant_ids"() from public, anon;
 grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
-drop policy if exists bsb_invitations_read on "better_supabase"."invitations";
 create policy bsb_invitations_read on "better_supabase"."invitations"
   for select to authenticated
   using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()));
 
 -- Invitations to a platform role (the catalog model's platform assignments).
-create table if not exists "better_supabase"."platform_invitations" (
+create table "better_supabase"."platform_invitations" (
   "id" uuid primary key default gen_random_uuid(),
   "email" text not null,
   "role" text not null,
@@ -85,20 +64,20 @@ create table if not exists "better_supabase"."platform_invitations" (
   "expires_at" timestamptz not null,
   "accepted_at" timestamptz
 );
-alter table "better_supabase"."platform_invitations" add column if not exists "invited_by" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."platform_invitations" add column if not exists "created_at" timestamptz not null default now();
-alter table "better_supabase"."platform_invitations" add column if not exists "accepted_by" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."platform_invitations" add column if not exists "declined_at" timestamptz;
-alter table "better_supabase"."platform_invitations" add column if not exists "revoked_at" timestamptz;
+alter table "better_supabase"."platform_invitations" add column "invited_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."platform_invitations" add column "created_at" timestamptz not null default now();
+alter table "better_supabase"."platform_invitations" add column "accepted_by" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."platform_invitations" add column "declined_at" timestamptz;
+alter table "better_supabase"."platform_invitations" add column "revoked_at" timestamptz;
 
-create unique index if not exists platform_invitations_open_email_idx
+create unique index platform_invitations_open_email_idx
   on "better_supabase"."platform_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;
-alter table "better_supabase"."platform_invitations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."platform_invitations";
+alter table "better_supabase"."platform_invitations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."platform_invitations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
-create index if not exists platform_invitations_invited_by_idx on "better_supabase"."platform_invitations" ("invited_by");
-create index if not exists platform_invitations_accepted_by_idx on "better_supabase"."platform_invitations" ("accepted_by");
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
+create index platform_invitations_invited_by_idx on "better_supabase"."platform_invitations" ("invited_by");
+create index platform_invitations_accepted_by_idx on "better_supabase"."platform_invitations" ("accepted_by");
 
 alter table "better_supabase"."platform_invitations" enable row level security;
 revoke all on "better_supabase"."platform_invitations" from public, anon, authenticated;
@@ -116,7 +95,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."platform_invitations_readable"() from public, anon;
 grant execute on function "better_supabase"."platform_invitations_readable"() to authenticated, service_role;
-drop policy if exists bsb_platform_invitations_read on "better_supabase"."platform_invitations";
 create policy bsb_platform_invitations_read on "better_supabase"."platform_invitations"
   for select to authenticated
   using ((select "better_supabase"."platform_invitations_readable"()));
@@ -149,7 +127,7 @@ revoke execute on function "better_supabase"."invitation_extra"(uuid) from publi
 -- role id or key under blocks.permissions.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
-drop function if exists "better_supabase"."invite_member"(uuid, text, text, interval, jsonb, jsonb);
+
 create or replace function "better_supabase"."invite_member"(
   tenant uuid,
   invitee_email text,
@@ -283,7 +261,7 @@ end;
 $$;
 
 -- The 0.4 signature: returns the token only.
-drop function if exists "better_supabase"."create_invitation"(uuid, text, text, interval);
+
 create or replace function "better_supabase"."create_invitation"(
   organization uuid,
   invitee_email text,
@@ -1162,24 +1140,19 @@ grant execute on function "better_supabase"."accepting_invitation"() to authenti
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."invitations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invitations";
 create policy bsb_tenant_scope_select on "better_supabase"."invitations" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invitations";
 create policy bsb_tenant_scope_insert on "better_supabase"."invitations" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invitations";
 create policy bsb_tenant_scope_update on "better_supabase"."invitations" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invitations";
 create policy bsb_tenant_scope_delete on "better_supabase"."invitations" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -1189,11 +1162,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."invitation_tenant_ids"();
-drop function if exists "api"."platform_invitations_readable"();
 
-drop function if exists "api"."invite_member"(uuid, text, text, interval, jsonb, jsonb);
-drop function if exists "api"."create_invitation"(uuid, text, text, interval);
 
 create or replace function "api"."invite_member"(tenant uuid, invitee_email text, invitee_role text, valid_for interval default '7 days', prefill jsonb default '{}')
 returns jsonb

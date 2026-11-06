@@ -29,7 +29,7 @@ describe("impersonation module", () => {
     });
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."support_sessions" (',
+      'create table "better_supabase"."support_sessions" (',
     );
     expect(sql).toContain(`"is_platform"('system.users.manage')`);
     expect(sql).toContain(`"is_platform"('system.audit.read')`);
@@ -116,9 +116,7 @@ describe("impersonation module", () => {
     expect(sql).not.toContain(
       'create table if not exists "better_supabase"."support_sessions"',
     );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."support_requests"',
-    );
+    expect(sql).toContain('create table "better_supabase"."support_requests"');
     expect(sql).toContain(
       'insert into "public"."impersonation_sessions" ("impersonator_id", "target_user_id", "reason", "expires_at")',
     );

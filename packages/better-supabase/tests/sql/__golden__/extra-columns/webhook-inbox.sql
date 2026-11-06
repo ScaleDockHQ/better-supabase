@@ -1,12 +1,12 @@
 -- ==== schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:8f161ef942d1906fe8dfc2a4e8ae2529c62965aa20522c8a532718290accfbc9
+-- @bsb-hash sha256:625cf324660a08f378cb40c1d3df80c696b91c078436a39be6d5f87c6a66bb4a
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists better_supabase.webhook_inbox (
+create table better_supabase.webhook_inbox (
   id bigint generated always as identity primary key,
   source text not null,
   message_id text not null,
@@ -26,8 +26,8 @@ create table if not exists better_supabase.webhook_inbox (
 );
 -- The tenant a message belongs to (a per-tenant integration), and progress a
 -- handler saved mid-processing (checkpoint_webhook), such as a provider cursor.
-alter table better_supabase.webhook_inbox add column if not exists tenant text;
-alter table better_supabase.webhook_inbox add column if not exists checkpoint jsonb not null default '{}';
+alter table better_supabase.webhook_inbox add column tenant text;
+alter table better_supabase.webhook_inbox add column checkpoint jsonb not null default '{}';
 -- Message ids are unique per source and tenant: two tenants of one provider
 -- can send the same id. A null tenant counts as one tenant.
 do $$
@@ -43,35 +43,24 @@ begin
   end if;
 end;
 $$;
-alter table better_supabase.webhook_inbox drop constraint if exists webhook_inbox_source_message_id_key;
-create index if not exists webhook_inbox_ready_idx
+create index webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
-create index if not exists webhook_inbox_tenant_idx
+create index webhook_inbox_tenant_idx
   on better_supabase.webhook_inbox (tenant, received_at) where tenant is not null;
 -- purge_webhooks: processed messages by processed_at, dead ones by received_at.
-create index if not exists webhook_inbox_processed_idx
+create index webhook_inbox_processed_idx
   on better_supabase.webhook_inbox (processed_at) where status = 'processed';
-create index if not exists webhook_inbox_dead_idx
+create index webhook_inbox_dead_idx
   on better_supabase.webhook_inbox (received_at) where status = 'dead';
 
 alter table better_supabase.webhook_inbox enable row level security;
 revoke all on better_supabase.webhook_inbox from public, anon, authenticated;
 grant all on better_supabase.webhook_inbox to service_role;
 
-alter table better_supabase.webhook_inbox add column if not exists "app_note" text;
+alter table better_supabase.webhook_inbox add column "app_note" text;
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
-drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
-drop function if exists better_supabase.complete_webhook(bigint, text);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);
-drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer);
-drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
-drop function if exists better_supabase.list_webhooks(text, text, text, integer);
+
 
 -- { id, duplicate }: duplicate = true when the source and tenant saw the
 -- message id before (the sender retried). max_attempts is the source's

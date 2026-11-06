@@ -1,26 +1,11 @@
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:f483af93b84d9e4dd5a3bf4d98cabcb9b916f0ff811e0a4893442598c5086103
+-- @bsb-hash sha256:e6f86943e1136b754953a15a36e7964d420eb2bbecb0c243d0a723eb725e016a
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."lead_score_checks" (
+create table "better_supabase"."lead_score_checks" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -29,14 +14,13 @@ create table if not exists "better_supabase"."lead_score_checks" (
   "checked_at" timestamptz,
   constraint "lead_score_checks_pkey" primary key ("subject_type", "subject_id")
 );
-create index if not exists "lead_score_checks_tenant_idx" on "better_supabase"."lead_score_checks" ("tenant_id");
-create index if not exists "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
+create index "lead_score_checks_tenant_idx" on "better_supabase"."lead_score_checks" ("tenant_id");
+create index "lead_score_checks_due_idx" on "better_supabase"."lead_score_checks" ("checked_at" nulls first) where "stale";
 
 alter table "better_supabase"."lead_score_checks" enable row level security;
 revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-drop policy if exists lead_score_checks_read on "better_supabase"."lead_score_checks";
 create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
@@ -201,7 +185,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_person_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_person_changed" on "better_supabase"."people";
 create trigger "bsb_person_changed"
   after insert or update on "better_supabase"."people"
   for each row execute function "better_supabase"."lead_person_changed"();
@@ -230,7 +213,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_segment_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_segment_changed" on "better_supabase"."segment_members";
 create trigger "bsb_segment_changed"
   after insert or delete on "better_supabase"."segment_members"
   for each row execute function "better_supabase"."lead_segment_changed"();
@@ -251,7 +233,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_mail_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_mail_changed" on "better_supabase"."mail_messages";
 create trigger "bsb_mail_changed"
   after insert or update of "opened_at", "clicked_at" on "better_supabase"."mail_messages"
   for each row execute function "better_supabase"."lead_mail_changed"();
@@ -272,7 +253,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_mail_linked"() from public, anon, authenticated;
-drop trigger if exists "bsb_mail_linked" on "better_supabase"."mail_thread_subjects";
 create trigger "bsb_mail_linked"
   after insert on "better_supabase"."mail_thread_subjects"
   for each row execute function "better_supabase"."lead_mail_linked"();
@@ -280,24 +260,19 @@ create trigger "bsb_mail_linked"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."lead_score_checks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_select on "better_supabase"."lead_score_checks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_insert on "better_supabase"."lead_score_checks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_update on "better_supabase"."lead_score_checks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lead_score_checks";
 create policy bsb_tenant_scope_delete on "better_supabase"."lead_score_checks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

@@ -1,38 +1,15 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:bf2bc5a31acee60a9310139078f75c48a1ca1242aab329e563cf5f1a0a9dd328
+-- @bsb-hash sha256:19bed02ebe30cba4ebf79783b05f43076404fb068d2656af4e5e7a559894a139
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."observation_definitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."observation_definitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."observation_definitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."observation_definitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."observation_definitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."observations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."observations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."observations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."observations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."observations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Observations: typed measurements of a record (vital signs, scores, lab
 -- values) against definitions with a unit, a code and ranges that flag
 -- them, with amendments and entered-in-error corrections kept as history.
 
-create table if not exists "better_supabase"."observation_definitions" (
+create table "better_supabase"."observation_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system definition every organization reads.
   "tenant_id" uuid,
@@ -68,12 +45,11 @@ alter table "better_supabase"."observation_definitions" enable row level securit
 revoke all on "better_supabase"."observation_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."observation_definitions" to authenticated;
 grant all on "better_supabase"."observation_definitions" to service_role;
-drop policy if exists observation_definitions_read on "better_supabase"."observation_definitions";
 create policy observation_definitions_read on "better_supabase"."observation_definitions"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "better_supabase"."observations" (
+create table "better_supabase"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."observation_definitions" ("id") on delete restrict,
@@ -102,17 +78,16 @@ create table if not exists "better_supabase"."observations" (
   "note" text check ("note" is null or length("note") <= 4000),
   "created_at" timestamptz not null default now()
 );
-create index if not exists "observations_series_idx" on "better_supabase"."observations" ("subject_type", "subject_id", "definition_id", "observed_at" desc);
-create index if not exists "observations_definition_idx" on "better_supabase"."observations" ("definition_id");
-create index if not exists "observations_tenant_idx" on "better_supabase"."observations" ("tenant_id", "observed_at" desc);
-create index if not exists "observations_replaces_idx" on "better_supabase"."observations" ("replaces_id") where "replaces_id" is not null;
-create index if not exists "observations_submission_idx" on "better_supabase"."observations" ("submission_id") where "submission_id" is not null;
-create unique index if not exists "observations_external_key" on "better_supabase"."observations" ("tenant_id", "external_id") where "external_id" is not null;
+create index "observations_series_idx" on "better_supabase"."observations" ("subject_type", "subject_id", "definition_id", "observed_at" desc);
+create index "observations_definition_idx" on "better_supabase"."observations" ("definition_id");
+create index "observations_tenant_idx" on "better_supabase"."observations" ("tenant_id", "observed_at" desc);
+create index "observations_replaces_idx" on "better_supabase"."observations" ("replaces_id") where "replaces_id" is not null;
+create index "observations_submission_idx" on "better_supabase"."observations" ("submission_id") where "submission_id" is not null;
+create unique index "observations_external_key" on "better_supabase"."observations" ("tenant_id", "external_id") where "external_id" is not null;
 alter table "better_supabase"."observations" enable row level security;
 revoke all on "better_supabase"."observations" from public, anon, authenticated;
 grant select on "better_supabase"."observations" to authenticated;
 grant all on "better_supabase"."observations" to service_role;
-drop policy if exists observations_read on "better_supabase"."observations";
 create policy observations_read on "better_supabase"."observations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
@@ -612,7 +587,7 @@ grant execute on function "better_supabase"."archive_observation_definition"(uui
 -- Records one observation of a record by its definition key. value is a
 -- number, true or false, a string, or an object of components; details
 -- takes method, device and note.
-drop function if exists "better_supabase"."record_observation"(uuid, text, text, text, jsonb, timestamptz, jsonb, jsonb);
+
 create or replace function "better_supabase"."record_observation"(tenant uuid, subject_type text, subject_id text, definition_key text, value jsonb, observed_at timestamptz default null, details jsonb default null)
 returns jsonb
 language plpgsql
@@ -1911,7 +1886,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."observation_submission_trigger"() from public, anon, authenticated;
-drop trigger if exists "bsb_observation_submission" on "better_supabase"."form_submissions";
 create trigger "bsb_observation_submission"
 after insert or update of "status" on "better_supabase"."form_submissions"
 for each row execute function "better_supabase"."observation_submission_trigger"();
@@ -1919,45 +1893,35 @@ for each row execute function "better_supabase"."observation_submission_trigger"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."observation_definitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."observation_definitions";
 create policy bsb_tenant_scope_select on "better_supabase"."observation_definitions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."observation_definitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."observation_definitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."observation_definitions";
 create policy bsb_tenant_scope_update on "better_supabase"."observation_definitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."observation_definitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."observation_definitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."observations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."observations";
 create policy bsb_tenant_scope_select on "better_supabase"."observations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."observations";
 create policy bsb_tenant_scope_insert on "better_supabase"."observations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."observations";
 create policy bsb_tenant_scope_update on "better_supabase"."observations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."observations";
 create policy bsb_tenant_scope_delete on "better_supabase"."observations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1973,8 +1937,6 @@ $$;
 -- blocks.observations.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."record_observation"(uuid, text, text, text, jsonb, timestamptz, jsonb, jsonb);
 
 create or replace function "api"."save_observation_definition"(tenant uuid, key text, definition jsonb)
 returns jsonb

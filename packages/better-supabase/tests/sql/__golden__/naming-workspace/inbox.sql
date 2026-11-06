@@ -1,89 +1,10 @@
 -- ==== schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:e3491f2ac119d1e00df90a19dda0089bc1a8d5b6c5db780f93823758b2c4d32e
+-- @bsb-hash sha256:82102b61b93ea81781a37e80d4cf474ec284b29debae0abe88fd4e7414a51acf
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inboxes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inboxes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inboxes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inboxes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inboxes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_conversations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_conversations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_conversations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_conversations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_conversations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_conversation_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_conversation_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_conversation_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_conversation_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_conversation_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_message_details";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_message_details";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_message_details";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_message_details";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_message_details";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_message_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_message_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_message_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_message_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_message_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_inbound_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_inbound_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_inbound_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_inbound_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_inbound_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_message_templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_message_templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_message_templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_message_templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_message_templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."scheduled_inbox_messages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scheduled_inbox_messages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scheduled_inbox_messages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scheduled_inbox_messages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- A shared inbox on the messaging core: each conversation with a contact is
 -- a core conversation of kind inbox, each message (or internal note) a core
@@ -96,7 +17,7 @@ end $$;
 -- Inboxes: one per channel address (the in-app widget, a WhatsApp number, a
 -- Slack workspace) in a tenant. bot_mode is the default for new
 -- conversations: bot (the bot answers), human (staff answer) or paused.
-create table if not exists "better_supabase"."inboxes" (
+create table "better_supabase"."inboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -108,34 +29,32 @@ create table if not exists "better_supabase"."inboxes" (
   "created_at" timestamptz not null default now(),
   "archived_at" timestamptz
 );
-create index if not exists inboxes_tenant_idx on "better_supabase"."inboxes" ("tenant_id");
-create unique index if not exists inboxes_address_idx on "better_supabase"."inboxes" ("channel", "channel_address") where "channel_address" is not null and "archived_at" is null;
-alter table "better_supabase"."inboxes" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."inboxes";
+create index inboxes_tenant_idx on "better_supabase"."inboxes" ("tenant_id");
+create unique index inboxes_address_idx on "better_supabase"."inboxes" ("channel", "channel_address") where "channel_address" is not null and "archived_at" is null;
+alter table "better_supabase"."inboxes" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."inboxes"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inboxes" enable row level security;
 revoke all on "better_supabase"."inboxes" from public, anon, authenticated;
 grant select on "better_supabase"."inboxes" to authenticated;
 grant all on "better_supabase"."inboxes" to service_role;
-drop policy if exists inboxes_staff_read on "better_supabase"."inboxes";
 create policy inboxes_staff_read on "better_supabase"."inboxes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
-create table if not exists "better_supabase"."inbox_members" (
+create table "better_supabase"."inbox_members" (
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "role" text not null default 'agent' check ("role" in ('agent', 'lead')),
   "created_at" timestamptz not null default now(),
   primary key ("inbox_id", "user_id")
 );
-create index if not exists inbox_members_user_idx on "better_supabase"."inbox_members" ("user_id");
+create index inbox_members_user_idx on "better_supabase"."inbox_members" ("user_id");
 alter table "better_supabase"."inbox_members" enable row level security;
 revoke all on "better_supabase"."inbox_members" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_members" to authenticated;
 grant all on "better_supabase"."inbox_members" to service_role;
-drop policy if exists inbox_members_staff_read on "better_supabase"."inbox_members";
 create policy inbox_members_staff_read on "better_supabase"."inbox_members"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."inboxes" i where i."id" = "inbox_id" and i."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
@@ -147,7 +66,7 @@ create policy inbox_members_staff_read on "better_supabase"."inbox_members"
 -- when the contact writes again. last_message_at and the preview follow the
 -- messages, never the notes. contact_id is a person of the contacts block,
 -- which adds its foreign key: contacts renders after the inbox.
-create table if not exists "better_supabase"."inbox_conversations" (
+create table "better_supabase"."inbox_conversations" (
   "id" uuid primary key,
   "tenant_id" uuid not null,
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
@@ -169,23 +88,23 @@ create table if not exists "better_supabase"."inbox_conversations" (
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists conversations_thread_idx on "better_supabase"."inbox_conversations" ("inbox_id", "thread_id") where "thread_id" is not null;
-create index if not exists conversations_list_idx on "better_supabase"."inbox_conversations" ("tenant_id", "status", "last_message_at" desc, "id");
-create index if not exists conversations_assignee_idx on "better_supabase"."inbox_conversations" ("assignee_id") where "assignee_id" is not null;
-create index if not exists conversations_contact_idx on "better_supabase"."inbox_conversations" ("contact_id");
-create index if not exists conversations_inbox_idx on "better_supabase"."inbox_conversations" ("inbox_id");
-create index if not exists conversations_team_idx on "better_supabase"."inbox_conversations" ("team_id") where "team_id" is not null;
-alter table "better_supabase"."inbox_conversations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."inbox_conversations";
+create unique index conversations_thread_idx on "better_supabase"."inbox_conversations" ("inbox_id", "thread_id") where "thread_id" is not null;
+create index conversations_list_idx on "better_supabase"."inbox_conversations" ("tenant_id", "status", "last_message_at" desc, "id");
+create index conversations_assignee_idx on "better_supabase"."inbox_conversations" ("assignee_id") where "assignee_id" is not null;
+create index conversations_contact_idx on "better_supabase"."inbox_conversations" ("contact_id");
+create index conversations_inbox_idx on "better_supabase"."inbox_conversations" ("inbox_id");
+create index conversations_team_idx on "better_supabase"."inbox_conversations" ("team_id") where "team_id" is not null;
+alter table "better_supabase"."inbox_conversations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."inbox_conversations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inbox_conversations" enable row level security;
 revoke all on "better_supabase"."inbox_conversations" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_conversations" to authenticated;
 grant all on "better_supabase"."inbox_conversations" to service_role;
 
 -- The activity of a conversation: assignments, status and bot hand-offs.
-create table if not exists "better_supabase"."inbox_conversation_events" (
+create table "better_supabase"."inbox_conversation_events" (
   "id" bigint generated always as identity primary key,
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
@@ -194,18 +113,17 @@ create table if not exists "better_supabase"."inbox_conversation_events" (
   "data" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default clock_timestamp()
 );
-create index if not exists "inbox_conversation_events_conversation_idx" on "better_supabase"."inbox_conversation_events" ("conversation_id", "id");
-create index if not exists "inbox_conversation_events_actor_idx" on "better_supabase"."inbox_conversation_events" ("actor_id");
+create index "inbox_conversation_events_conversation_idx" on "better_supabase"."inbox_conversation_events" ("conversation_id", "id");
+create index "inbox_conversation_events_actor_idx" on "better_supabase"."inbox_conversation_events" ("actor_id");
 alter table "better_supabase"."inbox_conversation_events" enable row level security;
 revoke all on "better_supabase"."inbox_conversation_events" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_conversation_events" to authenticated;
 grant all on "better_supabase"."inbox_conversation_events" to service_role;
-drop policy if exists inbox_conversation_events_staff_read on "better_supabase"."inbox_conversation_events";
 create policy inbox_conversation_events_staff_read on "better_supabase"."inbox_conversation_events"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
-create table if not exists "better_supabase"."inbox_message_details" (
+create table "better_supabase"."inbox_message_details" (
   "message_id" uuid primary key,
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
@@ -216,21 +134,20 @@ create table if not exists "better_supabase"."inbox_message_details" (
   "reply_to" uuid,
   "metadata" jsonb not null default '{}'::jsonb
 );
-create unique index if not exists inbox_message_details_external_idx on "better_supabase"."inbox_message_details" ("conversation_id", "external_id") where "external_id" is not null;
-create index if not exists inbox_message_details_conversation_idx on "better_supabase"."inbox_message_details" ("conversation_id");
-create index if not exists inbox_message_details_reply_idx on "better_supabase"."inbox_message_details" ("reply_to") where "reply_to" is not null;
+create unique index inbox_message_details_external_idx on "better_supabase"."inbox_message_details" ("conversation_id", "external_id") where "external_id" is not null;
+create index inbox_message_details_conversation_idx on "better_supabase"."inbox_message_details" ("conversation_id");
+create index inbox_message_details_reply_idx on "better_supabase"."inbox_message_details" ("reply_to") where "reply_to" is not null;
 alter table "better_supabase"."inbox_message_details" enable row level security;
 revoke all on "better_supabase"."inbox_message_details" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_message_details" to authenticated;
 grant all on "better_supabase"."inbox_message_details" to service_role;
-drop policy if exists inbox_message_details_staff_read on "better_supabase"."inbox_message_details";
 create policy inbox_message_details_staff_read on "better_supabase"."inbox_message_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 -- What happened to an outbound message on its channel. Status only moves
 -- forward: queued, sent, delivered, read; failed before delivery.
-create table if not exists "better_supabase"."inbox_message_deliveries" (
+create table "better_supabase"."inbox_message_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."inbox_message_details" ("message_id") on delete cascade,
@@ -245,16 +162,15 @@ create table if not exists "better_supabase"."inbox_message_deliveries" (
   "created_at" timestamptz not null default now(),
   unique ("message_id", "channel")
 );
-create index if not exists "inbox_message_deliveries_external_idx" on "better_supabase"."inbox_message_deliveries" ("channel", "external_id") where "external_id" is not null;
-alter table "better_supabase"."inbox_message_deliveries" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."inbox_message_deliveries";
+create index "inbox_message_deliveries_external_idx" on "better_supabase"."inbox_message_deliveries" ("channel", "external_id") where "external_id" is not null;
+alter table "better_supabase"."inbox_message_deliveries" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."inbox_message_deliveries"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inbox_message_deliveries" enable row level security;
 revoke all on "better_supabase"."inbox_message_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_message_deliveries" to authenticated;
 grant all on "better_supabase"."inbox_message_deliveries" to service_role;
-drop policy if exists inbox_message_deliveries_staff_read on "better_supabase"."inbox_message_deliveries";
 create policy inbox_message_deliveries_staff_read on "better_supabase"."inbox_message_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
@@ -264,7 +180,7 @@ create policy inbox_message_deliveries_staff_read on "better_supabase"."inbox_me
 -- attempts counts only starts of processing; available_at delays a retry and
 -- locked_until is the lease of a processing row, after which it is picked
 -- again.
-create table if not exists "better_supabase"."inbox_inbound_events" (
+create table "better_supabase"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
@@ -280,16 +196,16 @@ create table if not exists "better_supabase"."inbox_inbound_events" (
   "received_at" timestamptz not null default now(),
   "processed_at" timestamptz
 );
-create unique index if not exists "inbox_inbound_events_external_idx" on "better_supabase"."inbox_inbound_events" ("adapter", "external_id") where "external_id" is not null;
-create index if not exists "inbox_inbound_events_status_idx" on "better_supabase"."inbox_inbound_events" ("status", "received_at");
-create index if not exists "inbox_inbound_events_inbox_idx" on "better_supabase"."inbox_inbound_events" ("inbox_id");
+create unique index "inbox_inbound_events_external_idx" on "better_supabase"."inbox_inbound_events" ("adapter", "external_id") where "external_id" is not null;
+create index "inbox_inbound_events_status_idx" on "better_supabase"."inbox_inbound_events" ("status", "received_at");
+create index "inbox_inbound_events_inbox_idx" on "better_supabase"."inbox_inbound_events" ("inbox_id");
 alter table "better_supabase"."inbox_inbound_events" enable row level security;
 revoke all on "better_supabase"."inbox_inbound_events" from public, anon, authenticated;
 grant all on "better_supabase"."inbox_inbound_events" to service_role;
 
 -- Approved templates for channels that need one outside a reply window
 -- (WhatsApp after 24 hours). external_id is the platform's template name.
-create table if not exists "better_supabase"."inbox_message_templates" (
+create table "better_supabase"."inbox_message_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade,
@@ -302,16 +218,15 @@ create table if not exists "better_supabase"."inbox_message_templates" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "name", "language")
 );
-create index if not exists "inbox_message_templates_inbox_idx" on "better_supabase"."inbox_message_templates" ("inbox_id");
-alter table "better_supabase"."inbox_message_templates" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."inbox_message_templates";
+create index "inbox_message_templates_inbox_idx" on "better_supabase"."inbox_message_templates" ("inbox_id");
+alter table "better_supabase"."inbox_message_templates" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."inbox_message_templates"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inbox_message_templates" enable row level security;
 revoke all on "better_supabase"."inbox_message_templates" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_message_templates" to authenticated;
 grant all on "better_supabase"."inbox_message_templates" to service_role;
-drop policy if exists inbox_message_templates_staff_read on "better_supabase"."inbox_message_templates";
 create policy inbox_message_templates_staff_read on "better_supabase"."inbox_message_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
@@ -319,7 +234,7 @@ create policy inbox_message_templates_staff_read on "better_supabase"."inbox_mes
 -- Staff replies to send later. publish_due_inbox_messages sends each one
 -- through the normal reply path once scheduled_for passes; until then only
 -- its author sees it.
-create table if not exists "better_supabase"."scheduled_inbox_messages" (
+create table "better_supabase"."scheduled_inbox_messages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
@@ -328,18 +243,17 @@ create table if not exists "better_supabase"."scheduled_inbox_messages" (
   "scheduled_for" timestamptz not null,
   "created_at" timestamptz not null default now()
 );
-create index if not exists scheduled_inbox_messages_due_idx on "better_supabase"."scheduled_inbox_messages" ("scheduled_for");
-create index if not exists scheduled_inbox_messages_conversation_idx on "better_supabase"."scheduled_inbox_messages" ("conversation_id");
-create index if not exists scheduled_inbox_messages_author_idx on "better_supabase"."scheduled_inbox_messages" ("author_id", "scheduled_for");
-alter table "better_supabase"."scheduled_inbox_messages" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."scheduled_inbox_messages";
+create index scheduled_inbox_messages_due_idx on "better_supabase"."scheduled_inbox_messages" ("scheduled_for");
+create index scheduled_inbox_messages_conversation_idx on "better_supabase"."scheduled_inbox_messages" ("conversation_id");
+create index scheduled_inbox_messages_author_idx on "better_supabase"."scheduled_inbox_messages" ("author_id", "scheduled_for");
+alter table "better_supabase"."scheduled_inbox_messages" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."scheduled_inbox_messages"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."scheduled_inbox_messages" enable row level security;
 revoke all on "better_supabase"."scheduled_inbox_messages" from public, anon, authenticated;
 grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
 grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
-drop policy if exists scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages";
 create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages"
   for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
@@ -347,7 +261,7 @@ create policy scheduled_inbox_messages_author_read on "better_supabase"."schedul
 -- Reply drafts. A user draft belongs to its author, one open draft per
 -- conversation; an ai draft has no author and every staff member who can
 -- reply in the tenant sees it. status moves from draft to sent or discarded.
-create table if not exists "better_supabase"."inbox_drafts" (
+create table "better_supabase"."inbox_drafts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
@@ -360,18 +274,16 @@ create table if not exists "better_supabase"."inbox_drafts" (
   "created_at" timestamptz not null default now(),
   constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
-create unique index if not exists inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
-create index if not exists inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
-create index if not exists inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
-alter table "better_supabase"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."inbox_drafts";
+create unique index inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create index inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
+create index inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
 create trigger bsb_updated_at before update on "better_supabase"."inbox_drafts"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inbox_drafts" enable row level security;
 revoke all on "better_supabase"."inbox_drafts" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_drafts" to authenticated;
 grant all on "better_supabase"."inbox_drafts" to service_role;
-drop policy if exists inbox_drafts_read on "better_supabase"."inbox_drafts";
 create policy inbox_drafts_read on "better_supabase"."inbox_drafts"
   for select to authenticated
   using (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
@@ -457,7 +369,6 @@ $$;
 revoke execute on function "better_supabase"."inbox_can_conversation"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."inbox_can_conversation"(uuid, text) to authenticated, service_role;
 
-drop policy if exists conversations_read on "better_supabase"."inbox_conversations";
 create policy conversations_read on "better_supabase"."inbox_conversations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "contact_id" in (select "better_supabase"."inbox_contact_ids"()));
@@ -2221,7 +2132,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_conversation_broadcast"() from public, anon, authenticated;
-drop trigger if exists conversations_broadcast on "better_supabase"."inbox_conversations";
 create trigger conversations_broadcast after insert or update on "better_supabase"."inbox_conversations"
   for each row execute function "better_supabase"."inbox_conversation_broadcast"();
 
@@ -2244,7 +2154,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_event_broadcast"() from public, anon, authenticated;
-drop trigger if exists "inbox_conversation_events_broadcast" on "better_supabase"."inbox_conversation_events";
 create trigger "inbox_conversation_events_broadcast" after insert on "better_supabase"."inbox_conversation_events"
   for each row execute function "better_supabase"."inbox_event_broadcast"();
 
@@ -2268,7 +2177,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_delivery_broadcast"() from public, anon, authenticated;
-drop trigger if exists "inbox_message_deliveries_broadcast" on "better_supabase"."inbox_message_deliveries";
 create trigger "inbox_message_deliveries_broadcast" after insert or update of "status" on "better_supabase"."inbox_message_deliveries"
   for each row execute function "better_supabase"."inbox_delivery_broadcast"();
 
@@ -2277,8 +2185,7 @@ create trigger "inbox_message_deliveries_broadcast" after insert or update of "s
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_inbox_receive on realtime.messages;
-create policy bsb_inbox_receive on realtime.messages
+        create policy bsb_inbox_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'inbox:org:%'
@@ -2314,8 +2221,7 @@ grant execute on function "better_supabase"."inbox_file_allowed"(text, text) to 
 do $$
 begin
   if to_regclass('storage.objects') is not null then
-        drop policy if exists bsb_inbox_files_read on storage.objects;
-create policy bsb_inbox_files_read on storage.objects
+        create policy bsb_inbox_files_read on storage.objects
   for select to authenticated
   using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
     drop policy if exists "bsb_inbox_files_write" on storage.objects;
@@ -2342,171 +2248,131 @@ grant execute on function "better_supabase"."seed_inbox_defaults"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."inboxes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."inboxes";
 create policy bsb_tenant_scope_select on "better_supabase"."inboxes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inboxes";
 create policy bsb_tenant_scope_insert on "better_supabase"."inboxes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."inboxes";
 create policy bsb_tenant_scope_update on "better_supabase"."inboxes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inboxes";
 create policy bsb_tenant_scope_delete on "better_supabase"."inboxes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_conversations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_conversations";
 create policy bsb_tenant_scope_select on "better_supabase"."inbox_conversations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "contact_id" in (select "better_supabase"."inbox_contact_ids"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_conversations";
 create policy bsb_tenant_scope_insert on "better_supabase"."inbox_conversations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_conversations";
 create policy bsb_tenant_scope_update on "better_supabase"."inbox_conversations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_conversations";
 create policy bsb_tenant_scope_delete on "better_supabase"."inbox_conversations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_conversation_events";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_conversation_events";
 create policy bsb_tenant_scope_select on "better_supabase"."inbox_conversation_events" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_conversation_events";
 create policy bsb_tenant_scope_insert on "better_supabase"."inbox_conversation_events" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_conversation_events";
 create policy bsb_tenant_scope_update on "better_supabase"."inbox_conversation_events" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_conversation_events";
 create policy bsb_tenant_scope_delete on "better_supabase"."inbox_conversation_events" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_message_details";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_message_details";
 create policy bsb_tenant_scope_select on "better_supabase"."inbox_message_details" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_message_details";
 create policy bsb_tenant_scope_insert on "better_supabase"."inbox_message_details" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_message_details";
 create policy bsb_tenant_scope_update on "better_supabase"."inbox_message_details" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_message_details";
 create policy bsb_tenant_scope_delete on "better_supabase"."inbox_message_details" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_message_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_message_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."inbox_message_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_message_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."inbox_message_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_message_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."inbox_message_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_message_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."inbox_message_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_message_templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_message_templates";
 create policy bsb_tenant_scope_select on "better_supabase"."inbox_message_templates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_message_templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."inbox_message_templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_message_templates";
 create policy bsb_tenant_scope_update on "better_supabase"."inbox_message_templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_message_templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."inbox_message_templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."scheduled_inbox_messages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."scheduled_inbox_messages";
 create policy bsb_tenant_scope_select on "better_supabase"."scheduled_inbox_messages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scheduled_inbox_messages";
 create policy bsb_tenant_scope_insert on "better_supabase"."scheduled_inbox_messages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."scheduled_inbox_messages";
 create policy bsb_tenant_scope_update on "better_supabase"."scheduled_inbox_messages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages";
 create policy bsb_tenant_scope_delete on "better_supabase"."scheduled_inbox_messages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_drafts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_drafts";
 create policy bsb_tenant_scope_select on "better_supabase"."inbox_drafts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inbox_drafts";
 create policy bsb_tenant_scope_insert on "better_supabase"."inbox_drafts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."inbox_drafts";
 create policy bsb_tenant_scope_update on "better_supabase"."inbox_drafts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inbox_drafts";
 create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

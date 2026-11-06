@@ -1,6 +1,6 @@
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:41b856932971430ca1feff4992b4bab463f3b5ba6a9ba5bd88c7e169676a948c
+-- @bsb-hash sha256:2291dcd475484e834028239992c4d7e8dae43cfc814ddeab3e4763b95cb1f18a
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8,7 +8,7 @@
 -- Asymmetric signing keys per owner (a tenant, an app, a stream): the public
 -- JWK here, the private JWK in Vault. One key per owner is active; a retired
 -- key stays in the JWKS until publish_until, the latest exp a signer noted.
-create table if not exists "better_supabase"."signing_keys" (
+create table "better_supabase"."signing_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "owner_type" text not null check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
   "owner_id" text not null check (length("owner_id") >= 1 and length("owner_id") <= 200),
@@ -21,8 +21,8 @@ create table if not exists "better_supabase"."signing_keys" (
   "created_at" timestamptz not null default now(),
   "retired_at" timestamptz
 );
-create unique index if not exists signing_keys_active_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id") where "state" = 'active';
-create index if not exists signing_keys_owner_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id", "created_at" desc);
+create unique index signing_keys_active_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id") where "state" = 'active';
+create index signing_keys_owner_idx on "better_supabase"."signing_keys" ("owner_type", "owner_id", "created_at" desc);
 alter table "better_supabase"."signing_keys" enable row level security;
 revoke all on "better_supabase"."signing_keys" from public, anon, authenticated;
 grant all on "better_supabase"."signing_keys" to service_role;
@@ -247,7 +247,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_signing_key_vault_secret"() from public, anon, authenticated;
-drop trigger if exists "bsb_signing_key_vault" on "better_supabase"."signing_keys";
 create trigger "bsb_signing_key_vault" after delete on "better_supabase"."signing_keys"
   for each row execute function "better_supabase"."drop_signing_key_vault_secret"();
 

@@ -1,53 +1,27 @@
 -- ==== schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:ea1a8d6d3794b853f91b0ef992f45296ddc3718847cd1977c5c625297b27726b
+-- @bsb-hash sha256:122fb6e50cf5241a166336332dfa7e465ccc6a42ce72ae448e34beb6ee7eb4a2
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."billing_native_subscriptions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_native_subscriptions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_native_subscriptions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_native_subscriptions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_native_subscriptions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Each tenant's Stripe customer. The entitlements module reads it as its
 -- customer source when config.entitlements.customer is unset. A tenant billed
 -- as a Stripe Accounts v2 account has its acct_ id first; Stripe creates the
 -- linked cus_ id at the first checkout, and the webhook records it.
-create table if not exists "better_supabase"."billing_customers" (
+create table "better_supabase"."billing_customers" (
   "workspace_id" uuid primary key,
   "stripe_customer_id" text unique check ("stripe_customer_id" ~ '^cus_'),
   "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_'),
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."billing_customers" add column if not exists "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_');
 alter table "better_supabase"."billing_customers" alter column "stripe_customer_id" drop not null;
-alter table "better_supabase"."billing_customers" drop constraint if exists bsb_billing_customers_party;
 alter table "better_supabase"."billing_customers" add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
 alter table "better_supabase"."billing_customers" enable row level security;
 revoke all on "better_supabase"."billing_customers" from public, anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
 grant all on "better_supabase"."billing_customers" to service_role;
-drop policy if exists billing_customers_read on "better_supabase"."billing_customers";
 create policy billing_customers_read on "better_supabase"."billing_customers"
   for select to authenticated
   using ("workspace_id" in (select better_supabase.tenant_ids_with('billing.read')));
@@ -180,7 +154,7 @@ $$;
 -- catalog), for checkout({ plan }); null without the option or the plan.
 -- variant picks one of the plan's prices (a credit pack, a tier); without it,
 -- the row without a variant.
-drop function if exists "better_supabase"."billing_plan_price"(text, text);
+
 create or replace function "better_supabase"."billing_plan_price"(plan text, billing_interval text default null, variant text default null)
 returns text
 language sql
@@ -192,8 +166,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."billing_plan_price"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."billing_plan_price"(text, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."billing_platform_subscriptions"();
 create or replace function "better_supabase"."billing_platform_subscriptions"()
 returns table (
   tenant uuid,
@@ -266,8 +238,6 @@ begin
   $q$, items, prices, customers);
 end;
 $$;
-
-drop function if exists "better_supabase"."billing_platform_invoices"();
 create or replace function "better_supabase"."billing_platform_invoices"()
 returns table (
   tenant uuid,
@@ -329,7 +299,6 @@ begin
   $q$, customers);
 end;
 $$;
-drop function if exists "better_supabase"."billing_platform_customers"();
 -- Every linked customer, with or without a subscription or invoice, for
 -- platform staff: the tenant, the Stripe customer and its contact from the
 -- Sync Engine's stripe.customers (null without the table).
@@ -683,7 +652,7 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 -- A subscription kept in Postgres: unit_amount is the price of one unit for one
 -- billing_interval in minor units of currency, and [period_start, period_end)
 -- is the current period.
-create table if not exists "better_supabase"."billing_native_subscriptions" (
+create table "better_supabase"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "plan" text not null check (length("plan") >= 1 and length("plan") <= 100),
@@ -699,7 +668,7 @@ create table if not exists "better_supabase"."billing_native_subscriptions" (
   constraint "bsb_billing_native_subscriptions_interval_check" check ("billing_interval" in ('week', 'month', 'year')),
   check ("period_end" > "period_start")
 );
-create index if not exists "billing_native_subscriptions_tenant_idx" on "better_supabase"."billing_native_subscriptions" ("workspace_id", "status");
+create index "billing_native_subscriptions_tenant_idx" on "better_supabase"."billing_native_subscriptions" ("workspace_id", "status");
 alter table "better_supabase"."billing_native_subscriptions" enable row level security;
 revoke all on "better_supabase"."billing_native_subscriptions" from public, anon, authenticated;
 grant all on "better_supabase"."billing_native_subscriptions" to service_role;
@@ -809,24 +778,19 @@ grant execute on function "better_supabase"."cancel_native_subscription"(uuid) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."billing_customers";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."billing_customers";
 create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
   for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("workspace_id" in (select better_supabase.tenant_ids_with('billing.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."billing_customers";
 create policy bsb_tenant_scope_insert on "better_supabase"."billing_customers" as restrictive
   for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."billing_customers";
 create policy bsb_tenant_scope_update on "better_supabase"."billing_customers" as restrictive
   for update to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()))
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."billing_customers";
 create policy bsb_tenant_scope_delete on "better_supabase"."billing_customers" as restrictive
   for delete to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()));

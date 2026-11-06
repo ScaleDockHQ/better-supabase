@@ -1,82 +1,11 @@
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:98c19a58705c1103a326bc27b45a2839c54a7398896cda497285252be812c218
+-- @bsb-hash sha256:dc3b72acca6dca37bbbf6f406005b87e13bfe0004486ed11db575d1b07fdc65d
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_reports";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_reports";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_reports";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_reports";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_reports";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_actions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_actions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_actions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_actions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_actions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_bans";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_bans";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_bans";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_bans";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_bans";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."moderation_items" (
+create table "better_supabase"."moderation_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -91,11 +20,11 @@ create table if not exists "better_supabase"."moderation_items" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id")
 );
-create index if not exists "moderation_items_queue_idx" on "better_supabase"."moderation_items" ("tenant_id", "updated_at" desc) where "status" = 'pending' or "open_reports" > 0;
-create index if not exists "moderation_items_status_idx" on "better_supabase"."moderation_items" ("tenant_id", "status", "updated_at" desc);
-create index if not exists "moderation_items_author_idx" on "better_supabase"."moderation_items" ("author_id");
+create index "moderation_items_queue_idx" on "better_supabase"."moderation_items" ("tenant_id", "updated_at" desc) where "status" = 'pending' or "open_reports" > 0;
+create index "moderation_items_status_idx" on "better_supabase"."moderation_items" ("tenant_id", "status", "updated_at" desc);
+create index "moderation_items_author_idx" on "better_supabase"."moderation_items" ("author_id");
 
-create table if not exists "better_supabase"."moderation_reports" (
+create table "better_supabase"."moderation_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "item_id" uuid not null references "better_supabase"."moderation_items" ("id") on delete cascade,
@@ -107,11 +36,11 @@ create table if not exists "better_supabase"."moderation_reports" (
   "resolved_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "moderation_reports_open_idx" on "better_supabase"."moderation_reports" ("item_id", "reporter_id") where "status" = 'open';
-create index if not exists "moderation_reports_item_idx" on "better_supabase"."moderation_reports" ("item_id", "created_at" desc);
-create index if not exists "moderation_reports_reporter_idx" on "better_supabase"."moderation_reports" ("reporter_id");
+create unique index "moderation_reports_open_idx" on "better_supabase"."moderation_reports" ("item_id", "reporter_id") where "status" = 'open';
+create index "moderation_reports_item_idx" on "better_supabase"."moderation_reports" ("item_id", "created_at" desc);
+create index "moderation_reports_reporter_idx" on "better_supabase"."moderation_reports" ("reporter_id");
 
-create table if not exists "better_supabase"."moderation_actions" (
+create table "better_supabase"."moderation_actions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "item_id" uuid not null references "better_supabase"."moderation_items" ("id") on delete cascade,
@@ -122,9 +51,9 @@ create table if not exists "better_supabase"."moderation_actions" (
   "actor_id" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "moderation_actions_item_idx" on "better_supabase"."moderation_actions" ("item_id", "created_at" desc);
+create index "moderation_actions_item_idx" on "better_supabase"."moderation_actions" ("item_id", "created_at" desc);
 
-create table if not exists "better_supabase"."moderation_bans" (
+create table "better_supabase"."moderation_bans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -135,12 +64,12 @@ create table if not exists "better_supabase"."moderation_bans" (
   "lifted_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "moderation_bans_active_idx" on "better_supabase"."moderation_bans" ("tenant_id", "user_id") where "lifted_at" is null;
-create index if not exists "moderation_bans_user_idx" on "better_supabase"."moderation_bans" ("user_id");
+create unique index "moderation_bans_active_idx" on "better_supabase"."moderation_bans" ("tenant_id", "user_id") where "lifted_at" is null;
+create index "moderation_bans_user_idx" on "better_supabase"."moderation_bans" ("user_id");
 
 -- Statements of reasons (DSA Article 17): what was restricted, the facts, the
 -- legal or contractual ground, automated means and the ways to appeal.
-create table if not exists "better_supabase"."moderation_statements" (
+create table "better_supabase"."moderation_statements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "item_id" uuid not null references "better_supabase"."moderation_items" ("id") on delete cascade,
@@ -155,11 +84,11 @@ create table if not exists "better_supabase"."moderation_statements" (
   "created_at" timestamptz not null default now(),
   check ("legal_ground" is not null or "terms_ground" is not null)
 );
-create index if not exists "moderation_statements_item_idx" on "better_supabase"."moderation_statements" ("item_id", "created_at" desc);
-create index if not exists "moderation_statements_tenant_idx" on "better_supabase"."moderation_statements" ("tenant_id", "created_at" desc);
+create index "moderation_statements_item_idx" on "better_supabase"."moderation_statements" ("item_id", "created_at" desc);
+create index "moderation_statements_tenant_idx" on "better_supabase"."moderation_statements" ("tenant_id", "created_at" desc);
 
 -- Notices of illegal content (DSA Article 16).
-create table if not exists "better_supabase"."moderation_notices" (
+create table "better_supabase"."moderation_notices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "item_id" uuid references "better_supabase"."moderation_items" ("id") on delete set null,
@@ -177,13 +106,13 @@ create table if not exists "better_supabase"."moderation_notices" (
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
-create index if not exists "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
-create index if not exists "moderation_notices_item_idx" on "better_supabase"."moderation_notices" ("item_id");
+create index "moderation_notices_queue_idx" on "better_supabase"."moderation_notices" ("tenant_id", "trusted" desc, "created_at") where "status" = 'received';
+create index "moderation_notices_notifier_idx" on "better_supabase"."moderation_notices" ("notifier_id");
+create index "moderation_notices_item_idx" on "better_supabase"."moderation_notices" ("item_id");
 
 -- Trusted flaggers (DSA Article 22): notices from them are marked and come
 -- first in the queue.
-create table if not exists "better_supabase"."moderation_flaggers" (
+create table "better_supabase"."moderation_flaggers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -192,11 +121,11 @@ create table if not exists "better_supabase"."moderation_flaggers" (
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
-create index if not exists "moderation_flaggers_user_idx" on "better_supabase"."moderation_flaggers" ("user_id");
+create unique index "moderation_flaggers_active_idx" on "better_supabase"."moderation_flaggers" ("tenant_id", "user_id") where "revoked_at" is null;
+create index "moderation_flaggers_user_idx" on "better_supabase"."moderation_flaggers" ("user_id");
 
 -- Appeals (DSA Article 20) against a statement of reasons or a rejected notice.
-create table if not exists "better_supabase"."moderation_appeals" (
+create table "better_supabase"."moderation_appeals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "statement_id" uuid references "better_supabase"."moderation_statements" ("id") on delete cascade,
@@ -210,16 +139,15 @@ create table if not exists "better_supabase"."moderation_appeals" (
   "created_at" timestamptz not null default now(),
   check (("statement_id" is not null) <> ("notice_id" is not null))
 );
-create unique index if not exists "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
-create unique index if not exists "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
-create index if not exists "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
-create index if not exists "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
+create unique index "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
+create unique index "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
+create index "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
+create index "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_items" to authenticated;
 grant all on "better_supabase"."moderation_items" to service_role;
-drop policy if exists "moderation_items_read" on "better_supabase"."moderation_items";
 create policy moderation_items_read on "better_supabase"."moderation_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
@@ -227,7 +155,6 @@ alter table "better_supabase"."moderation_reports" enable row level security;
 revoke all on "better_supabase"."moderation_reports" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_reports" to authenticated;
 grant all on "better_supabase"."moderation_reports" to service_role;
-drop policy if exists "moderation_reports_read" on "better_supabase"."moderation_reports";
 create policy moderation_reports_read on "better_supabase"."moderation_reports"
   for select to authenticated
   using ("reporter_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
@@ -235,7 +162,6 @@ alter table "better_supabase"."moderation_actions" enable row level security;
 revoke all on "better_supabase"."moderation_actions" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_actions" to authenticated;
 grant all on "better_supabase"."moderation_actions" to service_role;
-drop policy if exists "moderation_actions_read" on "better_supabase"."moderation_actions";
 create policy moderation_actions_read on "better_supabase"."moderation_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
@@ -243,7 +169,6 @@ alter table "better_supabase"."moderation_bans" enable row level security;
 revoke all on "better_supabase"."moderation_bans" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_bans" to authenticated;
 grant all on "better_supabase"."moderation_bans" to service_role;
-drop policy if exists "moderation_bans_read" on "better_supabase"."moderation_bans";
 create policy moderation_bans_read on "better_supabase"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
@@ -252,7 +177,6 @@ alter table "better_supabase"."moderation_statements" enable row level security;
 revoke all on "better_supabase"."moderation_statements" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_statements" to authenticated;
 grant all on "better_supabase"."moderation_statements" to service_role;
-drop policy if exists "moderation_statements_read" on "better_supabase"."moderation_statements";
 create policy moderation_statements_read on "better_supabase"."moderation_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
@@ -260,7 +184,6 @@ alter table "better_supabase"."moderation_notices" enable row level security;
 revoke all on "better_supabase"."moderation_notices" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_notices" to authenticated;
 grant all on "better_supabase"."moderation_notices" to service_role;
-drop policy if exists "moderation_notices_read" on "better_supabase"."moderation_notices";
 create policy moderation_notices_read on "better_supabase"."moderation_notices"
   for select to authenticated
   using ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
@@ -268,7 +191,6 @@ alter table "better_supabase"."moderation_flaggers" enable row level security;
 revoke all on "better_supabase"."moderation_flaggers" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_flaggers" to authenticated;
 grant all on "better_supabase"."moderation_flaggers" to service_role;
-drop policy if exists "moderation_flaggers_read" on "better_supabase"."moderation_flaggers";
 create policy moderation_flaggers_read on "better_supabase"."moderation_flaggers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
@@ -276,7 +198,6 @@ alter table "better_supabase"."moderation_appeals" enable row level security;
 revoke all on "better_supabase"."moderation_appeals" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_appeals" to authenticated;
 grant all on "better_supabase"."moderation_appeals" to service_role;
-drop policy if exists "moderation_appeals_read" on "better_supabase"."moderation_appeals";
 create policy moderation_appeals_read on "better_supabase"."moderation_appeals"
   for select to authenticated
   using ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
@@ -1225,171 +1146,131 @@ grant execute on function "better_supabase"."transparency_report"(uuid, timestam
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_items";
 create policy bsb_tenant_scope_select on "better_supabase"."moderation_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."moderation_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_items";
 create policy bsb_tenant_scope_update on "better_supabase"."moderation_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_reports";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_reports";
 create policy bsb_tenant_scope_select on "better_supabase"."moderation_reports" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("reporter_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_reports";
 create policy bsb_tenant_scope_insert on "better_supabase"."moderation_reports" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_reports";
 create policy bsb_tenant_scope_update on "better_supabase"."moderation_reports" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_reports";
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_reports" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_actions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_actions";
 create policy bsb_tenant_scope_select on "better_supabase"."moderation_actions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_actions";
 create policy bsb_tenant_scope_insert on "better_supabase"."moderation_actions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_actions";
 create policy bsb_tenant_scope_update on "better_supabase"."moderation_actions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_actions";
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_actions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_bans";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_bans";
 create policy bsb_tenant_scope_select on "better_supabase"."moderation_bans" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_bans";
 create policy bsb_tenant_scope_insert on "better_supabase"."moderation_bans" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_bans";
 create policy bsb_tenant_scope_update on "better_supabase"."moderation_bans" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_bans";
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_bans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_statements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_statements";
 create policy bsb_tenant_scope_select on "better_supabase"."moderation_statements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_statements";
 create policy bsb_tenant_scope_insert on "better_supabase"."moderation_statements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_statements";
 create policy bsb_tenant_scope_update on "better_supabase"."moderation_statements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_statements";
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_statements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_notices";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_notices";
 create policy bsb_tenant_scope_select on "better_supabase"."moderation_notices" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_notices";
 create policy bsb_tenant_scope_insert on "better_supabase"."moderation_notices" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_notices";
 create policy bsb_tenant_scope_update on "better_supabase"."moderation_notices" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_notices";
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_notices" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_flaggers";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_flaggers";
 create policy bsb_tenant_scope_select on "better_supabase"."moderation_flaggers" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers";
 create policy bsb_tenant_scope_insert on "better_supabase"."moderation_flaggers" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_flaggers";
 create policy bsb_tenant_scope_update on "better_supabase"."moderation_flaggers" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers";
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_flaggers" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_appeals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."moderation_appeals";
 create policy bsb_tenant_scope_select on "better_supabase"."moderation_appeals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."moderation_appeals";
 create policy bsb_tenant_scope_insert on "better_supabase"."moderation_appeals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."moderation_appeals";
 create policy bsb_tenant_scope_update on "better_supabase"."moderation_appeals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."moderation_appeals";
 create policy bsb_tenant_scope_delete on "better_supabase"."moderation_appeals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:1bcf59775b044e2b0527574ab56421b0d6dc4666a3df99b72f1ae0659460a22f
+-- @bsb-hash sha256:3e78cbae824b6b0213c4abc3633ac07bbd7280198a9a90255aa963691dbc0ad4
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,11 +15,9 @@ exception when check_violation then
 end;
 $$;
 alter table "public"."profiles" enable row level security;
-drop policy if exists bsb_profiles_read on "public"."profiles";
 create policy bsb_profiles_read on "public"."profiles"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists bsb_profiles_update on "public"."profiles";
 create policy bsb_profiles_update on "public"."profiles"
   for update to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
@@ -52,7 +50,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_guard" on "public"."profiles";
 create trigger "bsb_profile_guard" before update on "public"."profiles"
   for each row execute function "better_supabase"."guard_profile"();
 
@@ -155,8 +152,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."backfill_profiles"() from public, anon, authenticated;
 grant execute on function "better_supabase"."backfill_profiles"() to service_role;
-
-drop function if exists "better_supabase"."my_profile"();
 create or replace function "better_supabase"."my_profile"()
 returns jsonb
 language sql
@@ -229,7 +224,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_created"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_sync" on auth.users;
 create trigger "bsb_profile_sync" after insert on auth.users
   for each row execute function "better_supabase"."on_auth_user_created"();
 
@@ -247,6 +241,5 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_email" on auth.users;
 create trigger "bsb_profile_email" after update of email on auth.users
   for each row execute function "better_supabase"."mirror_profile_email"();

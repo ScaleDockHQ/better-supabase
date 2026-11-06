@@ -1,26 +1,22 @@
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:10011df963154167eeecfb6d64b81d95f8b40f8c6293323965a0898421a031a0
+-- @bsb-hash sha256:d35ef2068f8ad8d8b7665fd1fba31e0b7f6712f107b98392801739c9069fcf00
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+
 -- enqueue_job before dedupe_running.
-drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);
+
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -523,7 +519,7 @@ $$;
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
 -- busy (another holder does; retry_after_ms says when it ends) or completed
 -- (a holder finished it, and it stays finished until its keep time ends).
-create table if not exists "better_supabase"."job_leases" (
+create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,

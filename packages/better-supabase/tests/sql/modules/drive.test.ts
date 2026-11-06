@@ -167,12 +167,8 @@ describe("drive module", () => {
 
   it("creates the node and grant tables and links files to attachments", () => {
     const core = sqlOf(["drive"], "drive");
-    expect(core).toContain(
-      `create table if not exists "better_supabase"."drive_nodes"`,
-    );
-    expect(core).toContain(
-      `create table if not exists "better_supabase"."drive_grants"`,
-    );
+    expect(core).toContain(`create table "better_supabase"."drive_nodes"`);
+    expect(core).toContain(`create table "better_supabase"."drive_grants"`);
     expect(core).toContain("drive_subtree");
     expect(core).toContain("DRIVE_NAME_CONFLICT");
     const files = sqlOf(["drive"], "drive-files");
@@ -185,9 +181,7 @@ describe("drive module", () => {
 
   it("keeps extracted text per file and a search view over it", () => {
     const core = sqlOf(["drive"], "drive");
-    expect(core).toContain(
-      `create table if not exists "better_supabase"."drive_node_texts"`,
-    );
+    expect(core).toContain(`create table "better_supabase"."drive_node_texts"`);
     expect(core).toContain(
       `"node_id" uuid primary key references "better_supabase"."drive_nodes" ("id") on delete cascade`,
     );
@@ -464,7 +458,7 @@ describe("drive module", () => {
     );
 
     expect(core).toContain(
-      `create table if not exists "better_supabase"."drive_drive_grants"`,
+      `create table "better_supabase"."drive_drive_grants"`,
     );
     expect(core).toContain(`"user_id" uuid`);
     expect(core).toContain(`"team_id" uuid`);
@@ -678,14 +672,12 @@ describe("drive module", () => {
   it("adds drives, drive grants and connections when drives are on", () => {
     const core = sqlOf(["drive"], "drive", withOptions({ drives: true }));
 
+    expect(core).toContain(`create table "better_supabase"."drive_drives"`);
     expect(core).toContain(
-      `create table if not exists "better_supabase"."drive_drives"`,
+      `create table "better_supabase"."drive_drive_grants"`,
     );
     expect(core).toContain(
-      `create table if not exists "better_supabase"."drive_drive_grants"`,
-    );
-    expect(core).toContain(
-      `create table if not exists "better_supabase"."drive_connections"`,
+      `create table "better_supabase"."drive_connections"`,
     );
     expect(core).toContain("drive_create_drive");
     expect(core).toContain("drive_sync_batch");

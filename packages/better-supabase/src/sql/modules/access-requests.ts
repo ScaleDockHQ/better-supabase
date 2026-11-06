@@ -423,7 +423,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_emergen
 `
     : ""
 }${lockTable(requests, { read: true })}
-${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("access_requests_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} or ${c("user")} = (select auth.uid())` }), { drop: true, target: requests })}
+${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("access_requests_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} or ${c("user")} = (select auth.uid())` }), { target: requests })}
 `
     : "";
 

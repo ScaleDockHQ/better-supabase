@@ -84,9 +84,6 @@ describe("identities module", () => {
       modules: { identities: { options: { verifiedEmails: false } } },
     });
 
-    expect(off).toContain(
-      'drop trigger if exists "bsb_identity_email" on auth.users;',
-    );
     expect(off).not.toContain("create trigger");
   });
 
@@ -111,9 +108,7 @@ describe("identities module", () => {
       modules: { identities: { schema: "app_private" } },
     });
 
-    expect(sql).toContain(
-      'create table if not exists "app_private"."identity_links"',
-    );
+    expect(sql).toContain('create table "app_private"."identity_links"');
     expect(sql).toContain('"app_private"."begin_identity_link"');
   });
 });

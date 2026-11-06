@@ -440,9 +440,6 @@ describe("state machine", () => {
     );
     expect(sql).toContain("reason text default null, actor jsonb default null");
     expect(sql).toContain("STATE_ACTOR_INVALID");
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."transition"(text, text, text, text);',
-    );
   });
 
   it("writes no history for history: app and refuses to read it", () => {

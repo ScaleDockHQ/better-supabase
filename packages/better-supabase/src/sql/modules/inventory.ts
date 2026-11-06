@@ -382,7 +382,7 @@ function tables(ctx: BlockSqlContext, names: InventoryNames): string {
         roles: ["authenticated"],
         using: `${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`,
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   const lock = (table: string): string => lockTable(t(table), { read: true });

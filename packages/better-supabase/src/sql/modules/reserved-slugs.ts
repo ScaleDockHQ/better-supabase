@@ -123,7 +123,7 @@ create table if not exists ${slugs} (
 alter table ${slugs} enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on ${slugs} to anon, authenticated, service_role;
-${renderPolicy(makePolicy({ table: slugs, name: read, command: "select", roles: ["anon", "authenticated", "service_role"], using: "true" }), { drop: true, target: slugs })}
+${renderPolicy(makePolicy({ table: slugs, name: read, command: "select", roles: ["anon", "authenticated", "service_role"], using: "true" }), { target: slugs })}
 
 -- 'invalid' for a malformed slug or one outside ${String(min)} to ${String(max)} characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.

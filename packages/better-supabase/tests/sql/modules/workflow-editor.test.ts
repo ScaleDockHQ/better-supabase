@@ -61,10 +61,10 @@ describe("workflow-editor module", () => {
   it("stores the publisher and refuses one who lacks a step's permission", () => {
     const body = moduleBody("workflow-editor", {})!;
     expect(body).toContain(
-      'add column if not exists "published_by" uuid references auth.users (id) on delete set null',
+      'add column "published_by" uuid references auth.users (id) on delete set null',
     );
     expect(body).toContain(
-      `add column if not exists "owner_kind" text check ("owner_kind" in ('user', 'organization'))`,
+      `add column "owner_kind" text check ("owner_kind" in ('user', 'organization'))`,
     );
 
     const publish = body.slice(
@@ -110,18 +110,12 @@ describe("workflow-editor module", () => {
     expect(principal).toContain(
       `select case when x."scope" = 'system' then tenant else x."tenant_id" end into v_tenant`,
     );
-    expect(body).toContain(
-      'drop function if exists "better_supabase"."workflow_run_principal"(uuid);',
-    );
   });
 
   it("binds definitions to subject types and checks the record on a subject start", () => {
     const body = moduleBody("workflow-editor", {})!;
     expect(body).toContain(
-      `add column if not exists "subject_types" text[] not null default '{}'`,
-    );
-    expect(body).toContain(
-      'drop function if exists "better_supabase"."save_workflow_definition"(uuid, text, text, text);',
+      `add column "subject_types" text[] not null default '{}'`,
     );
     expect(body).toContain(
       'or workflow_definitions_list.subject_type = any (x."subject_types")',

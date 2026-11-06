@@ -1,33 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:8a81da88b70efe9fe43ceb76c79ef724af284bcd999c6fe56c2cc5df7ecb2195
+-- @bsb-hash sha256:33c3795d2630b69a157b076220f4463e9eef5135b203cdf07b4857b0edd57b97
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create or replace function "better_supabase"."bsb_valid_bsn"(value text)
 returns boolean
@@ -67,7 +44,7 @@ revoke execute on function "better_supabase"."bsb_valid_iban"(text) from public,
 grant execute on function "better_supabase"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
-create table if not exists "better_supabase"."field_definitions" (
+create table "better_supabase"."field_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "entity" text not null,
@@ -83,24 +60,13 @@ create table if not exists "better_supabase"."field_definitions" (
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
-alter table "better_supabase"."field_definitions" drop constraint if exists "field_definitions_type_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
-  ), 'pg_constraint'), '') <> 'better-supabase check 068e6990' then
-    alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
-    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 068e6990';
-  end if;
-end;
-$$;
+alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type"
+  check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
 alter table "better_supabase"."field_definitions" enable row level security;
 revoke all on "better_supabase"."field_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;
 grant all on "better_supabase"."field_definitions" to service_role;
-create table if not exists "better_supabase"."field_values" (
+create table "better_supabase"."field_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid references "better_supabase"."field_definitions" ("id") on delete cascade,
@@ -118,7 +84,7 @@ alter table "better_supabase"."field_values" enable row level security;
 revoke all on "better_supabase"."field_values" from public, anon, authenticated;
 grant select on "better_supabase"."field_values" to authenticated;
 grant all on "better_supabase"."field_values" to service_role;
-create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
+create index field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 
 create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
@@ -161,8 +127,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-
-drop function if exists "better_supabase"."read_field_values"(uuid, text, text, uuid);
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -188,8 +152,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."set_field_value"(uuid, text, text, uuid, text, uuid);
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -425,39 +387,29 @@ grant execute on function "better_supabase"."install_field_pack"(uuid, jsonb) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_select on "better_supabase"."field_definitions" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_definitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_update on "better_supabase"."field_definitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."field_definitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
 create policy bsb_tenant_scope_select on "better_supabase"."field_values" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_values" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
 create policy bsb_tenant_scope_update on "better_supabase"."field_values" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
 create policy bsb_tenant_scope_delete on "better_supabase"."field_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -479,33 +431,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:fe05470cb4bc77c1e66a2a7b8e5c985cf4bf892b72528474773a9495d1a0053b
+-- @bsb-hash sha256:0740e6a1e6f9919c31baa66a56903de6a8d1d1d11a75a1ae400b41ed301d9f4a
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create or replace function "better_supabase"."bsb_valid_bsn"(value text)
 returns boolean
@@ -545,7 +474,7 @@ revoke execute on function "better_supabase"."bsb_valid_iban"(text) from public,
 grant execute on function "better_supabase"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
-create table if not exists "better_supabase"."field_definitions" (
+create table "better_supabase"."field_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "entity" text not null,
@@ -561,24 +490,13 @@ create table if not exists "better_supabase"."field_definitions" (
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
-alter table "better_supabase"."field_definitions" drop constraint if exists "field_definitions_type_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
-  ), 'pg_constraint'), '') <> 'better-supabase check 068e6990' then
-    alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
-    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 068e6990';
-  end if;
-end;
-$$;
+alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type"
+  check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
 alter table "better_supabase"."field_definitions" enable row level security;
 revoke all on "better_supabase"."field_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;
 grant all on "better_supabase"."field_definitions" to service_role;
-create table if not exists "better_supabase"."field_values" (
+create table "better_supabase"."field_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid references "better_supabase"."field_definitions" ("id") on delete cascade,
@@ -596,7 +514,7 @@ alter table "better_supabase"."field_values" enable row level security;
 revoke all on "better_supabase"."field_values" from public, anon, authenticated;
 grant select on "better_supabase"."field_values" to authenticated;
 grant all on "better_supabase"."field_values" to service_role;
-create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
+create index field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 
 create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
@@ -639,8 +557,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-
-drop function if exists "better_supabase"."read_field_values"(uuid, text, text);
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text, legal_entity uuid default null)
 returns jsonb
 language plpgsql
@@ -673,8 +589,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text, uuid) to authenticated, service_role;
-
-drop function if exists "better_supabase"."set_field_value"(uuid, text, text, uuid, text);
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text, legal_entity uuid default null)
 returns jsonb
 language plpgsql
@@ -1029,39 +943,29 @@ grant execute on function "better_supabase"."import_field_value"(uuid, jsonb, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_select on "better_supabase"."field_definitions" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_definitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_update on "better_supabase"."field_definitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."field_definitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
 create policy bsb_tenant_scope_select on "better_supabase"."field_values" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_values" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
 create policy bsb_tenant_scope_update on "better_supabase"."field_values" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
 create policy bsb_tenant_scope_delete on "better_supabase"."field_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1090,32 +994,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:345c555388a443bbea0bfb259a511747a2a6958f3f56dacc5ecd5a10d072e620
+-- @bsb-hash sha256:e74b6dcd44ff56992d009d418c9abb97f8b0f65e34288cc3b00e45287629d365
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."field_definitions";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."field_definitions";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."field_definitions";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."field_definitions";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."field_definitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."field_values";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."field_values";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."field_values";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."field_values";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."field_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -1160,7 +1042,7 @@ revoke execute on function "app_private"."bsb_valid_iban"(text) from public, ano
 grant execute on function "app_private"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
-create table if not exists "app_private"."field_definitions" (
+create table "app_private"."field_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "entity" text not null,
@@ -1176,24 +1058,13 @@ create table if not exists "app_private"."field_definitions" (
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
-alter table "app_private"."field_definitions" drop constraint if exists "field_definitions_type_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"app_private"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
-  ), 'pg_constraint'), '') <> 'better-supabase check 068e6990' then
-    alter table "app_private"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
-    alter table "app_private"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
-    comment on constraint "bsb_field_definitions_type" on "app_private"."field_definitions" is 'better-supabase check 068e6990';
-  end if;
-end;
-$$;
+alter table "app_private"."field_definitions" add constraint "bsb_field_definitions_type"
+  check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
 alter table "app_private"."field_definitions" enable row level security;
 revoke all on "app_private"."field_definitions" from public, anon, authenticated;
 grant select on "app_private"."field_definitions" to authenticated;
 grant all on "app_private"."field_definitions" to service_role;
-create table if not exists "app_private"."field_values" (
+create table "app_private"."field_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid references "app_private"."field_definitions" ("id") on delete cascade,
@@ -1211,7 +1082,7 @@ alter table "app_private"."field_values" enable row level security;
 revoke all on "app_private"."field_values" from public, anon, authenticated;
 grant select on "app_private"."field_values" to authenticated;
 grant all on "app_private"."field_values" to service_role;
-create index if not exists field_values_definition_idx on "app_private"."field_values" ("definition_id");
+create index field_values_definition_idx on "app_private"."field_values" ("definition_id");
 
 create or replace function "app_private"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
@@ -1254,8 +1125,6 @@ end;
 $$;
 revoke execute on function "app_private"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "app_private"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-
-drop function if exists "app_private"."read_field_values"(uuid, text, text, uuid);
 create or replace function "app_private"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -1281,8 +1150,6 @@ end;
 $$;
 revoke execute on function "app_private"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "app_private"."read_field_values"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "app_private"."set_field_value"(uuid, text, text, uuid, text, uuid);
 create or replace function "app_private"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -1518,39 +1385,29 @@ grant execute on function "app_private"."install_field_pack"(uuid, jsonb) to aut
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."field_definitions";
-drop policy if exists bsb_tenant_scope_select on "app_private"."field_definitions";
 create policy bsb_tenant_scope_select on "app_private"."field_definitions" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "app_private"."field_definitions";
 create policy bsb_tenant_scope_insert on "app_private"."field_definitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."field_definitions";
 create policy bsb_tenant_scope_update on "app_private"."field_definitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."field_definitions";
 create policy bsb_tenant_scope_delete on "app_private"."field_definitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."field_values";
-drop policy if exists bsb_tenant_scope_select on "app_private"."field_values";
 create policy bsb_tenant_scope_select on "app_private"."field_values" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "app_private"."field_values";
 create policy bsb_tenant_scope_insert on "app_private"."field_values" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."field_values";
 create policy bsb_tenant_scope_update on "app_private"."field_values" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."field_values";
 create policy bsb_tenant_scope_delete on "app_private"."field_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1572,33 +1429,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:5c75c3ebed756f48a0ad1450916a28a5fd2d9b7e2173846683d8cae694c73950
+-- @bsb-hash sha256:7101b343ae23ee8b7b34d64a38e85485a0179a077a4d57a8b3cce1984a3bad68
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create or replace function "better_supabase"."bsb_valid_bsn"(value text)
 returns boolean
@@ -1638,7 +1472,7 @@ revoke execute on function "better_supabase"."bsb_valid_iban"(text) from public,
 grant execute on function "better_supabase"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
-create table if not exists "better_supabase"."field_definitions" (
+create table "better_supabase"."field_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "entity" text not null,
@@ -1654,24 +1488,13 @@ create table if not exists "better_supabase"."field_definitions" (
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
-alter table "better_supabase"."field_definitions" drop constraint if exists "field_definitions_type_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
-  ), 'pg_constraint'), '') <> 'better-supabase check 068e6990' then
-    alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
-    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 068e6990';
-  end if;
-end;
-$$;
+alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type"
+  check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
 alter table "better_supabase"."field_definitions" enable row level security;
 revoke all on "better_supabase"."field_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;
 grant all on "better_supabase"."field_definitions" to service_role;
-create table if not exists "better_supabase"."field_values" (
+create table "better_supabase"."field_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid references "better_supabase"."field_definitions" ("id") on delete cascade,
@@ -1689,7 +1512,7 @@ alter table "better_supabase"."field_values" enable row level security;
 revoke all on "better_supabase"."field_values" from public, anon, authenticated;
 grant select on "better_supabase"."field_values" to authenticated;
 grant all on "better_supabase"."field_values" to service_role;
-create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
+create index field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 
 create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
@@ -1732,8 +1555,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-
-drop function if exists "better_supabase"."read_field_values"(uuid, text, text, uuid);
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -1759,8 +1580,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."set_field_value"(uuid, text, text, uuid, text, uuid);
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -1996,39 +1815,29 @@ grant execute on function "better_supabase"."install_field_pack"(uuid, jsonb) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_select on "better_supabase"."field_definitions" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_definitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_update on "better_supabase"."field_definitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."field_definitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
 create policy bsb_tenant_scope_select on "better_supabase"."field_values" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_values" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
 create policy bsb_tenant_scope_update on "better_supabase"."field_values" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
 create policy bsb_tenant_scope_delete on "better_supabase"."field_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2036,9 +1845,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."field_values" as res
 -- blocks.custom-fields.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."read_field_values"(uuid, text, text, uuid);
-drop function if exists "api"."set_field_value"(uuid, text, text, uuid, text, uuid);
 
 create or replace function "api"."bsb_valid_bsn"(value text)
 returns boolean
@@ -2142,33 +1948,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:dc3a8b0c93e2289e9a46d10c7bc70e2efb7a97f1c638637164479ebc6491af24
+-- @bsb-hash sha256:1744d1afe56ecdb78c5fbf7f504fb5dac61c5af596fd48c995e2b167aace136a
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create or replace function "better_supabase"."bsb_valid_bsn"(value text)
 returns boolean
@@ -2283,8 +2066,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-
-drop function if exists "better_supabase"."read_field_values"(uuid, text, text, uuid);
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -2310,8 +2091,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."set_field_value"(uuid, text, text, uuid, text, uuid);
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -2547,39 +2326,29 @@ grant execute on function "better_supabase"."install_field_pack"(uuid, jsonb) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_select on "better_supabase"."field_definitions" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_definitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_update on "better_supabase"."field_definitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."field_definitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
 create policy bsb_tenant_scope_select on "better_supabase"."field_values" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_values" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
 create policy bsb_tenant_scope_update on "better_supabase"."field_values" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
 create policy bsb_tenant_scope_delete on "better_supabase"."field_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2601,33 +2370,10 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:a0c26fab0701035c8d358c6796385518d1a4143124b2c12abc84e4ba4c156fda
+-- @bsb-hash sha256:5ada3b1ce7f9d393eb595aeabcdc4d6141e4ff9effccd3800a802f8e78d9c8da
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create or replace function "better_supabase"."bsb_valid_bsn"(value text)
 returns boolean
@@ -2667,7 +2413,7 @@ revoke execute on function "better_supabase"."bsb_valid_iban"(text) from public,
 grant execute on function "better_supabase"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
-create table if not exists "better_supabase"."field_definitions" (
+create table "better_supabase"."field_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "entity" text not null,
@@ -2683,24 +2429,13 @@ create table if not exists "better_supabase"."field_definitions" (
   "rank" text collate "C" not null default 'V',
   unique ("org_id", "entity", "key")
 );
-alter table "better_supabase"."field_definitions" drop constraint if exists "field_definitions_type_check";
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
-  ), 'pg_constraint'), '') <> 'better-supabase check 068e6990' then
-    alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
-    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 068e6990';
-  end if;
-end;
-$$;
+alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type"
+  check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
 alter table "better_supabase"."field_definitions" enable row level security;
 revoke all on "better_supabase"."field_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;
 grant all on "better_supabase"."field_definitions" to service_role;
-create table if not exists "better_supabase"."field_values" (
+create table "better_supabase"."field_values" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "definition_id" uuid references "better_supabase"."field_definitions" ("id") on delete cascade,
@@ -2718,7 +2453,7 @@ alter table "better_supabase"."field_values" enable row level security;
 revoke all on "better_supabase"."field_values" from public, anon, authenticated;
 grant select on "better_supabase"."field_values" to authenticated;
 grant all on "better_supabase"."field_values" to service_role;
-create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
+create index field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 
 create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
@@ -2761,8 +2496,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-
-drop function if exists "better_supabase"."read_field_values"(uuid, text, text, uuid);
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -2788,8 +2521,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."set_field_value"(uuid, text, text, uuid, text, uuid);
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -3025,39 +2756,29 @@ grant execute on function "better_supabase"."install_field_pack"(uuid, jsonb) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."field_definitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_select on "better_supabase"."field_definitions" as restrictive
   for select to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_definitions" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_update on "better_supabase"."field_definitions" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_definitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."field_definitions" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."field_values";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."field_values";
 create policy bsb_tenant_scope_select on "better_supabase"."field_values" as restrictive
   for select to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."field_values";
 create policy bsb_tenant_scope_insert on "better_supabase"."field_values" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."field_values";
 create policy bsb_tenant_scope_update on "better_supabase"."field_values" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."field_values";
 create policy bsb_tenant_scope_delete on "better_supabase"."field_values" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

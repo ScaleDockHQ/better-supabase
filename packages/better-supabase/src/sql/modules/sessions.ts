@@ -46,7 +46,7 @@ function sessionPolicies(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
         using: "(select better_supabase.session_active())",
         check: "(select better_supabase.session_active())",
       }),
-      { drop: true, target },
+      { target },
     );
   });
 
@@ -454,7 +454,7 @@ ${renderPolicy(
     roles: ["supabase_auth_admin"],
     using: "true",
   }),
-  { drop: true, target: "better_supabase.user_authz_versions" },
+  { target: "better_supabase.user_authz_versions" },
 )}
 
 -- The version the access token hook copies into authz_ver; 0 before the
@@ -546,7 +546,7 @@ begin
         roles: ["authenticated"],
         using: `realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'authz:' || (select auth.uid())::text`,
       }),
-      { drop: true, target: "realtime.messages" },
+      { target: "realtime.messages" },
     )}
   end if;
 end;

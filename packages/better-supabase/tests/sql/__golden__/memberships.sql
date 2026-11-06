@@ -1,53 +1,33 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:6fe35c808bacc94f15af42c5716c0899dd3804eb960ec1544f73e11fcb26b644
+-- @bsb-hash sha256:146e0bf7e605b72648b554fade011c610aba6088acb964b35c0209123b801a7d
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 grant usage on schema better_supabase to supabase_auth_admin;
 
-create table if not exists "better_supabase"."memberships" (
+create table "better_supabase"."memberships" (
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "role" text not null default 'member',
   "created_at" timestamptz not null default now(),
   primary key ("organization_id", "user_id")
 );
-create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
-alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
+create index memberships_user_idx on "better_supabase"."memberships" ("user_id");
+alter table "better_supabase"."memberships" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."memberships"
-  for each row execute function better_supabase.set_updated_at('updated_at');
-alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
-alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;
-alter table "better_supabase"."memberships" drop constraint if exists memberships_role_check;
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."memberships" add column "last_used_at" timestamptz;
+alter table "better_supabase"."memberships" add column "disabled_at" timestamptz;
 alter table "better_supabase"."memberships"
   add constraint memberships_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;
 grant all on "better_supabase"."memberships" to service_role;
-
-drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
-drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
-drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
 
 -- Disabled tenants and users get no permissions and no membership claims
 -- (blocks.permissions.disabled; with the managed organizations module, its
@@ -161,7 +141,6 @@ $$;
 revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
 
-drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
 create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
@@ -204,24 +183,19 @@ grant execute on function better_supabase.membership_claims(uuid) to service_rol
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
 create policy bsb_tenant_scope_select on "better_supabase"."memberships" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
 create policy bsb_tenant_scope_insert on "better_supabase"."memberships" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
 create policy bsb_tenant_scope_update on "better_supabase"."memberships" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
 create policy bsb_tenant_scope_delete on "better_supabase"."memberships" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -243,54 +217,34 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:d345bfa8c2b669ea74caa1ad8f1f129e1f6d5b88e5d88732ee22a350905a96a4
+-- @bsb-hash sha256:38ac3bc10d6a6f2dbaa7df6f5ee48b79c780a6fa898ed202a455bbac04cf8690
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 grant usage on schema better_supabase to supabase_auth_admin;
 set check_function_bodies = off;
 
-create table if not exists "better_supabase"."memberships" (
+create table "better_supabase"."memberships" (
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "role" text not null default 'member',
   "created_at" timestamptz not null default now(),
   primary key ("organization_id", "user_id")
 );
-create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
-alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
+create index memberships_user_idx on "better_supabase"."memberships" ("user_id");
+alter table "better_supabase"."memberships" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."memberships"
-  for each row execute function better_supabase.set_updated_at('updated_at');
-alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
-alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;
-alter table "better_supabase"."memberships" drop constraint if exists memberships_role_check;
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."memberships" add column "last_used_at" timestamptz;
+alter table "better_supabase"."memberships" add column "disabled_at" timestamptz;
 alter table "better_supabase"."memberships"
   add constraint memberships_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;
 grant all on "better_supabase"."memberships" to service_role;
-
-drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
-drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
-drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
 
 
 -- The tenant the server resolved (the better_supabase.tenant setting over Postgres,
@@ -377,7 +331,6 @@ $$;
 revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
 
-drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
 create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
@@ -421,24 +374,19 @@ reset check_function_bodies;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
 create policy bsb_tenant_scope_select on "better_supabase"."memberships" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
 create policy bsb_tenant_scope_insert on "better_supabase"."memberships" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
 create policy bsb_tenant_scope_update on "better_supabase"."memberships" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
 create policy bsb_tenant_scope_delete on "better_supabase"."memberships" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -460,24 +408,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:8dad9d995711474e66c6620496fd050b11d48a18af5d5bdec50254f13714d407
+-- @bsb-hash sha256:a0896037f204546dd9a50fdce2e4737b8c79514f7457d4e3e2b440eeec4d8800
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."memberships";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."memberships";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."memberships";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."memberships";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."memberships";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -486,31 +420,26 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 grant usage on schema better_supabase to supabase_auth_admin;
 
-create table if not exists "app_private"."memberships" (
+create table "app_private"."memberships" (
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "role" text not null default 'member',
   "created_at" timestamptz not null default now(),
   primary key ("organization_id", "user_id")
 );
-create index if not exists memberships_user_idx on "app_private"."memberships" ("user_id");
-alter table "app_private"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "app_private"."memberships";
+create index memberships_user_idx on "app_private"."memberships" ("user_id");
+alter table "app_private"."memberships" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "app_private"."memberships"
-  for each row execute function better_supabase.set_updated_at('updated_at');
-alter table "app_private"."memberships" add column if not exists "last_used_at" timestamptz;
-alter table "app_private"."memberships" add column if not exists "disabled_at" timestamptz;
-alter table "app_private"."memberships" drop constraint if exists memberships_role_check;
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
+alter table "app_private"."memberships" add column "last_used_at" timestamptz;
+alter table "app_private"."memberships" add column "disabled_at" timestamptz;
 alter table "app_private"."memberships"
   add constraint memberships_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "app_private"."memberships" enable row level security;
 grant select on "app_private"."memberships" to authenticated;
 grant all on "app_private"."memberships" to service_role;
-
-drop trigger if exists "bsb_membership_roles" on "app_private"."memberships";
-drop function if exists "app_private"."membership_roles_from_role"() cascade;
-drop function if exists "app_private"."membership_role_from_roles"() cascade;
 
 -- Disabled tenants and users get no permissions and no membership claims
 -- (blocks.permissions.disabled; with the managed organizations module, its
@@ -624,7 +553,6 @@ $$;
 revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
 
-drop policy if exists bsb_memberships_read on "app_private"."memberships";
 create policy bsb_memberships_read on "app_private"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
@@ -667,24 +595,19 @@ grant execute on function better_supabase.membership_claims(uuid) to service_rol
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."memberships";
-drop policy if exists bsb_tenant_scope_select on "app_private"."memberships";
 create policy bsb_tenant_scope_select on "app_private"."memberships" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."memberships";
 create policy bsb_tenant_scope_insert on "app_private"."memberships" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."memberships";
 create policy bsb_tenant_scope_update on "app_private"."memberships" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."memberships";
 create policy bsb_tenant_scope_delete on "app_private"."memberships" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -706,53 +629,33 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:8035f247339219a037aa1a169bbf0efb529707bfc5c743bcfd45b579df84485b
+-- @bsb-hash sha256:68600fdc5e19bdae6f7826abc2c96a29c71495060529334f18d435a5cb4722d4
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 grant usage on schema better_supabase to supabase_auth_admin;
 
-create table if not exists "better_supabase"."memberships" (
+create table "better_supabase"."memberships" (
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "role" text not null default 'member',
   "created_at" timestamptz not null default now(),
   primary key ("organization_id", "user_id")
 );
-create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
-alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
+create index memberships_user_idx on "better_supabase"."memberships" ("user_id");
+alter table "better_supabase"."memberships" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."memberships"
-  for each row execute function better_supabase.set_updated_at('updated_at');
-alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
-alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;
-alter table "better_supabase"."memberships" drop constraint if exists memberships_role_check;
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."memberships" add column "last_used_at" timestamptz;
+alter table "better_supabase"."memberships" add column "disabled_at" timestamptz;
 alter table "better_supabase"."memberships"
   add constraint memberships_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;
 grant all on "better_supabase"."memberships" to service_role;
-
-drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
-drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
-drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
 
 -- Disabled tenants and users get no permissions and no membership claims
 -- (blocks.permissions.disabled; with the managed organizations module, its
@@ -866,7 +769,6 @@ $$;
 revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
 
-drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
 create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
@@ -909,24 +811,19 @@ grant execute on function better_supabase.membership_claims(uuid) to service_rol
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
 create policy bsb_tenant_scope_select on "better_supabase"."memberships" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
 create policy bsb_tenant_scope_insert on "better_supabase"."memberships" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
 create policy bsb_tenant_scope_update on "better_supabase"."memberships" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
 create policy bsb_tenant_scope_delete on "better_supabase"."memberships" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -1032,25 +929,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:63eae6acfd232f559652991406a0ccc0b87dbf4622b1b3c80cd29240ef0441de
+-- @bsb-hash sha256:30ab843cb667ee7acc4faf03455a47e2d71affac8269a6c6a195cf7e1ddc0341
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 grant usage on schema better_supabase to supabase_auth_admin;
 
@@ -1061,21 +943,14 @@ alter table "better_supabase"."memberships" add column if not exists "role" text
 alter table "better_supabase"."memberships" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
 alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
 create trigger bsb_updated_at before update on "better_supabase"."memberships"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
 
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;
 grant all on "better_supabase"."memberships" to service_role;
-
-drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
-drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
-drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
-
-drop trigger if exists "bsb_role_scope" on "better_supabase"."memberships";
-drop function if exists "better_supabase"."membership_role_scope"();
 
 -- Disabled tenants and users get no permissions and no membership claims
 -- (blocks.permissions.disabled; with the managed organizations module, its
@@ -1189,7 +1064,6 @@ $$;
 revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
 
-drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
 create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
@@ -1232,24 +1106,19 @@ grant execute on function better_supabase.membership_claims(uuid) to service_rol
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
 create policy bsb_tenant_scope_select on "better_supabase"."memberships" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
 create policy bsb_tenant_scope_insert on "better_supabase"."memberships" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
 create policy bsb_tenant_scope_update on "better_supabase"."memberships" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
 create policy bsb_tenant_scope_delete on "better_supabase"."memberships" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -1271,54 +1140,34 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:f93b823e7705bea29304cd2614e6cd5cd4e0d9e345918d1254657968d0d20442
+-- @bsb-hash sha256:3656c5abdd91de35d1f9ddc69df026e72ca44b16ea595a8e24cd4f8dfdd6766e
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 grant usage on schema better_supabase to supabase_auth_admin;
 set check_function_bodies = off;
 
-create table if not exists "better_supabase"."memberships" (
+create table "better_supabase"."memberships" (
   "org_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "role" text not null default 'member',
   "created_at" timestamptz not null default now(),
   primary key ("org_id", "user_id")
 );
-create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
-alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
+create index memberships_user_idx on "better_supabase"."memberships" ("user_id");
+alter table "better_supabase"."memberships" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."memberships"
-  for each row execute function better_supabase.set_updated_at('updated_at');
-alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
-alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;
-alter table "better_supabase"."memberships" drop constraint if exists memberships_role_check;
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."memberships" add column "last_used_at" timestamptz;
+alter table "better_supabase"."memberships" add column "disabled_at" timestamptz;
 alter table "better_supabase"."memberships"
   add constraint memberships_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;
 grant all on "better_supabase"."memberships" to service_role;
-
-drop trigger if exists "bsb_membership_roles" on "better_supabase"."memberships";
-drop function if exists "better_supabase"."membership_roles_from_role"() cascade;
-drop function if exists "better_supabase"."membership_role_from_roles"() cascade;
 
 
 -- The tenant the server resolved (the better_supabase.tenant setting over Postgres,
@@ -1405,7 +1254,6 @@ $$;
 revoke execute on function better_supabase.organization_member_roles(uuid, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.organization_member_roles(uuid, uuid) to service_role;
 
-drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
 create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.member_organization_ids()));
@@ -1449,24 +1297,19 @@ reset check_function_bodies;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."memberships";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."memberships";
 create policy bsb_tenant_scope_select on "better_supabase"."memberships" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memberships";
 create policy bsb_tenant_scope_insert on "better_supabase"."memberships" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."memberships";
 create policy bsb_tenant_scope_update on "better_supabase"."memberships" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memberships";
 create policy bsb_tenant_scope_delete on "better_supabase"."memberships" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

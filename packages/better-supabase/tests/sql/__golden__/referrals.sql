@@ -1,38 +1,15 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:bb8185b5ba31024d924eb75dd105c85d280d87c87e60552dc463c2f7b120638b
+-- @bsb-hash sha256:c5cdabac05b15e53de9fd304107c2440ed90e8c832d23de13ffd77909454f69e
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Referral codes and the referrals they bring. A code belongs to the member who
 -- shares it, optionally to one invitation. Rewards are bigint minor units of a
 -- ledger unit, posted once per referral.
-create table if not exists "better_supabase"."referral_codes" (
+create table "better_supabase"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
@@ -50,18 +27,17 @@ create table if not exists "better_supabase"."referral_codes" (
   unique ("tenant_id", "id"),
   check ("reward_amount" = 0 or "reward_unit" is not null)
 );
-create index if not exists referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
-create unique index if not exists referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
+create index referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
+create unique index referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
 alter table "better_supabase"."referral_codes" enable row level security;
 revoke all on "better_supabase"."referral_codes" from public, anon, authenticated;
 grant select on "better_supabase"."referral_codes" to authenticated;
 grant all on "better_supabase"."referral_codes" to service_role;
-drop policy if exists referral_codes_read on "better_supabase"."referral_codes";
 create policy referral_codes_read on "better_supabase"."referral_codes"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."referrals" (
+create table "better_supabase"."referrals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code_id" uuid not null,
@@ -82,15 +58,14 @@ create table if not exists "better_supabase"."referrals" (
   check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
   foreign key ("tenant_id", "code_id") references "better_supabase"."referral_codes" ("tenant_id", "id") on delete cascade
 );
-create unique index if not exists referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
-create unique index if not exists referrals_organization_key on "better_supabase"."referrals" ("tenant_id", "referred_organization_id") where "referred_organization_id" is not null;
-create index if not exists referrals_code_idx on "better_supabase"."referrals" ("tenant_id", "code_id");
-create index if not exists referrals_referrer_idx on "better_supabase"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
+create unique index referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
+create unique index referrals_organization_key on "better_supabase"."referrals" ("tenant_id", "referred_organization_id") where "referred_organization_id" is not null;
+create index referrals_code_idx on "better_supabase"."referrals" ("tenant_id", "code_id");
+create index referrals_referrer_idx on "better_supabase"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
 alter table "better_supabase"."referrals" enable row level security;
 revoke all on "better_supabase"."referrals" from public, anon, authenticated;
 grant select on "better_supabase"."referrals" to authenticated;
 grant all on "better_supabase"."referrals" to service_role;
-drop policy if exists referrals_read on "better_supabase"."referrals";
 create policy referrals_read on "better_supabase"."referrals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
@@ -367,45 +342,35 @@ grant execute on function "better_supabase"."list_referral_codes"(uuid, jsonb) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."referral_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."referral_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."referral_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."referral_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
 create policy bsb_tenant_scope_select on "better_supabase"."referrals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
 create policy bsb_tenant_scope_insert on "better_supabase"."referrals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
 create policy bsb_tenant_scope_update on "better_supabase"."referrals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
 create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -427,38 +392,15 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:bdd955ea15c83d31bb60f69f1e087404b9764a6797c410c5980191c4c5c817b8
+-- @bsb-hash sha256:fb4494894aaae028c5589a94cbb6f4854e62fdf5ae01d0e720f6fcb9778d3eb5
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Referral codes and the referrals they bring. A code belongs to the member who
 -- shares it, optionally to one invitation. Rewards are bigint minor units of a
 -- ledger unit, posted once per referral.
-create table if not exists "better_supabase"."referral_codes" (
+create table "better_supabase"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
@@ -476,18 +418,17 @@ create table if not exists "better_supabase"."referral_codes" (
   unique ("tenant_id", "id"),
   check ("reward_amount" = 0 or "reward_unit" is not null)
 );
-create index if not exists referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
-create unique index if not exists referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
+create index referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
+create unique index referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
 alter table "better_supabase"."referral_codes" enable row level security;
 revoke all on "better_supabase"."referral_codes" from public, anon, authenticated;
 grant select on "better_supabase"."referral_codes" to authenticated;
 grant all on "better_supabase"."referral_codes" to service_role;
-drop policy if exists referral_codes_read on "better_supabase"."referral_codes";
 create policy referral_codes_read on "better_supabase"."referral_codes"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."referrals" (
+create table "better_supabase"."referrals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code_id" uuid not null,
@@ -508,15 +449,14 @@ create table if not exists "better_supabase"."referrals" (
   check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
   foreign key ("tenant_id", "code_id") references "better_supabase"."referral_codes" ("tenant_id", "id") on delete cascade
 );
-create unique index if not exists referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
-create unique index if not exists referrals_organization_key on "better_supabase"."referrals" ("tenant_id", "referred_organization_id") where "referred_organization_id" is not null;
-create index if not exists referrals_code_idx on "better_supabase"."referrals" ("tenant_id", "code_id");
-create index if not exists referrals_referrer_idx on "better_supabase"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
+create unique index referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
+create unique index referrals_organization_key on "better_supabase"."referrals" ("tenant_id", "referred_organization_id") where "referred_organization_id" is not null;
+create index referrals_code_idx on "better_supabase"."referrals" ("tenant_id", "code_id");
+create index referrals_referrer_idx on "better_supabase"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
 alter table "better_supabase"."referrals" enable row level security;
 revoke all on "better_supabase"."referrals" from public, anon, authenticated;
 grant select on "better_supabase"."referrals" to authenticated;
 grant all on "better_supabase"."referrals" to service_role;
-drop policy if exists referrals_read on "better_supabase"."referrals";
 create policy referrals_read on "better_supabase"."referrals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
@@ -839,45 +779,35 @@ grant execute on function "better_supabase"."list_referral_codes"(uuid, jsonb) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."referral_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."referral_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."referral_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."referral_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
 create policy bsb_tenant_scope_select on "better_supabase"."referrals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
 create policy bsb_tenant_scope_insert on "better_supabase"."referrals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
 create policy bsb_tenant_scope_update on "better_supabase"."referrals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
 create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -907,32 +837,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:fb244ccd2215be8bb7d5a001c58455bb30f6f8e2b9455b7fdfdb25c89a5188e0
+-- @bsb-hash sha256:886b70279d392b329da580daa1b25f5682c968ce3e47006cad4183895410ff16
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."referral_codes";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."referral_codes";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."referral_codes";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."referral_codes";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."referral_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."referrals";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."referrals";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."referrals";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."referrals";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."referrals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -942,7 +850,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Referral codes and the referrals they bring. A code belongs to the member who
 -- shares it, optionally to one invitation. Rewards are bigint minor units of a
 -- ledger unit, posted once per referral.
-create table if not exists "app_private"."referral_codes" (
+create table "app_private"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
@@ -960,18 +868,17 @@ create table if not exists "app_private"."referral_codes" (
   unique ("tenant_id", "id"),
   check ("reward_amount" = 0 or "reward_unit" is not null)
 );
-create index if not exists referral_codes_referrer_idx on "app_private"."referral_codes" ("tenant_id", "referrer_id");
-create unique index if not exists referral_codes_invitation_key on "app_private"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
+create index referral_codes_referrer_idx on "app_private"."referral_codes" ("tenant_id", "referrer_id");
+create unique index referral_codes_invitation_key on "app_private"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
 alter table "app_private"."referral_codes" enable row level security;
 revoke all on "app_private"."referral_codes" from public, anon, authenticated;
 grant select on "app_private"."referral_codes" to authenticated;
 grant all on "app_private"."referral_codes" to service_role;
-drop policy if exists referral_codes_read on "app_private"."referral_codes";
 create policy referral_codes_read on "app_private"."referral_codes"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
 
-create table if not exists "app_private"."referrals" (
+create table "app_private"."referrals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code_id" uuid not null,
@@ -992,15 +899,14 @@ create table if not exists "app_private"."referrals" (
   check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
   foreign key ("tenant_id", "code_id") references "app_private"."referral_codes" ("tenant_id", "id") on delete cascade
 );
-create unique index if not exists referrals_user_key on "app_private"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
-create unique index if not exists referrals_organization_key on "app_private"."referrals" ("tenant_id", "referred_organization_id") where "referred_organization_id" is not null;
-create index if not exists referrals_code_idx on "app_private"."referrals" ("tenant_id", "code_id");
-create index if not exists referrals_referrer_idx on "app_private"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
+create unique index referrals_user_key on "app_private"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
+create unique index referrals_organization_key on "app_private"."referrals" ("tenant_id", "referred_organization_id") where "referred_organization_id" is not null;
+create index referrals_code_idx on "app_private"."referrals" ("tenant_id", "code_id");
+create index referrals_referrer_idx on "app_private"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
 alter table "app_private"."referrals" enable row level security;
 revoke all on "app_private"."referrals" from public, anon, authenticated;
 grant select on "app_private"."referrals" to authenticated;
 grant all on "app_private"."referrals" to service_role;
-drop policy if exists referrals_read on "app_private"."referrals";
 create policy referrals_read on "app_private"."referrals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
@@ -1277,45 +1183,35 @@ grant execute on function "app_private"."list_referral_codes"(uuid, jsonb) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."referral_codes";
-drop policy if exists bsb_tenant_scope_select on "app_private"."referral_codes";
 create policy bsb_tenant_scope_select on "app_private"."referral_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."referral_codes";
 create policy bsb_tenant_scope_insert on "app_private"."referral_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."referral_codes";
 create policy bsb_tenant_scope_update on "app_private"."referral_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."referral_codes";
 create policy bsb_tenant_scope_delete on "app_private"."referral_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."referrals";
-drop policy if exists bsb_tenant_scope_select on "app_private"."referrals";
 create policy bsb_tenant_scope_select on "app_private"."referrals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."referrals";
 create policy bsb_tenant_scope_insert on "app_private"."referrals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."referrals";
 create policy bsb_tenant_scope_update on "app_private"."referrals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."referrals";
 create policy bsb_tenant_scope_delete on "app_private"."referrals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1337,38 +1233,15 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:ba4062a5926c38029d00e771b270cbbfa2f6967545c03873f9e3aa2a81b02aea
+-- @bsb-hash sha256:621d75e6e0d0cbcfb8002073ca6f8fc1096b7db73a94627cc8eebd70ae69e3c6
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Referral codes and the referrals they bring. A code belongs to the member who
 -- shares it, optionally to one invitation. Rewards are bigint minor units of a
 -- ledger unit, posted once per referral.
-create table if not exists "better_supabase"."referral_codes" (
+create table "better_supabase"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
@@ -1386,18 +1259,17 @@ create table if not exists "better_supabase"."referral_codes" (
   unique ("tenant_id", "id"),
   check ("reward_amount" = 0 or "reward_unit" is not null)
 );
-create index if not exists referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
-create unique index if not exists referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
+create index referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
+create unique index referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
 alter table "better_supabase"."referral_codes" enable row level security;
 revoke all on "better_supabase"."referral_codes" from public, anon, authenticated;
 grant select on "better_supabase"."referral_codes" to authenticated;
 grant all on "better_supabase"."referral_codes" to service_role;
-drop policy if exists referral_codes_read on "better_supabase"."referral_codes";
 create policy referral_codes_read on "better_supabase"."referral_codes"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."referrals" (
+create table "better_supabase"."referrals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code_id" uuid not null,
@@ -1418,15 +1290,14 @@ create table if not exists "better_supabase"."referrals" (
   check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
   foreign key ("tenant_id", "code_id") references "better_supabase"."referral_codes" ("tenant_id", "id") on delete cascade
 );
-create unique index if not exists referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
-create unique index if not exists referrals_organization_key on "better_supabase"."referrals" ("tenant_id", "referred_organization_id") where "referred_organization_id" is not null;
-create index if not exists referrals_code_idx on "better_supabase"."referrals" ("tenant_id", "code_id");
-create index if not exists referrals_referrer_idx on "better_supabase"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
+create unique index referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
+create unique index referrals_organization_key on "better_supabase"."referrals" ("tenant_id", "referred_organization_id") where "referred_organization_id" is not null;
+create index referrals_code_idx on "better_supabase"."referrals" ("tenant_id", "code_id");
+create index referrals_referrer_idx on "better_supabase"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
 alter table "better_supabase"."referrals" enable row level security;
 revoke all on "better_supabase"."referrals" from public, anon, authenticated;
 grant select on "better_supabase"."referrals" to authenticated;
 grant all on "better_supabase"."referrals" to service_role;
-drop policy if exists referrals_read on "better_supabase"."referrals";
 create policy referrals_read on "better_supabase"."referrals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
@@ -1703,45 +1574,35 @@ grant execute on function "better_supabase"."list_referral_codes"(uuid, jsonb) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."referral_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."referral_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."referral_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."referral_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
 create policy bsb_tenant_scope_select on "better_supabase"."referrals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
 create policy bsb_tenant_scope_insert on "better_supabase"."referrals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
 create policy bsb_tenant_scope_update on "better_supabase"."referrals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
 create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1832,33 +1693,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:2961f74cd3b8ccc6c3153dd6c7e502417d0db4907a4ad585f5fc798ff38eccd8
+-- @bsb-hash sha256:6606ba04ddb5c063ead3f972a4de17428bfd9d5949697d3b7ffc4bca6ef94a1a
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Referral codes and the referrals they bring. A code belongs to the member who
 -- shares it, optionally to one invitation. Rewards are bigint minor units of a
@@ -1881,7 +1719,6 @@ create unique index if not exists referral_codes_invitation_key on "better_supab
 alter table "better_supabase"."referral_codes" enable row level security;
 grant select on "better_supabase"."referral_codes" to authenticated;
 grant all on "better_supabase"."referral_codes" to service_role;
-drop policy if exists bsb_referral_codes_select on "better_supabase"."referral_codes";
 create policy bsb_referral_codes_select on "better_supabase"."referral_codes"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
@@ -1910,7 +1747,6 @@ create index if not exists referrals_referrer_idx on "better_supabase"."referral
 alter table "better_supabase"."referrals" enable row level security;
 grant select on "better_supabase"."referrals" to authenticated;
 grant all on "better_supabase"."referrals" to service_role;
-drop policy if exists bsb_referrals_select on "better_supabase"."referrals";
 create policy bsb_referrals_select on "better_supabase"."referrals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
@@ -2187,45 +2023,35 @@ grant execute on function "better_supabase"."list_referral_codes"(uuid, jsonb) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."referral_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."referral_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."referral_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."referral_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
 create policy bsb_tenant_scope_select on "better_supabase"."referrals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
 create policy bsb_tenant_scope_insert on "better_supabase"."referrals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
 create policy bsb_tenant_scope_update on "better_supabase"."referrals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
 create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2247,38 +2073,15 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:9e0e58545b722f67bbb9f41c3fdffb1fd3fb50afb09b0431fa26be539929f668
+-- @bsb-hash sha256:01ebe68c06ba0ea7716b83e983df7cdc4e0d174a1480dff82224715bfbc1e79a
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Referral codes and the referrals they bring. A code belongs to the member who
 -- shares it, optionally to one invitation. Rewards are bigint minor units of a
 -- ledger unit, posted once per referral.
-create table if not exists "better_supabase"."referral_codes" (
+create table "better_supabase"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
@@ -2296,18 +2099,17 @@ create table if not exists "better_supabase"."referral_codes" (
   unique ("org_id", "id"),
   check ("reward_amount" = 0 or "reward_unit" is not null)
 );
-create index if not exists referral_codes_referrer_idx on "better_supabase"."referral_codes" ("org_id", "referrer_id");
-create unique index if not exists referral_codes_invitation_key on "better_supabase"."referral_codes" ("org_id", "invitation_id") where "invitation_id" is not null;
+create index referral_codes_referrer_idx on "better_supabase"."referral_codes" ("org_id", "referrer_id");
+create unique index referral_codes_invitation_key on "better_supabase"."referral_codes" ("org_id", "invitation_id") where "invitation_id" is not null;
 alter table "better_supabase"."referral_codes" enable row level security;
 revoke all on "better_supabase"."referral_codes" from public, anon, authenticated;
 grant select on "better_supabase"."referral_codes" to authenticated;
 grant all on "better_supabase"."referral_codes" to service_role;
-drop policy if exists referral_codes_read on "better_supabase"."referral_codes";
 create policy referral_codes_read on "better_supabase"."referral_codes"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."referrals" (
+create table "better_supabase"."referrals" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "code_id" uuid not null,
@@ -2328,15 +2130,14 @@ create table if not exists "better_supabase"."referrals" (
   check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
   foreign key ("org_id", "code_id") references "better_supabase"."referral_codes" ("org_id", "id") on delete cascade
 );
-create unique index if not exists referrals_user_key on "better_supabase"."referrals" ("org_id", "referred_user_id") where "referred_user_id" is not null;
-create unique index if not exists referrals_organization_key on "better_supabase"."referrals" ("org_id", "referred_organization_id") where "referred_organization_id" is not null;
-create index if not exists referrals_code_idx on "better_supabase"."referrals" ("org_id", "code_id");
-create index if not exists referrals_referrer_idx on "better_supabase"."referrals" ("org_id", "referrer_id", "created_at" desc);
+create unique index referrals_user_key on "better_supabase"."referrals" ("org_id", "referred_user_id") where "referred_user_id" is not null;
+create unique index referrals_organization_key on "better_supabase"."referrals" ("org_id", "referred_organization_id") where "referred_organization_id" is not null;
+create index referrals_code_idx on "better_supabase"."referrals" ("org_id", "code_id");
+create index referrals_referrer_idx on "better_supabase"."referrals" ("org_id", "referrer_id", "created_at" desc);
 alter table "better_supabase"."referrals" enable row level security;
 revoke all on "better_supabase"."referrals" from public, anon, authenticated;
 grant select on "better_supabase"."referrals" to authenticated;
 grant all on "better_supabase"."referrals" to service_role;
-drop policy if exists referrals_read on "better_supabase"."referrals";
 create policy referrals_read on "better_supabase"."referrals"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
@@ -2613,45 +2414,35 @@ grant execute on function "better_supabase"."list_referral_codes"(uuid, jsonb) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."referral_codes" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (("org_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."referral_codes" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."referral_codes" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."referral_codes" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
 create policy bsb_tenant_scope_select on "better_supabase"."referrals" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (("org_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
 create policy bsb_tenant_scope_insert on "better_supabase"."referrals" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
 create policy bsb_tenant_scope_update on "better_supabase"."referrals" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
 create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

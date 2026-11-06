@@ -1,33 +1,9 @@
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:d8f38d69ca1fe108dc4e6e797bafb219f6508886b0fe46946242891e43b830a8
+-- @bsb-hash sha256:961fa70b8be54bb3bf4c02f47ad8632829dd6f71980fc4b2df88d7199846104d
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."file_node";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."file_node";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."file_node";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."file_node";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."file_node";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."file_node_grant";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."file_node_grant";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."file_node_grant";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."file_node_grant";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."file_node_grant";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 
 -- The node's ancestors and itself, root first.
 create or replace function "better_supabase"."drive_ancestors"(node uuid)
@@ -321,7 +297,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("centrakit"."file_node") from public, anon, authenticated;
 
-drop policy if exists bsb_file_node_select on "centrakit"."file_node";
 create policy bsb_file_node_select on "centrakit"."file_node"
   for select to authenticated
   using ("id" in (select "better_supabase"."drive_readable_ids"()));
@@ -449,9 +424,7 @@ revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid, uu
 
 -- It returns the node table's row type, which differs between managed and
 -- adopted tables.
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb, text);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb);
-drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
+
 -- Inserts a node after its siblings. Extra columns come from fields, or
 -- from the parent. At the root, the creator gets editor. source 'request' marks a
 -- file request upload, which has no creator.
@@ -1116,24 +1089,19 @@ revoke execute on function "better_supabase"."drive_sharing"(uuid) from public, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "centrakit"."file_node";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."file_node";
 create policy bsb_tenant_scope_select on "centrakit"."file_node" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("id" in (select "better_supabase"."drive_readable_ids"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."file_node";
 create policy bsb_tenant_scope_insert on "centrakit"."file_node" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."file_node";
 create policy bsb_tenant_scope_update on "centrakit"."file_node" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."file_node";
 create policy bsb_tenant_scope_delete on "centrakit"."file_node" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));

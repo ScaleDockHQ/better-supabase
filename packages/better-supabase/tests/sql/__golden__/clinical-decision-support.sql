@@ -1,33 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:1e70e0b32d83de8528d37d41bdac40f8d97c682e31b66f652ef3177f31c624bf
+-- @bsb-hash sha256:02348cddbf6351c7a37f9c9a10b40b57e59ab97a255b28f09492a6c23a9d7603
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_alerts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Clinical decision support: tenant rules for dose range, duplicate therapy
 -- and interactions over a record's medication orders, alerts that members
@@ -38,7 +15,7 @@ end $$;
 -- medication (per dose, or per day with max_per_day), an interaction rule names
 -- two medications that must not be active together and a duplicate_therapy rule
 -- names the medications of one therapy group.
-create table if not exists "better_supabase"."care_rules" (
+create table "better_supabase"."care_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
@@ -57,12 +34,11 @@ create table if not exists "better_supabase"."care_rules" (
     or ("kind" = 'duplicate_therapy' and cardinality("medication_ids") >= 2)
   )
 );
-create index if not exists "care_rules_tenant_idx" on "better_supabase"."care_rules" ("tenant_id", "kind");
+create index "care_rules_tenant_idx" on "better_supabase"."care_rules" ("tenant_id", "kind");
 alter table "better_supabase"."care_rules" enable row level security;
 revoke all on "better_supabase"."care_rules" from public, anon, authenticated;
 grant select on "better_supabase"."care_rules" to authenticated;
 grant all on "better_supabase"."care_rules" to service_role;
-drop policy if exists care_rules_read on "better_supabase"."care_rules";
 create policy care_rules_read on "better_supabase"."care_rules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -71,7 +47,7 @@ create policy care_rules_read on "better_supabase"."care_rules"
 -- (source). The fingerprint identifies the finding, so evaluating again updates
 -- the alert instead of raising it twice and keeps a member's decision. order_ids
 -- are the medication orders involved.
-create table if not exists "better_supabase"."care_alerts" (
+create table "better_supabase"."care_alerts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -92,13 +68,12 @@ create table if not exists "better_supabase"."care_alerts" (
   "updated_at" timestamptz not null default now(),
   check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
 );
-create unique index if not exists "care_alerts_live_key" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
-create index if not exists "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
+create unique index "care_alerts_live_key" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
+create index "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
 alter table "better_supabase"."care_alerts" enable row level security;
 revoke all on "better_supabase"."care_alerts" from public, anon, authenticated;
 grant select on "better_supabase"."care_alerts" to authenticated;
 grant all on "better_supabase"."care_alerts" to service_role;
-drop policy if exists care_alerts_read on "better_supabase"."care_alerts";
 create policy care_alerts_read on "better_supabase"."care_alerts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -594,45 +569,35 @@ grant execute on function "better_supabase"."decide_care_alert"(uuid, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."care_rules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."care_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_alerts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_select on "better_supabase"."care_alerts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_alerts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_update on "better_supabase"."care_alerts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -654,33 +619,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:334053afa2b4eb92b034f64e60a3ba89919bbda1c80842523ced5b152cf3be46
+-- @bsb-hash sha256:606f85a91e7131ed664ab145c380790776dc5cbb8dd33914fc3d1ad6fb19e988
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_alerts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Clinical decision support: tenant rules for dose range, duplicate therapy
 -- and interactions over a record's medication orders, alerts that members
@@ -691,7 +633,7 @@ end $$;
 -- medication (per dose, or per day with max_per_day), an interaction rule names
 -- two medications that must not be active together and a duplicate_therapy rule
 -- names the medications of one therapy group.
-create table if not exists "better_supabase"."care_rules" (
+create table "better_supabase"."care_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
@@ -710,12 +652,11 @@ create table if not exists "better_supabase"."care_rules" (
     or ("kind" = 'duplicate_therapy' and cardinality("medication_ids") >= 2)
   )
 );
-create index if not exists "care_rules_tenant_idx" on "better_supabase"."care_rules" ("tenant_id", "kind");
+create index "care_rules_tenant_idx" on "better_supabase"."care_rules" ("tenant_id", "kind");
 alter table "better_supabase"."care_rules" enable row level security;
 revoke all on "better_supabase"."care_rules" from public, anon, authenticated;
 grant select on "better_supabase"."care_rules" to authenticated;
 grant all on "better_supabase"."care_rules" to service_role;
-drop policy if exists care_rules_read on "better_supabase"."care_rules";
 create policy care_rules_read on "better_supabase"."care_rules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -724,7 +665,7 @@ create policy care_rules_read on "better_supabase"."care_rules"
 -- (source). The fingerprint identifies the finding, so evaluating again updates
 -- the alert instead of raising it twice and keeps a member's decision. order_ids
 -- are the medication orders involved.
-create table if not exists "better_supabase"."care_alerts" (
+create table "better_supabase"."care_alerts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -745,13 +686,12 @@ create table if not exists "better_supabase"."care_alerts" (
   "updated_at" timestamptz not null default now(),
   check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
 );
-create unique index if not exists "care_alerts_live_key" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
-create index if not exists "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
+create unique index "care_alerts_live_key" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
+create index "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
 alter table "better_supabase"."care_alerts" enable row level security;
 revoke all on "better_supabase"."care_alerts" from public, anon, authenticated;
 grant select on "better_supabase"."care_alerts" to authenticated;
 grant all on "better_supabase"."care_alerts" to service_role;
-drop policy if exists care_alerts_read on "better_supabase"."care_alerts";
 create policy care_alerts_read on "better_supabase"."care_alerts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -1316,45 +1256,35 @@ grant execute on function "better_supabase"."decide_care_alert"(uuid, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."care_rules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."care_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_alerts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_select on "better_supabase"."care_alerts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_alerts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_update on "better_supabase"."care_alerts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1384,32 +1314,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:1ca8bbec2a6980c04549cdb7d497ebc3d3a19d4a8cdca924cdc67f5dde49103a
+-- @bsb-hash sha256:9fcf1b3610071d9342b468b8c89951f50b8feb04ed0fcefd0de4440867992240
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."care_rules";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."care_rules";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."care_rules";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."care_rules";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."care_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."care_alerts";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."care_alerts";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."care_alerts";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."care_alerts";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."care_alerts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -1425,7 +1333,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- medication (per dose, or per day with max_per_day), an interaction rule names
 -- two medications that must not be active together and a duplicate_therapy rule
 -- names the medications of one therapy group.
-create table if not exists "app_private"."care_rules" (
+create table "app_private"."care_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
@@ -1444,12 +1352,11 @@ create table if not exists "app_private"."care_rules" (
     or ("kind" = 'duplicate_therapy' and cardinality("medication_ids") >= 2)
   )
 );
-create index if not exists "care_rules_tenant_idx" on "app_private"."care_rules" ("tenant_id", "kind");
+create index "care_rules_tenant_idx" on "app_private"."care_rules" ("tenant_id", "kind");
 alter table "app_private"."care_rules" enable row level security;
 revoke all on "app_private"."care_rules" from public, anon, authenticated;
 grant select on "app_private"."care_rules" to authenticated;
 grant all on "app_private"."care_rules" to service_role;
-drop policy if exists care_rules_read on "app_private"."care_rules";
 create policy care_rules_read on "app_private"."care_rules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -1458,7 +1365,7 @@ create policy care_rules_read on "app_private"."care_rules"
 -- (source). The fingerprint identifies the finding, so evaluating again updates
 -- the alert instead of raising it twice and keeps a member's decision. order_ids
 -- are the medication orders involved.
-create table if not exists "app_private"."care_alerts" (
+create table "app_private"."care_alerts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1479,13 +1386,12 @@ create table if not exists "app_private"."care_alerts" (
   "updated_at" timestamptz not null default now(),
   check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
 );
-create unique index if not exists "care_alerts_live_key" on "app_private"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
-create index if not exists "care_alerts_subject_idx" on "app_private"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
+create unique index "care_alerts_live_key" on "app_private"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
+create index "care_alerts_subject_idx" on "app_private"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
 alter table "app_private"."care_alerts" enable row level security;
 revoke all on "app_private"."care_alerts" from public, anon, authenticated;
 grant select on "app_private"."care_alerts" to authenticated;
 grant all on "app_private"."care_alerts" to service_role;
-drop policy if exists care_alerts_read on "app_private"."care_alerts";
 create policy care_alerts_read on "app_private"."care_alerts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -1981,45 +1887,35 @@ grant execute on function "app_private"."decide_care_alert"(uuid, text, text) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."care_rules";
-drop policy if exists bsb_tenant_scope_select on "app_private"."care_rules";
 create policy bsb_tenant_scope_select on "app_private"."care_rules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."care_rules";
 create policy bsb_tenant_scope_insert on "app_private"."care_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."care_rules";
 create policy bsb_tenant_scope_update on "app_private"."care_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."care_rules";
 create policy bsb_tenant_scope_delete on "app_private"."care_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."care_alerts";
-drop policy if exists bsb_tenant_scope_select on "app_private"."care_alerts";
 create policy bsb_tenant_scope_select on "app_private"."care_alerts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."care_alerts";
 create policy bsb_tenant_scope_insert on "app_private"."care_alerts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."care_alerts";
 create policy bsb_tenant_scope_update on "app_private"."care_alerts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."care_alerts";
 create policy bsb_tenant_scope_delete on "app_private"."care_alerts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2041,33 +1937,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:b3cb4c075b1afa02aab93eed3c73e82822ad3fea2c34721c80f5781987c7f63c
+-- @bsb-hash sha256:a371b995b38b53a8acbef83e036dc5cda7e06149f232921edac4685c670eef2b
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_alerts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Clinical decision support: tenant rules for dose range, duplicate therapy
 -- and interactions over a record's medication orders, alerts that members
@@ -2078,7 +1951,7 @@ end $$;
 -- medication (per dose, or per day with max_per_day), an interaction rule names
 -- two medications that must not be active together and a duplicate_therapy rule
 -- names the medications of one therapy group.
-create table if not exists "better_supabase"."care_rules" (
+create table "better_supabase"."care_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
@@ -2097,12 +1970,11 @@ create table if not exists "better_supabase"."care_rules" (
     or ("kind" = 'duplicate_therapy' and cardinality("medication_ids") >= 2)
   )
 );
-create index if not exists "care_rules_tenant_idx" on "better_supabase"."care_rules" ("tenant_id", "kind");
+create index "care_rules_tenant_idx" on "better_supabase"."care_rules" ("tenant_id", "kind");
 alter table "better_supabase"."care_rules" enable row level security;
 revoke all on "better_supabase"."care_rules" from public, anon, authenticated;
 grant select on "better_supabase"."care_rules" to authenticated;
 grant all on "better_supabase"."care_rules" to service_role;
-drop policy if exists care_rules_read on "better_supabase"."care_rules";
 create policy care_rules_read on "better_supabase"."care_rules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -2111,7 +1983,7 @@ create policy care_rules_read on "better_supabase"."care_rules"
 -- (source). The fingerprint identifies the finding, so evaluating again updates
 -- the alert instead of raising it twice and keeps a member's decision. order_ids
 -- are the medication orders involved.
-create table if not exists "better_supabase"."care_alerts" (
+create table "better_supabase"."care_alerts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -2132,13 +2004,12 @@ create table if not exists "better_supabase"."care_alerts" (
   "updated_at" timestamptz not null default now(),
   check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
 );
-create unique index if not exists "care_alerts_live_key" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
-create index if not exists "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
+create unique index "care_alerts_live_key" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
+create index "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
 alter table "better_supabase"."care_alerts" enable row level security;
 revoke all on "better_supabase"."care_alerts" from public, anon, authenticated;
 grant select on "better_supabase"."care_alerts" to authenticated;
 grant all on "better_supabase"."care_alerts" to service_role;
-drop policy if exists care_alerts_read on "better_supabase"."care_alerts";
 create policy care_alerts_read on "better_supabase"."care_alerts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -2634,45 +2505,35 @@ grant execute on function "better_supabase"."decide_care_alert"(uuid, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."care_rules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."care_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_alerts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_select on "better_supabase"."care_alerts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_alerts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_update on "better_supabase"."care_alerts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2773,33 +2634,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:d4761f9047772d0ab993cab9dfce83d87e3871edd2ad85577fcdf8c9163764d2
+-- @bsb-hash sha256:1db7a2ab8ef8f7d3d1cce3c27bddfe34006f643d963d486c45e6042ee7016c16
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_alerts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Clinical decision support: tenant rules for dose range, duplicate therapy
 -- and interactions over a record's medication orders, alerts that members
@@ -2828,7 +2666,6 @@ create index if not exists "care_rules_tenant_idx" on "better_supabase"."care_ru
 alter table "better_supabase"."care_rules" enable row level security;
 grant select on "better_supabase"."care_rules" to authenticated;
 grant all on "better_supabase"."care_rules" to service_role;
-drop policy if exists bsb_care_rules_read on "better_supabase"."care_rules";
 create policy bsb_care_rules_read on "better_supabase"."care_rules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -2862,7 +2699,6 @@ create index if not exists "care_alerts_subject_idx" on "better_supabase"."care_
 alter table "better_supabase"."care_alerts" enable row level security;
 grant select on "better_supabase"."care_alerts" to authenticated;
 grant all on "better_supabase"."care_alerts" to service_role;
-drop policy if exists bsb_care_alerts_read on "better_supabase"."care_alerts";
 create policy bsb_care_alerts_read on "better_supabase"."care_alerts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -3358,45 +3194,35 @@ grant execute on function "better_supabase"."decide_care_alert"(uuid, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."care_rules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."care_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_alerts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_select on "better_supabase"."care_alerts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_alerts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_update on "better_supabase"."care_alerts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3418,33 +3244,10 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:f75cf1e962b1234978f8adb9d5a2ac195f1f4508943e9ab9c5bcefb8fd0c93a2
+-- @bsb-hash sha256:0cb49ccfdb117b210d2812a9125a6383533faf2c642e9e25642a39abe8d637af
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_alerts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_alerts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Clinical decision support: tenant rules for dose range, duplicate therapy
 -- and interactions over a record's medication orders, alerts that members
@@ -3455,7 +3258,7 @@ end $$;
 -- medication (per dose, or per day with max_per_day), an interaction rule names
 -- two medications that must not be active together and a duplicate_therapy rule
 -- names the medications of one therapy group.
-create table if not exists "better_supabase"."care_rules" (
+create table "better_supabase"."care_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
@@ -3474,12 +3277,11 @@ create table if not exists "better_supabase"."care_rules" (
     or ("kind" = 'duplicate_therapy' and cardinality("medication_ids") >= 2)
   )
 );
-create index if not exists "care_rules_tenant_idx" on "better_supabase"."care_rules" ("org_id", "kind");
+create index "care_rules_tenant_idx" on "better_supabase"."care_rules" ("org_id", "kind");
 alter table "better_supabase"."care_rules" enable row level security;
 revoke all on "better_supabase"."care_rules" from public, anon, authenticated;
 grant select on "better_supabase"."care_rules" to authenticated;
 grant all on "better_supabase"."care_rules" to service_role;
-drop policy if exists care_rules_read on "better_supabase"."care_rules";
 create policy care_rules_read on "better_supabase"."care_rules"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -3488,7 +3290,7 @@ create policy care_rules_read on "better_supabase"."care_rules"
 -- (source). The fingerprint identifies the finding, so evaluating again updates
 -- the alert instead of raising it twice and keeps a member's decision. order_ids
 -- are the medication orders involved.
-create table if not exists "better_supabase"."care_alerts" (
+create table "better_supabase"."care_alerts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -3509,13 +3311,12 @@ create table if not exists "better_supabase"."care_alerts" (
   "updated_at" timestamptz not null default now(),
   check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
 );
-create unique index if not exists "care_alerts_live_key" on "better_supabase"."care_alerts" ("org_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
-create index if not exists "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("org_id", "subject_type", "subject_id", "status");
+create unique index "care_alerts_live_key" on "better_supabase"."care_alerts" ("org_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
+create index "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("org_id", "subject_type", "subject_id", "status");
 alter table "better_supabase"."care_alerts" enable row level security;
 revoke all on "better_supabase"."care_alerts" from public, anon, authenticated;
 grant select on "better_supabase"."care_alerts" to authenticated;
 grant all on "better_supabase"."care_alerts" to service_role;
-drop policy if exists care_alerts_read on "better_supabase"."care_alerts";
 create policy care_alerts_read on "better_supabase"."care_alerts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
@@ -4011,45 +3812,35 @@ grant execute on function "better_supabase"."decide_care_alert"(uuid, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."care_rules" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_rules" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."care_rules" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_rules" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_alerts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_select on "better_supabase"."care_alerts" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_alerts" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_update on "better_supabase"."care_alerts" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_alerts";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

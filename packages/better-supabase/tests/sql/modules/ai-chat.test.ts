@@ -36,9 +36,7 @@ describe("ai-chat module", () => {
       "ai_model_catalog",
       "ai_moderation_events",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}" (`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}" (`);
     }
 
     expect(sql).toContain('primary key ("chat_id", "id")');
@@ -84,12 +82,6 @@ describe("ai-chat module", () => {
     }
   });
 
-  it("drops the claim's earlier signature so one overload remains", () => {
-    expect(body()).toContain(
-      'drop function if exists "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text);',
-    );
-  });
-
   it("keeps durable runs, run steps and harness sessions", () => {
     const sql = body();
     expect(sql).toContain('"external_run_id" text');
@@ -115,9 +107,7 @@ describe("ai-chat module", () => {
 
   it("keeps every sandbox, a harness session's included, in ai_sandboxes", () => {
     const sql = body();
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."ai_sandboxes" (',
-    );
+    expect(sql).toContain('create table "better_supabase"."ai_sandboxes" (');
     expect(sql).toMatch(/"harness_id" text check/);
     expect(sql).not.toMatch(/ai_harness_sessions" \([^;]*"sandbox_id"/);
     expect(sql).toContain("default 600");

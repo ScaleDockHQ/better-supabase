@@ -1,31 +1,16 @@
 -- ==== schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:8bba41ed5fe29af64b4dd73de6536b0cab6ed00f9261ae9b09d4d7b71e74d2ce
+-- @bsb-hash sha256:72e905c526749ce314008760c634c70d0fb425d32b20900dc998f187a778dfea
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."hostnames";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."hostnames";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."hostnames";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."hostnames";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."hostnames";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Hostnames an organization serves its app on: its own domains, verified by a
 -- DNS TXT record _better-supabase.<hostname>, and subdomains of
 -- blocks.domains.options.platformDomain (unset), verified when added. One organization holds
 -- each verified hostname, and each organization has at most one primary.
-create table if not exists "better_supabase"."hostnames" (
+create table "better_supabase"."hostnames" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "hostname" text not null check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
@@ -38,9 +23,9 @@ create table if not exists "better_supabase"."hostnames" (
   unique ("workspace_id", "hostname"),
   check (not "is_primary" or "verified_at" is not null)
 );
-create unique index if not exists "hostnames_verified_idx" on "better_supabase"."hostnames" ("hostname") where "verified_at" is not null;
-create unique index if not exists "hostnames_primary_idx" on "better_supabase"."hostnames" ("workspace_id") where "is_primary";
-create index if not exists "hostnames_created_by_idx" on "better_supabase"."hostnames" ("created_by") where "created_by" is not null;
+create unique index "hostnames_verified_idx" on "better_supabase"."hostnames" ("hostname") where "verified_at" is not null;
+create unique index "hostnames_primary_idx" on "better_supabase"."hostnames" ("workspace_id") where "is_primary";
+create index "hostnames_created_by_idx" on "better_supabase"."hostnames" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."hostnames" enable row level security;
 revoke all on "better_supabase"."hostnames" from public, anon, authenticated;
 grant all on "better_supabase"."hostnames" to service_role;

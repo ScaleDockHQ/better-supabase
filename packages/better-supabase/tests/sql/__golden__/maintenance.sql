@@ -1,63 +1,16 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:ae18e942aac5452c1234a0a88f3b356d0934f63519f7684e5aadf6a0e2191465
+-- @bsb-hash sha256:ecb4f4983d5f9aa1c623e43236b6f21bcfa0b771b2f594ef1a18cb361c04c990
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plans";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Preventive maintenance per organization: plans that fall due by time or by a
 -- meter, meter readings, calibration records, and the dispatch work orders the
 -- plans open.
 
-create table if not exists "better_supabase"."maintenance_meters" (
+create table "better_supabase"."maintenance_meters" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -69,17 +22,16 @@ create table if not exists "better_supabase"."maintenance_meters" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "maintenance_meters_asset_idx" on "better_supabase"."maintenance_meters" ("tenant_id", "asset_id");
+create index "maintenance_meters_asset_idx" on "better_supabase"."maintenance_meters" ("tenant_id", "asset_id");
 alter table "better_supabase"."maintenance_meters" enable row level security;
 revoke all on "better_supabase"."maintenance_meters" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meters" to authenticated;
 grant all on "better_supabase"."maintenance_meters" to service_role;
-drop policy if exists maintenance_meters_read on "better_supabase"."maintenance_meters";
 create policy maintenance_meters_read on "better_supabase"."maintenance_meters"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_meter_readings" (
+create table "better_supabase"."maintenance_meter_readings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meter_id" uuid not null,
@@ -88,17 +40,16 @@ create table if not exists "better_supabase"."maintenance_meter_readings" (
   "read_by" uuid,
   foreign key ("tenant_id", "meter_id") references "better_supabase"."maintenance_meters" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "maintenance_meter_readings_meter_idx" on "better_supabase"."maintenance_meter_readings" ("tenant_id", "meter_id", "read_at" desc);
+create index "maintenance_meter_readings_meter_idx" on "better_supabase"."maintenance_meter_readings" ("tenant_id", "meter_id", "read_at" desc);
 alter table "better_supabase"."maintenance_meter_readings" enable row level security;
 revoke all on "better_supabase"."maintenance_meter_readings" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meter_readings" to authenticated;
 grant all on "better_supabase"."maintenance_meter_readings" to service_role;
-drop policy if exists maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings";
 create policy maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_plans" (
+create table "better_supabase"."maintenance_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
@@ -135,21 +86,20 @@ create table if not exists "better_supabase"."maintenance_plans" (
     or ("kind" = 'rrule' and "every_days" is null and "meter_id" is null and "every_value" is null and "rrule" is not null and "dtstart" is not null)
   )
 );
-create index if not exists "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "status", "next_due_at");
-create index if not exists "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "asset_id");
-create index if not exists "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "meter_id");
-create index if not exists "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
+create index "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "status", "next_due_at");
+create index "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "asset_id");
+create index "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "meter_id");
+create index "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
 alter table "better_supabase"."maintenance_plans" enable row level security;
 revoke all on "better_supabase"."maintenance_plans" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plans" to authenticated;
 grant all on "better_supabase"."maintenance_plans" to service_role;
-drop policy if exists maintenance_plans_read on "better_supabase"."maintenance_plans";
 create policy maintenance_plans_read on "better_supabase"."maintenance_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 -- The spare parts a plan's work order carries, copied to it when it opens.
-create table if not exists "better_supabase"."maintenance_plan_parts" (
+create table "better_supabase"."maintenance_plan_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
@@ -158,17 +108,16 @@ create table if not exists "better_supabase"."maintenance_plan_parts" (
   "variant_id" uuid,
   foreign key ("tenant_id", "plan_id") references "better_supabase"."maintenance_plans" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "maintenance_plan_parts_plan_idx" on "better_supabase"."maintenance_plan_parts" ("tenant_id", "plan_id");
+create index "maintenance_plan_parts_plan_idx" on "better_supabase"."maintenance_plan_parts" ("tenant_id", "plan_id");
 alter table "better_supabase"."maintenance_plan_parts" enable row level security;
 revoke all on "better_supabase"."maintenance_plan_parts" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plan_parts" to authenticated;
 grant all on "better_supabase"."maintenance_plan_parts" to service_role;
-drop policy if exists maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts";
 create policy maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_calibrations" (
+create table "better_supabase"."maintenance_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid,
@@ -182,13 +131,12 @@ create table if not exists "better_supabase"."maintenance_calibrations" (
   "qualifications" text[] not null default '{}',
   check ("due_at" is null or "due_at" >= "performed_at")
 );
-create index if not exists "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
-create index if not exists "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
+create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
+create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
 alter table "better_supabase"."maintenance_calibrations" enable row level security;
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_calibrations" to authenticated;
 grant all on "better_supabase"."maintenance_calibrations" to service_role;
-drop policy if exists maintenance_calibrations_read on "better_supabase"."maintenance_calibrations";
 create policy maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
@@ -891,7 +839,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."maintenance_work_order_closed"() from public, anon, authenticated;
-drop trigger if exists bsb_maintenance_work_order on "better_supabase"."work_orders";
 create trigger bsb_maintenance_work_order after update of "status" on "better_supabase"."work_orders"
   for each row when (new."status"::text in ('done', 'cancelled') and old."status"::text is distinct from new."status"::text)
   execute function "better_supabase"."maintenance_work_order_closed"();
@@ -899,108 +846,83 @@ create trigger bsb_maintenance_work_order after update of "status" on "better_su
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plans";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_plans" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_plans" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_plans" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plan_parts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_meters" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_meters" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_meters" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_meters" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meter_readings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_calibrations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1022,63 +944,16 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:645e498bf42f47d5037f956ae1f98a22342e40184213305fd27730e1c3ea3134
+-- @bsb-hash sha256:d65c265868d7aa0144a00f003c43e49ccab4c4220bbb413256c72e4b4ddd6fb1
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plans";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Preventive maintenance per organization: plans that fall due by time or by a
 -- meter, meter readings, calibration records, and the dispatch work orders the
 -- plans open.
 
-create table if not exists "better_supabase"."maintenance_meters" (
+create table "better_supabase"."maintenance_meters" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -1090,17 +965,16 @@ create table if not exists "better_supabase"."maintenance_meters" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "maintenance_meters_asset_idx" on "better_supabase"."maintenance_meters" ("tenant_id", "asset_id");
+create index "maintenance_meters_asset_idx" on "better_supabase"."maintenance_meters" ("tenant_id", "asset_id");
 alter table "better_supabase"."maintenance_meters" enable row level security;
 revoke all on "better_supabase"."maintenance_meters" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meters" to authenticated;
 grant all on "better_supabase"."maintenance_meters" to service_role;
-drop policy if exists maintenance_meters_read on "better_supabase"."maintenance_meters";
 create policy maintenance_meters_read on "better_supabase"."maintenance_meters"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_meter_readings" (
+create table "better_supabase"."maintenance_meter_readings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meter_id" uuid not null,
@@ -1109,17 +983,16 @@ create table if not exists "better_supabase"."maintenance_meter_readings" (
   "read_by" uuid,
   foreign key ("tenant_id", "meter_id") references "better_supabase"."maintenance_meters" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "maintenance_meter_readings_meter_idx" on "better_supabase"."maintenance_meter_readings" ("tenant_id", "meter_id", "read_at" desc);
+create index "maintenance_meter_readings_meter_idx" on "better_supabase"."maintenance_meter_readings" ("tenant_id", "meter_id", "read_at" desc);
 alter table "better_supabase"."maintenance_meter_readings" enable row level security;
 revoke all on "better_supabase"."maintenance_meter_readings" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meter_readings" to authenticated;
 grant all on "better_supabase"."maintenance_meter_readings" to service_role;
-drop policy if exists maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings";
 create policy maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_plans" (
+create table "better_supabase"."maintenance_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
@@ -1156,21 +1029,20 @@ create table if not exists "better_supabase"."maintenance_plans" (
     or ("kind" = 'rrule' and "every_days" is null and "meter_id" is null and "every_value" is null and "rrule" is not null and "dtstart" is not null)
   )
 );
-create index if not exists "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "status", "next_due_at");
-create index if not exists "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "asset_id");
-create index if not exists "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "meter_id");
-create index if not exists "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
+create index "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "status", "next_due_at");
+create index "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "asset_id");
+create index "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "meter_id");
+create index "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
 alter table "better_supabase"."maintenance_plans" enable row level security;
 revoke all on "better_supabase"."maintenance_plans" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plans" to authenticated;
 grant all on "better_supabase"."maintenance_plans" to service_role;
-drop policy if exists maintenance_plans_read on "better_supabase"."maintenance_plans";
 create policy maintenance_plans_read on "better_supabase"."maintenance_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 -- The spare parts a plan's work order carries, copied to it when it opens.
-create table if not exists "better_supabase"."maintenance_plan_parts" (
+create table "better_supabase"."maintenance_plan_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
@@ -1179,17 +1051,16 @@ create table if not exists "better_supabase"."maintenance_plan_parts" (
   "variant_id" uuid,
   foreign key ("tenant_id", "plan_id") references "better_supabase"."maintenance_plans" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "maintenance_plan_parts_plan_idx" on "better_supabase"."maintenance_plan_parts" ("tenant_id", "plan_id");
+create index "maintenance_plan_parts_plan_idx" on "better_supabase"."maintenance_plan_parts" ("tenant_id", "plan_id");
 alter table "better_supabase"."maintenance_plan_parts" enable row level security;
 revoke all on "better_supabase"."maintenance_plan_parts" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plan_parts" to authenticated;
 grant all on "better_supabase"."maintenance_plan_parts" to service_role;
-drop policy if exists maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts";
 create policy maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_calibrations" (
+create table "better_supabase"."maintenance_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid,
@@ -1203,13 +1074,12 @@ create table if not exists "better_supabase"."maintenance_calibrations" (
   "qualifications" text[] not null default '{}',
   check ("due_at" is null or "due_at" >= "performed_at")
 );
-create index if not exists "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
-create index if not exists "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
+create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
+create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
 alter table "better_supabase"."maintenance_calibrations" enable row level security;
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_calibrations" to authenticated;
 grant all on "better_supabase"."maintenance_calibrations" to service_role;
-drop policy if exists maintenance_calibrations_read on "better_supabase"."maintenance_calibrations";
 create policy maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
@@ -2009,12 +1879,9 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."maintenance_work_order_assigned"() from public, anon, authenticated;
-drop trigger if exists bsb_maintenance_work_order_technician on "better_supabase"."work_orders";
 create trigger bsb_maintenance_work_order_technician before update of "technician_id" on "better_supabase"."work_orders"
   for each row when (new."technician_id" is not null and old."technician_id" is distinct from new."technician_id")
   execute function "better_supabase"."maintenance_work_order_assigned"();
-
-drop trigger if exists bsb_maintenance_work_order on "better_supabase"."work_orders";
 create trigger bsb_maintenance_work_order after update of "status" on "better_supabase"."work_orders"
   for each row when (new."status"::text in ('done', 'cancelled') and old."status"::text is distinct from new."status"::text)
   execute function "better_supabase"."maintenance_work_order_closed"();
@@ -2022,108 +1889,83 @@ create trigger bsb_maintenance_work_order after update of "status" on "better_su
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plans";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_plans" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_plans" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_plans" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plan_parts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_meters" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_meters" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_meters" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_meters" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meter_readings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_calibrations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2156,56 +1998,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:63e6ed8e6d2190039659d1345b84aa5273ad6caf25f34af2ea957b7e5d160619
+-- @bsb-hash sha256:92c72032bae6d922c8b29968eedc3341363b3470a3d66610b67d43aced3c989a
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."maintenance_plans";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."maintenance_plan_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."maintenance_meters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."maintenance_meter_readings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."maintenance_calibrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -2216,7 +2012,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- meter, meter readings, calibration records, and the dispatch work orders the
 -- plans open.
 
-create table if not exists "app_private"."maintenance_meters" (
+create table "app_private"."maintenance_meters" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -2228,17 +2024,16 @@ create table if not exists "app_private"."maintenance_meters" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "maintenance_meters_asset_idx" on "app_private"."maintenance_meters" ("tenant_id", "asset_id");
+create index "maintenance_meters_asset_idx" on "app_private"."maintenance_meters" ("tenant_id", "asset_id");
 alter table "app_private"."maintenance_meters" enable row level security;
 revoke all on "app_private"."maintenance_meters" from public, anon, authenticated;
 grant select on "app_private"."maintenance_meters" to authenticated;
 grant all on "app_private"."maintenance_meters" to service_role;
-drop policy if exists maintenance_meters_read on "app_private"."maintenance_meters";
 create policy maintenance_meters_read on "app_private"."maintenance_meters"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "app_private"."maintenance_meter_readings" (
+create table "app_private"."maintenance_meter_readings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meter_id" uuid not null,
@@ -2247,17 +2042,16 @@ create table if not exists "app_private"."maintenance_meter_readings" (
   "read_by" uuid,
   foreign key ("tenant_id", "meter_id") references "app_private"."maintenance_meters" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "maintenance_meter_readings_meter_idx" on "app_private"."maintenance_meter_readings" ("tenant_id", "meter_id", "read_at" desc);
+create index "maintenance_meter_readings_meter_idx" on "app_private"."maintenance_meter_readings" ("tenant_id", "meter_id", "read_at" desc);
 alter table "app_private"."maintenance_meter_readings" enable row level security;
 revoke all on "app_private"."maintenance_meter_readings" from public, anon, authenticated;
 grant select on "app_private"."maintenance_meter_readings" to authenticated;
 grant all on "app_private"."maintenance_meter_readings" to service_role;
-drop policy if exists maintenance_meter_readings_read on "app_private"."maintenance_meter_readings";
 create policy maintenance_meter_readings_read on "app_private"."maintenance_meter_readings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "app_private"."maintenance_plans" (
+create table "app_private"."maintenance_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
@@ -2294,21 +2088,20 @@ create table if not exists "app_private"."maintenance_plans" (
     or ("kind" = 'rrule' and "every_days" is null and "meter_id" is null and "every_value" is null and "rrule" is not null and "dtstart" is not null)
   )
 );
-create index if not exists "maintenance_plans_tenant_idx" on "app_private"."maintenance_plans" ("tenant_id", "status", "next_due_at");
-create index if not exists "maintenance_plans_asset_idx" on "app_private"."maintenance_plans" ("tenant_id", "asset_id");
-create index if not exists "maintenance_plans_meter_idx" on "app_private"."maintenance_plans" ("tenant_id", "meter_id");
-create index if not exists "maintenance_plans_work_order_idx" on "app_private"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
+create index "maintenance_plans_tenant_idx" on "app_private"."maintenance_plans" ("tenant_id", "status", "next_due_at");
+create index "maintenance_plans_asset_idx" on "app_private"."maintenance_plans" ("tenant_id", "asset_id");
+create index "maintenance_plans_meter_idx" on "app_private"."maintenance_plans" ("tenant_id", "meter_id");
+create index "maintenance_plans_work_order_idx" on "app_private"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
 alter table "app_private"."maintenance_plans" enable row level security;
 revoke all on "app_private"."maintenance_plans" from public, anon, authenticated;
 grant select on "app_private"."maintenance_plans" to authenticated;
 grant all on "app_private"."maintenance_plans" to service_role;
-drop policy if exists maintenance_plans_read on "app_private"."maintenance_plans";
 create policy maintenance_plans_read on "app_private"."maintenance_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 -- The spare parts a plan's work order carries, copied to it when it opens.
-create table if not exists "app_private"."maintenance_plan_parts" (
+create table "app_private"."maintenance_plan_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
@@ -2317,17 +2110,16 @@ create table if not exists "app_private"."maintenance_plan_parts" (
   "variant_id" uuid,
   foreign key ("tenant_id", "plan_id") references "app_private"."maintenance_plans" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "maintenance_plan_parts_plan_idx" on "app_private"."maintenance_plan_parts" ("tenant_id", "plan_id");
+create index "maintenance_plan_parts_plan_idx" on "app_private"."maintenance_plan_parts" ("tenant_id", "plan_id");
 alter table "app_private"."maintenance_plan_parts" enable row level security;
 revoke all on "app_private"."maintenance_plan_parts" from public, anon, authenticated;
 grant select on "app_private"."maintenance_plan_parts" to authenticated;
 grant all on "app_private"."maintenance_plan_parts" to service_role;
-drop policy if exists maintenance_plan_parts_read on "app_private"."maintenance_plan_parts";
 create policy maintenance_plan_parts_read on "app_private"."maintenance_plan_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "app_private"."maintenance_calibrations" (
+create table "app_private"."maintenance_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid,
@@ -2341,13 +2133,12 @@ create table if not exists "app_private"."maintenance_calibrations" (
   "qualifications" text[] not null default '{}',
   check ("due_at" is null or "due_at" >= "performed_at")
 );
-create index if not exists "maintenance_calibrations_asset_idx" on "app_private"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
-create index if not exists "maintenance_calibrations_due_idx" on "app_private"."maintenance_calibrations" ("tenant_id", "due_at");
+create index "maintenance_calibrations_asset_idx" on "app_private"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
+create index "maintenance_calibrations_due_idx" on "app_private"."maintenance_calibrations" ("tenant_id", "due_at");
 alter table "app_private"."maintenance_calibrations" enable row level security;
 revoke all on "app_private"."maintenance_calibrations" from public, anon, authenticated;
 grant select on "app_private"."maintenance_calibrations" to authenticated;
 grant all on "app_private"."maintenance_calibrations" to service_role;
-drop policy if exists maintenance_calibrations_read on "app_private"."maintenance_calibrations";
 create policy maintenance_calibrations_read on "app_private"."maintenance_calibrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
@@ -3050,7 +2841,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."maintenance_work_order_closed"() from public, anon, authenticated;
-drop trigger if exists bsb_maintenance_work_order on "better_supabase"."work_orders";
 create trigger bsb_maintenance_work_order after update of "status" on "better_supabase"."work_orders"
   for each row when (new."status"::text in ('done', 'cancelled') and old."status"::text is distinct from new."status"::text)
   execute function "app_private"."maintenance_work_order_closed"();
@@ -3058,108 +2848,83 @@ create trigger bsb_maintenance_work_order after update of "status" on "better_su
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."maintenance_plans";
-drop policy if exists bsb_tenant_scope_select on "app_private"."maintenance_plans";
 create policy bsb_tenant_scope_select on "app_private"."maintenance_plans" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."maintenance_plans";
 create policy bsb_tenant_scope_insert on "app_private"."maintenance_plans" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."maintenance_plans";
 create policy bsb_tenant_scope_update on "app_private"."maintenance_plans" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."maintenance_plans";
 create policy bsb_tenant_scope_delete on "app_private"."maintenance_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."maintenance_plan_parts";
-drop policy if exists bsb_tenant_scope_select on "app_private"."maintenance_plan_parts";
 create policy bsb_tenant_scope_select on "app_private"."maintenance_plan_parts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."maintenance_plan_parts";
 create policy bsb_tenant_scope_insert on "app_private"."maintenance_plan_parts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."maintenance_plan_parts";
 create policy bsb_tenant_scope_update on "app_private"."maintenance_plan_parts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."maintenance_plan_parts";
 create policy bsb_tenant_scope_delete on "app_private"."maintenance_plan_parts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."maintenance_meters";
-drop policy if exists bsb_tenant_scope_select on "app_private"."maintenance_meters";
 create policy bsb_tenant_scope_select on "app_private"."maintenance_meters" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."maintenance_meters";
 create policy bsb_tenant_scope_insert on "app_private"."maintenance_meters" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."maintenance_meters";
 create policy bsb_tenant_scope_update on "app_private"."maintenance_meters" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."maintenance_meters";
 create policy bsb_tenant_scope_delete on "app_private"."maintenance_meters" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."maintenance_meter_readings";
-drop policy if exists bsb_tenant_scope_select on "app_private"."maintenance_meter_readings";
 create policy bsb_tenant_scope_select on "app_private"."maintenance_meter_readings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."maintenance_meter_readings";
 create policy bsb_tenant_scope_insert on "app_private"."maintenance_meter_readings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."maintenance_meter_readings";
 create policy bsb_tenant_scope_update on "app_private"."maintenance_meter_readings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."maintenance_meter_readings";
 create policy bsb_tenant_scope_delete on "app_private"."maintenance_meter_readings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."maintenance_calibrations";
-drop policy if exists bsb_tenant_scope_select on "app_private"."maintenance_calibrations";
 create policy bsb_tenant_scope_select on "app_private"."maintenance_calibrations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."maintenance_calibrations";
 create policy bsb_tenant_scope_insert on "app_private"."maintenance_calibrations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."maintenance_calibrations";
 create policy bsb_tenant_scope_update on "app_private"."maintenance_calibrations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."maintenance_calibrations";
 create policy bsb_tenant_scope_delete on "app_private"."maintenance_calibrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3181,63 +2946,16 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:dc82fe1f705b56ab2d4a4c29990a471987b10e78618d5509bcaf746921109515
+-- @bsb-hash sha256:392ba51b024585c8ba6867844a016cfcaad4263c10e505d580f331aedcdbd236
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plans";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Preventive maintenance per organization: plans that fall due by time or by a
 -- meter, meter readings, calibration records, and the dispatch work orders the
 -- plans open.
 
-create table if not exists "better_supabase"."maintenance_meters" (
+create table "better_supabase"."maintenance_meters" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -3249,17 +2967,16 @@ create table if not exists "better_supabase"."maintenance_meters" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "maintenance_meters_asset_idx" on "better_supabase"."maintenance_meters" ("tenant_id", "asset_id");
+create index "maintenance_meters_asset_idx" on "better_supabase"."maintenance_meters" ("tenant_id", "asset_id");
 alter table "better_supabase"."maintenance_meters" enable row level security;
 revoke all on "better_supabase"."maintenance_meters" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meters" to authenticated;
 grant all on "better_supabase"."maintenance_meters" to service_role;
-drop policy if exists maintenance_meters_read on "better_supabase"."maintenance_meters";
 create policy maintenance_meters_read on "better_supabase"."maintenance_meters"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_meter_readings" (
+create table "better_supabase"."maintenance_meter_readings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meter_id" uuid not null,
@@ -3268,17 +2985,16 @@ create table if not exists "better_supabase"."maintenance_meter_readings" (
   "read_by" uuid,
   foreign key ("tenant_id", "meter_id") references "better_supabase"."maintenance_meters" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "maintenance_meter_readings_meter_idx" on "better_supabase"."maintenance_meter_readings" ("tenant_id", "meter_id", "read_at" desc);
+create index "maintenance_meter_readings_meter_idx" on "better_supabase"."maintenance_meter_readings" ("tenant_id", "meter_id", "read_at" desc);
 alter table "better_supabase"."maintenance_meter_readings" enable row level security;
 revoke all on "better_supabase"."maintenance_meter_readings" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meter_readings" to authenticated;
 grant all on "better_supabase"."maintenance_meter_readings" to service_role;
-drop policy if exists maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings";
 create policy maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_plans" (
+create table "better_supabase"."maintenance_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
@@ -3315,21 +3031,20 @@ create table if not exists "better_supabase"."maintenance_plans" (
     or ("kind" = 'rrule' and "every_days" is null and "meter_id" is null and "every_value" is null and "rrule" is not null and "dtstart" is not null)
   )
 );
-create index if not exists "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "status", "next_due_at");
-create index if not exists "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "asset_id");
-create index if not exists "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "meter_id");
-create index if not exists "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
+create index "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "status", "next_due_at");
+create index "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "asset_id");
+create index "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "meter_id");
+create index "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
 alter table "better_supabase"."maintenance_plans" enable row level security;
 revoke all on "better_supabase"."maintenance_plans" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plans" to authenticated;
 grant all on "better_supabase"."maintenance_plans" to service_role;
-drop policy if exists maintenance_plans_read on "better_supabase"."maintenance_plans";
 create policy maintenance_plans_read on "better_supabase"."maintenance_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 -- The spare parts a plan's work order carries, copied to it when it opens.
-create table if not exists "better_supabase"."maintenance_plan_parts" (
+create table "better_supabase"."maintenance_plan_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
@@ -3338,17 +3053,16 @@ create table if not exists "better_supabase"."maintenance_plan_parts" (
   "variant_id" uuid,
   foreign key ("tenant_id", "plan_id") references "better_supabase"."maintenance_plans" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "maintenance_plan_parts_plan_idx" on "better_supabase"."maintenance_plan_parts" ("tenant_id", "plan_id");
+create index "maintenance_plan_parts_plan_idx" on "better_supabase"."maintenance_plan_parts" ("tenant_id", "plan_id");
 alter table "better_supabase"."maintenance_plan_parts" enable row level security;
 revoke all on "better_supabase"."maintenance_plan_parts" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plan_parts" to authenticated;
 grant all on "better_supabase"."maintenance_plan_parts" to service_role;
-drop policy if exists maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts";
 create policy maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_calibrations" (
+create table "better_supabase"."maintenance_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid,
@@ -3362,13 +3076,12 @@ create table if not exists "better_supabase"."maintenance_calibrations" (
   "qualifications" text[] not null default '{}',
   check ("due_at" is null or "due_at" >= "performed_at")
 );
-create index if not exists "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
-create index if not exists "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
+create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
+create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
 alter table "better_supabase"."maintenance_calibrations" enable row level security;
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_calibrations" to authenticated;
 grant all on "better_supabase"."maintenance_calibrations" to service_role;
-drop policy if exists maintenance_calibrations_read on "better_supabase"."maintenance_calibrations";
 create policy maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
@@ -4071,7 +3784,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."maintenance_work_order_closed"() from public, anon, authenticated;
-drop trigger if exists bsb_maintenance_work_order on "better_supabase"."work_orders";
 create trigger bsb_maintenance_work_order after update of "status" on "better_supabase"."work_orders"
   for each row when (new."status"::text in ('done', 'cancelled') and old."status"::text is distinct from new."status"::text)
   execute function "better_supabase"."maintenance_work_order_closed"();
@@ -4079,108 +3791,83 @@ create trigger bsb_maintenance_work_order after update of "status" on "better_su
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plans";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_plans" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_plans" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_plans" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plan_parts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_meters" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_meters" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_meters" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_meters" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meter_readings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_calibrations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4309,57 +3996,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:207918e9398f4f0afe08735e75f6a7596cb1ac7b7269615c927e227cf9aa144c
+-- @bsb-hash sha256:234f0df74eaeca58a3cca00c68c42cba375c5a64b7512022d17552b4c113df98
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plans";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Preventive maintenance per organization: plans that fall due by time or by a
 -- meter, meter readings, calibration records, and the dispatch work orders the
@@ -4379,7 +4019,6 @@ create index if not exists "maintenance_meters_asset_idx" on "better_supabase"."
 alter table "better_supabase"."maintenance_meters" enable row level security;
 grant select on "better_supabase"."maintenance_meters" to authenticated;
 grant all on "better_supabase"."maintenance_meters" to service_role;
-drop policy if exists bsb_maintenance_meters_read on "better_supabase"."maintenance_meters";
 create policy bsb_maintenance_meters_read on "better_supabase"."maintenance_meters"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
@@ -4395,7 +4034,6 @@ create index if not exists "maintenance_meter_readings_meter_idx" on "better_sup
 alter table "better_supabase"."maintenance_meter_readings" enable row level security;
 grant select on "better_supabase"."maintenance_meter_readings" to authenticated;
 grant all on "better_supabase"."maintenance_meter_readings" to service_role;
-drop policy if exists bsb_maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings";
 create policy bsb_maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
@@ -4430,7 +4068,6 @@ create index if not exists "maintenance_plans_work_order_idx" on "better_supabas
 alter table "better_supabase"."maintenance_plans" enable row level security;
 grant select on "better_supabase"."maintenance_plans" to authenticated;
 grant all on "better_supabase"."maintenance_plans" to service_role;
-drop policy if exists bsb_maintenance_plans_read on "better_supabase"."maintenance_plans";
 create policy bsb_maintenance_plans_read on "better_supabase"."maintenance_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
@@ -4447,7 +4084,6 @@ create index if not exists "maintenance_plan_parts_plan_idx" on "better_supabase
 alter table "better_supabase"."maintenance_plan_parts" enable row level security;
 grant select on "better_supabase"."maintenance_plan_parts" to authenticated;
 grant all on "better_supabase"."maintenance_plan_parts" to service_role;
-drop policy if exists bsb_maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts";
 create policy bsb_maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
@@ -4468,7 +4104,6 @@ create index if not exists "maintenance_calibrations_due_idx" on "better_supabas
 alter table "better_supabase"."maintenance_calibrations" enable row level security;
 grant select on "better_supabase"."maintenance_calibrations" to authenticated;
 grant all on "better_supabase"."maintenance_calibrations" to service_role;
-drop policy if exists bsb_maintenance_calibrations_read on "better_supabase"."maintenance_calibrations";
 create policy bsb_maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
@@ -5171,7 +4806,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."maintenance_work_order_closed"() from public, anon, authenticated;
-drop trigger if exists bsb_maintenance_work_order on "better_supabase"."work_orders";
 create trigger bsb_maintenance_work_order after update of "status" on "better_supabase"."work_orders"
   for each row when (new."status"::text in ('done', 'cancelled') and old."status"::text is distinct from new."status"::text)
   execute function "better_supabase"."maintenance_work_order_closed"();
@@ -5179,108 +4813,83 @@ create trigger bsb_maintenance_work_order after update of "status" on "better_su
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plans";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_plans" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_plans" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_plans" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plan_parts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_meters" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_meters" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_meters" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_meters" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meter_readings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_calibrations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -5302,63 +4911,16 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:578a93f4091e541b5361ab3b03075f4e527dca263476710f45ca643da0b7d9e9
+-- @bsb-hash sha256:05f0b8dfbef972b2cd87635b3193d7f562dc7223fd3eb3517aafd7d6d9ad5e75
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plans";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plans";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Preventive maintenance per organization: plans that fall due by time or by a
 -- meter, meter readings, calibration records, and the dispatch work orders the
 -- plans open.
 
-create table if not exists "better_supabase"."maintenance_meters" (
+create table "better_supabase"."maintenance_meters" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -5370,17 +4932,16 @@ create table if not exists "better_supabase"."maintenance_meters" (
   "created_at" timestamptz not null default now(),
   unique ("org_id", "id")
 );
-create index if not exists "maintenance_meters_asset_idx" on "better_supabase"."maintenance_meters" ("org_id", "asset_id");
+create index "maintenance_meters_asset_idx" on "better_supabase"."maintenance_meters" ("org_id", "asset_id");
 alter table "better_supabase"."maintenance_meters" enable row level security;
 revoke all on "better_supabase"."maintenance_meters" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meters" to authenticated;
 grant all on "better_supabase"."maintenance_meters" to service_role;
-drop policy if exists maintenance_meters_read on "better_supabase"."maintenance_meters";
 create policy maintenance_meters_read on "better_supabase"."maintenance_meters"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_meter_readings" (
+create table "better_supabase"."maintenance_meter_readings" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "meter_id" uuid not null,
@@ -5389,17 +4950,16 @@ create table if not exists "better_supabase"."maintenance_meter_readings" (
   "read_by" uuid,
   foreign key ("org_id", "meter_id") references "better_supabase"."maintenance_meters" ("org_id", "id") on delete cascade
 );
-create index if not exists "maintenance_meter_readings_meter_idx" on "better_supabase"."maintenance_meter_readings" ("org_id", "meter_id", "read_at" desc);
+create index "maintenance_meter_readings_meter_idx" on "better_supabase"."maintenance_meter_readings" ("org_id", "meter_id", "read_at" desc);
 alter table "better_supabase"."maintenance_meter_readings" enable row level security;
 revoke all on "better_supabase"."maintenance_meter_readings" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meter_readings" to authenticated;
 grant all on "better_supabase"."maintenance_meter_readings" to service_role;
-drop policy if exists maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings";
 create policy maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_plans" (
+create table "better_supabase"."maintenance_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
@@ -5436,21 +4996,20 @@ create table if not exists "better_supabase"."maintenance_plans" (
     or ("kind" = 'rrule' and "every_days" is null and "meter_id" is null and "every_value" is null and "rrule" is not null and "dtstart" is not null)
   )
 );
-create index if not exists "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("org_id", "status", "next_due_at");
-create index if not exists "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("org_id", "asset_id");
-create index if not exists "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("org_id", "meter_id");
-create index if not exists "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
+create index "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("org_id", "status", "next_due_at");
+create index "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("org_id", "asset_id");
+create index "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("org_id", "meter_id");
+create index "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
 alter table "better_supabase"."maintenance_plans" enable row level security;
 revoke all on "better_supabase"."maintenance_plans" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plans" to authenticated;
 grant all on "better_supabase"."maintenance_plans" to service_role;
-drop policy if exists maintenance_plans_read on "better_supabase"."maintenance_plans";
 create policy maintenance_plans_read on "better_supabase"."maintenance_plans"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 -- The spare parts a plan's work order carries, copied to it when it opens.
-create table if not exists "better_supabase"."maintenance_plan_parts" (
+create table "better_supabase"."maintenance_plan_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "plan_id" uuid not null,
@@ -5459,17 +5018,16 @@ create table if not exists "better_supabase"."maintenance_plan_parts" (
   "variant_id" uuid,
   foreign key ("org_id", "plan_id") references "better_supabase"."maintenance_plans" ("org_id", "id") on delete cascade
 );
-create index if not exists "maintenance_plan_parts_plan_idx" on "better_supabase"."maintenance_plan_parts" ("org_id", "plan_id");
+create index "maintenance_plan_parts_plan_idx" on "better_supabase"."maintenance_plan_parts" ("org_id", "plan_id");
 alter table "better_supabase"."maintenance_plan_parts" enable row level security;
 revoke all on "better_supabase"."maintenance_plan_parts" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plan_parts" to authenticated;
 grant all on "better_supabase"."maintenance_plan_parts" to service_role;
-drop policy if exists maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts";
 create policy maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
-create table if not exists "better_supabase"."maintenance_calibrations" (
+create table "better_supabase"."maintenance_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "asset_id" uuid,
@@ -5483,13 +5041,12 @@ create table if not exists "better_supabase"."maintenance_calibrations" (
   "qualifications" text[] not null default '{}',
   check ("due_at" is null or "due_at" >= "performed_at")
 );
-create index if not exists "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("org_id", "asset_id", "performed_at" desc);
-create index if not exists "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("org_id", "due_at");
+create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("org_id", "asset_id", "performed_at" desc);
+create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("org_id", "due_at");
 alter table "better_supabase"."maintenance_calibrations" enable row level security;
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_calibrations" to authenticated;
 grant all on "better_supabase"."maintenance_calibrations" to service_role;
-drop policy if exists maintenance_calibrations_read on "better_supabase"."maintenance_calibrations";
 create policy maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
@@ -6192,7 +5749,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."maintenance_work_order_closed"() from public, anon, authenticated;
-drop trigger if exists bsb_maintenance_work_order on "better_supabase"."work_orders";
 create trigger bsb_maintenance_work_order after update of "status" on "better_supabase"."work_orders"
   for each row when (new."status"::text in ('done', 'cancelled') and old."status"::text is distinct from new."status"::text)
   execute function "better_supabase"."maintenance_work_order_closed"();
@@ -6200,108 +5756,83 @@ create trigger bsb_maintenance_work_order after update of "status" on "better_su
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plans";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_plans" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_plans" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_plans" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plans";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_plans" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_plan_parts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_plan_parts" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_plan_parts" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_plan_parts" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_plan_parts" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_meters" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_meters" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_meters" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meters";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_meters" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_meter_readings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_meter_readings" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_meter_readings" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_meter_readings" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_meter_readings" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."maintenance_calibrations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_select on "better_supabase"."maintenance_calibrations" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_insert on "better_supabase"."maintenance_calibrations" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_update on "better_supabase"."maintenance_calibrations" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations";
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

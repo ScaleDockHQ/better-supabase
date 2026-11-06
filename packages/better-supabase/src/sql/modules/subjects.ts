@@ -694,8 +694,8 @@ ${userGrant(`${fn("subject_presence_allowed")}(text)`)}
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: check }), { drop: true, target: "realtime.messages" })}
-        ${renderPolicy(makePolicy({ table: "realtime.messages", name: send, command: "insert", roles: ["authenticated"], check }), { drop: true, target: "realtime.messages" })}
+        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: check }), { target: "realtime.messages" })}
+        ${renderPolicy(makePolicy({ table: "realtime.messages", name: send, command: "insert", roles: ["authenticated"], check }), { target: "realtime.messages" })}
   end if;
 end;
 $$;

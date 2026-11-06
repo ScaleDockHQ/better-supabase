@@ -202,7 +202,7 @@ alter table ${p.resources} add column if not exists ${r("host")} uuid;
 alter table ${p.resources} add column if not exists ${r("checkBusy")} boolean not null default false;
 ${lockTable(p.resources, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("resources").name}_tenant_idx`)} on ${p.resources} (${r("tenant")});
-${renderPolicy(makePolicy({ table: p.resources, name: ctx.naming.rename("booking_resources_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(r("tenant"), p.read)} or ${ctx.scope.check(r("tenant"), p.create)}` }), { drop: true, target: p.resources })}
+${renderPolicy(makePolicy({ table: p.resources, name: ctx.naming.rename("booking_resources_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(r("tenant"), p.read)} or ${ctx.scope.check(r("tenant"), p.create)}` }), { target: p.resources })}
 create table if not exists ${p.availability} (
   ${av("id")} uuid primary key default gen_random_uuid(),
   ${av("tenant")} ${ctx.idType} not null,
@@ -214,7 +214,7 @@ create table if not exists ${p.availability} (
 );
 create index if not exists ${ctx.naming.rename("booking_availability_resource_idx")} on ${p.availability} (${av("resource")}, ${av("weekday")});
 ${lockTable(p.availability, { read: true })}
-${renderPolicy(makePolicy({ table: p.availability, name: ctx.naming.rename("booking_availability_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(av("tenant"), p.read)} or ${ctx.scope.check(av("tenant"), p.create)}` }), { drop: true, target: p.availability })}
+${renderPolicy(makePolicy({ table: p.availability, name: ctx.naming.rename("booking_availability_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(av("tenant"), p.read)} or ${ctx.scope.check(av("tenant"), p.create)}` }), { target: p.availability })}
 create table if not exists ${p.exceptions} (
   ${x("id")} uuid primary key default gen_random_uuid(),
   ${x("tenant")} ${ctx.idType} not null,
@@ -225,7 +225,7 @@ create table if not exists ${p.exceptions} (
 );
 create index if not exists ${ctx.naming.rename("booking_exceptions_resource_idx")} on ${p.exceptions} using gist (${x("resource")}, ${x("during")});
 ${lockTable(p.exceptions, { read: true })}
-${renderPolicy(makePolicy({ table: p.exceptions, name: ctx.naming.rename("booking_exceptions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(x("tenant"), p.read) }), { drop: true, target: p.exceptions })}
+${renderPolicy(makePolicy({ table: p.exceptions, name: ctx.naming.rename("booking_exceptions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(x("tenant"), p.read) }), { target: p.exceptions })}
 create table if not exists ${p.services} (
   ${s("id")} uuid primary key default gen_random_uuid(),
   ${s("tenant")} ${ctx.idType} not null,
@@ -243,7 +243,7 @@ create table if not exists ${p.services} (
 );
 ${lockTable(p.services, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("services").name}_tenant_idx`)} on ${p.services} (${s("tenant")});
-${renderPolicy(makePolicy({ table: p.services, name: ctx.naming.rename("booking_services_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), p.read)} or ${ctx.scope.check(s("tenant"), p.create)}` }), { drop: true, target: p.services })}
+${renderPolicy(makePolicy({ table: p.services, name: ctx.naming.rename("booking_services_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), p.read)} or ${ctx.scope.check(s("tenant"), p.create)}` }), { target: p.services })}
 create table if not exists ${p.bookings} (
   ${b("id")} uuid primary key default gen_random_uuid(),
   ${b("tenant")} ${ctx.idType} not null,
@@ -278,7 +278,7 @@ create index if not exists ${ctx.naming.rename("bookings_resource_idx")} on ${p.
 create index if not exists ${ctx.naming.rename("bookings_service_idx")} on ${p.bookings} (${b("service")});
 create index if not exists ${ctx.naming.rename("bookings_hold_idx")} on ${p.bookings} (${b("holdExpiresAt")}) where ${b("status")} = 'hold';${addExtraColumns(p.bookings, p.extras)}
 ${lockTable(p.bookings, { read: true })}
-${renderPolicy(makePolicy({ table: p.bookings, name: ctx.naming.rename("bookings_read"), command: "select", roles: ["authenticated"], using: guestOr(`${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid())`, [ctx.scope.guest(b("tenant"), "'booking'", `${b("id")}::text`, "read")]) }), { drop: true, target: p.bookings })}
+${renderPolicy(makePolicy({ table: p.bookings, name: ctx.naming.rename("bookings_read"), command: "select", roles: ["authenticated"], using: guestOr(`${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid())`, [ctx.scope.guest(b("tenant"), "'booking'", `${b("id")}::text`, "read")]) }), { target: p.bookings })}
 ${recurringOn(ctx) ? seriesTables(p) : ""}`;
 }
 

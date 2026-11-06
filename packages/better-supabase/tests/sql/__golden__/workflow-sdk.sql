@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:9771fa539ef1395cadcafaafd7636122f8a38d6d1e8bd049ec60e616e8b4e98c
+-- @bsb-hash sha256:eb072e444fc2a8beee03323f4edbf597cc495871f3f819ecba80458166aa9ea8
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,17 +26,13 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
-create table if not exists workflow.workflow_event_slots (
+create table workflow.workflow_event_slots (
   "run_id" character varying not null,
   "seq_in_band" integer not null default 1,
   constraint "workflow_event_slots_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_event_slots
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "seq_in_band" integer not null default 1;
-
-create table if not exists workflow.workflow_events (
+create table workflow.workflow_events (
   "id" character varying not null,
   "type" character varying not null,
   "correlation_id" character varying,
@@ -50,25 +46,13 @@ create table if not exists workflow.workflow_events (
   constraint "workflow_events_run_id_id_pk" PRIMARY KEY (run_id, id)
 );
 
-alter table workflow.workflow_events
-  add column if not exists "id" character varying not null,
-  add column if not exists "type" character varying not null,
-  add column if not exists "correlation_id" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "payload" jsonb,
-  add column if not exists "payload_cbor" bytea,
-  add column if not exists "spec_version" integer,
-  add column if not exists "resume_id" character varying,
-  add column if not exists "resume_payload_digest" character varying;
+create index workflow_events_correlation_id_index ON workflow.workflow_events USING btree (correlation_id);
 
-create index if not exists workflow_events_correlation_id_index ON workflow.workflow_events USING btree (correlation_id);
+create unique index workflow_events_entity_creation_unique ON workflow.workflow_events USING btree (run_id, correlation_id, type) WHERE ((type)::text = ANY ((ARRAY['step_created'::character varying, 'hook_created'::character varying, 'wait_created'::character varying, 'attr_set'::character varying])::text[]));
 
-create unique index if not exists workflow_events_entity_creation_unique ON workflow.workflow_events USING btree (run_id, correlation_id, type) WHERE ((type)::text = ANY ((ARRAY['step_created'::character varying, 'hook_created'::character varying, 'wait_created'::character varying, 'attr_set'::character varying])::text[]));
+create unique index workflow_events_hook_resume_unique ON workflow.workflow_events USING btree (run_id, resume_id) WHERE (((type)::text = 'hook_received'::text) AND (resume_id IS NOT NULL));
 
-create unique index if not exists workflow_events_hook_resume_unique ON workflow.workflow_events USING btree (run_id, resume_id) WHERE (((type)::text = 'hook_received'::text) AND (resume_id IS NOT NULL));
-
-create table if not exists workflow.workflow_hooks (
+create table workflow.workflow_hooks (
   "run_id" character varying not null,
   "hook_id" character varying not null,
   "token" character varying not null,
@@ -88,31 +72,13 @@ create table if not exists workflow.workflow_hooks (
   constraint "workflow_hooks_pkey" PRIMARY KEY (hook_id)
 );
 
-alter table workflow.workflow_hooks
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "hook_id" character varying not null,
-  add column if not exists "token" character varying not null,
-  add column if not exists "owner_id" character varying not null,
-  add column if not exists "project_id" character varying not null,
-  add column if not exists "environment" character varying not null,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "metadata" jsonb,
-  add column if not exists "metadata_cbor" bytea,
-  add column if not exists "spec_version" integer,
-  add column if not exists "is_webhook" boolean default true,
-  add column if not exists "is_system" boolean default false,
-  add column if not exists "resume_context" bytea,
-  add column if not exists "token_retention_until" timestamp with time zone,
-  add column if not exists "claimed_from" bytea,
-  add column if not exists "claims_token" boolean not null default false;
+create index workflow_hooks_run_id_index ON workflow.workflow_hooks USING btree (run_id);
 
-create index if not exists workflow_hooks_run_id_index ON workflow.workflow_hooks USING btree (run_id);
+create unique index workflow_hooks_token_claim_unique ON workflow.workflow_hooks USING btree (token) WHERE claims_token;
 
-create unique index if not exists workflow_hooks_token_claim_unique ON workflow.workflow_hooks USING btree (token) WHERE claims_token;
+create index workflow_hooks_token_index ON workflow.workflow_hooks USING btree (token);
 
-create index if not exists workflow_hooks_token_index ON workflow.workflow_hooks USING btree (token);
-
-create table if not exists workflow.workflow_invocations (
+create table workflow.workflow_invocations (
   "sequence" bigserial,
   "run_id" character varying not null,
   "request_id" character varying not null,
@@ -126,21 +92,9 @@ create table if not exists workflow.workflow_invocations (
   constraint "workflow_invocations_pkey" PRIMARY KEY (run_id, request_id)
 );
 
-alter table workflow.workflow_invocations
-  add column if not exists "sequence" bigserial,
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "request_id" character varying not null,
-  add column if not exists "payload" bytea,
-  add column if not exists "fingerprint" character varying,
-  add column if not exists "result" bytea,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "responded_at" timestamp with time zone,
-  add column if not exists "expired_at" timestamp with time zone,
-  add column if not exists "result_version" integer not null default 0;
+create index workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
 
-create index if not exists workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
-
-create table if not exists workflow.workflow_runs (
+create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
   "deployment_id" character varying not null,
@@ -168,37 +122,11 @@ create table if not exists workflow.workflow_runs (
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
-alter table workflow.workflow_runs
-  add column if not exists "id" character varying not null,
-  add column if not exists "output" jsonb,
-  add column if not exists "deployment_id" character varying not null,
-  add column if not exists "status" workflow.status not null,
-  add column if not exists "name" character varying not null,
-  add column if not exists "execution_context" jsonb,
-  add column if not exists "input" jsonb,
-  add column if not exists "error" text,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "started_at" timestamp with time zone,
-  add column if not exists "output_cbor" bytea,
-  add column if not exists "execution_context_cbor" bytea,
-  add column if not exists "input_cbor" bytea,
-  add column if not exists "expired_at" timestamp with time zone,
-  add column if not exists "spec_version" character varying,
-  add column if not exists "error_cbor" bytea,
-  add column if not exists "error_code" character varying,
-  add column if not exists "attributes" jsonb not null default '{}'::jsonb,
-  add column if not exists "encryption_public_key" character varying,
-  add column if not exists "dynamic_workflow_code_cbor" bytea,
-  add column if not exists "start_hook_cbor" bytea,
-  add column if not exists "job_prefix" character varying;
+create index workflow_runs_name_index ON workflow.workflow_runs USING btree (name);
 
-create index if not exists workflow_runs_name_index ON workflow.workflow_runs USING btree (name);
+create index workflow_runs_status_index ON workflow.workflow_runs USING btree (status);
 
-create index if not exists workflow_runs_status_index ON workflow.workflow_runs USING btree (status);
-
-create table if not exists workflow.workflow_snapshots (
+create table workflow.workflow_snapshots (
   "run_id" character varying not null,
   "data" bytea not null,
   "events_cursor" character varying,
@@ -206,13 +134,7 @@ create table if not exists workflow.workflow_snapshots (
   constraint "workflow_snapshots_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_snapshots
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "data" bytea not null,
-  add column if not exists "events_cursor" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now();
-
-create table if not exists workflow.workflow_start_hook_admissions (
+create table workflow.workflow_start_hook_admissions (
   "run_id" character varying not null,
   "token" character varying not null,
   "decision" character varying not null,
@@ -221,16 +143,9 @@ create table if not exists workflow.workflow_start_hook_admissions (
   constraint "workflow_start_hook_admissions_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_start_hook_admissions
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "token" character varying not null,
-  add column if not exists "decision" character varying not null,
-  add column if not exists "conflicting_run_id" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now();
+create index workflow_start_hook_admissions_created_at_index ON workflow.workflow_start_hook_admissions USING btree (created_at);
 
-create index if not exists workflow_start_hook_admissions_created_at_index ON workflow.workflow_start_hook_admissions USING btree (created_at);
-
-create table if not exists workflow.workflow_steps (
+create table workflow.workflow_steps (
   "run_id" character varying not null,
   "step_id" character varying not null,
   "step_name" character varying not null,
@@ -251,30 +166,11 @@ create table if not exists workflow.workflow_steps (
   constraint "workflow_steps_pkey" PRIMARY KEY (step_id)
 );
 
-alter table workflow.workflow_steps
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "step_id" character varying not null,
-  add column if not exists "step_name" character varying not null,
-  add column if not exists "status" workflow.step_status not null,
-  add column if not exists "input" jsonb,
-  add column if not exists "output" jsonb,
-  add column if not exists "error" text,
-  add column if not exists "attempt" integer not null,
-  add column if not exists "started_at" timestamp with time zone,
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "retry_after" timestamp with time zone,
-  add column if not exists "input_cbor" bytea,
-  add column if not exists "output_cbor" bytea,
-  add column if not exists "error_cbor" bytea,
-  add column if not exists "spec_version" integer;
+create index workflow_steps_run_id_index ON workflow.workflow_steps USING btree (run_id);
 
-create index if not exists workflow_steps_run_id_index ON workflow.workflow_steps USING btree (run_id);
+create index workflow_steps_status_index ON workflow.workflow_steps USING btree (status);
 
-create index if not exists workflow_steps_status_index ON workflow.workflow_steps USING btree (status);
-
-create table if not exists workflow.workflow_stream_chunks (
+create table workflow.workflow_stream_chunks (
   "id" character varying not null,
   "stream_id" character varying not null,
   "data" bytea not null,
@@ -284,17 +180,9 @@ create table if not exists workflow.workflow_stream_chunks (
   constraint "workflow_stream_chunks_stream_id_id_pk" PRIMARY KEY (stream_id, id)
 );
 
-alter table workflow.workflow_stream_chunks
-  add column if not exists "id" character varying not null,
-  add column if not exists "stream_id" character varying not null,
-  add column if not exists "data" bytea not null,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "eof" boolean not null,
-  add column if not exists "run_id" character varying;
+create index workflow_stream_chunks_run_id_index ON workflow.workflow_stream_chunks USING btree (run_id);
 
-create index if not exists workflow_stream_chunks_run_id_index ON workflow.workflow_stream_chunks USING btree (run_id);
-
-create table if not exists workflow.workflow_waits (
+create table workflow.workflow_waits (
   "wait_id" character varying not null,
   "run_id" character varying not null,
   "status" workflow.wait_status not null,
@@ -306,17 +194,7 @@ create table if not exists workflow.workflow_waits (
   constraint "workflow_waits_pkey" PRIMARY KEY (wait_id)
 );
 
-alter table workflow.workflow_waits
-  add column if not exists "wait_id" character varying not null,
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "status" workflow.wait_status not null,
-  add column if not exists "resume_at" timestamp with time zone,
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "spec_version" integer;
-
-create index if not exists workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
+create index workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
 
 -- world-postgres 5.1 stores timestamptz; 5.0 tables hold UTC timestamps.
 do $$
@@ -334,12 +212,12 @@ $$;
 -- One row per start idempotency key: startFor claims the key before it starts
 -- a run, so two concurrent starts with one key start one run. run_id is null
 -- while the start that claimed it is still running.
-create table if not exists workflow.workflow_run_keys (
+create table workflow.workflow_run_keys (
   key text primary key check (length(key) >= 1 and length(key) <= 500),
   run_id character varying,
   claimed_at timestamptz not null default now()
 );
-create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 do $$
@@ -357,7 +235,7 @@ begin
 end;
 $$;
 grant usage, select on all sequences in schema workflow to service_role;
-create index if not exists workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
+create index workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
 
 -- Copies each World run into workflow_runs: its tenant and actor come from
 -- the bsb.tenant and bsb.actor attributes that startFor sets. A run with an
@@ -429,7 +307,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_sdk_mirror_run"() from public, anon, authenticated;
-drop trigger if exists "bsb_workflow_sdk_runs_mirror" on workflow.workflow_runs;
 create trigger "bsb_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
   for each row execute function "better_supabase"."workflow_sdk_mirror_run"();
 
@@ -637,7 +514,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:9771fa539ef1395cadcafaafd7636122f8a38d6d1e8bd049ec60e616e8b4e98c
+-- @bsb-hash sha256:eb072e444fc2a8beee03323f4edbf597cc495871f3f819ecba80458166aa9ea8
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -662,17 +539,13 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
-create table if not exists workflow.workflow_event_slots (
+create table workflow.workflow_event_slots (
   "run_id" character varying not null,
   "seq_in_band" integer not null default 1,
   constraint "workflow_event_slots_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_event_slots
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "seq_in_band" integer not null default 1;
-
-create table if not exists workflow.workflow_events (
+create table workflow.workflow_events (
   "id" character varying not null,
   "type" character varying not null,
   "correlation_id" character varying,
@@ -686,25 +559,13 @@ create table if not exists workflow.workflow_events (
   constraint "workflow_events_run_id_id_pk" PRIMARY KEY (run_id, id)
 );
 
-alter table workflow.workflow_events
-  add column if not exists "id" character varying not null,
-  add column if not exists "type" character varying not null,
-  add column if not exists "correlation_id" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "payload" jsonb,
-  add column if not exists "payload_cbor" bytea,
-  add column if not exists "spec_version" integer,
-  add column if not exists "resume_id" character varying,
-  add column if not exists "resume_payload_digest" character varying;
+create index workflow_events_correlation_id_index ON workflow.workflow_events USING btree (correlation_id);
 
-create index if not exists workflow_events_correlation_id_index ON workflow.workflow_events USING btree (correlation_id);
+create unique index workflow_events_entity_creation_unique ON workflow.workflow_events USING btree (run_id, correlation_id, type) WHERE ((type)::text = ANY ((ARRAY['step_created'::character varying, 'hook_created'::character varying, 'wait_created'::character varying, 'attr_set'::character varying])::text[]));
 
-create unique index if not exists workflow_events_entity_creation_unique ON workflow.workflow_events USING btree (run_id, correlation_id, type) WHERE ((type)::text = ANY ((ARRAY['step_created'::character varying, 'hook_created'::character varying, 'wait_created'::character varying, 'attr_set'::character varying])::text[]));
+create unique index workflow_events_hook_resume_unique ON workflow.workflow_events USING btree (run_id, resume_id) WHERE (((type)::text = 'hook_received'::text) AND (resume_id IS NOT NULL));
 
-create unique index if not exists workflow_events_hook_resume_unique ON workflow.workflow_events USING btree (run_id, resume_id) WHERE (((type)::text = 'hook_received'::text) AND (resume_id IS NOT NULL));
-
-create table if not exists workflow.workflow_hooks (
+create table workflow.workflow_hooks (
   "run_id" character varying not null,
   "hook_id" character varying not null,
   "token" character varying not null,
@@ -724,31 +585,13 @@ create table if not exists workflow.workflow_hooks (
   constraint "workflow_hooks_pkey" PRIMARY KEY (hook_id)
 );
 
-alter table workflow.workflow_hooks
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "hook_id" character varying not null,
-  add column if not exists "token" character varying not null,
-  add column if not exists "owner_id" character varying not null,
-  add column if not exists "project_id" character varying not null,
-  add column if not exists "environment" character varying not null,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "metadata" jsonb,
-  add column if not exists "metadata_cbor" bytea,
-  add column if not exists "spec_version" integer,
-  add column if not exists "is_webhook" boolean default true,
-  add column if not exists "is_system" boolean default false,
-  add column if not exists "resume_context" bytea,
-  add column if not exists "token_retention_until" timestamp with time zone,
-  add column if not exists "claimed_from" bytea,
-  add column if not exists "claims_token" boolean not null default false;
+create index workflow_hooks_run_id_index ON workflow.workflow_hooks USING btree (run_id);
 
-create index if not exists workflow_hooks_run_id_index ON workflow.workflow_hooks USING btree (run_id);
+create unique index workflow_hooks_token_claim_unique ON workflow.workflow_hooks USING btree (token) WHERE claims_token;
 
-create unique index if not exists workflow_hooks_token_claim_unique ON workflow.workflow_hooks USING btree (token) WHERE claims_token;
+create index workflow_hooks_token_index ON workflow.workflow_hooks USING btree (token);
 
-create index if not exists workflow_hooks_token_index ON workflow.workflow_hooks USING btree (token);
-
-create table if not exists workflow.workflow_invocations (
+create table workflow.workflow_invocations (
   "sequence" bigserial,
   "run_id" character varying not null,
   "request_id" character varying not null,
@@ -762,21 +605,9 @@ create table if not exists workflow.workflow_invocations (
   constraint "workflow_invocations_pkey" PRIMARY KEY (run_id, request_id)
 );
 
-alter table workflow.workflow_invocations
-  add column if not exists "sequence" bigserial,
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "request_id" character varying not null,
-  add column if not exists "payload" bytea,
-  add column if not exists "fingerprint" character varying,
-  add column if not exists "result" bytea,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "responded_at" timestamp with time zone,
-  add column if not exists "expired_at" timestamp with time zone,
-  add column if not exists "result_version" integer not null default 0;
+create index workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
 
-create index if not exists workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
-
-create table if not exists workflow.workflow_runs (
+create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
   "deployment_id" character varying not null,
@@ -804,37 +635,11 @@ create table if not exists workflow.workflow_runs (
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
-alter table workflow.workflow_runs
-  add column if not exists "id" character varying not null,
-  add column if not exists "output" jsonb,
-  add column if not exists "deployment_id" character varying not null,
-  add column if not exists "status" workflow.status not null,
-  add column if not exists "name" character varying not null,
-  add column if not exists "execution_context" jsonb,
-  add column if not exists "input" jsonb,
-  add column if not exists "error" text,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "started_at" timestamp with time zone,
-  add column if not exists "output_cbor" bytea,
-  add column if not exists "execution_context_cbor" bytea,
-  add column if not exists "input_cbor" bytea,
-  add column if not exists "expired_at" timestamp with time zone,
-  add column if not exists "spec_version" character varying,
-  add column if not exists "error_cbor" bytea,
-  add column if not exists "error_code" character varying,
-  add column if not exists "attributes" jsonb not null default '{}'::jsonb,
-  add column if not exists "encryption_public_key" character varying,
-  add column if not exists "dynamic_workflow_code_cbor" bytea,
-  add column if not exists "start_hook_cbor" bytea,
-  add column if not exists "job_prefix" character varying;
+create index workflow_runs_name_index ON workflow.workflow_runs USING btree (name);
 
-create index if not exists workflow_runs_name_index ON workflow.workflow_runs USING btree (name);
+create index workflow_runs_status_index ON workflow.workflow_runs USING btree (status);
 
-create index if not exists workflow_runs_status_index ON workflow.workflow_runs USING btree (status);
-
-create table if not exists workflow.workflow_snapshots (
+create table workflow.workflow_snapshots (
   "run_id" character varying not null,
   "data" bytea not null,
   "events_cursor" character varying,
@@ -842,13 +647,7 @@ create table if not exists workflow.workflow_snapshots (
   constraint "workflow_snapshots_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_snapshots
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "data" bytea not null,
-  add column if not exists "events_cursor" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now();
-
-create table if not exists workflow.workflow_start_hook_admissions (
+create table workflow.workflow_start_hook_admissions (
   "run_id" character varying not null,
   "token" character varying not null,
   "decision" character varying not null,
@@ -857,16 +656,9 @@ create table if not exists workflow.workflow_start_hook_admissions (
   constraint "workflow_start_hook_admissions_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_start_hook_admissions
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "token" character varying not null,
-  add column if not exists "decision" character varying not null,
-  add column if not exists "conflicting_run_id" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now();
+create index workflow_start_hook_admissions_created_at_index ON workflow.workflow_start_hook_admissions USING btree (created_at);
 
-create index if not exists workflow_start_hook_admissions_created_at_index ON workflow.workflow_start_hook_admissions USING btree (created_at);
-
-create table if not exists workflow.workflow_steps (
+create table workflow.workflow_steps (
   "run_id" character varying not null,
   "step_id" character varying not null,
   "step_name" character varying not null,
@@ -887,30 +679,11 @@ create table if not exists workflow.workflow_steps (
   constraint "workflow_steps_pkey" PRIMARY KEY (step_id)
 );
 
-alter table workflow.workflow_steps
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "step_id" character varying not null,
-  add column if not exists "step_name" character varying not null,
-  add column if not exists "status" workflow.step_status not null,
-  add column if not exists "input" jsonb,
-  add column if not exists "output" jsonb,
-  add column if not exists "error" text,
-  add column if not exists "attempt" integer not null,
-  add column if not exists "started_at" timestamp with time zone,
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "retry_after" timestamp with time zone,
-  add column if not exists "input_cbor" bytea,
-  add column if not exists "output_cbor" bytea,
-  add column if not exists "error_cbor" bytea,
-  add column if not exists "spec_version" integer;
+create index workflow_steps_run_id_index ON workflow.workflow_steps USING btree (run_id);
 
-create index if not exists workflow_steps_run_id_index ON workflow.workflow_steps USING btree (run_id);
+create index workflow_steps_status_index ON workflow.workflow_steps USING btree (status);
 
-create index if not exists workflow_steps_status_index ON workflow.workflow_steps USING btree (status);
-
-create table if not exists workflow.workflow_stream_chunks (
+create table workflow.workflow_stream_chunks (
   "id" character varying not null,
   "stream_id" character varying not null,
   "data" bytea not null,
@@ -920,17 +693,9 @@ create table if not exists workflow.workflow_stream_chunks (
   constraint "workflow_stream_chunks_stream_id_id_pk" PRIMARY KEY (stream_id, id)
 );
 
-alter table workflow.workflow_stream_chunks
-  add column if not exists "id" character varying not null,
-  add column if not exists "stream_id" character varying not null,
-  add column if not exists "data" bytea not null,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "eof" boolean not null,
-  add column if not exists "run_id" character varying;
+create index workflow_stream_chunks_run_id_index ON workflow.workflow_stream_chunks USING btree (run_id);
 
-create index if not exists workflow_stream_chunks_run_id_index ON workflow.workflow_stream_chunks USING btree (run_id);
-
-create table if not exists workflow.workflow_waits (
+create table workflow.workflow_waits (
   "wait_id" character varying not null,
   "run_id" character varying not null,
   "status" workflow.wait_status not null,
@@ -942,17 +707,7 @@ create table if not exists workflow.workflow_waits (
   constraint "workflow_waits_pkey" PRIMARY KEY (wait_id)
 );
 
-alter table workflow.workflow_waits
-  add column if not exists "wait_id" character varying not null,
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "status" workflow.wait_status not null,
-  add column if not exists "resume_at" timestamp with time zone,
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "spec_version" integer;
-
-create index if not exists workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
+create index workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
 
 -- world-postgres 5.1 stores timestamptz; 5.0 tables hold UTC timestamps.
 do $$
@@ -970,12 +725,12 @@ $$;
 -- One row per start idempotency key: startFor claims the key before it starts
 -- a run, so two concurrent starts with one key start one run. run_id is null
 -- while the start that claimed it is still running.
-create table if not exists workflow.workflow_run_keys (
+create table workflow.workflow_run_keys (
   key text primary key check (length(key) >= 1 and length(key) <= 500),
   run_id character varying,
   claimed_at timestamptz not null default now()
 );
-create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 do $$
@@ -993,7 +748,7 @@ begin
 end;
 $$;
 grant usage, select on all sequences in schema workflow to service_role;
-create index if not exists workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
+create index workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
 
 -- Copies each World run into workflow_runs: its tenant and actor come from
 -- the bsb.tenant and bsb.actor attributes that startFor sets. A run with an
@@ -1065,7 +820,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_sdk_mirror_run"() from public, anon, authenticated;
-drop trigger if exists "bsb_workflow_sdk_runs_mirror" on workflow.workflow_runs;
 create trigger "bsb_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
   for each row execute function "better_supabase"."workflow_sdk_mirror_run"();
 
@@ -1273,7 +1027,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:9b8df80cac0bfbba0d1c76b314529f4ea2013e959f2530e61c8f5b482a38dc47
+-- @bsb-hash sha256:97065a8b263ce2fcdf4812c02cda3fcadfd863907f5da4cde719706ee658e937
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1303,17 +1057,13 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
-create table if not exists workflow.workflow_event_slots (
+create table workflow.workflow_event_slots (
   "run_id" character varying not null,
   "seq_in_band" integer not null default 1,
   constraint "workflow_event_slots_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_event_slots
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "seq_in_band" integer not null default 1;
-
-create table if not exists workflow.workflow_events (
+create table workflow.workflow_events (
   "id" character varying not null,
   "type" character varying not null,
   "correlation_id" character varying,
@@ -1327,25 +1077,13 @@ create table if not exists workflow.workflow_events (
   constraint "workflow_events_run_id_id_pk" PRIMARY KEY (run_id, id)
 );
 
-alter table workflow.workflow_events
-  add column if not exists "id" character varying not null,
-  add column if not exists "type" character varying not null,
-  add column if not exists "correlation_id" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "payload" jsonb,
-  add column if not exists "payload_cbor" bytea,
-  add column if not exists "spec_version" integer,
-  add column if not exists "resume_id" character varying,
-  add column if not exists "resume_payload_digest" character varying;
+create index workflow_events_correlation_id_index ON workflow.workflow_events USING btree (correlation_id);
 
-create index if not exists workflow_events_correlation_id_index ON workflow.workflow_events USING btree (correlation_id);
+create unique index workflow_events_entity_creation_unique ON workflow.workflow_events USING btree (run_id, correlation_id, type) WHERE ((type)::text = ANY ((ARRAY['step_created'::character varying, 'hook_created'::character varying, 'wait_created'::character varying, 'attr_set'::character varying])::text[]));
 
-create unique index if not exists workflow_events_entity_creation_unique ON workflow.workflow_events USING btree (run_id, correlation_id, type) WHERE ((type)::text = ANY ((ARRAY['step_created'::character varying, 'hook_created'::character varying, 'wait_created'::character varying, 'attr_set'::character varying])::text[]));
+create unique index workflow_events_hook_resume_unique ON workflow.workflow_events USING btree (run_id, resume_id) WHERE (((type)::text = 'hook_received'::text) AND (resume_id IS NOT NULL));
 
-create unique index if not exists workflow_events_hook_resume_unique ON workflow.workflow_events USING btree (run_id, resume_id) WHERE (((type)::text = 'hook_received'::text) AND (resume_id IS NOT NULL));
-
-create table if not exists workflow.workflow_hooks (
+create table workflow.workflow_hooks (
   "run_id" character varying not null,
   "hook_id" character varying not null,
   "token" character varying not null,
@@ -1365,31 +1103,13 @@ create table if not exists workflow.workflow_hooks (
   constraint "workflow_hooks_pkey" PRIMARY KEY (hook_id)
 );
 
-alter table workflow.workflow_hooks
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "hook_id" character varying not null,
-  add column if not exists "token" character varying not null,
-  add column if not exists "owner_id" character varying not null,
-  add column if not exists "project_id" character varying not null,
-  add column if not exists "environment" character varying not null,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "metadata" jsonb,
-  add column if not exists "metadata_cbor" bytea,
-  add column if not exists "spec_version" integer,
-  add column if not exists "is_webhook" boolean default true,
-  add column if not exists "is_system" boolean default false,
-  add column if not exists "resume_context" bytea,
-  add column if not exists "token_retention_until" timestamp with time zone,
-  add column if not exists "claimed_from" bytea,
-  add column if not exists "claims_token" boolean not null default false;
+create index workflow_hooks_run_id_index ON workflow.workflow_hooks USING btree (run_id);
 
-create index if not exists workflow_hooks_run_id_index ON workflow.workflow_hooks USING btree (run_id);
+create unique index workflow_hooks_token_claim_unique ON workflow.workflow_hooks USING btree (token) WHERE claims_token;
 
-create unique index if not exists workflow_hooks_token_claim_unique ON workflow.workflow_hooks USING btree (token) WHERE claims_token;
+create index workflow_hooks_token_index ON workflow.workflow_hooks USING btree (token);
 
-create index if not exists workflow_hooks_token_index ON workflow.workflow_hooks USING btree (token);
-
-create table if not exists workflow.workflow_invocations (
+create table workflow.workflow_invocations (
   "sequence" bigserial,
   "run_id" character varying not null,
   "request_id" character varying not null,
@@ -1403,21 +1123,9 @@ create table if not exists workflow.workflow_invocations (
   constraint "workflow_invocations_pkey" PRIMARY KEY (run_id, request_id)
 );
 
-alter table workflow.workflow_invocations
-  add column if not exists "sequence" bigserial,
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "request_id" character varying not null,
-  add column if not exists "payload" bytea,
-  add column if not exists "fingerprint" character varying,
-  add column if not exists "result" bytea,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "responded_at" timestamp with time zone,
-  add column if not exists "expired_at" timestamp with time zone,
-  add column if not exists "result_version" integer not null default 0;
+create index workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
 
-create index if not exists workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
-
-create table if not exists workflow.workflow_runs (
+create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
   "deployment_id" character varying not null,
@@ -1445,37 +1153,11 @@ create table if not exists workflow.workflow_runs (
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
-alter table workflow.workflow_runs
-  add column if not exists "id" character varying not null,
-  add column if not exists "output" jsonb,
-  add column if not exists "deployment_id" character varying not null,
-  add column if not exists "status" workflow.status not null,
-  add column if not exists "name" character varying not null,
-  add column if not exists "execution_context" jsonb,
-  add column if not exists "input" jsonb,
-  add column if not exists "error" text,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "started_at" timestamp with time zone,
-  add column if not exists "output_cbor" bytea,
-  add column if not exists "execution_context_cbor" bytea,
-  add column if not exists "input_cbor" bytea,
-  add column if not exists "expired_at" timestamp with time zone,
-  add column if not exists "spec_version" character varying,
-  add column if not exists "error_cbor" bytea,
-  add column if not exists "error_code" character varying,
-  add column if not exists "attributes" jsonb not null default '{}'::jsonb,
-  add column if not exists "encryption_public_key" character varying,
-  add column if not exists "dynamic_workflow_code_cbor" bytea,
-  add column if not exists "start_hook_cbor" bytea,
-  add column if not exists "job_prefix" character varying;
+create index workflow_runs_name_index ON workflow.workflow_runs USING btree (name);
 
-create index if not exists workflow_runs_name_index ON workflow.workflow_runs USING btree (name);
+create index workflow_runs_status_index ON workflow.workflow_runs USING btree (status);
 
-create index if not exists workflow_runs_status_index ON workflow.workflow_runs USING btree (status);
-
-create table if not exists workflow.workflow_snapshots (
+create table workflow.workflow_snapshots (
   "run_id" character varying not null,
   "data" bytea not null,
   "events_cursor" character varying,
@@ -1483,13 +1165,7 @@ create table if not exists workflow.workflow_snapshots (
   constraint "workflow_snapshots_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_snapshots
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "data" bytea not null,
-  add column if not exists "events_cursor" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now();
-
-create table if not exists workflow.workflow_start_hook_admissions (
+create table workflow.workflow_start_hook_admissions (
   "run_id" character varying not null,
   "token" character varying not null,
   "decision" character varying not null,
@@ -1498,16 +1174,9 @@ create table if not exists workflow.workflow_start_hook_admissions (
   constraint "workflow_start_hook_admissions_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_start_hook_admissions
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "token" character varying not null,
-  add column if not exists "decision" character varying not null,
-  add column if not exists "conflicting_run_id" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now();
+create index workflow_start_hook_admissions_created_at_index ON workflow.workflow_start_hook_admissions USING btree (created_at);
 
-create index if not exists workflow_start_hook_admissions_created_at_index ON workflow.workflow_start_hook_admissions USING btree (created_at);
-
-create table if not exists workflow.workflow_steps (
+create table workflow.workflow_steps (
   "run_id" character varying not null,
   "step_id" character varying not null,
   "step_name" character varying not null,
@@ -1528,30 +1197,11 @@ create table if not exists workflow.workflow_steps (
   constraint "workflow_steps_pkey" PRIMARY KEY (step_id)
 );
 
-alter table workflow.workflow_steps
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "step_id" character varying not null,
-  add column if not exists "step_name" character varying not null,
-  add column if not exists "status" workflow.step_status not null,
-  add column if not exists "input" jsonb,
-  add column if not exists "output" jsonb,
-  add column if not exists "error" text,
-  add column if not exists "attempt" integer not null,
-  add column if not exists "started_at" timestamp with time zone,
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "retry_after" timestamp with time zone,
-  add column if not exists "input_cbor" bytea,
-  add column if not exists "output_cbor" bytea,
-  add column if not exists "error_cbor" bytea,
-  add column if not exists "spec_version" integer;
+create index workflow_steps_run_id_index ON workflow.workflow_steps USING btree (run_id);
 
-create index if not exists workflow_steps_run_id_index ON workflow.workflow_steps USING btree (run_id);
+create index workflow_steps_status_index ON workflow.workflow_steps USING btree (status);
 
-create index if not exists workflow_steps_status_index ON workflow.workflow_steps USING btree (status);
-
-create table if not exists workflow.workflow_stream_chunks (
+create table workflow.workflow_stream_chunks (
   "id" character varying not null,
   "stream_id" character varying not null,
   "data" bytea not null,
@@ -1561,17 +1211,9 @@ create table if not exists workflow.workflow_stream_chunks (
   constraint "workflow_stream_chunks_stream_id_id_pk" PRIMARY KEY (stream_id, id)
 );
 
-alter table workflow.workflow_stream_chunks
-  add column if not exists "id" character varying not null,
-  add column if not exists "stream_id" character varying not null,
-  add column if not exists "data" bytea not null,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "eof" boolean not null,
-  add column if not exists "run_id" character varying;
+create index workflow_stream_chunks_run_id_index ON workflow.workflow_stream_chunks USING btree (run_id);
 
-create index if not exists workflow_stream_chunks_run_id_index ON workflow.workflow_stream_chunks USING btree (run_id);
-
-create table if not exists workflow.workflow_waits (
+create table workflow.workflow_waits (
   "wait_id" character varying not null,
   "run_id" character varying not null,
   "status" workflow.wait_status not null,
@@ -1583,17 +1225,7 @@ create table if not exists workflow.workflow_waits (
   constraint "workflow_waits_pkey" PRIMARY KEY (wait_id)
 );
 
-alter table workflow.workflow_waits
-  add column if not exists "wait_id" character varying not null,
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "status" workflow.wait_status not null,
-  add column if not exists "resume_at" timestamp with time zone,
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "spec_version" integer;
-
-create index if not exists workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
+create index workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
 
 -- world-postgres 5.1 stores timestamptz; 5.0 tables hold UTC timestamps.
 do $$
@@ -1611,12 +1243,12 @@ $$;
 -- One row per start idempotency key: startFor claims the key before it starts
 -- a run, so two concurrent starts with one key start one run. run_id is null
 -- while the start that claimed it is still running.
-create table if not exists workflow.workflow_run_keys (
+create table workflow.workflow_run_keys (
   key text primary key check (length(key) >= 1 and length(key) <= 500),
   run_id character varying,
   claimed_at timestamptz not null default now()
 );
-create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 do $$
@@ -1634,7 +1266,7 @@ begin
 end;
 $$;
 grant usage, select on all sequences in schema workflow to service_role;
-create index if not exists workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
+create index workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
 
 -- Copies each World run into workflow_runs: its tenant and actor come from
 -- the bsb.tenant and bsb.actor attributes that startFor sets. A run with an
@@ -1706,7 +1338,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."workflow_sdk_mirror_run"() from public, anon, authenticated;
-drop trigger if exists "bsb_workflow_sdk_runs_mirror" on workflow.workflow_runs;
 create trigger "bsb_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
   for each row execute function "app_private"."workflow_sdk_mirror_run"();
 
@@ -1914,7 +1545,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:d9da47116538886ccf08b5343533ca31924052da688532a53b2e3b6857063a17
+-- @bsb-hash sha256:99e1a250a1752bfcc3925b9b8b4a49f992c9b5938cb319facc02d844f1179ce0
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1939,17 +1570,13 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
-create table if not exists workflow.workflow_event_slots (
+create table workflow.workflow_event_slots (
   "run_id" character varying not null,
   "seq_in_band" integer not null default 1,
   constraint "workflow_event_slots_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_event_slots
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "seq_in_band" integer not null default 1;
-
-create table if not exists workflow.workflow_events (
+create table workflow.workflow_events (
   "id" character varying not null,
   "type" character varying not null,
   "correlation_id" character varying,
@@ -1963,25 +1590,13 @@ create table if not exists workflow.workflow_events (
   constraint "workflow_events_run_id_id_pk" PRIMARY KEY (run_id, id)
 );
 
-alter table workflow.workflow_events
-  add column if not exists "id" character varying not null,
-  add column if not exists "type" character varying not null,
-  add column if not exists "correlation_id" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "payload" jsonb,
-  add column if not exists "payload_cbor" bytea,
-  add column if not exists "spec_version" integer,
-  add column if not exists "resume_id" character varying,
-  add column if not exists "resume_payload_digest" character varying;
+create index workflow_events_correlation_id_index ON workflow.workflow_events USING btree (correlation_id);
 
-create index if not exists workflow_events_correlation_id_index ON workflow.workflow_events USING btree (correlation_id);
+create unique index workflow_events_entity_creation_unique ON workflow.workflow_events USING btree (run_id, correlation_id, type) WHERE ((type)::text = ANY ((ARRAY['step_created'::character varying, 'hook_created'::character varying, 'wait_created'::character varying, 'attr_set'::character varying])::text[]));
 
-create unique index if not exists workflow_events_entity_creation_unique ON workflow.workflow_events USING btree (run_id, correlation_id, type) WHERE ((type)::text = ANY ((ARRAY['step_created'::character varying, 'hook_created'::character varying, 'wait_created'::character varying, 'attr_set'::character varying])::text[]));
+create unique index workflow_events_hook_resume_unique ON workflow.workflow_events USING btree (run_id, resume_id) WHERE (((type)::text = 'hook_received'::text) AND (resume_id IS NOT NULL));
 
-create unique index if not exists workflow_events_hook_resume_unique ON workflow.workflow_events USING btree (run_id, resume_id) WHERE (((type)::text = 'hook_received'::text) AND (resume_id IS NOT NULL));
-
-create table if not exists workflow.workflow_hooks (
+create table workflow.workflow_hooks (
   "run_id" character varying not null,
   "hook_id" character varying not null,
   "token" character varying not null,
@@ -2001,31 +1616,13 @@ create table if not exists workflow.workflow_hooks (
   constraint "workflow_hooks_pkey" PRIMARY KEY (hook_id)
 );
 
-alter table workflow.workflow_hooks
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "hook_id" character varying not null,
-  add column if not exists "token" character varying not null,
-  add column if not exists "owner_id" character varying not null,
-  add column if not exists "project_id" character varying not null,
-  add column if not exists "environment" character varying not null,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "metadata" jsonb,
-  add column if not exists "metadata_cbor" bytea,
-  add column if not exists "spec_version" integer,
-  add column if not exists "is_webhook" boolean default true,
-  add column if not exists "is_system" boolean default false,
-  add column if not exists "resume_context" bytea,
-  add column if not exists "token_retention_until" timestamp with time zone,
-  add column if not exists "claimed_from" bytea,
-  add column if not exists "claims_token" boolean not null default false;
+create index workflow_hooks_run_id_index ON workflow.workflow_hooks USING btree (run_id);
 
-create index if not exists workflow_hooks_run_id_index ON workflow.workflow_hooks USING btree (run_id);
+create unique index workflow_hooks_token_claim_unique ON workflow.workflow_hooks USING btree (token) WHERE claims_token;
 
-create unique index if not exists workflow_hooks_token_claim_unique ON workflow.workflow_hooks USING btree (token) WHERE claims_token;
+create index workflow_hooks_token_index ON workflow.workflow_hooks USING btree (token);
 
-create index if not exists workflow_hooks_token_index ON workflow.workflow_hooks USING btree (token);
-
-create table if not exists workflow.workflow_invocations (
+create table workflow.workflow_invocations (
   "sequence" bigserial,
   "run_id" character varying not null,
   "request_id" character varying not null,
@@ -2039,21 +1636,9 @@ create table if not exists workflow.workflow_invocations (
   constraint "workflow_invocations_pkey" PRIMARY KEY (run_id, request_id)
 );
 
-alter table workflow.workflow_invocations
-  add column if not exists "sequence" bigserial,
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "request_id" character varying not null,
-  add column if not exists "payload" bytea,
-  add column if not exists "fingerprint" character varying,
-  add column if not exists "result" bytea,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "responded_at" timestamp with time zone,
-  add column if not exists "expired_at" timestamp with time zone,
-  add column if not exists "result_version" integer not null default 0;
+create index workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
 
-create index if not exists workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
-
-create table if not exists workflow.workflow_runs (
+create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
   "deployment_id" character varying not null,
@@ -2081,37 +1666,11 @@ create table if not exists workflow.workflow_runs (
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
-alter table workflow.workflow_runs
-  add column if not exists "id" character varying not null,
-  add column if not exists "output" jsonb,
-  add column if not exists "deployment_id" character varying not null,
-  add column if not exists "status" workflow.status not null,
-  add column if not exists "name" character varying not null,
-  add column if not exists "execution_context" jsonb,
-  add column if not exists "input" jsonb,
-  add column if not exists "error" text,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "started_at" timestamp with time zone,
-  add column if not exists "output_cbor" bytea,
-  add column if not exists "execution_context_cbor" bytea,
-  add column if not exists "input_cbor" bytea,
-  add column if not exists "expired_at" timestamp with time zone,
-  add column if not exists "spec_version" character varying,
-  add column if not exists "error_cbor" bytea,
-  add column if not exists "error_code" character varying,
-  add column if not exists "attributes" jsonb not null default '{}'::jsonb,
-  add column if not exists "encryption_public_key" character varying,
-  add column if not exists "dynamic_workflow_code_cbor" bytea,
-  add column if not exists "start_hook_cbor" bytea,
-  add column if not exists "job_prefix" character varying;
+create index workflow_runs_name_index ON workflow.workflow_runs USING btree (name);
 
-create index if not exists workflow_runs_name_index ON workflow.workflow_runs USING btree (name);
+create index workflow_runs_status_index ON workflow.workflow_runs USING btree (status);
 
-create index if not exists workflow_runs_status_index ON workflow.workflow_runs USING btree (status);
-
-create table if not exists workflow.workflow_snapshots (
+create table workflow.workflow_snapshots (
   "run_id" character varying not null,
   "data" bytea not null,
   "events_cursor" character varying,
@@ -2119,13 +1678,7 @@ create table if not exists workflow.workflow_snapshots (
   constraint "workflow_snapshots_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_snapshots
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "data" bytea not null,
-  add column if not exists "events_cursor" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now();
-
-create table if not exists workflow.workflow_start_hook_admissions (
+create table workflow.workflow_start_hook_admissions (
   "run_id" character varying not null,
   "token" character varying not null,
   "decision" character varying not null,
@@ -2134,16 +1687,9 @@ create table if not exists workflow.workflow_start_hook_admissions (
   constraint "workflow_start_hook_admissions_pkey" PRIMARY KEY (run_id)
 );
 
-alter table workflow.workflow_start_hook_admissions
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "token" character varying not null,
-  add column if not exists "decision" character varying not null,
-  add column if not exists "conflicting_run_id" character varying,
-  add column if not exists "created_at" timestamp with time zone not null default now();
+create index workflow_start_hook_admissions_created_at_index ON workflow.workflow_start_hook_admissions USING btree (created_at);
 
-create index if not exists workflow_start_hook_admissions_created_at_index ON workflow.workflow_start_hook_admissions USING btree (created_at);
-
-create table if not exists workflow.workflow_steps (
+create table workflow.workflow_steps (
   "run_id" character varying not null,
   "step_id" character varying not null,
   "step_name" character varying not null,
@@ -2164,30 +1710,11 @@ create table if not exists workflow.workflow_steps (
   constraint "workflow_steps_pkey" PRIMARY KEY (step_id)
 );
 
-alter table workflow.workflow_steps
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "step_id" character varying not null,
-  add column if not exists "step_name" character varying not null,
-  add column if not exists "status" workflow.step_status not null,
-  add column if not exists "input" jsonb,
-  add column if not exists "output" jsonb,
-  add column if not exists "error" text,
-  add column if not exists "attempt" integer not null,
-  add column if not exists "started_at" timestamp with time zone,
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "retry_after" timestamp with time zone,
-  add column if not exists "input_cbor" bytea,
-  add column if not exists "output_cbor" bytea,
-  add column if not exists "error_cbor" bytea,
-  add column if not exists "spec_version" integer;
+create index workflow_steps_run_id_index ON workflow.workflow_steps USING btree (run_id);
 
-create index if not exists workflow_steps_run_id_index ON workflow.workflow_steps USING btree (run_id);
+create index workflow_steps_status_index ON workflow.workflow_steps USING btree (status);
 
-create index if not exists workflow_steps_status_index ON workflow.workflow_steps USING btree (status);
-
-create table if not exists workflow.workflow_stream_chunks (
+create table workflow.workflow_stream_chunks (
   "id" character varying not null,
   "stream_id" character varying not null,
   "data" bytea not null,
@@ -2197,17 +1724,9 @@ create table if not exists workflow.workflow_stream_chunks (
   constraint "workflow_stream_chunks_stream_id_id_pk" PRIMARY KEY (stream_id, id)
 );
 
-alter table workflow.workflow_stream_chunks
-  add column if not exists "id" character varying not null,
-  add column if not exists "stream_id" character varying not null,
-  add column if not exists "data" bytea not null,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "eof" boolean not null,
-  add column if not exists "run_id" character varying;
+create index workflow_stream_chunks_run_id_index ON workflow.workflow_stream_chunks USING btree (run_id);
 
-create index if not exists workflow_stream_chunks_run_id_index ON workflow.workflow_stream_chunks USING btree (run_id);
-
-create table if not exists workflow.workflow_waits (
+create table workflow.workflow_waits (
   "wait_id" character varying not null,
   "run_id" character varying not null,
   "status" workflow.wait_status not null,
@@ -2219,17 +1738,7 @@ create table if not exists workflow.workflow_waits (
   constraint "workflow_waits_pkey" PRIMARY KEY (wait_id)
 );
 
-alter table workflow.workflow_waits
-  add column if not exists "wait_id" character varying not null,
-  add column if not exists "run_id" character varying not null,
-  add column if not exists "status" workflow.wait_status not null,
-  add column if not exists "resume_at" timestamp with time zone,
-  add column if not exists "completed_at" timestamp with time zone,
-  add column if not exists "created_at" timestamp with time zone not null default now(),
-  add column if not exists "updated_at" timestamp with time zone not null default now(),
-  add column if not exists "spec_version" integer;
-
-create index if not exists workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
+create index workflow_waits_run_id_index ON workflow.workflow_waits USING btree (run_id);
 
 -- world-postgres 5.1 stores timestamptz; 5.0 tables hold UTC timestamps.
 do $$
@@ -2247,12 +1756,12 @@ $$;
 -- One row per start idempotency key: startFor claims the key before it starts
 -- a run, so two concurrent starts with one key start one run. run_id is null
 -- while the start that claimed it is still running.
-create table if not exists workflow.workflow_run_keys (
+create table workflow.workflow_run_keys (
   key text primary key check (length(key) >= 1 and length(key) <= 500),
   run_id character varying,
   claimed_at timestamptz not null default now()
 );
-create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 do $$
@@ -2270,7 +1779,7 @@ begin
 end;
 $$;
 grant usage, select on all sequences in schema workflow to service_role;
-create index if not exists workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
+create index workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
 
 -- Copies each World run into workflow_runs: its tenant and actor come from
 -- the bsb.tenant and bsb.actor attributes that startFor sets. A run with an
@@ -2342,7 +1851,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_sdk_mirror_run"() from public, anon, authenticated;
-drop trigger if exists "bsb_workflow_sdk_runs_mirror" on workflow.workflow_runs;
 create trigger "bsb_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
   for each row execute function "better_supabase"."workflow_sdk_mirror_run"();
 

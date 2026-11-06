@@ -279,7 +279,7 @@ create table if not exists ${t("recordings")} (
 create index if not exists ${ctx.naming.rename("engagement_recordings_file_idx")} on ${t("recordings")} (${r("file")});
 create index if not exists ${ctx.naming.rename("engagement_recordings_pending_idx")} on ${t("recordings")} (${r("createdAt")}) where ${r("status")} = 'pending';
 ${lockTable(t("recordings"), { read: true })}
-${renderPolicy(makePolicy({ table: t("recordings"), name: `${ctx.tableName("recordings").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(r("engagement")) }), { drop: true, target: t("recordings") })}
+${renderPolicy(makePolicy({ table: t("recordings"), name: `${ctx.tableName("recordings").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(r("engagement")) }), { target: t("recordings") })}
 
 -- A transcript, one row per speaker turn, offsets in milliseconds from the
 -- start of the recording.
@@ -294,7 +294,7 @@ create table if not exists ${t("segments")} (
   check (${s("endsMs")} >= ${s("startsMs")})
 );
 ${lockTable(t("segments"), { read: true })}
-${renderPolicy(makePolicy({ table: t("segments"), name: `${ctx.tableName("segments").name}_read`, command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("recordings")} rx where rx.${r("id")} = ${s("recording")})` }), { drop: true, target: t("segments") })}
+${renderPolicy(makePolicy({ table: t("segments"), name: `${ctx.tableName("segments").name}_read`, command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("recordings")} rx where rx.${r("id")} = ${s("recording")})` }), { target: t("segments") })}
 
 -- Notes on an engagement: a summary and action items, written by an AI
 -- note taker or a member. One row per engagement; saving replaces it.
@@ -316,7 +316,7 @@ ${optional("notes", "model", (x) => `${x} text`)}
     .join("")}
 );${key("notes", "engagement_key", n("engagement"))}
 ${lockTable(t("notes"), { read: true })}
-${renderPolicy(makePolicy({ table: t("notes"), name: `${ctx.tableName("notes").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(n("engagement")) }), { drop: true, target: t("notes") })}
+${renderPolicy(makePolicy({ table: t("notes"), name: `${ctx.tableName("notes").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(n("engagement")) }), { target: t("notes") })}
 ${
   tasks === undefined
     ? ""
@@ -332,7 +332,7 @@ create table if not exists ${t("actions")} (
 );${key("actions", "engagement_task", `${a("engagement")}, ${a("task")}`)}
 create index if not exists ${sqlIdent(`${ctx.tableName("actions").name}_task_idx`)} on ${t("actions")} (${a("task")});
 ${lockTable(t("actions"), { read: true })}
-${renderPolicy(makePolicy({ table: t("actions"), name: `${ctx.tableName("actions").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(a("engagement")) }), { drop: true, target: t("actions") })}
+${renderPolicy(makePolicy({ table: t("actions"), name: `${ctx.tableName("actions").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(a("engagement")) }), { target: t("actions") })}
 `
 }`
     : "";

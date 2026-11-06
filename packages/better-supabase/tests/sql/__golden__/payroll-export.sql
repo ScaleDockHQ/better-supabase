@@ -1,39 +1,16 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:c221f0a7aebd15c112421df406d8115dad5808f6f92c3dbf19787b354f777912
+-- @bsb-hash sha256:7f5b9f898d75066cab3575c9ae9241aae7455834c807a1c5bd85f99db0e2889a
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Payroll runs per organization: one run collects the hours worked, the
 -- approved leave and optionally the scheduled shifts of a period into lines per
 -- person. A PayrollExportFormat renders the lines in TypeScript; exporting
 -- locks the run and keeps the checksum of the file.
-create table if not exists "better_supabase"."payroll_runs" (
+create table "better_supabase"."payroll_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "period_from" date not null,
@@ -53,17 +30,16 @@ create table if not exists "better_supabase"."payroll_runs" (
   check ("period_to" - "period_from" <= 400),
   check (("status" = 'exported') = ("exported_at" is not null and "format" is not null and "checksum" is not null))
 );
-create index if not exists "payroll_runs_tenant_idx" on "better_supabase"."payroll_runs" ("tenant_id", "period_from" desc);
+create index "payroll_runs_tenant_idx" on "better_supabase"."payroll_runs" ("tenant_id", "period_from" desc);
 alter table "better_supabase"."payroll_runs" enable row level security;
 revoke all on "better_supabase"."payroll_runs" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_runs" to authenticated;
 grant all on "better_supabase"."payroll_runs" to service_role;
-drop policy if exists payroll_runs_read on "better_supabase"."payroll_runs";
 create policy payroll_runs_read on "better_supabase"."payroll_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
 
-create table if not exists "better_supabase"."payroll_lines" (
+create table "better_supabase"."payroll_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "run_id" uuid not null,
@@ -83,13 +59,12 @@ create table if not exists "better_supabase"."payroll_lines" (
   check ("user_id" is not null or "employee_id" is not null),
   foreign key ("tenant_id", "run_id") references "better_supabase"."payroll_runs" ("tenant_id", "id") on delete cascade
 );
-create unique index if not exists "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
-create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("tenant_id", "run_id");
+create unique index "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
+create index "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("tenant_id", "run_id");
 alter table "better_supabase"."payroll_lines" enable row level security;
 revoke all on "better_supabase"."payroll_lines" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_lines" to authenticated;
 grant all on "better_supabase"."payroll_lines" to service_role;
-drop policy if exists payroll_lines_read on "better_supabase"."payroll_lines";
 create policy payroll_lines_read on "better_supabase"."payroll_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
@@ -331,45 +306,35 @@ grant execute on function "better_supabase"."delete_payroll_run"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."payroll_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."payroll_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."payroll_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."payroll_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."payroll_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."payroll_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."payroll_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."payroll_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -391,39 +356,16 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:2a8b81a89e8fae4e0ce34c41067f3ba7dbe4c486b56049813a65acc728d9e574
+-- @bsb-hash sha256:07e1551ac3cad7f16852034d31fa8f9bb75345518ba812a5af29441a3b33b06c
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Payroll runs per organization: one run collects the hours worked, the
 -- approved leave and optionally the scheduled shifts of a period into lines per
 -- person. A PayrollExportFormat renders the lines in TypeScript; exporting
 -- locks the run and keeps the checksum of the file.
-create table if not exists "better_supabase"."payroll_runs" (
+create table "better_supabase"."payroll_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "period_from" date not null,
@@ -443,17 +385,16 @@ create table if not exists "better_supabase"."payroll_runs" (
   check ("period_to" - "period_from" <= 400),
   check (("status" = 'exported') = ("exported_at" is not null and "format" is not null and "checksum" is not null))
 );
-create index if not exists "payroll_runs_tenant_idx" on "better_supabase"."payroll_runs" ("tenant_id", "period_from" desc);
+create index "payroll_runs_tenant_idx" on "better_supabase"."payroll_runs" ("tenant_id", "period_from" desc);
 alter table "better_supabase"."payroll_runs" enable row level security;
 revoke all on "better_supabase"."payroll_runs" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_runs" to authenticated;
 grant all on "better_supabase"."payroll_runs" to service_role;
-drop policy if exists payroll_runs_read on "better_supabase"."payroll_runs";
 create policy payroll_runs_read on "better_supabase"."payroll_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
 
-create table if not exists "better_supabase"."payroll_lines" (
+create table "better_supabase"."payroll_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "run_id" uuid not null,
@@ -473,13 +414,12 @@ create table if not exists "better_supabase"."payroll_lines" (
   check ("user_id" is not null or "employee_id" is not null),
   foreign key ("tenant_id", "run_id") references "better_supabase"."payroll_runs" ("tenant_id", "id") on delete cascade
 );
-create unique index if not exists "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
-create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("tenant_id", "run_id");
+create unique index "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
+create index "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("tenant_id", "run_id");
 alter table "better_supabase"."payroll_lines" enable row level security;
 revoke all on "better_supabase"."payroll_lines" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_lines" to authenticated;
 grant all on "better_supabase"."payroll_lines" to service_role;
-drop policy if exists payroll_lines_read on "better_supabase"."payroll_lines";
 create policy payroll_lines_read on "better_supabase"."payroll_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
@@ -771,45 +711,35 @@ grant execute on function "better_supabase"."delete_payroll_run"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."payroll_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."payroll_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."payroll_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."payroll_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."payroll_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."payroll_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."payroll_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."payroll_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -839,32 +769,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:09057d01ac0640e69a20ab9d6d8d96f411cea4595b3c1db92bc8fbf109138f25
+-- @bsb-hash sha256:5cf5bc60b9d57cecf7a32ddfc54674e1d19408c395a8ca107904cd10cc65058e
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."payroll_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."payroll_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -875,7 +783,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- approved leave and optionally the scheduled shifts of a period into lines per
 -- person. A PayrollExportFormat renders the lines in TypeScript; exporting
 -- locks the run and keeps the checksum of the file.
-create table if not exists "app_private"."payroll_runs" (
+create table "app_private"."payroll_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "period_from" date not null,
@@ -895,17 +803,16 @@ create table if not exists "app_private"."payroll_runs" (
   check ("period_to" - "period_from" <= 400),
   check (("status" = 'exported') = ("exported_at" is not null and "format" is not null and "checksum" is not null))
 );
-create index if not exists "payroll_runs_tenant_idx" on "app_private"."payroll_runs" ("tenant_id", "period_from" desc);
+create index "payroll_runs_tenant_idx" on "app_private"."payroll_runs" ("tenant_id", "period_from" desc);
 alter table "app_private"."payroll_runs" enable row level security;
 revoke all on "app_private"."payroll_runs" from public, anon, authenticated;
 grant select on "app_private"."payroll_runs" to authenticated;
 grant all on "app_private"."payroll_runs" to service_role;
-drop policy if exists payroll_runs_read on "app_private"."payroll_runs";
 create policy payroll_runs_read on "app_private"."payroll_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
 
-create table if not exists "app_private"."payroll_lines" (
+create table "app_private"."payroll_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "run_id" uuid not null,
@@ -925,13 +832,12 @@ create table if not exists "app_private"."payroll_lines" (
   check ("user_id" is not null or "employee_id" is not null),
   foreign key ("tenant_id", "run_id") references "app_private"."payroll_runs" ("tenant_id", "id") on delete cascade
 );
-create unique index if not exists "payroll_lines_person_key" on "app_private"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
-create index if not exists "payroll_lines_run_idx" on "app_private"."payroll_lines" ("tenant_id", "run_id");
+create unique index "payroll_lines_person_key" on "app_private"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
+create index "payroll_lines_run_idx" on "app_private"."payroll_lines" ("tenant_id", "run_id");
 alter table "app_private"."payroll_lines" enable row level security;
 revoke all on "app_private"."payroll_lines" from public, anon, authenticated;
 grant select on "app_private"."payroll_lines" to authenticated;
 grant all on "app_private"."payroll_lines" to service_role;
-drop policy if exists payroll_lines_read on "app_private"."payroll_lines";
 create policy payroll_lines_read on "app_private"."payroll_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
@@ -1173,45 +1079,35 @@ grant execute on function "app_private"."delete_payroll_run"(uuid) to authentica
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."payroll_runs";
-drop policy if exists bsb_tenant_scope_select on "app_private"."payroll_runs";
 create policy bsb_tenant_scope_select on "app_private"."payroll_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."payroll_runs";
 create policy bsb_tenant_scope_insert on "app_private"."payroll_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."payroll_runs";
 create policy bsb_tenant_scope_update on "app_private"."payroll_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."payroll_runs";
 create policy bsb_tenant_scope_delete on "app_private"."payroll_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."payroll_lines";
-drop policy if exists bsb_tenant_scope_select on "app_private"."payroll_lines";
 create policy bsb_tenant_scope_select on "app_private"."payroll_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."payroll_lines";
 create policy bsb_tenant_scope_insert on "app_private"."payroll_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."payroll_lines";
 create policy bsb_tenant_scope_update on "app_private"."payroll_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."payroll_lines";
 create policy bsb_tenant_scope_delete on "app_private"."payroll_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1233,39 +1129,16 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:1e6624fee420fc9d04bc34a6efbde9bdd8ac848d021ccabbfe70111656f69268
+-- @bsb-hash sha256:b9bbd21d5df7be96f326e20560ca59715c530540b7e559f98f48d9763109867d
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Payroll runs per organization: one run collects the hours worked, the
 -- approved leave and optionally the scheduled shifts of a period into lines per
 -- person. A PayrollExportFormat renders the lines in TypeScript; exporting
 -- locks the run and keeps the checksum of the file.
-create table if not exists "better_supabase"."payroll_runs" (
+create table "better_supabase"."payroll_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "period_from" date not null,
@@ -1285,17 +1158,16 @@ create table if not exists "better_supabase"."payroll_runs" (
   check ("period_to" - "period_from" <= 400),
   check (("status" = 'exported') = ("exported_at" is not null and "format" is not null and "checksum" is not null))
 );
-create index if not exists "payroll_runs_tenant_idx" on "better_supabase"."payroll_runs" ("tenant_id", "period_from" desc);
+create index "payroll_runs_tenant_idx" on "better_supabase"."payroll_runs" ("tenant_id", "period_from" desc);
 alter table "better_supabase"."payroll_runs" enable row level security;
 revoke all on "better_supabase"."payroll_runs" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_runs" to authenticated;
 grant all on "better_supabase"."payroll_runs" to service_role;
-drop policy if exists payroll_runs_read on "better_supabase"."payroll_runs";
 create policy payroll_runs_read on "better_supabase"."payroll_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
 
-create table if not exists "better_supabase"."payroll_lines" (
+create table "better_supabase"."payroll_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "run_id" uuid not null,
@@ -1315,13 +1187,12 @@ create table if not exists "better_supabase"."payroll_lines" (
   check ("user_id" is not null or "employee_id" is not null),
   foreign key ("tenant_id", "run_id") references "better_supabase"."payroll_runs" ("tenant_id", "id") on delete cascade
 );
-create unique index if not exists "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
-create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("tenant_id", "run_id");
+create unique index "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
+create index "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("tenant_id", "run_id");
 alter table "better_supabase"."payroll_lines" enable row level security;
 revoke all on "better_supabase"."payroll_lines" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_lines" to authenticated;
 grant all on "better_supabase"."payroll_lines" to service_role;
-drop policy if exists payroll_lines_read on "better_supabase"."payroll_lines";
 create policy payroll_lines_read on "better_supabase"."payroll_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
@@ -1563,45 +1434,35 @@ grant execute on function "better_supabase"."delete_payroll_run"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."payroll_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."payroll_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."payroll_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."payroll_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."payroll_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."payroll_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."payroll_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."payroll_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1683,33 +1544,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:8aaa4421db8c076642eef7e2a5a3c316813d0cd79340985a0304796bced8f39d
+-- @bsb-hash sha256:3232a272a1fcdb0fbe07a82de20ebaf3351c87852a62a800befb2df2e6135460
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Payroll runs per organization: one run collects the hours worked, the
 -- approved leave and optionally the scheduled shifts of a period into lines per
@@ -1733,7 +1571,6 @@ create index if not exists "payroll_runs_tenant_idx" on "better_supabase"."payro
 alter table "better_supabase"."payroll_runs" enable row level security;
 grant select on "better_supabase"."payroll_runs" to authenticated;
 grant all on "better_supabase"."payroll_runs" to service_role;
-drop policy if exists bsb_payroll_runs_select on "better_supabase"."payroll_runs";
 create policy bsb_payroll_runs_select on "better_supabase"."payroll_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
@@ -1757,7 +1594,6 @@ create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll
 alter table "better_supabase"."payroll_lines" enable row level security;
 grant select on "better_supabase"."payroll_lines" to authenticated;
 grant all on "better_supabase"."payroll_lines" to service_role;
-drop policy if exists bsb_payroll_lines_select on "better_supabase"."payroll_lines";
 create policy bsb_payroll_lines_select on "better_supabase"."payroll_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
@@ -1999,45 +1835,35 @@ grant execute on function "better_supabase"."delete_payroll_run"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."payroll_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."payroll_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."payroll_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."payroll_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."payroll_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."payroll_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."payroll_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."payroll_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2059,39 +1885,16 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:d9c5d619bb4967045931d4695b75200ca99880a1ebdc9420e53ae8f463b739e1
+-- @bsb-hash sha256:bc899253c6b30896015aff787adf68fbd1623d85b9b83b29369a9f34de9d4b60
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Payroll runs per organization: one run collects the hours worked, the
 -- approved leave and optionally the scheduled shifts of a period into lines per
 -- person. A PayrollExportFormat renders the lines in TypeScript; exporting
 -- locks the run and keeps the checksum of the file.
-create table if not exists "better_supabase"."payroll_runs" (
+create table "better_supabase"."payroll_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "period_from" date not null,
@@ -2111,17 +1914,16 @@ create table if not exists "better_supabase"."payroll_runs" (
   check ("period_to" - "period_from" <= 400),
   check (("status" = 'exported') = ("exported_at" is not null and "format" is not null and "checksum" is not null))
 );
-create index if not exists "payroll_runs_tenant_idx" on "better_supabase"."payroll_runs" ("org_id", "period_from" desc);
+create index "payroll_runs_tenant_idx" on "better_supabase"."payroll_runs" ("org_id", "period_from" desc);
 alter table "better_supabase"."payroll_runs" enable row level security;
 revoke all on "better_supabase"."payroll_runs" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_runs" to authenticated;
 grant all on "better_supabase"."payroll_runs" to service_role;
-drop policy if exists payroll_runs_read on "better_supabase"."payroll_runs";
 create policy payroll_runs_read on "better_supabase"."payroll_runs"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
 
-create table if not exists "better_supabase"."payroll_lines" (
+create table "better_supabase"."payroll_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "run_id" uuid not null,
@@ -2141,13 +1943,12 @@ create table if not exists "better_supabase"."payroll_lines" (
   check ("user_id" is not null or "employee_id" is not null),
   foreign key ("org_id", "run_id") references "better_supabase"."payroll_runs" ("org_id", "id") on delete cascade
 );
-create unique index if not exists "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
-create index if not exists "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("org_id", "run_id");
+create unique index "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));
+create index "payroll_lines_run_idx" on "better_supabase"."payroll_lines" ("org_id", "run_id");
 alter table "better_supabase"."payroll_lines" enable row level security;
 revoke all on "better_supabase"."payroll_lines" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_lines" to authenticated;
 grant all on "better_supabase"."payroll_lines" to service_role;
-drop policy if exists payroll_lines_read on "better_supabase"."payroll_lines";
 create policy payroll_lines_read on "better_supabase"."payroll_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
@@ -2389,45 +2190,35 @@ grant execute on function "better_supabase"."delete_payroll_run"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."payroll_runs" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."payroll_runs" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."payroll_runs" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."payroll_runs" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payroll_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."payroll_lines" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('payroll_export.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."payroll_lines" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."payroll_lines" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payroll_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."payroll_lines" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

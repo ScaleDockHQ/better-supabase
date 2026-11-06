@@ -1,63 +1,16 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:7f7f931b0de0932e917f0eb70891761e431d808b7773a6bb1d865e24137f3b9c
+-- @bsb-hash sha256:bcfdbc9f0718e4eeef44d5136882d8335b44c2842b347cb2a12e1f0701f463b9
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Funding: the products a funder pays for, awards of units per period to a
 -- record, the care delivered against them, and claims to the funder with its
 -- response per line.
 
-create table if not exists "better_supabase"."funding_products" (
+create table "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
@@ -74,17 +27,16 @@ create table if not exists "better_supabase"."funding_products" (
   check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "funding_products_code_idx" on "better_supabase"."funding_products" ("tenant_id", "code");
+create unique index "funding_products_code_idx" on "better_supabase"."funding_products" ("tenant_id", "code");
 alter table "better_supabase"."funding_products" enable row level security;
 revoke all on "better_supabase"."funding_products" from public, anon, authenticated;
 grant select on "better_supabase"."funding_products" to authenticated;
 grant all on "better_supabase"."funding_products" to service_role;
-drop policy if exists funding_products_read on "better_supabase"."funding_products";
 create policy funding_products_read on "better_supabase"."funding_products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_awards" (
+create table "better_supabase"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The record the award is for, a type in config.subjects.
@@ -108,19 +60,18 @@ create table if not exists "better_supabase"."funding_awards" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
-create index if not exists "funding_awards_product_idx" on "better_supabase"."funding_awards" ("tenant_id", "product_id");
-create index if not exists "funding_awards_subject_idx" on "better_supabase"."funding_awards" ("subject_type", "subject_id");
-create index if not exists "funding_awards_funder_idx" on "better_supabase"."funding_awards" ("tenant_id", "funder_id", "status");
+create index "funding_awards_product_idx" on "better_supabase"."funding_awards" ("tenant_id", "product_id");
+create index "funding_awards_subject_idx" on "better_supabase"."funding_awards" ("subject_type", "subject_id");
+create index "funding_awards_funder_idx" on "better_supabase"."funding_awards" ("tenant_id", "funder_id", "status");
 alter table "better_supabase"."funding_awards" enable row level security;
 revoke all on "better_supabase"."funding_awards" from public, anon, authenticated;
 grant select on "better_supabase"."funding_awards" to authenticated;
 grant all on "better_supabase"."funding_awards" to service_role;
-drop policy if exists funding_awards_read on "better_supabase"."funding_awards";
 create policy funding_awards_read on "better_supabase"."funding_awards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
-create table if not exists "better_supabase"."funding_claims" (
+create table "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
@@ -146,18 +97,17 @@ create table if not exists "better_supabase"."funding_claims" (
   check ("period_end" >= "period_start"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "funding_claims_number_idx" on "better_supabase"."funding_claims" ("tenant_id", "number");
-create index if not exists "funding_claims_funder_idx" on "better_supabase"."funding_claims" ("tenant_id", "funder_id", "status");
+create unique index "funding_claims_number_idx" on "better_supabase"."funding_claims" ("tenant_id", "number");
+create index "funding_claims_funder_idx" on "better_supabase"."funding_claims" ("tenant_id", "funder_id", "status");
 alter table "better_supabase"."funding_claims" enable row level security;
 revoke all on "better_supabase"."funding_claims" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claims" to authenticated;
 grant all on "better_supabase"."funding_claims" to service_role;
-drop policy if exists funding_claims_read on "better_supabase"."funding_claims";
 create policy funding_claims_read on "better_supabase"."funding_claims"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_claim_lines" (
+create table "better_supabase"."funding_claim_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "claim_id" uuid not null,
@@ -173,19 +123,18 @@ create table if not exists "better_supabase"."funding_claim_lines" (
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
-create index if not exists "funding_claim_lines_claim_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "claim_id");
-create index if not exists "funding_claim_lines_award_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "award_id");
-create index if not exists "funding_claim_lines_product_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "product_id");
+create index "funding_claim_lines_claim_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "claim_id");
+create index "funding_claim_lines_award_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "award_id");
+create index "funding_claim_lines_product_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "product_id");
 alter table "better_supabase"."funding_claim_lines" enable row level security;
 revoke all on "better_supabase"."funding_claim_lines" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claim_lines" to authenticated;
 grant all on "better_supabase"."funding_claim_lines" to service_role;
-drop policy if exists funding_claim_lines_read on "better_supabase"."funding_claim_lines";
 create policy funding_claim_lines_read on "better_supabase"."funding_claim_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_deliveries" (
+create table "better_supabase"."funding_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "award_id" uuid not null,
@@ -203,15 +152,14 @@ create table if not exists "better_supabase"."funding_deliveries" (
   check ("source_type" = 'manual' or "source_id" is not null),
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
-create index if not exists "funding_deliveries_status_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "status", "delivered_on");
-create index if not exists "funding_deliveries_claim_line_idx" on "better_supabase"."funding_deliveries" ("claim_line_id");
-create unique index if not exists "funding_deliveries_source_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "source_type", "source_id") where "source_id" is not null;
+create index "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
+create index "funding_deliveries_status_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "status", "delivered_on");
+create index "funding_deliveries_claim_line_idx" on "better_supabase"."funding_deliveries" ("claim_line_id");
+create unique index "funding_deliveries_source_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "source_type", "source_id") where "source_id" is not null;
 alter table "better_supabase"."funding_deliveries" enable row level security;
 revoke all on "better_supabase"."funding_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
-drop policy if exists funding_deliveries_read on "better_supabase"."funding_deliveries";
 create policy funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
@@ -1051,108 +999,83 @@ grant execute on function "better_supabase"."list_funding_claims"(uuid, text, uu
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_products" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_products" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_products" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_products" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_awards" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_awards" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_awards" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_awards" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claims" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claims" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claims" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claims" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claim_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claim_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1174,63 +1097,16 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:1acc856264a71c074a2a1b07c16832ffa35af046ebc31171563ffac2b0d8b578
+-- @bsb-hash sha256:ce18ff17a217cbfa89e3a9fe9703257b97cee650770cb6fdc9ad320ee7e59cf2
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Funding: the products a funder pays for, awards of units per period to a
 -- record, the care delivered against them, and claims to the funder with its
 -- response per line.
 
-create table if not exists "better_supabase"."funding_products" (
+create table "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
@@ -1247,17 +1123,16 @@ create table if not exists "better_supabase"."funding_products" (
   check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "funding_products_code_idx" on "better_supabase"."funding_products" ("tenant_id", "code");
+create unique index "funding_products_code_idx" on "better_supabase"."funding_products" ("tenant_id", "code");
 alter table "better_supabase"."funding_products" enable row level security;
 revoke all on "better_supabase"."funding_products" from public, anon, authenticated;
 grant select on "better_supabase"."funding_products" to authenticated;
 grant all on "better_supabase"."funding_products" to service_role;
-drop policy if exists funding_products_read on "better_supabase"."funding_products";
 create policy funding_products_read on "better_supabase"."funding_products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_awards" (
+create table "better_supabase"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The record the award is for, a type in config.subjects.
@@ -1281,19 +1156,18 @@ create table if not exists "better_supabase"."funding_awards" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
-create index if not exists "funding_awards_product_idx" on "better_supabase"."funding_awards" ("tenant_id", "product_id");
-create index if not exists "funding_awards_subject_idx" on "better_supabase"."funding_awards" ("subject_type", "subject_id");
-create index if not exists "funding_awards_funder_idx" on "better_supabase"."funding_awards" ("tenant_id", "funder_id", "status");
+create index "funding_awards_product_idx" on "better_supabase"."funding_awards" ("tenant_id", "product_id");
+create index "funding_awards_subject_idx" on "better_supabase"."funding_awards" ("subject_type", "subject_id");
+create index "funding_awards_funder_idx" on "better_supabase"."funding_awards" ("tenant_id", "funder_id", "status");
 alter table "better_supabase"."funding_awards" enable row level security;
 revoke all on "better_supabase"."funding_awards" from public, anon, authenticated;
 grant select on "better_supabase"."funding_awards" to authenticated;
 grant all on "better_supabase"."funding_awards" to service_role;
-drop policy if exists funding_awards_read on "better_supabase"."funding_awards";
 create policy funding_awards_read on "better_supabase"."funding_awards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
-create table if not exists "better_supabase"."funding_claims" (
+create table "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
@@ -1319,18 +1193,17 @@ create table if not exists "better_supabase"."funding_claims" (
   check ("period_end" >= "period_start"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "funding_claims_number_idx" on "better_supabase"."funding_claims" ("tenant_id", "number");
-create index if not exists "funding_claims_funder_idx" on "better_supabase"."funding_claims" ("tenant_id", "funder_id", "status");
+create unique index "funding_claims_number_idx" on "better_supabase"."funding_claims" ("tenant_id", "number");
+create index "funding_claims_funder_idx" on "better_supabase"."funding_claims" ("tenant_id", "funder_id", "status");
 alter table "better_supabase"."funding_claims" enable row level security;
 revoke all on "better_supabase"."funding_claims" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claims" to authenticated;
 grant all on "better_supabase"."funding_claims" to service_role;
-drop policy if exists funding_claims_read on "better_supabase"."funding_claims";
 create policy funding_claims_read on "better_supabase"."funding_claims"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_claim_lines" (
+create table "better_supabase"."funding_claim_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "claim_id" uuid not null,
@@ -1346,19 +1219,18 @@ create table if not exists "better_supabase"."funding_claim_lines" (
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
-create index if not exists "funding_claim_lines_claim_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "claim_id");
-create index if not exists "funding_claim_lines_award_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "award_id");
-create index if not exists "funding_claim_lines_product_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "product_id");
+create index "funding_claim_lines_claim_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "claim_id");
+create index "funding_claim_lines_award_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "award_id");
+create index "funding_claim_lines_product_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "product_id");
 alter table "better_supabase"."funding_claim_lines" enable row level security;
 revoke all on "better_supabase"."funding_claim_lines" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claim_lines" to authenticated;
 grant all on "better_supabase"."funding_claim_lines" to service_role;
-drop policy if exists funding_claim_lines_read on "better_supabase"."funding_claim_lines";
 create policy funding_claim_lines_read on "better_supabase"."funding_claim_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_deliveries" (
+create table "better_supabase"."funding_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "award_id" uuid not null,
@@ -1376,15 +1248,14 @@ create table if not exists "better_supabase"."funding_deliveries" (
   check ("source_type" = 'manual' or "source_id" is not null),
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
-create index if not exists "funding_deliveries_status_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "status", "delivered_on");
-create index if not exists "funding_deliveries_claim_line_idx" on "better_supabase"."funding_deliveries" ("claim_line_id");
-create unique index if not exists "funding_deliveries_source_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "source_type", "source_id") where "source_id" is not null;
+create index "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
+create index "funding_deliveries_status_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "status", "delivered_on");
+create index "funding_deliveries_claim_line_idx" on "better_supabase"."funding_deliveries" ("claim_line_id");
+create unique index "funding_deliveries_source_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "source_type", "source_id") where "source_id" is not null;
 alter table "better_supabase"."funding_deliveries" enable row level security;
 revoke all on "better_supabase"."funding_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
-drop policy if exists funding_deliveries_read on "better_supabase"."funding_deliveries";
 create policy funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
@@ -2486,108 +2357,83 @@ grant execute on function "better_supabase"."list_funding_claims"(uuid, text, uu
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_products" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_products" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_products" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_products" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_awards" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_awards" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_awards" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_awards" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claims" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claims" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claims" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claims" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claim_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claim_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2620,56 +2466,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:acb60a65a393702f067f8c831b62f3c6d6a0dd11f20abbdc4294b0ac0cce1501
+-- @bsb-hash sha256:5ea823aef0a1f47b002b7b5b766def59171ac7d4c1240fc30ce987dabc6c3c31
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."funding_products";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."funding_products";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."funding_products";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."funding_products";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."funding_products";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."funding_awards";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."funding_awards";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."funding_awards";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."funding_awards";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."funding_awards";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."funding_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."funding_claims";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."funding_claims";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."funding_claims";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."funding_claims";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."funding_claims";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."funding_claim_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -2680,7 +2480,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- record, the care delivered against them, and claims to the funder with its
 -- response per line.
 
-create table if not exists "app_private"."funding_products" (
+create table "app_private"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
@@ -2697,17 +2497,16 @@ create table if not exists "app_private"."funding_products" (
   check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "funding_products_code_idx" on "app_private"."funding_products" ("tenant_id", "code");
+create unique index "funding_products_code_idx" on "app_private"."funding_products" ("tenant_id", "code");
 alter table "app_private"."funding_products" enable row level security;
 revoke all on "app_private"."funding_products" from public, anon, authenticated;
 grant select on "app_private"."funding_products" to authenticated;
 grant all on "app_private"."funding_products" to service_role;
-drop policy if exists funding_products_read on "app_private"."funding_products";
 create policy funding_products_read on "app_private"."funding_products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "app_private"."funding_awards" (
+create table "app_private"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The record the award is for, a type in config.subjects.
@@ -2731,19 +2530,18 @@ create table if not exists "app_private"."funding_awards" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "app_private"."funding_products" ("tenant_id", "id")
 );
-create index if not exists "funding_awards_product_idx" on "app_private"."funding_awards" ("tenant_id", "product_id");
-create index if not exists "funding_awards_subject_idx" on "app_private"."funding_awards" ("subject_type", "subject_id");
-create index if not exists "funding_awards_funder_idx" on "app_private"."funding_awards" ("tenant_id", "funder_id", "status");
+create index "funding_awards_product_idx" on "app_private"."funding_awards" ("tenant_id", "product_id");
+create index "funding_awards_subject_idx" on "app_private"."funding_awards" ("subject_type", "subject_id");
+create index "funding_awards_funder_idx" on "app_private"."funding_awards" ("tenant_id", "funder_id", "status");
 alter table "app_private"."funding_awards" enable row level security;
 revoke all on "app_private"."funding_awards" from public, anon, authenticated;
 grant select on "app_private"."funding_awards" to authenticated;
 grant all on "app_private"."funding_awards" to service_role;
-drop policy if exists funding_awards_read on "app_private"."funding_awards";
 create policy funding_awards_read on "app_private"."funding_awards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
-create table if not exists "app_private"."funding_claims" (
+create table "app_private"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
@@ -2769,18 +2567,17 @@ create table if not exists "app_private"."funding_claims" (
   check ("period_end" >= "period_start"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "funding_claims_number_idx" on "app_private"."funding_claims" ("tenant_id", "number");
-create index if not exists "funding_claims_funder_idx" on "app_private"."funding_claims" ("tenant_id", "funder_id", "status");
+create unique index "funding_claims_number_idx" on "app_private"."funding_claims" ("tenant_id", "number");
+create index "funding_claims_funder_idx" on "app_private"."funding_claims" ("tenant_id", "funder_id", "status");
 alter table "app_private"."funding_claims" enable row level security;
 revoke all on "app_private"."funding_claims" from public, anon, authenticated;
 grant select on "app_private"."funding_claims" to authenticated;
 grant all on "app_private"."funding_claims" to service_role;
-drop policy if exists funding_claims_read on "app_private"."funding_claims";
 create policy funding_claims_read on "app_private"."funding_claims"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "app_private"."funding_claim_lines" (
+create table "app_private"."funding_claim_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "claim_id" uuid not null,
@@ -2796,19 +2593,18 @@ create table if not exists "app_private"."funding_claim_lines" (
   foreign key ("tenant_id", "award_id") references "app_private"."funding_awards" ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "app_private"."funding_products" ("tenant_id", "id")
 );
-create index if not exists "funding_claim_lines_claim_idx" on "app_private"."funding_claim_lines" ("tenant_id", "claim_id");
-create index if not exists "funding_claim_lines_award_idx" on "app_private"."funding_claim_lines" ("tenant_id", "award_id");
-create index if not exists "funding_claim_lines_product_idx" on "app_private"."funding_claim_lines" ("tenant_id", "product_id");
+create index "funding_claim_lines_claim_idx" on "app_private"."funding_claim_lines" ("tenant_id", "claim_id");
+create index "funding_claim_lines_award_idx" on "app_private"."funding_claim_lines" ("tenant_id", "award_id");
+create index "funding_claim_lines_product_idx" on "app_private"."funding_claim_lines" ("tenant_id", "product_id");
 alter table "app_private"."funding_claim_lines" enable row level security;
 revoke all on "app_private"."funding_claim_lines" from public, anon, authenticated;
 grant select on "app_private"."funding_claim_lines" to authenticated;
 grant all on "app_private"."funding_claim_lines" to service_role;
-drop policy if exists funding_claim_lines_read on "app_private"."funding_claim_lines";
 create policy funding_claim_lines_read on "app_private"."funding_claim_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "app_private"."funding_deliveries" (
+create table "app_private"."funding_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "award_id" uuid not null,
@@ -2826,15 +2622,14 @@ create table if not exists "app_private"."funding_deliveries" (
   check ("source_type" = 'manual' or "source_id" is not null),
   foreign key ("tenant_id", "award_id") references "app_private"."funding_awards" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "funding_deliveries_award_idx" on "app_private"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
-create index if not exists "funding_deliveries_status_idx" on "app_private"."funding_deliveries" ("tenant_id", "status", "delivered_on");
-create index if not exists "funding_deliveries_claim_line_idx" on "app_private"."funding_deliveries" ("claim_line_id");
-create unique index if not exists "funding_deliveries_source_idx" on "app_private"."funding_deliveries" ("tenant_id", "source_type", "source_id") where "source_id" is not null;
+create index "funding_deliveries_award_idx" on "app_private"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
+create index "funding_deliveries_status_idx" on "app_private"."funding_deliveries" ("tenant_id", "status", "delivered_on");
+create index "funding_deliveries_claim_line_idx" on "app_private"."funding_deliveries" ("claim_line_id");
+create unique index "funding_deliveries_source_idx" on "app_private"."funding_deliveries" ("tenant_id", "source_type", "source_id") where "source_id" is not null;
 alter table "app_private"."funding_deliveries" enable row level security;
 revoke all on "app_private"."funding_deliveries" from public, anon, authenticated;
 grant select on "app_private"."funding_deliveries" to authenticated;
 grant all on "app_private"."funding_deliveries" to service_role;
-drop policy if exists funding_deliveries_read on "app_private"."funding_deliveries";
 create policy funding_deliveries_read on "app_private"."funding_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "app_private"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
@@ -3674,108 +3469,83 @@ grant execute on function "app_private"."list_funding_claims"(uuid, text, uuid) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."funding_products";
-drop policy if exists bsb_tenant_scope_select on "app_private"."funding_products";
 create policy bsb_tenant_scope_select on "app_private"."funding_products" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."funding_products";
 create policy bsb_tenant_scope_insert on "app_private"."funding_products" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."funding_products";
 create policy bsb_tenant_scope_update on "app_private"."funding_products" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."funding_products";
 create policy bsb_tenant_scope_delete on "app_private"."funding_products" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."funding_awards";
-drop policy if exists bsb_tenant_scope_select on "app_private"."funding_awards";
 create policy bsb_tenant_scope_select on "app_private"."funding_awards" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."funding_awards";
 create policy bsb_tenant_scope_insert on "app_private"."funding_awards" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."funding_awards";
 create policy bsb_tenant_scope_update on "app_private"."funding_awards" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."funding_awards";
 create policy bsb_tenant_scope_delete on "app_private"."funding_awards" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."funding_deliveries";
-drop policy if exists bsb_tenant_scope_select on "app_private"."funding_deliveries";
 create policy bsb_tenant_scope_select on "app_private"."funding_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "app_private"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."funding_deliveries";
 create policy bsb_tenant_scope_insert on "app_private"."funding_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."funding_deliveries";
 create policy bsb_tenant_scope_update on "app_private"."funding_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."funding_deliveries";
 create policy bsb_tenant_scope_delete on "app_private"."funding_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."funding_claims";
-drop policy if exists bsb_tenant_scope_select on "app_private"."funding_claims";
 create policy bsb_tenant_scope_select on "app_private"."funding_claims" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."funding_claims";
 create policy bsb_tenant_scope_insert on "app_private"."funding_claims" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."funding_claims";
 create policy bsb_tenant_scope_update on "app_private"."funding_claims" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."funding_claims";
 create policy bsb_tenant_scope_delete on "app_private"."funding_claims" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."funding_claim_lines";
-drop policy if exists bsb_tenant_scope_select on "app_private"."funding_claim_lines";
 create policy bsb_tenant_scope_select on "app_private"."funding_claim_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."funding_claim_lines";
 create policy bsb_tenant_scope_insert on "app_private"."funding_claim_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."funding_claim_lines";
 create policy bsb_tenant_scope_update on "app_private"."funding_claim_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."funding_claim_lines";
 create policy bsb_tenant_scope_delete on "app_private"."funding_claim_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3797,63 +3567,16 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:9e00c9ae204654a715a6a3c16e1fc8dce4b1ca9a9507723c523f5dbcb74b7dae
+-- @bsb-hash sha256:68eab53913e7574d8f4a8fda9f1a2579bf28d0c7e4f12c3f35968ec9f11aefac
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Funding: the products a funder pays for, awards of units per period to a
 -- record, the care delivered against them, and claims to the funder with its
 -- response per line.
 
-create table if not exists "better_supabase"."funding_products" (
+create table "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
@@ -3870,17 +3593,16 @@ create table if not exists "better_supabase"."funding_products" (
   check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "funding_products_code_idx" on "better_supabase"."funding_products" ("tenant_id", "code");
+create unique index "funding_products_code_idx" on "better_supabase"."funding_products" ("tenant_id", "code");
 alter table "better_supabase"."funding_products" enable row level security;
 revoke all on "better_supabase"."funding_products" from public, anon, authenticated;
 grant select on "better_supabase"."funding_products" to authenticated;
 grant all on "better_supabase"."funding_products" to service_role;
-drop policy if exists funding_products_read on "better_supabase"."funding_products";
 create policy funding_products_read on "better_supabase"."funding_products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_awards" (
+create table "better_supabase"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The record the award is for, a type in config.subjects.
@@ -3904,19 +3626,18 @@ create table if not exists "better_supabase"."funding_awards" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
-create index if not exists "funding_awards_product_idx" on "better_supabase"."funding_awards" ("tenant_id", "product_id");
-create index if not exists "funding_awards_subject_idx" on "better_supabase"."funding_awards" ("subject_type", "subject_id");
-create index if not exists "funding_awards_funder_idx" on "better_supabase"."funding_awards" ("tenant_id", "funder_id", "status");
+create index "funding_awards_product_idx" on "better_supabase"."funding_awards" ("tenant_id", "product_id");
+create index "funding_awards_subject_idx" on "better_supabase"."funding_awards" ("subject_type", "subject_id");
+create index "funding_awards_funder_idx" on "better_supabase"."funding_awards" ("tenant_id", "funder_id", "status");
 alter table "better_supabase"."funding_awards" enable row level security;
 revoke all on "better_supabase"."funding_awards" from public, anon, authenticated;
 grant select on "better_supabase"."funding_awards" to authenticated;
 grant all on "better_supabase"."funding_awards" to service_role;
-drop policy if exists funding_awards_read on "better_supabase"."funding_awards";
 create policy funding_awards_read on "better_supabase"."funding_awards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
-create table if not exists "better_supabase"."funding_claims" (
+create table "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
@@ -3942,18 +3663,17 @@ create table if not exists "better_supabase"."funding_claims" (
   check ("period_end" >= "period_start"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "funding_claims_number_idx" on "better_supabase"."funding_claims" ("tenant_id", "number");
-create index if not exists "funding_claims_funder_idx" on "better_supabase"."funding_claims" ("tenant_id", "funder_id", "status");
+create unique index "funding_claims_number_idx" on "better_supabase"."funding_claims" ("tenant_id", "number");
+create index "funding_claims_funder_idx" on "better_supabase"."funding_claims" ("tenant_id", "funder_id", "status");
 alter table "better_supabase"."funding_claims" enable row level security;
 revoke all on "better_supabase"."funding_claims" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claims" to authenticated;
 grant all on "better_supabase"."funding_claims" to service_role;
-drop policy if exists funding_claims_read on "better_supabase"."funding_claims";
 create policy funding_claims_read on "better_supabase"."funding_claims"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_claim_lines" (
+create table "better_supabase"."funding_claim_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "claim_id" uuid not null,
@@ -3969,19 +3689,18 @@ create table if not exists "better_supabase"."funding_claim_lines" (
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
-create index if not exists "funding_claim_lines_claim_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "claim_id");
-create index if not exists "funding_claim_lines_award_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "award_id");
-create index if not exists "funding_claim_lines_product_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "product_id");
+create index "funding_claim_lines_claim_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "claim_id");
+create index "funding_claim_lines_award_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "award_id");
+create index "funding_claim_lines_product_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "product_id");
 alter table "better_supabase"."funding_claim_lines" enable row level security;
 revoke all on "better_supabase"."funding_claim_lines" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claim_lines" to authenticated;
 grant all on "better_supabase"."funding_claim_lines" to service_role;
-drop policy if exists funding_claim_lines_read on "better_supabase"."funding_claim_lines";
 create policy funding_claim_lines_read on "better_supabase"."funding_claim_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_deliveries" (
+create table "better_supabase"."funding_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "award_id" uuid not null,
@@ -3999,15 +3718,14 @@ create table if not exists "better_supabase"."funding_deliveries" (
   check ("source_type" = 'manual' or "source_id" is not null),
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
-create index if not exists "funding_deliveries_status_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "status", "delivered_on");
-create index if not exists "funding_deliveries_claim_line_idx" on "better_supabase"."funding_deliveries" ("claim_line_id");
-create unique index if not exists "funding_deliveries_source_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "source_type", "source_id") where "source_id" is not null;
+create index "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
+create index "funding_deliveries_status_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "status", "delivered_on");
+create index "funding_deliveries_claim_line_idx" on "better_supabase"."funding_deliveries" ("claim_line_id");
+create unique index "funding_deliveries_source_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "source_type", "source_id") where "source_id" is not null;
 alter table "better_supabase"."funding_deliveries" enable row level security;
 revoke all on "better_supabase"."funding_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
-drop policy if exists funding_deliveries_read on "better_supabase"."funding_deliveries";
 create policy funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
@@ -4847,108 +4565,83 @@ grant execute on function "better_supabase"."list_funding_claims"(uuid, text, uu
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_products" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_products" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_products" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_products" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_awards" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_awards" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_awards" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_awards" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claims" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claims" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claims" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claims" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claim_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claim_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -5115,57 +4808,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:954ea3b1725d2a658b394e4ef01891f93b103bc838ebdcce52d08ac6466647c8
+-- @bsb-hash sha256:681f142bc63fd00c47d4d3763453c2f596a557527b542d007454b93f2607eeb2
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Funding: the products a funder pays for, awards of units per period to a
 -- record, the care delivered against them, and claims to the funder with its
@@ -5188,7 +4834,6 @@ create unique index if not exists "funding_products_code_idx" on "better_supabas
 alter table "better_supabase"."funding_products" enable row level security;
 grant select on "better_supabase"."funding_products" to authenticated;
 grant all on "better_supabase"."funding_products" to service_role;
-drop policy if exists bsb_funding_products_read on "better_supabase"."funding_products";
 create policy bsb_funding_products_read on "better_supabase"."funding_products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
@@ -5216,7 +4861,6 @@ create index if not exists "funding_awards_funder_idx" on "better_supabase"."fun
 alter table "better_supabase"."funding_awards" enable row level security;
 grant select on "better_supabase"."funding_awards" to authenticated;
 grant all on "better_supabase"."funding_awards" to service_role;
-drop policy if exists bsb_funding_awards_read on "better_supabase"."funding_awards";
 create policy bsb_funding_awards_read on "better_supabase"."funding_awards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
@@ -5246,7 +4890,6 @@ create index if not exists "funding_claims_funder_idx" on "better_supabase"."fun
 alter table "better_supabase"."funding_claims" enable row level security;
 grant select on "better_supabase"."funding_claims" to authenticated;
 grant all on "better_supabase"."funding_claims" to service_role;
-drop policy if exists bsb_funding_claims_read on "better_supabase"."funding_claims";
 create policy bsb_funding_claims_read on "better_supabase"."funding_claims"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
@@ -5267,7 +4910,6 @@ create index if not exists "funding_claim_lines_product_idx" on "better_supabase
 alter table "better_supabase"."funding_claim_lines" enable row level security;
 grant select on "better_supabase"."funding_claim_lines" to authenticated;
 grant all on "better_supabase"."funding_claim_lines" to service_role;
-drop policy if exists bsb_funding_claim_lines_read on "better_supabase"."funding_claim_lines";
 create policy bsb_funding_claim_lines_read on "better_supabase"."funding_claim_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
@@ -5292,7 +4934,6 @@ create unique index if not exists "funding_deliveries_source_idx" on "better_sup
 alter table "better_supabase"."funding_deliveries" enable row level security;
 grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
-drop policy if exists bsb_funding_deliveries_read on "better_supabase"."funding_deliveries";
 create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
@@ -6132,108 +5773,83 @@ grant execute on function "better_supabase"."list_funding_claims"(uuid, text, uu
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_products" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_products" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_products" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_products" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_awards" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_awards" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_awards" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_awards" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claims" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claims" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claims" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claims" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claim_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claim_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -6255,63 +5871,16 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:23a84e17d47678ca09401b4621b8fd731889770116e62e919b8c9cff0ab8fe25
+-- @bsb-hash sha256:6d82af5ab4f39632ca5c3593640b5040494bbb4d5ce81a439b309373ff97ceb2
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Funding: the products a funder pays for, awards of units per period to a
 -- record, the care delivered against them, and claims to the funder with its
 -- response per line.
 
-create table if not exists "better_supabase"."funding_products" (
+create table "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
@@ -6328,17 +5897,16 @@ create table if not exists "better_supabase"."funding_products" (
   check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
   unique ("org_id", "id")
 );
-create unique index if not exists "funding_products_code_idx" on "better_supabase"."funding_products" ("org_id", "code");
+create unique index "funding_products_code_idx" on "better_supabase"."funding_products" ("org_id", "code");
 alter table "better_supabase"."funding_products" enable row level security;
 revoke all on "better_supabase"."funding_products" from public, anon, authenticated;
 grant select on "better_supabase"."funding_products" to authenticated;
 grant all on "better_supabase"."funding_products" to service_role;
-drop policy if exists funding_products_read on "better_supabase"."funding_products";
 create policy funding_products_read on "better_supabase"."funding_products"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_awards" (
+create table "better_supabase"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- The record the award is for, a type in config.subjects.
@@ -6362,19 +5930,18 @@ create table if not exists "better_supabase"."funding_awards" (
   unique ("org_id", "id"),
   foreign key ("org_id", "product_id") references "better_supabase"."funding_products" ("org_id", "id")
 );
-create index if not exists "funding_awards_product_idx" on "better_supabase"."funding_awards" ("org_id", "product_id");
-create index if not exists "funding_awards_subject_idx" on "better_supabase"."funding_awards" ("subject_type", "subject_id");
-create index if not exists "funding_awards_funder_idx" on "better_supabase"."funding_awards" ("org_id", "funder_id", "status");
+create index "funding_awards_product_idx" on "better_supabase"."funding_awards" ("org_id", "product_id");
+create index "funding_awards_subject_idx" on "better_supabase"."funding_awards" ("subject_type", "subject_id");
+create index "funding_awards_funder_idx" on "better_supabase"."funding_awards" ("org_id", "funder_id", "status");
 alter table "better_supabase"."funding_awards" enable row level security;
 revoke all on "better_supabase"."funding_awards" from public, anon, authenticated;
 grant select on "better_supabase"."funding_awards" to authenticated;
 grant all on "better_supabase"."funding_awards" to service_role;
-drop policy if exists funding_awards_read on "better_supabase"."funding_awards";
 create policy funding_awards_read on "better_supabase"."funding_awards"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
-create table if not exists "better_supabase"."funding_claims" (
+create table "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "funder_id" uuid not null,
@@ -6400,18 +5967,17 @@ create table if not exists "better_supabase"."funding_claims" (
   check ("period_end" >= "period_start"),
   unique ("org_id", "id")
 );
-create unique index if not exists "funding_claims_number_idx" on "better_supabase"."funding_claims" ("org_id", "number");
-create index if not exists "funding_claims_funder_idx" on "better_supabase"."funding_claims" ("org_id", "funder_id", "status");
+create unique index "funding_claims_number_idx" on "better_supabase"."funding_claims" ("org_id", "number");
+create index "funding_claims_funder_idx" on "better_supabase"."funding_claims" ("org_id", "funder_id", "status");
 alter table "better_supabase"."funding_claims" enable row level security;
 revoke all on "better_supabase"."funding_claims" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claims" to authenticated;
 grant all on "better_supabase"."funding_claims" to service_role;
-drop policy if exists funding_claims_read on "better_supabase"."funding_claims";
 create policy funding_claims_read on "better_supabase"."funding_claims"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_claim_lines" (
+create table "better_supabase"."funding_claim_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "claim_id" uuid not null,
@@ -6427,19 +5993,18 @@ create table if not exists "better_supabase"."funding_claim_lines" (
   foreign key ("org_id", "award_id") references "better_supabase"."funding_awards" ("org_id", "id"),
   foreign key ("org_id", "product_id") references "better_supabase"."funding_products" ("org_id", "id")
 );
-create index if not exists "funding_claim_lines_claim_idx" on "better_supabase"."funding_claim_lines" ("org_id", "claim_id");
-create index if not exists "funding_claim_lines_award_idx" on "better_supabase"."funding_claim_lines" ("org_id", "award_id");
-create index if not exists "funding_claim_lines_product_idx" on "better_supabase"."funding_claim_lines" ("org_id", "product_id");
+create index "funding_claim_lines_claim_idx" on "better_supabase"."funding_claim_lines" ("org_id", "claim_id");
+create index "funding_claim_lines_award_idx" on "better_supabase"."funding_claim_lines" ("org_id", "award_id");
+create index "funding_claim_lines_product_idx" on "better_supabase"."funding_claim_lines" ("org_id", "product_id");
 alter table "better_supabase"."funding_claim_lines" enable row level security;
 revoke all on "better_supabase"."funding_claim_lines" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claim_lines" to authenticated;
 grant all on "better_supabase"."funding_claim_lines" to service_role;
-drop policy if exists funding_claim_lines_read on "better_supabase"."funding_claim_lines";
 create policy funding_claim_lines_read on "better_supabase"."funding_claim_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_deliveries" (
+create table "better_supabase"."funding_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "award_id" uuid not null,
@@ -6457,15 +6022,14 @@ create table if not exists "better_supabase"."funding_deliveries" (
   check ("source_type" = 'manual' or "source_id" is not null),
   foreign key ("org_id", "award_id") references "better_supabase"."funding_awards" ("org_id", "id") on delete cascade
 );
-create index if not exists "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("org_id", "award_id", "delivered_on");
-create index if not exists "funding_deliveries_status_idx" on "better_supabase"."funding_deliveries" ("org_id", "status", "delivered_on");
-create index if not exists "funding_deliveries_claim_line_idx" on "better_supabase"."funding_deliveries" ("claim_line_id");
-create unique index if not exists "funding_deliveries_source_idx" on "better_supabase"."funding_deliveries" ("org_id", "source_type", "source_id") where "source_id" is not null;
+create index "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("org_id", "award_id", "delivered_on");
+create index "funding_deliveries_status_idx" on "better_supabase"."funding_deliveries" ("org_id", "status", "delivered_on");
+create index "funding_deliveries_claim_line_idx" on "better_supabase"."funding_deliveries" ("claim_line_id");
+create unique index "funding_deliveries_source_idx" on "better_supabase"."funding_deliveries" ("org_id", "source_type", "source_id") where "source_id" is not null;
 alter table "better_supabase"."funding_deliveries" enable row level security;
 revoke all on "better_supabase"."funding_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
-drop policy if exists funding_deliveries_read on "better_supabase"."funding_deliveries";
 create policy funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."org_id" = "org_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
@@ -7305,108 +6869,83 @@ grant execute on function "better_supabase"."list_funding_claims"(uuid, text, uu
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_products" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_products" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_products" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_products" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_awards" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_awards" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_awards" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_awards" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."org_id" = "org_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_deliveries" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_deliveries" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claims" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claims" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claims" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claims" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claim_lines" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claim_lines" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

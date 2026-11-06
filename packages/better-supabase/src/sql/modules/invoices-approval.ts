@@ -115,7 +115,7 @@ export function approvalTablesSql(
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, read),
       }),
-      { drop: true, target },
+      { target },
     );
 
   return `

@@ -182,8 +182,8 @@ alter table ${d} enable row level security;
 ${revokeTable(d)}
 grant select, delete on ${d} to authenticated;
 grant all on ${d} to service_role;
-${renderPolicy(makePolicy({ table: d, name: "push_devices_own_read", command: "select", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { drop: true, target: d })}
-${renderPolicy(makePolicy({ table: d, name: "push_devices_own_delete", command: "delete", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { drop: true, target: d })}
+${renderPolicy(makePolicy({ table: d, name: "push_devices_own_read", command: "select", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { target: d })}
+${renderPolicy(makePolicy({ table: d, name: "push_devices_own_delete", command: "delete", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { target: d })}
 
 -- Registers the caller's device, or refreshes it; returns the device id.
 ${extraFieldsArg(extras).drop(fn("register_push_device"), "text, text, text, text, text")}

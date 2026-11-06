@@ -1,12 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:0a2af48e09cdd4add092d44a613005663af7503e0db71d896f4ea98d4c33aede
+-- @bsb-hash sha256:c7c2bc1c03697cf59696306c34a538945fbd66e7e45509690b8ca1c2608031dd
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists better_supabase.webhook_inbox (
+create table better_supabase.webhook_inbox (
   id bigint generated always as identity primary key,
   source text not null,
   message_id text not null,
@@ -26,8 +26,8 @@ create table if not exists better_supabase.webhook_inbox (
 );
 -- The tenant a message belongs to (a per-tenant integration), and progress a
 -- handler saved mid-processing (checkpoint_webhook), such as a provider cursor.
-alter table better_supabase.webhook_inbox add column if not exists tenant text;
-alter table better_supabase.webhook_inbox add column if not exists checkpoint jsonb not null default '{}';
+alter table better_supabase.webhook_inbox add column tenant text;
+alter table better_supabase.webhook_inbox add column checkpoint jsonb not null default '{}';
 -- Message ids are unique per source and tenant: two tenants of one provider
 -- can send the same id. A null tenant counts as one tenant.
 do $$
@@ -43,15 +43,14 @@ begin
   end if;
 end;
 $$;
-alter table better_supabase.webhook_inbox drop constraint if exists webhook_inbox_source_message_id_key;
-create index if not exists webhook_inbox_ready_idx
+create index webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
-create index if not exists webhook_inbox_tenant_idx
+create index webhook_inbox_tenant_idx
   on better_supabase.webhook_inbox (tenant, received_at) where tenant is not null;
 -- purge_webhooks: processed messages by processed_at, dead ones by received_at.
-create index if not exists webhook_inbox_processed_idx
+create index webhook_inbox_processed_idx
   on better_supabase.webhook_inbox (processed_at) where status = 'processed';
-create index if not exists webhook_inbox_dead_idx
+create index webhook_inbox_dead_idx
   on better_supabase.webhook_inbox (received_at) where status = 'dead';
 
 alter table better_supabase.webhook_inbox enable row level security;
@@ -60,17 +59,7 @@ grant all on better_supabase.webhook_inbox to service_role;
 
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
-drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
-drop function if exists better_supabase.complete_webhook(bigint, text);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);
-drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer, jsonb);
-drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
-drop function if exists better_supabase.list_webhooks(text, text, text, integer);
+
 
 -- { id, duplicate }: duplicate = true when the source and tenant saw the
 -- message id before (the sender retried). max_attempts is the source's
@@ -318,12 +307,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:64a214b66e468701eacf32f0d2881dce1906f18fa1e82f47d5d18f38d08d39af
+-- @bsb-hash sha256:55658c8cef6f5ea2fc465c72326b9c749c7b12d68bc3ac64bdf0544f1194e232
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists better_supabase.webhook_inbox (
+create table better_supabase.webhook_inbox (
   id bigint generated always as identity primary key,
   source text not null,
   message_id text not null,
@@ -343,8 +332,8 @@ create table if not exists better_supabase.webhook_inbox (
 );
 -- The tenant a message belongs to (a per-tenant integration), and progress a
 -- handler saved mid-processing (checkpoint_webhook), such as a provider cursor.
-alter table better_supabase.webhook_inbox add column if not exists tenant text;
-alter table better_supabase.webhook_inbox add column if not exists checkpoint jsonb not null default '{}';
+alter table better_supabase.webhook_inbox add column tenant text;
+alter table better_supabase.webhook_inbox add column checkpoint jsonb not null default '{}';
 -- Message ids are unique per source and tenant: two tenants of one provider
 -- can send the same id. A null tenant counts as one tenant.
 do $$
@@ -360,15 +349,14 @@ begin
   end if;
 end;
 $$;
-alter table better_supabase.webhook_inbox drop constraint if exists webhook_inbox_source_message_id_key;
-create index if not exists webhook_inbox_ready_idx
+create index webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
-create index if not exists webhook_inbox_tenant_idx
+create index webhook_inbox_tenant_idx
   on better_supabase.webhook_inbox (tenant, received_at) where tenant is not null;
 -- purge_webhooks: processed messages by processed_at, dead ones by received_at.
-create index if not exists webhook_inbox_processed_idx
+create index webhook_inbox_processed_idx
   on better_supabase.webhook_inbox (processed_at) where status = 'processed';
-create index if not exists webhook_inbox_dead_idx
+create index webhook_inbox_dead_idx
   on better_supabase.webhook_inbox (received_at) where status = 'dead';
 
 alter table better_supabase.webhook_inbox enable row level security;
@@ -377,17 +365,7 @@ grant all on better_supabase.webhook_inbox to service_role;
 
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
-drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
-drop function if exists better_supabase.complete_webhook(bigint, text);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);
-drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer, jsonb);
-drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
-drop function if exists better_supabase.list_webhooks(text, text, text, integer);
+
 
 -- { id, duplicate }: duplicate = true when the source and tenant saw the
 -- message id before (the sender retried). max_attempts is the source's
@@ -639,12 +617,12 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:0a2af48e09cdd4add092d44a613005663af7503e0db71d896f4ea98d4c33aede
+-- @bsb-hash sha256:c7c2bc1c03697cf59696306c34a538945fbd66e7e45509690b8ca1c2608031dd
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists better_supabase.webhook_inbox (
+create table better_supabase.webhook_inbox (
   id bigint generated always as identity primary key,
   source text not null,
   message_id text not null,
@@ -664,8 +642,8 @@ create table if not exists better_supabase.webhook_inbox (
 );
 -- The tenant a message belongs to (a per-tenant integration), and progress a
 -- handler saved mid-processing (checkpoint_webhook), such as a provider cursor.
-alter table better_supabase.webhook_inbox add column if not exists tenant text;
-alter table better_supabase.webhook_inbox add column if not exists checkpoint jsonb not null default '{}';
+alter table better_supabase.webhook_inbox add column tenant text;
+alter table better_supabase.webhook_inbox add column checkpoint jsonb not null default '{}';
 -- Message ids are unique per source and tenant: two tenants of one provider
 -- can send the same id. A null tenant counts as one tenant.
 do $$
@@ -681,15 +659,14 @@ begin
   end if;
 end;
 $$;
-alter table better_supabase.webhook_inbox drop constraint if exists webhook_inbox_source_message_id_key;
-create index if not exists webhook_inbox_ready_idx
+create index webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
-create index if not exists webhook_inbox_tenant_idx
+create index webhook_inbox_tenant_idx
   on better_supabase.webhook_inbox (tenant, received_at) where tenant is not null;
 -- purge_webhooks: processed messages by processed_at, dead ones by received_at.
-create index if not exists webhook_inbox_processed_idx
+create index webhook_inbox_processed_idx
   on better_supabase.webhook_inbox (processed_at) where status = 'processed';
-create index if not exists webhook_inbox_dead_idx
+create index webhook_inbox_dead_idx
   on better_supabase.webhook_inbox (received_at) where status = 'dead';
 
 alter table better_supabase.webhook_inbox enable row level security;
@@ -698,17 +675,7 @@ grant all on better_supabase.webhook_inbox to service_role;
 
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
-drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
-drop function if exists better_supabase.complete_webhook(bigint, text);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);
-drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer, jsonb);
-drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
-drop function if exists better_supabase.list_webhooks(text, text, text, integer);
+
 
 -- { id, duplicate }: duplicate = true when the source and tenant saw the
 -- message id before (the sender retried). max_attempts is the source's
@@ -956,12 +923,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:9570f69dde3c2399f20382fc235b6d5499dc6ed0f858368375c9786eb89a1226
+-- @bsb-hash sha256:c49afaf856e1b4bd40074cd9e08ec73e0305304ae21f6241add0147c85cc71fe
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists better_supabase.webhook_inbox (
+create table better_supabase.webhook_inbox (
   id bigint generated always as identity primary key,
   source text not null,
   message_id text not null,
@@ -981,8 +948,8 @@ create table if not exists better_supabase.webhook_inbox (
 );
 -- The tenant a message belongs to (a per-tenant integration), and progress a
 -- handler saved mid-processing (checkpoint_webhook), such as a provider cursor.
-alter table better_supabase.webhook_inbox add column if not exists tenant text;
-alter table better_supabase.webhook_inbox add column if not exists checkpoint jsonb not null default '{}';
+alter table better_supabase.webhook_inbox add column tenant text;
+alter table better_supabase.webhook_inbox add column checkpoint jsonb not null default '{}';
 -- Message ids are unique per source and tenant: two tenants of one provider
 -- can send the same id. A null tenant counts as one tenant.
 do $$
@@ -998,15 +965,14 @@ begin
   end if;
 end;
 $$;
-alter table better_supabase.webhook_inbox drop constraint if exists webhook_inbox_source_message_id_key;
-create index if not exists webhook_inbox_ready_idx
+create index webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
-create index if not exists webhook_inbox_tenant_idx
+create index webhook_inbox_tenant_idx
   on better_supabase.webhook_inbox (tenant, received_at) where tenant is not null;
 -- purge_webhooks: processed messages by processed_at, dead ones by received_at.
-create index if not exists webhook_inbox_processed_idx
+create index webhook_inbox_processed_idx
   on better_supabase.webhook_inbox (processed_at) where status = 'processed';
-create index if not exists webhook_inbox_dead_idx
+create index webhook_inbox_dead_idx
   on better_supabase.webhook_inbox (received_at) where status = 'dead';
 
 alter table better_supabase.webhook_inbox enable row level security;
@@ -1015,17 +981,7 @@ grant all on better_supabase.webhook_inbox to service_role;
 
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
-drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
-drop function if exists better_supabase.complete_webhook(bigint, text);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);
-drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer, jsonb);
-drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
-drop function if exists better_supabase.list_webhooks(text, text, text, integer);
+
 
 -- { id, duplicate }: duplicate = true when the source and tenant saw the
 -- message id before (the sender retried). max_attempts is the source's
@@ -1260,18 +1216,6 @@ grant execute on function better_supabase.purge_webhooks(interval, boolean, inte
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-drop function if exists "api"."receive_webhook"(text, text, text, jsonb, jsonb);
-drop function if exists "api"."purge_webhooks"(interval, boolean, integer);
-drop function if exists "api"."receive_webhook"(text, text, text, jsonb, jsonb, text);
-drop function if exists "api"."complete_webhook"(bigint, text);
-drop function if exists "api"."fail_webhook"(bigint, text, text, interval);
-drop function if exists "api"."fail_webhook"(bigint, text, text, interval, integer);
-drop function if exists "api"."checkpoint_webhook"(bigint, text, jsonb);
-drop function if exists "api"."receive_webhook"(text, text, text, jsonb, jsonb, text, integer);
-drop function if exists "api"."receive_webhook"(text, text, text, jsonb, jsonb, text, integer, jsonb);
-drop function if exists "api"."claim_webhooks"(text, text, integer, interval);
-drop function if exists "api"."list_webhooks"(text, text, text, integer);
-
 create or replace function "api"."receive_webhook"(source text, message_id text, event_type text, payload jsonb, headers jsonb default '{}', tenant text default null, max_attempts integer default null)
 returns jsonb
 language sql
@@ -1362,7 +1306,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:6cc782777fa8800cc7d85523e51d0951d3e5ecc5528eb52607f25bbbc70be76e
+-- @bsb-hash sha256:de7789a14db8db770cf675b5a4796a32c96309c6a09efabe66a8df7c6e814e61
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1373,17 +1317,7 @@ on conflict (name) do update
 
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
-drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
-drop function if exists better_supabase.complete_webhook(bigint, text);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);
-drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer, jsonb);
-drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
-drop function if exists better_supabase.list_webhooks(text, text, text, integer);
+
 
 -- { id, duplicate }: duplicate = true when the source and tenant saw the
 -- message id before (the sender retried). max_attempts is the source's

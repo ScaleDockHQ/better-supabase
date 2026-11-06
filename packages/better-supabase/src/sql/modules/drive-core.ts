@@ -373,19 +373,19 @@ revoke execute on function ${fn("drive_node_json")}(${T}) from public, anon, aut
 ${
   ctx.manages && readPolicy
     ? `
-${renderPolicy(makePolicy({ table: T, name: ctx.naming.rename("drive_nodes_read"), command: "select", roles: ["authenticated"], using: `${ctx.has("nodes", "deletedAt") ? `${n("deletedAt")} is null and ` : ""}${n("id")} in (select ${fn("drive_readable_ids")}())` }), { drop: true, target: T })}
+${renderPolicy(makePolicy({ table: T, name: ctx.naming.rename("drive_nodes_read"), command: "select", roles: ["authenticated"], using: `${ctx.has("nodes", "deletedAt") ? `${n("deletedAt")} is null and ` : ""}${n("id")} in (select ${fn("drive_readable_ids")}())` }), { target: T })}
 `
     : ""
 }${
     readPolicy && drives && D !== undefined && ctx.owns("drives")
       ? `
-${renderPolicy(makePolicy({ table: D, name: ctx.naming.rename("drive_drives_read"), command: "select", roles: ["authenticated"], using: `${d("id")} in (select ${fn("drive_drive_readable_ids")}())` }), { drop: true, target: D })}
+${renderPolicy(makePolicy({ table: D, name: ctx.naming.rename("drive_drives_read"), command: "select", roles: ["authenticated"], using: `${d("id")} in (select ${fn("drive_drive_readable_ids")}())` }), { target: D })}
 `
       : ""
   }${
     readPolicy && drives && DG !== undefined && ctx.owns("driveGrants")
       ? `
-${renderPolicy(makePolicy({ table: DG, name: ctx.naming.rename("drive_drive_grants_read"), command: "select", roles: ["authenticated"], using: `${dg("drive")} in (select ${fn("drive_drive_readable_ids")}())` }), { drop: true, target: DG })}
+${renderPolicy(makePolicy({ table: DG, name: ctx.naming.rename("drive_drive_grants_read"), command: "select", roles: ["authenticated"], using: `${dg("drive")} in (select ${fn("drive_drive_readable_ids")}())` }), { target: DG })}
 `
       : ""
   }${driveTriggersSql(kit)}

@@ -1,56 +1,9 @@
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:791423eeccc658cc3b14e79730bb1ebde93050efb48f79989e6a29173b17b6d2
+-- @bsb-hash sha256:f93ae8b76b1dc834e6a75dd11feadc5ee6a72b0ec67f1df55da0793de7affafe
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shift_templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shift_templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shift_templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shift_templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shift_templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shifts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shifts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shifts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shifts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shifts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shift_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shift_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shift_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shift_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shift_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shift_swaps";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shift_swaps";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shift_swaps";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shift_swaps";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shift_swaps";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shift_availability";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shift_availability";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shift_availability";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shift_availability";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shift_availability";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Shifts: templates that generate shifts, shifts planned in draft and
 -- published, assignments checked for overlap, leave, qualifications and rest,
@@ -58,7 +11,7 @@ end $$;
 
 create extension if not exists btree_gist with schema extensions;
 
-create table if not exists "better_supabase"."shift_templates" (
+create table "better_supabase"."shift_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -78,19 +31,18 @@ create table if not exists "better_supabase"."shift_templates" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "shift_templates_tenant_idx" on "better_supabase"."shift_templates" ("tenant_id", "name");
-create index if not exists "shift_templates_team_idx" on "better_supabase"."shift_templates" ("team_id") where "team_id" is not null;
-create index if not exists "shift_templates_location_idx" on "better_supabase"."shift_templates" ("location_id") where "location_id" is not null;
+create index "shift_templates_tenant_idx" on "better_supabase"."shift_templates" ("tenant_id", "name");
+create index "shift_templates_team_idx" on "better_supabase"."shift_templates" ("team_id") where "team_id" is not null;
+create index "shift_templates_location_idx" on "better_supabase"."shift_templates" ("location_id") where "location_id" is not null;
 alter table "better_supabase"."shift_templates" enable row level security;
 revoke all on "better_supabase"."shift_templates" from public, anon, authenticated;
 grant select on "better_supabase"."shift_templates" to authenticated;
 grant all on "better_supabase"."shift_templates" to service_role;
-drop policy if exists shift_templates_read on "better_supabase"."shift_templates";
 create policy shift_templates_read on "better_supabase"."shift_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shifts.read')));
 
-create table if not exists "better_supabase"."shifts" (
+create table "better_supabase"."shifts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "template_id" uuid,
@@ -114,20 +66,19 @@ create table if not exists "better_supabase"."shifts" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "template_id") references "better_supabase"."shift_templates" ("tenant_id", "id") on delete set null ("template_id")
 );
-create index if not exists "shifts_tenant_idx" on "better_supabase"."shifts" ("tenant_id", "starts_at");
-create index if not exists "shifts_template_idx" on "better_supabase"."shifts" ("tenant_id", "template_id") where "template_id" is not null;
-create index if not exists "shifts_team_idx" on "better_supabase"."shifts" ("team_id") where "team_id" is not null;
-create index if not exists "shifts_location_idx" on "better_supabase"."shifts" ("location_id") where "location_id" is not null;
+create index "shifts_tenant_idx" on "better_supabase"."shifts" ("tenant_id", "starts_at");
+create index "shifts_template_idx" on "better_supabase"."shifts" ("tenant_id", "template_id") where "template_id" is not null;
+create index "shifts_team_idx" on "better_supabase"."shifts" ("team_id") where "team_id" is not null;
+create index "shifts_location_idx" on "better_supabase"."shifts" ("location_id") where "location_id" is not null;
 alter table "better_supabase"."shifts" enable row level security;
 revoke all on "better_supabase"."shifts" from public, anon, authenticated;
 grant select on "better_supabase"."shifts" to authenticated;
 grant all on "better_supabase"."shifts" to service_role;
-drop policy if exists shifts_read on "better_supabase"."shifts";
 create policy shifts_read on "better_supabase"."shifts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shifts.write')) or ("status" <> 'draft' and "tenant_id" in (select better_supabase.tenant_ids_with('shifts.read'))));
 
-create table if not exists "better_supabase"."shift_assignments" (
+create table "better_supabase"."shift_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shift_id" uuid not null,
@@ -149,18 +100,17 @@ create table if not exists "better_supabase"."shift_assignments" (
     tstzrange("starts_at", "ends_at") with &&
   ) where ("status" = 'assigned')
 );
-create index if not exists "shift_assignments_tenant_idx" on "better_supabase"."shift_assignments" ("tenant_id", "shift_id");
-create index if not exists "shift_assignments_user_idx" on "better_supabase"."shift_assignments" ("user_id", "starts_at");
+create index "shift_assignments_tenant_idx" on "better_supabase"."shift_assignments" ("tenant_id", "shift_id");
+create index "shift_assignments_user_idx" on "better_supabase"."shift_assignments" ("user_id", "starts_at");
 alter table "better_supabase"."shift_assignments" enable row level security;
 revoke all on "better_supabase"."shift_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."shift_assignments" to authenticated;
 grant all on "better_supabase"."shift_assignments" to service_role;
-drop policy if exists shift_assignments_read on "better_supabase"."shift_assignments";
 create policy shift_assignments_read on "better_supabase"."shift_assignments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.read')));
 
-create table if not exists "better_supabase"."shift_swaps" (
+create table "better_supabase"."shift_swaps" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "assignment_id" uuid not null,
@@ -175,20 +125,19 @@ create table if not exists "better_supabase"."shift_swaps" (
   check ("to_user_id" <> "from_user_id"),
   foreign key ("tenant_id", "assignment_id") references "better_supabase"."shift_assignments" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "shift_swaps_tenant_idx" on "better_supabase"."shift_swaps" ("tenant_id", "assignment_id");
-create unique index if not exists "shift_swaps_pending_idx" on "better_supabase"."shift_swaps" ("assignment_id") where "status" = 'pending';
-create index if not exists "shift_swaps_to_user_idx" on "better_supabase"."shift_swaps" ("to_user_id");
-create index if not exists "shift_swaps_approval_idx" on "better_supabase"."shift_swaps" ("approval_id") where "approval_id" is not null;
+create index "shift_swaps_tenant_idx" on "better_supabase"."shift_swaps" ("tenant_id", "assignment_id");
+create unique index "shift_swaps_pending_idx" on "better_supabase"."shift_swaps" ("assignment_id") where "status" = 'pending';
+create index "shift_swaps_to_user_idx" on "better_supabase"."shift_swaps" ("to_user_id");
+create index "shift_swaps_approval_idx" on "better_supabase"."shift_swaps" ("approval_id") where "approval_id" is not null;
 alter table "better_supabase"."shift_swaps" enable row level security;
 revoke all on "better_supabase"."shift_swaps" from public, anon, authenticated;
 grant select on "better_supabase"."shift_swaps" to authenticated;
 grant all on "better_supabase"."shift_swaps" to service_role;
-drop policy if exists shift_swaps_read on "better_supabase"."shift_swaps";
 create policy shift_swaps_read on "better_supabase"."shift_swaps"
   for select to authenticated
   using ("from_user_id" = (select auth.uid()) or "to_user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.manage')));
 
-create table if not exists "better_supabase"."shift_availability" (
+create table "better_supabase"."shift_availability" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -203,12 +152,11 @@ create table if not exists "better_supabase"."shift_availability" (
   check ("until_time" is null or "until_time" > "from_time"),
   unique ("tenant_id", "user_id", "on_date")
 );
-create index if not exists "shift_availability_day_idx" on "better_supabase"."shift_availability" ("tenant_id", "on_date");
+create index "shift_availability_day_idx" on "better_supabase"."shift_availability" ("tenant_id", "on_date");
 alter table "better_supabase"."shift_availability" enable row level security;
 revoke all on "better_supabase"."shift_availability" from public, anon, authenticated;
 grant select on "better_supabase"."shift_availability" to authenticated;
 grant all on "better_supabase"."shift_availability" to service_role;
-drop policy if exists shift_availability_read on "better_supabase"."shift_availability";
 create policy shift_availability_read on "better_supabase"."shift_availability"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.write')));
@@ -411,7 +359,7 @@ grant execute on function "better_supabase"."generate_shifts"(uuid, uuid, date, 
 -- Creates a draft shift, or changes one (shift_id). Changing the times moves
 -- its assignments with it; a move that overlaps another shift of an assigned
 -- member is refused.
-drop function if exists "better_supabase"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid, jsonb);
+
 create or replace function "better_supabase"."save_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
 returns jsonb
 language plpgsql
@@ -1500,108 +1448,83 @@ grant execute on function "better_supabase"."shifts_to_time_entries"(uuid, times
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."shift_templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shift_templates";
 create policy bsb_tenant_scope_select on "better_supabase"."shift_templates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('shifts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shift_templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."shift_templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shift_templates";
 create policy bsb_tenant_scope_update on "better_supabase"."shift_templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shift_templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."shift_templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."shifts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shifts";
 create policy bsb_tenant_scope_select on "better_supabase"."shifts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('shifts.write')) or ("status" <> 'draft' and "tenant_id" in (select better_supabase.tenant_ids_with('shifts.read'))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shifts";
 create policy bsb_tenant_scope_insert on "better_supabase"."shifts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shifts";
 create policy bsb_tenant_scope_update on "better_supabase"."shifts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shifts";
 create policy bsb_tenant_scope_delete on "better_supabase"."shifts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."shift_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shift_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."shift_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shift_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."shift_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shift_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."shift_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shift_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."shift_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."shift_swaps";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shift_swaps";
 create policy bsb_tenant_scope_select on "better_supabase"."shift_swaps" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("from_user_id" = (select auth.uid()) or "to_user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shift_swaps";
 create policy bsb_tenant_scope_insert on "better_supabase"."shift_swaps" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shift_swaps";
 create policy bsb_tenant_scope_update on "better_supabase"."shift_swaps" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shift_swaps";
 create policy bsb_tenant_scope_delete on "better_supabase"."shift_swaps" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."shift_availability";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shift_availability";
 create policy bsb_tenant_scope_select on "better_supabase"."shift_availability" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.write')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shift_availability";
 create policy bsb_tenant_scope_insert on "better_supabase"."shift_availability" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shift_availability";
 create policy bsb_tenant_scope_update on "better_supabase"."shift_availability" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shift_availability";
 create policy bsb_tenant_scope_delete on "better_supabase"."shift_availability" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1620,8 +1543,6 @@ $$;
 -- blocks.shifts.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid, jsonb);
 
 create or replace function "api"."save_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
 returns jsonb

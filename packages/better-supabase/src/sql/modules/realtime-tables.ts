@@ -270,7 +270,7 @@ ${tenantTopics(ctx)}      or (split_part((select realtime.topic()), ':', 4) = 'u
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     )`,
   }),
-  { drop: true, target: "realtime.messages" },
+  { target: "realtime.messages" },
 )}`;
 
 export const REALTIME_TABLES: BlockSqlDefinition = {

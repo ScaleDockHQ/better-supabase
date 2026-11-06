@@ -1,42 +1,11 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:59b460e8d1c32f00bcc46852447ffe2e10cc4c0a7efd740a1531c03971b857b8
+-- @bsb-hash sha256:87bdf70dfd33e0f82420470a174712c92a104dbc3f14b7dbb72127ef42419aa9
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."webhook_endpoints";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."webhook_endpoints";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."webhook_endpoints";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."webhook_endpoints";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoint_secrets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."webhook_endpoint_secrets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."webhook_endpoint_secrets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."webhook_endpoint_secrets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."webhook_endpoint_secrets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."webhook_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."webhook_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."webhook_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."webhook_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."webhook_endpoints" (
+create table "better_supabase"."webhook_endpoints" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "name" text not null check (length(trim("name")) > 0),
@@ -55,43 +24,32 @@ create table if not exists "better_supabase"."webhook_endpoints" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."webhook_endpoints" add column if not exists "permissions" text[];
-alter table "better_supabase"."webhook_endpoints" add column if not exists "batch" boolean not null default false;
-alter table "better_supabase"."webhook_endpoints" add column if not exists "signing" text not null default 'v1' check ("signing" in ('v1', 'v1a'));
-alter table "better_supabase"."webhook_endpoints" add column if not exists "format" text not null default 'cloudevents' check ("format" ~ '^[a-z][a-z0-9-]{0,39}$');
-alter table "better_supabase"."webhook_endpoints" add column if not exists "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'));
 alter table "better_supabase"."webhook_endpoints" alter column "format" set default 'cloudevents';
-create index if not exists webhook_endpoints_types_idx on "better_supabase"."webhook_endpoints" using gin ("event_types");
-create index if not exists webhook_endpoints_tenant_idx on "better_supabase"."webhook_endpoints" ("organization_id");
-create index if not exists webhook_endpoints_created_by_idx on "better_supabase"."webhook_endpoints" ("created_by");
-alter table "better_supabase"."webhook_endpoints" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."webhook_endpoints";
+create index webhook_endpoints_types_idx on "better_supabase"."webhook_endpoints" using gin ("event_types");
+create index webhook_endpoints_tenant_idx on "better_supabase"."webhook_endpoints" ("organization_id");
+create index webhook_endpoints_created_by_idx on "better_supabase"."webhook_endpoints" ("created_by");
 create trigger bsb_updated_at before update on "better_supabase"."webhook_endpoints"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."webhook_endpoints" enable row level security;
 revoke all on "better_supabase"."webhook_endpoints" from public, anon, authenticated;
 grant all on "better_supabase"."webhook_endpoints" to service_role;
 grant select, insert, update, delete on "better_supabase"."webhook_endpoints" to authenticated;
-drop policy if exists bsb_webhook_endpoints_read on "better_supabase"."webhook_endpoints";
 create policy bsb_webhook_endpoints_read on "better_supabase"."webhook_endpoints"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')));
-drop policy if exists bsb_webhook_endpoints_write on "better_supabase"."webhook_endpoints";
-drop policy if exists bsb_webhook_endpoints_insert on "better_supabase"."webhook_endpoints";
 create policy bsb_webhook_endpoints_insert on "better_supabase"."webhook_endpoints"
   for insert to authenticated
   with check (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_webhook_endpoints_update on "better_supabase"."webhook_endpoints";
 create policy bsb_webhook_endpoints_update on "better_supabase"."webhook_endpoints"
   for update to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()))
   with check (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_webhook_endpoints_delete on "better_supabase"."webhook_endpoints";
 create policy bsb_webhook_endpoints_delete on "better_supabase"."webhook_endpoints"
   for delete to authenticated
   using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
 
-create table if not exists "better_supabase"."webhook_endpoint_secrets" (
+create table "better_supabase"."webhook_endpoint_secrets" (
   "id" uuid primary key default gen_random_uuid(),
   "endpoint_id" uuid not null references "better_supabase"."webhook_endpoints" ("id") on delete cascade,
   "organization_id" uuid,
@@ -99,12 +57,12 @@ create table if not exists "better_supabase"."webhook_endpoint_secrets" (
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists webhook_endpoint_secrets_endpoint_idx on "better_supabase"."webhook_endpoint_secrets" ("endpoint_id");
+create index webhook_endpoint_secrets_endpoint_idx on "better_supabase"."webhook_endpoint_secrets" ("endpoint_id");
 alter table "better_supabase"."webhook_endpoint_secrets" enable row level security;
 revoke all on "better_supabase"."webhook_endpoint_secrets" from public, anon, authenticated;
 grant all on "better_supabase"."webhook_endpoint_secrets" to service_role;
 
-create table if not exists "better_supabase"."webhook_deliveries" (
+create table "better_supabase"."webhook_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "endpoint_id" uuid not null references "better_supabase"."webhook_endpoints" ("id") on delete cascade,
@@ -125,18 +83,16 @@ create table if not exists "better_supabase"."webhook_deliveries" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."webhook_deliveries" add column if not exists "subject" text;
-create index if not exists webhook_deliveries_due_idx on "better_supabase"."webhook_deliveries" ("available_at", "leased_until") where "status" in ('pending', 'retrying', 'delivering');
-create index if not exists webhook_deliveries_endpoint_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "created_at" desc);
-create index if not exists webhook_deliveries_open_idx on "better_supabase"."webhook_deliveries" ("endpoint_id") where "status" in ('pending', 'retrying');
-create index if not exists webhook_deliveries_finished_idx on "better_supabase"."webhook_deliveries" ("created_at") where "status" in ('succeeded', 'canceled', 'dead');
-create index if not exists webhook_deliveries_tenant_created_idx on "better_supabase"."webhook_deliveries" ("organization_id", "created_at" desc);
-create unique index if not exists webhook_deliveries_endpoint_event_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "event_id") where "event_id" is not null;
+create index webhook_deliveries_due_idx on "better_supabase"."webhook_deliveries" ("available_at", "leased_until") where "status" in ('pending', 'retrying', 'delivering');
+create index webhook_deliveries_endpoint_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "created_at" desc);
+create index webhook_deliveries_open_idx on "better_supabase"."webhook_deliveries" ("endpoint_id") where "status" in ('pending', 'retrying');
+create index webhook_deliveries_finished_idx on "better_supabase"."webhook_deliveries" ("created_at") where "status" in ('succeeded', 'canceled', 'dead');
+create index webhook_deliveries_tenant_created_idx on "better_supabase"."webhook_deliveries" ("organization_id", "created_at" desc);
+create unique index webhook_deliveries_endpoint_event_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "event_id") where "event_id" is not null;
 alter table "better_supabase"."webhook_deliveries" enable row level security;
 revoke all on "better_supabase"."webhook_deliveries" from public, anon, authenticated;
 grant all on "better_supabase"."webhook_deliveries" to service_role;
 grant select on "better_supabase"."webhook_deliveries" to authenticated;
-drop policy if exists bsb_webhook_deliveries_read on "better_supabase"."webhook_deliveries";
 create policy bsb_webhook_deliveries_read on "better_supabase"."webhook_deliveries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')));
@@ -156,7 +112,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."reset_webhook_endpoint"() from public, anon, authenticated;
-drop trigger if exists "bsb_webhook_endpoint_reenable" on "better_supabase"."webhook_endpoints";
 create trigger "bsb_webhook_endpoint_reenable" before update of "enabled" on "better_supabase"."webhook_endpoints"
   for each row execute function "better_supabase"."reset_webhook_endpoint"();
 
@@ -172,11 +127,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_webhook_vault_secret"() from public, anon, authenticated;
-drop trigger if exists "bsb_webhook_secret_vault" on "better_supabase"."webhook_endpoint_secrets";
 create trigger "bsb_webhook_secret_vault" after delete on "better_supabase"."webhook_endpoint_secrets"
   for each row execute function "better_supabase"."drop_webhook_vault_secret"();
-
-drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);
 -- Queues the event for every enabled endpoint subscribed to its type:
 -- the exact type, '*', or a prefix pattern such as 'invoice.*'. The
 -- patterns that can match are built from the type, so && uses the GIN
@@ -332,8 +284,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."claim_webhook_deliveries"(integer, interval);
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
 -- complete_webhook_delivery checks. Deliveries of disabled endpoints are
@@ -787,22 +737,18 @@ grant execute on function "better_supabase"."delete_webhook_endpoint"(uuid) to a
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_endpoints";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."webhook_endpoints";
 create policy bsb_tenant_scope_select on "better_supabase"."webhook_endpoints" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."webhook_endpoints";
 create policy bsb_tenant_scope_insert on "better_supabase"."webhook_endpoints" as restrictive
   for insert to public
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."webhook_endpoints";
 create policy bsb_tenant_scope_update on "better_supabase"."webhook_endpoints" as restrictive
   for update to public
   using (
@@ -813,31 +759,25 @@ create policy bsb_tenant_scope_update on "better_supabase"."webhook_endpoints" a
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
   );
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."webhook_endpoints";
 create policy bsb_tenant_scope_delete on "better_supabase"."webhook_endpoints" as restrictive
   for delete to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
   );
-drop policy if exists bsb_tenant_scope on "better_supabase"."webhook_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."webhook_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."webhook_deliveries" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."webhook_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."webhook_deliveries" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."webhook_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."webhook_deliveries" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."webhook_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."webhook_deliveries" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -852,9 +792,6 @@ $$;
 -- blocks.webhooks-out.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."publish_webhook_event"(text, jsonb, uuid, text);
-drop function if exists "api"."claim_webhook_deliveries"(integer, interval);
 
 create or replace function "api"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer

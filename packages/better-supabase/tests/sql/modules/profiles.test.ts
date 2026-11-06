@@ -39,9 +39,7 @@ describe("profiles module", () => {
   it("keeps a locale column users may update, on a managed table only", () => {
     const sql = body({});
     expect(sql).toContain('  "locale" text,');
-    expect(sql).toContain(
-      'alter table "better_supabase"."profiles" add column if not exists "locale" text;',
-    );
+    expect(sql).toContain('"locale" text');
     expect(sql).toContain(
       `"locale" = case when update_my_profile.attrs ? 'locale' then update_my_profile.attrs ->> 'locale' else p."locale" end`,
     );
@@ -89,9 +87,7 @@ describe("profiles module", () => {
   it("keeps an avatar_path column that auth metadata never writes", () => {
     const sql = body({});
     expect(sql).toContain('  "avatar_path" text,');
-    expect(sql).toContain(
-      'alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;',
-    );
+    expect(sql).toContain('"avatar_path" text');
     expect(sql).not.toMatch(/insert into[^;]*"avatar_path"/);
     expect(sql).toContain(
       `"avatar_path" = case when update_my_profile.attrs ? 'avatar_path' then update_my_profile.attrs ->> 'avatar_path' else p."avatar_path" end`,
@@ -138,9 +134,7 @@ describe("profiles module", () => {
 
   it("owns its table with grants, a guard and the auth triggers", () => {
     const sql = body({});
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."profiles" (',
-    );
+    expect(sql).toContain('create table "better_supabase"."profiles" (');
     expect(sql).toContain(
       'grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;',
     );
@@ -192,9 +186,6 @@ describe("profiles module", () => {
       `left(regexp_replace(lower(coalesce(base, '')), '[^a-z0-9_]+', '', 'g'), 26)`,
     );
     expect(sql).toContain(
-      'drop trigger if exists "bsb_profile_sync" on auth.users;',
-    );
-    expect(sql).toContain(
       `to_regprocedure('"public"."create_contact_profile"(uuid)')`,
     );
     expect(sql).toContain('new."active_organization_id" is distinct from');
@@ -216,7 +207,7 @@ describe("profiles module", () => {
     )!.contents;
 
     expect(sql).toContain(
-      `alter table "better_supabase"."profiles" add column if not exists "locale" text not null default 'en';`,
+      `alter table "better_supabase"."profiles" add column "locale" text not null default 'en';`,
     );
     expect(sql).toContain('"locale", "updated_at") on');
     expect(sql).toContain(
@@ -238,7 +229,7 @@ describe("profiles module", () => {
     expect(sql).not.toMatch(
       /create or replace function "better_supabase"\."my_profile"\(\)\s+returns setof/,
     );
-    expect(sql).toMatch(
+    expect(sql).not.toMatch(
       /drop function if exists "better_supabase"\."my_profile"\(\);\s+create or replace function "better_supabase"\."my_profile"\(\)\s+returns jsonb/,
     );
   });
@@ -300,12 +291,9 @@ describe("profiles module", () => {
     expect(sql).toContain(
       'grant update ("full_name", "updated_at") on "better_supabase"."profiles" to authenticated;',
     );
-    expect(sql).toContain('drop trigger if exists "bsb_profile_guard"');
+    expect(sql).not.toContain('drop trigger if exists "bsb_profile_guard"');
     expect(sql).not.toContain('allocate_username"(coalesce');
     expect(sql).not.toContain("split_part(nullif");
-    expect(sql).toContain(
-      'drop trigger if exists "bsb_profile_email" on auth.users;',
-    );
   });
 
   it("writes nothing in custom mode", () => {

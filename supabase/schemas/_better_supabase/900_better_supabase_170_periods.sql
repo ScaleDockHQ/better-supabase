@@ -1,30 +1,15 @@
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:0076dc146778a4596b1e46c8c7c340b558cb534df8fcacc428cac96141d70ba5
+-- @bsb-hash sha256:4305b2290148059f8bf00eca3ae9a98368188bed447bdd2d9a839698a195d903
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Periods: one table of dated ranges per kind with a status, a lookup by date
 -- and a close protocol. Blocks add kinds through contributions; closing asks
 -- each kind's blockers first and runs its on-close step in the same transaction.
 -- Kinds installed now: fiscal_period, commission_period.
-create table if not exists "better_supabase"."periods" (
+create table "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
@@ -37,12 +22,11 @@ create table if not exists "better_supabase"."periods" (
   check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "kind", "starts_on")
 );
-create index if not exists "periods_range_idx" on "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
+create index "periods_range_idx" on "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
 alter table "better_supabase"."periods" enable row level security;
 revoke all on "better_supabase"."periods" from public, anon, authenticated;
 grant select on "better_supabase"."periods" to authenticated;
 grant all on "better_supabase"."periods" to service_role;
-drop policy if exists periods_read on "better_supabase"."periods";
 create policy periods_read on "better_supabase"."periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')));
@@ -361,24 +345,19 @@ grant execute on function "better_supabase"."list_periods"(uuid, jsonb) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
 create policy bsb_tenant_scope_select on "better_supabase"."periods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
 create policy bsb_tenant_scope_insert on "better_supabase"."periods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
 create policy bsb_tenant_scope_update on "better_supabase"."periods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
 create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

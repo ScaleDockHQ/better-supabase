@@ -1,87 +1,16 @@
 -- ==== schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:a1e9cd787727b535105c4c71f3a901d71382c030580b7ae6191af05cc4754fbe
+-- @bsb-hash sha256:b5f4bd632fcf4060ad2777ada1feb0c2b5d68091b359ab5d3016f613541bc22d
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."boms";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."boms";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."boms";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."boms";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."boms";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_centers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_centers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_centers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_centers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_centers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."bom_operations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bom_operations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bom_operations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bom_operations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bom_operations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."bom_components";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bom_components";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bom_components";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bom_components";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bom_components";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."production_orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."production_orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."production_orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."production_orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."production_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."production_order_operations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."production_order_operations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."production_order_operations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."production_order_operations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."production_order_operations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."production_consumptions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."production_consumptions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."production_consumptions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."production_consumptions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."production_consumptions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."stock_lot_links";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_lot_links";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_lot_links";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_lot_links";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_lot_links";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Manufacturing per organization: versioned bills of materials, work centers,
 -- production orders that take components and receive output through the
 -- inventory block's stock movements, and lot genealogy.
 
-create table if not exists "better_supabase"."work_centers" (
+create table "better_supabase"."work_centers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -97,18 +26,17 @@ create table if not exists "better_supabase"."work_centers" (
   unique ("tenant_id", "id"),
   check ("cost_rate" = 0 or "currency" is not null)
 );
-create index if not exists "work_centers_tenant_idx" on "better_supabase"."work_centers" ("tenant_id", "name");
-create index if not exists "work_centers_asset_idx" on "better_supabase"."work_centers" ("asset_id") where "asset_id" is not null;
+create index "work_centers_tenant_idx" on "better_supabase"."work_centers" ("tenant_id", "name");
+create index "work_centers_asset_idx" on "better_supabase"."work_centers" ("asset_id") where "asset_id" is not null;
 alter table "better_supabase"."work_centers" enable row level security;
 revoke all on "better_supabase"."work_centers" from public, anon, authenticated;
 grant select on "better_supabase"."work_centers" to authenticated;
 grant all on "better_supabase"."work_centers" to service_role;
-drop policy if exists work_centers_read on "better_supabase"."work_centers";
 create policy work_centers_read on "better_supabase"."work_centers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
-create table if not exists "better_supabase"."boms" (
+create table "better_supabase"."boms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The variant the bill of materials makes.
@@ -127,18 +55,17 @@ create table if not exists "better_supabase"."boms" (
   unique ("variant_id", "version")
 );
 -- One active version per variant.
-create unique index if not exists "boms_active_key" on "better_supabase"."boms" ("variant_id") where "status" = 'active';
-create index if not exists "boms_tenant_idx" on "better_supabase"."boms" ("tenant_id", "status");
+create unique index "boms_active_key" on "better_supabase"."boms" ("variant_id") where "status" = 'active';
+create index "boms_tenant_idx" on "better_supabase"."boms" ("tenant_id", "status");
 alter table "better_supabase"."boms" enable row level security;
 revoke all on "better_supabase"."boms" from public, anon, authenticated;
 grant select on "better_supabase"."boms" to authenticated;
 grant all on "better_supabase"."boms" to service_role;
-drop policy if exists boms_read on "better_supabase"."boms";
 create policy boms_read on "better_supabase"."boms"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
-create table if not exists "better_supabase"."bom_operations" (
+create table "better_supabase"."bom_operations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "bom_id" uuid not null,
@@ -156,19 +83,18 @@ create table if not exists "better_supabase"."bom_operations" (
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
 );
-create index if not exists "bom_operations_parent_idx" on "better_supabase"."bom_operations" ("tenant_id", "bom_id", "sequence");
-create index if not exists "bom_operations_center_idx" on "better_supabase"."bom_operations" ("tenant_id", "work_center_id");
-create index if not exists "bom_operations_instructions_idx" on "better_supabase"."bom_operations" ("instructions_node_id") where "instructions_node_id" is not null;
+create index "bom_operations_parent_idx" on "better_supabase"."bom_operations" ("tenant_id", "bom_id", "sequence");
+create index "bom_operations_center_idx" on "better_supabase"."bom_operations" ("tenant_id", "work_center_id");
+create index "bom_operations_instructions_idx" on "better_supabase"."bom_operations" ("instructions_node_id") where "instructions_node_id" is not null;
 alter table "better_supabase"."bom_operations" enable row level security;
 revoke all on "better_supabase"."bom_operations" from public, anon, authenticated;
 grant select on "better_supabase"."bom_operations" to authenticated;
 grant all on "better_supabase"."bom_operations" to service_role;
-drop policy if exists bom_operations_read on "better_supabase"."bom_operations";
 create policy bom_operations_read on "better_supabase"."bom_operations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
-create table if not exists "better_supabase"."bom_components" (
+create table "better_supabase"."bom_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "bom_id" uuid not null,
@@ -182,19 +108,18 @@ create table if not exists "better_supabase"."bom_components" (
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "bom_components_parent_idx" on "better_supabase"."bom_components" ("tenant_id", "bom_id", "position");
-create index if not exists "bom_components_variant_idx" on "better_supabase"."bom_components" ("variant_id");
-create index if not exists "bom_components_operation_idx" on "better_supabase"."bom_components" ("operation_id") where "operation_id" is not null;
+create index "bom_components_parent_idx" on "better_supabase"."bom_components" ("tenant_id", "bom_id", "position");
+create index "bom_components_variant_idx" on "better_supabase"."bom_components" ("variant_id");
+create index "bom_components_operation_idx" on "better_supabase"."bom_components" ("operation_id") where "operation_id" is not null;
 alter table "better_supabase"."bom_components" enable row level security;
 revoke all on "better_supabase"."bom_components" from public, anon, authenticated;
 grant select on "better_supabase"."bom_components" to authenticated;
 grant all on "better_supabase"."bom_components" to service_role;
-drop policy if exists bom_components_read on "better_supabase"."bom_components";
 create policy bom_components_read on "better_supabase"."bom_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
-create table if not exists "better_supabase"."production_orders" (
+create table "better_supabase"."production_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- MO-2026-0001, from the numbering block when it numbers production orders.
@@ -228,21 +153,20 @@ create table if not exists "better_supabase"."production_orders" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete restrict
 );
-create index if not exists "production_orders_tenant_idx" on "better_supabase"."production_orders" ("tenant_id", "status", "due_on");
-create index if not exists "production_orders_version_idx" on "better_supabase"."production_orders" ("tenant_id", "bom_id");
-create index if not exists "production_orders_variant_idx" on "better_supabase"."production_orders" ("variant_id", "status");
-create index if not exists "production_orders_location_idx" on "better_supabase"."production_orders" ("location_id");
-create index if not exists "production_orders_output_lot_idx" on "better_supabase"."production_orders" ("output_lot_id") where "output_lot_id" is not null;
+create index "production_orders_tenant_idx" on "better_supabase"."production_orders" ("tenant_id", "status", "due_on");
+create index "production_orders_version_idx" on "better_supabase"."production_orders" ("tenant_id", "bom_id");
+create index "production_orders_variant_idx" on "better_supabase"."production_orders" ("variant_id", "status");
+create index "production_orders_location_idx" on "better_supabase"."production_orders" ("location_id");
+create index "production_orders_output_lot_idx" on "better_supabase"."production_orders" ("output_lot_id") where "output_lot_id" is not null;
 alter table "better_supabase"."production_orders" enable row level security;
 revoke all on "better_supabase"."production_orders" from public, anon, authenticated;
 grant select on "better_supabase"."production_orders" to authenticated;
 grant all on "better_supabase"."production_orders" to service_role;
-drop policy if exists production_orders_read on "better_supabase"."production_orders";
 create policy production_orders_read on "better_supabase"."production_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
-create table if not exists "better_supabase"."production_order_operations" (
+create table "better_supabase"."production_order_operations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null,
@@ -264,20 +188,19 @@ create table if not exists "better_supabase"."production_order_operations" (
   foreign key ("tenant_id", "order_id") references "better_supabase"."production_orders" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
 );
-create index if not exists "production_order_operations_parent_idx" on "better_supabase"."production_order_operations" ("tenant_id", "order_id", "sequence");
-create index if not exists "production_order_operations_center_idx" on "better_supabase"."production_order_operations" ("tenant_id", "work_center_id", "status");
-create index if not exists "production_order_operations_operation_idx" on "better_supabase"."production_order_operations" ("operation_id") where "operation_id" is not null;
-create index if not exists "production_order_operations_inspection_idx" on "better_supabase"."production_order_operations" ("inspection_id") where "inspection_id" is not null;
+create index "production_order_operations_parent_idx" on "better_supabase"."production_order_operations" ("tenant_id", "order_id", "sequence");
+create index "production_order_operations_center_idx" on "better_supabase"."production_order_operations" ("tenant_id", "work_center_id", "status");
+create index "production_order_operations_operation_idx" on "better_supabase"."production_order_operations" ("operation_id") where "operation_id" is not null;
+create index "production_order_operations_inspection_idx" on "better_supabase"."production_order_operations" ("inspection_id") where "inspection_id" is not null;
 alter table "better_supabase"."production_order_operations" enable row level security;
 revoke all on "better_supabase"."production_order_operations" from public, anon, authenticated;
 grant select on "better_supabase"."production_order_operations" to authenticated;
 grant all on "better_supabase"."production_order_operations" to service_role;
-drop policy if exists production_order_operations_read on "better_supabase"."production_order_operations";
 create policy production_order_operations_read on "better_supabase"."production_order_operations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
-create table if not exists "better_supabase"."production_consumptions" (
+create table "better_supabase"."production_consumptions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null,
@@ -294,22 +217,21 @@ create table if not exists "better_supabase"."production_consumptions" (
   "created_at" timestamptz not null default now(),
   foreign key ("tenant_id", "order_id") references "better_supabase"."production_orders" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "production_consumptions_parent_idx" on "better_supabase"."production_consumptions" ("tenant_id", "order_id", "created_at");
-create index if not exists "production_consumptions_variant_idx" on "better_supabase"."production_consumptions" ("variant_id");
-create index if not exists "production_consumptions_lot_idx" on "better_supabase"."production_consumptions" ("lot_id") where "lot_id" is not null;
-create index if not exists "production_consumptions_movement_idx" on "better_supabase"."production_consumptions" ("movement_id");
+create index "production_consumptions_parent_idx" on "better_supabase"."production_consumptions" ("tenant_id", "order_id", "created_at");
+create index "production_consumptions_variant_idx" on "better_supabase"."production_consumptions" ("variant_id");
+create index "production_consumptions_lot_idx" on "better_supabase"."production_consumptions" ("lot_id") where "lot_id" is not null;
+create index "production_consumptions_movement_idx" on "better_supabase"."production_consumptions" ("movement_id");
 alter table "better_supabase"."production_consumptions" enable row level security;
 revoke all on "better_supabase"."production_consumptions" from public, anon, authenticated;
 grant select on "better_supabase"."production_consumptions" to authenticated;
 grant all on "better_supabase"."production_consumptions" to service_role;
-drop policy if exists production_consumptions_read on "better_supabase"."production_consumptions";
 create policy production_consumptions_read on "better_supabase"."production_consumptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
 -- Lot genealogy: the output lot of a production order (parent) and each lot
 -- it consumed (child).
-create table if not exists "better_supabase"."stock_lot_links" (
+create table "better_supabase"."stock_lot_links" (
   "tenant_id" uuid not null,
   "parent_lot_id" uuid not null references "better_supabase"."stock_lots" ("id") on delete cascade,
   "child_lot_id" uuid not null references "better_supabase"."stock_lots" ("id") on delete cascade,
@@ -320,13 +242,12 @@ create table if not exists "better_supabase"."stock_lot_links" (
   primary key ("parent_lot_id", "child_lot_id", "order_id"),
   foreign key ("tenant_id", "order_id") references "better_supabase"."production_orders" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "stock_lot_links_child_idx" on "better_supabase"."stock_lot_links" ("child_lot_id");
-create index if not exists "stock_lot_links_order_idx" on "better_supabase"."stock_lot_links" ("tenant_id", "order_id");
+create index "stock_lot_links_child_idx" on "better_supabase"."stock_lot_links" ("child_lot_id");
+create index "stock_lot_links_order_idx" on "better_supabase"."stock_lot_links" ("tenant_id", "order_id");
 alter table "better_supabase"."stock_lot_links" enable row level security;
 revoke all on "better_supabase"."stock_lot_links" from public, anon, authenticated;
 grant select on "better_supabase"."stock_lot_links" to authenticated;
 grant all on "better_supabase"."stock_lot_links" to service_role;
-drop policy if exists stock_lot_links_read on "better_supabase"."stock_lot_links";
 create policy stock_lot_links_read on "better_supabase"."stock_lot_links"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
@@ -1758,171 +1679,131 @@ grant execute on function "better_supabase"."create_from_requirements"(uuid, jso
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."boms";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."boms";
 create policy bsb_tenant_scope_select on "better_supabase"."boms" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."boms";
 create policy bsb_tenant_scope_insert on "better_supabase"."boms" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."boms";
 create policy bsb_tenant_scope_update on "better_supabase"."boms" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."boms";
 create policy bsb_tenant_scope_delete on "better_supabase"."boms" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_centers";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_centers";
 create policy bsb_tenant_scope_select on "better_supabase"."work_centers" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_centers";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_centers" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_centers";
 create policy bsb_tenant_scope_update on "better_supabase"."work_centers" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_centers";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_centers" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."bom_operations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."bom_operations";
 create policy bsb_tenant_scope_select on "better_supabase"."bom_operations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bom_operations";
 create policy bsb_tenant_scope_insert on "better_supabase"."bom_operations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."bom_operations";
 create policy bsb_tenant_scope_update on "better_supabase"."bom_operations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bom_operations";
 create policy bsb_tenant_scope_delete on "better_supabase"."bom_operations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."bom_components";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."bom_components";
 create policy bsb_tenant_scope_select on "better_supabase"."bom_components" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bom_components";
 create policy bsb_tenant_scope_insert on "better_supabase"."bom_components" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."bom_components";
 create policy bsb_tenant_scope_update on "better_supabase"."bom_components" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bom_components";
 create policy bsb_tenant_scope_delete on "better_supabase"."bom_components" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."production_orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."production_orders";
 create policy bsb_tenant_scope_select on "better_supabase"."production_orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."production_orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."production_orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."production_orders";
 create policy bsb_tenant_scope_update on "better_supabase"."production_orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."production_orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."production_orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."production_order_operations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."production_order_operations";
 create policy bsb_tenant_scope_select on "better_supabase"."production_order_operations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."production_order_operations";
 create policy bsb_tenant_scope_insert on "better_supabase"."production_order_operations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."production_order_operations";
 create policy bsb_tenant_scope_update on "better_supabase"."production_order_operations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."production_order_operations";
 create policy bsb_tenant_scope_delete on "better_supabase"."production_order_operations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."production_consumptions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."production_consumptions";
 create policy bsb_tenant_scope_select on "better_supabase"."production_consumptions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."production_consumptions";
 create policy bsb_tenant_scope_insert on "better_supabase"."production_consumptions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."production_consumptions";
 create policy bsb_tenant_scope_update on "better_supabase"."production_consumptions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."production_consumptions";
 create policy bsb_tenant_scope_delete on "better_supabase"."production_consumptions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."stock_lot_links";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."stock_lot_links";
 create policy bsb_tenant_scope_select on "better_supabase"."stock_lot_links" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."stock_lot_links";
 create policy bsb_tenant_scope_insert on "better_supabase"."stock_lot_links" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."stock_lot_links";
 create policy bsb_tenant_scope_update on "better_supabase"."stock_lot_links" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."stock_lot_links";
 create policy bsb_tenant_scope_delete on "better_supabase"."stock_lot_links" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

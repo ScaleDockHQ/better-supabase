@@ -601,8 +601,8 @@ create table if not exists ${t} (
     )}${extra.map(([name, type]) => `\nalter table ${t} add column if not exists ${name} ${type};`).join("")}
 ${username}
 alter table ${t} enable row level security;
-${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_read", command: "select", roles: ["authenticated"], using: read }), { drop: true, target: t })}
-${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_update", command: "update", roles: ["authenticated"], using: `${c("key")} = (select auth.uid())`, check: `${c("key")} = (select auth.uid())` }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_read", command: "select", roles: ["authenticated"], using: read }), { target: t })}
+${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_update", command: "update", roles: ["authenticated"], using: `${c("key")} = (select auth.uid())`, check: `${c("key")} = (select auth.uid())` }), { target: t })}
 ${selectGrant}
 grant all on ${t} to service_role;
 `;
@@ -666,7 +666,7 @@ end;
 $$;
 revoke execute on function ${ctx.fn("profiles_platform_readable")}() from public, anon;
 grant execute on function ${ctx.fn("profiles_platform_readable")}() to authenticated, service_role;
-${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_platform_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.fn("profiles_platform_readable")}())` }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_platform_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.fn("profiles_platform_readable")}())` }), { target: t })}
 `;
 }
 

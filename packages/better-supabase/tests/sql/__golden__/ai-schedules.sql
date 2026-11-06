@@ -1,38 +1,15 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:7e9e47374bb6bb0885e6d842e9e9f95e910d27af0ddf7a3c60dafa41fbf469f1
+-- @bsb-hash sha256:3cd766e914aea6b6c46b34f1df29878cd1c3eb0a67e0fee527710266dbd5b8d0
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Prompts a user schedules to run on a cron. next_run_at is computed by the
 -- application from cron and timezone; a null next_run_at on an enabled task
 -- means it waits for the scheduler to compute it.
-create table if not exists "better_supabase"."ai_scheduled_tasks" (
+create table "better_supabase"."ai_scheduled_tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -48,19 +25,18 @@ create table if not exists "better_supabase"."ai_scheduled_tasks" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_scheduled_tasks_due_idx on "better_supabase"."ai_scheduled_tasks" ("next_run_at") where "enabled";
-create index if not exists ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "organization_id");
-create index if not exists ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
+create index ai_scheduled_tasks_due_idx on "better_supabase"."ai_scheduled_tasks" ("next_run_at") where "enabled";
+create index ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "organization_id");
+create index ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
 alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
 revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
-drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
 create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
 
-create table if not exists "better_supabase"."ai_task_runs" (
+create table "better_supabase"."ai_task_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "task_id" uuid not null references "better_supabase"."ai_scheduled_tasks" ("id") on delete cascade,
   "organization_id" uuid not null,
@@ -73,14 +49,13 @@ create table if not exists "better_supabase"."ai_task_runs" (
   "finished_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_task_runs_task_idx on "better_supabase"."ai_task_runs" ("task_id", "created_at" desc);
-create index if not exists ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
-create index if not exists ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
+create index ai_task_runs_task_idx on "better_supabase"."ai_task_runs" ("task_id", "created_at" desc);
+create index ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
+create index ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
 alter table "better_supabase"."ai_task_runs" enable row level security;
 revoke all on "better_supabase"."ai_task_runs" from public, anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
-drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
 create policy ai_task_runs_read on "better_supabase"."ai_task_runs"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
@@ -338,45 +313,35 @@ grant execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_task_runs" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_task_runs" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_task_runs" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -398,38 +363,15 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:29bc373297d1835bc5eb015a6259fc3f24d1a8d98064fdf9ec6d4152de18b55d
+-- @bsb-hash sha256:a1c36a1e726ae65c791a98053349b30110b553a43dac6db380960bca4d025511
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Prompts a user schedules to run on a cron. next_run_at is computed by the
 -- application from cron and timezone; a null next_run_at on an enabled task
 -- means it waits for the scheduler to compute it.
-create table if not exists "better_supabase"."ai_scheduled_tasks" (
+create table "better_supabase"."ai_scheduled_tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -445,19 +387,18 @@ create table if not exists "better_supabase"."ai_scheduled_tasks" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_scheduled_tasks_due_idx on "better_supabase"."ai_scheduled_tasks" ("next_run_at") where "enabled";
-create index if not exists ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "organization_id");
-create index if not exists ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
+create index ai_scheduled_tasks_due_idx on "better_supabase"."ai_scheduled_tasks" ("next_run_at") where "enabled";
+create index ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "organization_id");
+create index ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
 alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
 revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
-drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
 create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
 
-create table if not exists "better_supabase"."ai_task_runs" (
+create table "better_supabase"."ai_task_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "task_id" uuid not null references "better_supabase"."ai_scheduled_tasks" ("id") on delete cascade,
   "organization_id" uuid not null,
@@ -470,14 +411,13 @@ create table if not exists "better_supabase"."ai_task_runs" (
   "finished_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_task_runs_task_idx on "better_supabase"."ai_task_runs" ("task_id", "created_at" desc);
-create index if not exists ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
-create index if not exists ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
+create index ai_task_runs_task_idx on "better_supabase"."ai_task_runs" ("task_id", "created_at" desc);
+create index ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
+create index ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
 alter table "better_supabase"."ai_task_runs" enable row level security;
 revoke all on "better_supabase"."ai_task_runs" from public, anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
-drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
 create policy ai_task_runs_read on "better_supabase"."ai_task_runs"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
@@ -736,45 +676,35 @@ grant execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_task_runs" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_task_runs" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_task_runs" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -803,32 +733,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:e7c4a2d88ff76fcdaf09561abf041bbf103145bad584300084a8b006f9c73b30
+-- @bsb-hash sha256:33525c7c4f2f631ac72cda02a7982155132543f649dfbd1efe140f890fc8bf5d
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_scheduled_tasks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_task_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -838,7 +746,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Prompts a user schedules to run on a cron. next_run_at is computed by the
 -- application from cron and timezone; a null next_run_at on an enabled task
 -- means it waits for the scheduler to compute it.
-create table if not exists "app_private"."ai_scheduled_tasks" (
+create table "app_private"."ai_scheduled_tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -854,19 +762,18 @@ create table if not exists "app_private"."ai_scheduled_tasks" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_scheduled_tasks_due_idx on "app_private"."ai_scheduled_tasks" ("next_run_at") where "enabled";
-create index if not exists ai_scheduled_tasks_user_idx on "app_private"."ai_scheduled_tasks" ("user_id", "organization_id");
-create index if not exists ai_scheduled_tasks_agent_idx on "app_private"."ai_scheduled_tasks" ("agent_id");
+create index ai_scheduled_tasks_due_idx on "app_private"."ai_scheduled_tasks" ("next_run_at") where "enabled";
+create index ai_scheduled_tasks_user_idx on "app_private"."ai_scheduled_tasks" ("user_id", "organization_id");
+create index ai_scheduled_tasks_agent_idx on "app_private"."ai_scheduled_tasks" ("agent_id");
 alter table "app_private"."ai_scheduled_tasks" enable row level security;
 revoke all on "app_private"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "app_private"."ai_scheduled_tasks" to authenticated;
 grant all on "app_private"."ai_scheduled_tasks" to service_role;
-drop policy if exists ai_scheduled_tasks_read on "app_private"."ai_scheduled_tasks";
 create policy ai_scheduled_tasks_read on "app_private"."ai_scheduled_tasks"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
 
-create table if not exists "app_private"."ai_task_runs" (
+create table "app_private"."ai_task_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "task_id" uuid not null references "app_private"."ai_scheduled_tasks" ("id") on delete cascade,
   "organization_id" uuid not null,
@@ -879,14 +786,13 @@ create table if not exists "app_private"."ai_task_runs" (
   "finished_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_task_runs_task_idx on "app_private"."ai_task_runs" ("task_id", "created_at" desc);
-create index if not exists ai_task_runs_user_idx on "app_private"."ai_task_runs" ("user_id");
-create index if not exists ai_task_runs_open_idx on "app_private"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
+create index ai_task_runs_task_idx on "app_private"."ai_task_runs" ("task_id", "created_at" desc);
+create index ai_task_runs_user_idx on "app_private"."ai_task_runs" ("user_id");
+create index ai_task_runs_open_idx on "app_private"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
 alter table "app_private"."ai_task_runs" enable row level security;
 revoke all on "app_private"."ai_task_runs" from public, anon, authenticated;
 grant select on "app_private"."ai_task_runs" to authenticated;
 grant all on "app_private"."ai_task_runs" to service_role;
-drop policy if exists ai_task_runs_read on "app_private"."ai_task_runs";
 create policy ai_task_runs_read on "app_private"."ai_task_runs"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
@@ -1144,45 +1050,35 @@ grant execute on function "app_private"."finish_ai_task_run"(uuid, boolean, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."ai_scheduled_tasks";
-drop policy if exists bsb_tenant_scope_select on "app_private"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_select on "app_private"."ai_scheduled_tasks" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_insert on "app_private"."ai_scheduled_tasks" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_update on "app_private"."ai_scheduled_tasks" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_delete on "app_private"."ai_scheduled_tasks" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."ai_task_runs";
-drop policy if exists bsb_tenant_scope_select on "app_private"."ai_task_runs";
 create policy bsb_tenant_scope_select on "app_private"."ai_task_runs" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_task_runs";
 create policy bsb_tenant_scope_insert on "app_private"."ai_task_runs" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."ai_task_runs";
 create policy bsb_tenant_scope_update on "app_private"."ai_task_runs" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_task_runs";
 create policy bsb_tenant_scope_delete on "app_private"."ai_task_runs" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -1204,38 +1100,15 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:cf78203695bb9867d4b2bc152c28680dc1f1a123905de9fe0591c957fd2bcc7c
+-- @bsb-hash sha256:57c35b29c7a1b33e913bb4dc0b791fbc861fa0952d2a98a1a68e4aae4c60d82a
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Prompts a user schedules to run on a cron. next_run_at is computed by the
 -- application from cron and timezone; a null next_run_at on an enabled task
 -- means it waits for the scheduler to compute it.
-create table if not exists "better_supabase"."ai_scheduled_tasks" (
+create table "better_supabase"."ai_scheduled_tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -1251,19 +1124,18 @@ create table if not exists "better_supabase"."ai_scheduled_tasks" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_scheduled_tasks_due_idx on "better_supabase"."ai_scheduled_tasks" ("next_run_at") where "enabled";
-create index if not exists ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "organization_id");
-create index if not exists ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
+create index ai_scheduled_tasks_due_idx on "better_supabase"."ai_scheduled_tasks" ("next_run_at") where "enabled";
+create index ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "organization_id");
+create index ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
 alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
 revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
-drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
 create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
 
-create table if not exists "better_supabase"."ai_task_runs" (
+create table "better_supabase"."ai_task_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "task_id" uuid not null references "better_supabase"."ai_scheduled_tasks" ("id") on delete cascade,
   "organization_id" uuid not null,
@@ -1276,14 +1148,13 @@ create table if not exists "better_supabase"."ai_task_runs" (
   "finished_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_task_runs_task_idx on "better_supabase"."ai_task_runs" ("task_id", "created_at" desc);
-create index if not exists ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
-create index if not exists ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
+create index ai_task_runs_task_idx on "better_supabase"."ai_task_runs" ("task_id", "created_at" desc);
+create index ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
+create index ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
 alter table "better_supabase"."ai_task_runs" enable row level security;
 revoke all on "better_supabase"."ai_task_runs" from public, anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
-drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
 create policy ai_task_runs_read on "better_supabase"."ai_task_runs"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
@@ -1541,45 +1412,35 @@ grant execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_task_runs" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_task_runs" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_task_runs" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -1679,33 +1540,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:c4ba161b57059a60e20737a553dd0d64013ab69f30f973423f7872175a1c10c5
+-- @bsb-hash sha256:b88bc23361196349541b7f3fa98f835cdb13e4e438ecf36cbd7dd294a89e11c6
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Prompts a user schedules to run on a cron. next_run_at is computed by the
 -- application from cron and timezone; a null next_run_at on an enabled task
@@ -1731,7 +1569,6 @@ create index if not exists ai_scheduled_tasks_agent_idx on "better_supabase"."ai
 alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
-drop policy if exists bsb_ai_scheduled_tasks_select on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_ai_scheduled_tasks_select on "better_supabase"."ai_scheduled_tasks"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
@@ -1754,7 +1591,6 @@ create index if not exists ai_task_runs_open_idx on "better_supabase"."ai_task_r
 alter table "better_supabase"."ai_task_runs" enable row level security;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
-drop policy if exists bsb_ai_task_runs_select on "better_supabase"."ai_task_runs";
 create policy bsb_ai_task_runs_select on "better_supabase"."ai_task_runs"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
@@ -2012,45 +1848,35 @@ grant execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_task_runs" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_task_runs" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_task_runs" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -2072,38 +1898,15 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:a86eb6a9f938080f8559b3d74c41c07a4e5d737151b7d60d3b05f126e8e65ede
+-- @bsb-hash sha256:30cbfc79a6d1e683dcfcf11f77395c6634401512ffdead3724dc815dceefda0e
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Prompts a user schedules to run on a cron. next_run_at is computed by the
 -- application from cron and timezone; a null next_run_at on an enabled task
 -- means it waits for the scheduler to compute it.
-create table if not exists "better_supabase"."ai_scheduled_tasks" (
+create table "better_supabase"."ai_scheduled_tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -2119,19 +1922,18 @@ create table if not exists "better_supabase"."ai_scheduled_tasks" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_scheduled_tasks_due_idx on "better_supabase"."ai_scheduled_tasks" ("next_run_at") where "enabled";
-create index if not exists ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "org_id");
-create index if not exists ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
+create index ai_scheduled_tasks_due_idx on "better_supabase"."ai_scheduled_tasks" ("next_run_at") where "enabled";
+create index ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "org_id");
+create index ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
 alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
 revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
-drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
 create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
 
-create table if not exists "better_supabase"."ai_task_runs" (
+create table "better_supabase"."ai_task_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "task_id" uuid not null references "better_supabase"."ai_scheduled_tasks" ("id") on delete cascade,
   "org_id" uuid not null,
@@ -2144,14 +1946,13 @@ create table if not exists "better_supabase"."ai_task_runs" (
   "finished_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_task_runs_task_idx on "better_supabase"."ai_task_runs" ("task_id", "created_at" desc);
-create index if not exists ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
-create index if not exists ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
+create index ai_task_runs_task_idx on "better_supabase"."ai_task_runs" ("task_id", "created_at" desc);
+create index ai_task_runs_user_idx on "better_supabase"."ai_task_runs" ("user_id");
+create index ai_task_runs_open_idx on "better_supabase"."ai_task_runs" ("status", "started_at") where "status" in ('queued', 'running');
 alter table "better_supabase"."ai_task_runs" enable row level security;
 revoke all on "better_supabase"."ai_task_runs" from public, anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
-drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
 create policy ai_task_runs_read on "better_supabase"."ai_task_runs"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
@@ -2409,45 +2210,35 @@ grant execute on function "better_supabase"."finish_ai_task_run"(uuid, boolean, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_scheduled_tasks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_scheduled_tasks" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_scheduled_tasks" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_task_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_task_runs" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_task_runs" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_task_runs" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

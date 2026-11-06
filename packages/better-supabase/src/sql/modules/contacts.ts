@@ -294,7 +294,7 @@ function tables(ctx: BlockSqlContext, names: PartyNames): string {
         roles: ["authenticated"],
         using: ctx.scope.check(c(table, "tenant"), names.read),
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   const co = (column: string): string => c("companies", column);

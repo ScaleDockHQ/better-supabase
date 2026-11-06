@@ -215,7 +215,7 @@ function tables(ctx: BlockSqlContext, names: Names): string {
         roles: ["authenticated"],
         using: ctx.scope.check(c(table, "tenant"), names.read),
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   const transitions = ctx.hasTable("transitions")
@@ -288,7 +288,7 @@ create index if not exists ${ctx.naming.rename("pipeline_stage_history_pipeline_
 create unique index if not exists ${ctx.naming.rename("pipeline_stage_history_open_idx")} on ${t("history")} (${h("subjectType")}, ${h("subjectId")}) where ${h("exitedAt")} is null;
 ${lockTable(t("history"), { read: true })}
 -- A history row is visible to whoever can read its record.
-${renderPolicy(makePolicy({ table: t("history"), name: ctx.naming.rename("pipeline_stage_history_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjectType")}, ${h("subjectId")}, 'read')` }), { drop: true, target: t("history") })}
+${renderPolicy(makePolicy({ table: t("history"), name: ctx.naming.rename("pipeline_stage_history_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjectType")}, ${h("subjectId")}, 'read')` }), { target: t("history") })}
 `;
 }
 

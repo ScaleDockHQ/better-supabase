@@ -1,109 +1,14 @@
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:e5f0548da3a8d22f39e194d7c32077617b100e2d5da6fd6ab88a3a460d969743
+-- @bsb-hash sha256:4c34c9806eff8b392c9d653763d82ed286dc35e258e7ddb509a5a271b982d3a9
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."carts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."carts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."carts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."carts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."carts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."cart_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."cart_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."cart_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."cart_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."cart_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."order_shipping_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_shipping_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_shipping_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_shipping_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_shipping_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."order_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."order_payments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_payments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_payments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_payments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_payments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."order_fulfillments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_fulfillments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_fulfillments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_fulfillments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_fulfillments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."order_fulfillment_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_fulfillment_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_fulfillment_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_fulfillment_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_fulfillment_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."order_returns";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_returns";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_returns";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_returns";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_returns";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."order_return_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_return_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_return_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_return_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_return_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."order_refunds";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_refunds";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_refunds";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_refunds";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_refunds";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Carts on any signed-in user (anonymous sign-ins included), checkout into
 -- orders with numbers, payments, fulfillments, returns and refunds.
 
-create table if not exists "better_supabase"."order_shipping_rates" (
+create table "better_supabase"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -117,17 +22,16 @@ create table if not exists "better_supabase"."order_shipping_rates" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "order_shipping_rates_tenant_idx" on "better_supabase"."order_shipping_rates" ("tenant_id", "currency");
+create index "order_shipping_rates_tenant_idx" on "better_supabase"."order_shipping_rates" ("tenant_id", "currency");
 alter table "better_supabase"."order_shipping_rates" enable row level security;
 revoke all on "better_supabase"."order_shipping_rates" from public, anon, authenticated;
 grant select on "better_supabase"."order_shipping_rates" to authenticated;
 grant all on "better_supabase"."order_shipping_rates" to service_role;
-drop policy if exists order_shipping_rates_read on "better_supabase"."order_shipping_rates";
 create policy order_shipping_rates_read on "better_supabase"."order_shipping_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
-create table if not exists "better_supabase"."carts" (
+create table "better_supabase"."carts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -142,20 +46,19 @@ create table if not exists "better_supabase"."carts" (
   "updated_at" timestamptz not null default now(),
   "converted_at" timestamptz
 );
-create unique index if not exists carts_open_idx on "better_supabase"."carts" ("tenant_id", "user_id", "currency") where "status" = 'open';
-create index if not exists carts_user_idx on "better_supabase"."carts" ("user_id");
-create index if not exists carts_rate_idx on "better_supabase"."carts" ("shipping_rate_id");
-create index if not exists carts_price_list_idx on "better_supabase"."carts" ("price_list_id");
+create unique index carts_open_idx on "better_supabase"."carts" ("tenant_id", "user_id", "currency") where "status" = 'open';
+create index carts_user_idx on "better_supabase"."carts" ("user_id");
+create index carts_rate_idx on "better_supabase"."carts" ("shipping_rate_id");
+create index carts_price_list_idx on "better_supabase"."carts" ("price_list_id");
 alter table "better_supabase"."carts" enable row level security;
 revoke all on "better_supabase"."carts" from public, anon, authenticated;
 grant select on "better_supabase"."carts" to authenticated;
 grant all on "better_supabase"."carts" to service_role;
-drop policy if exists carts_read on "better_supabase"."carts";
 create policy carts_read on "better_supabase"."carts"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
-create table if not exists "better_supabase"."cart_lines" (
+create table "better_supabase"."cart_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cart_id" uuid not null references "better_supabase"."carts" ("id") on delete cascade,
@@ -166,17 +69,16 @@ create table if not exists "better_supabase"."cart_lines" (
   "updated_at" timestamptz not null default now(),
   unique ("cart_id", "variant_id")
 );
-create index if not exists cart_lines_variant_idx on "better_supabase"."cart_lines" ("variant_id");
+create index cart_lines_variant_idx on "better_supabase"."cart_lines" ("variant_id");
 alter table "better_supabase"."cart_lines" enable row level security;
 revoke all on "better_supabase"."cart_lines" from public, anon, authenticated;
 grant select on "better_supabase"."cart_lines" to authenticated;
 grant all on "better_supabase"."cart_lines" to service_role;
-drop policy if exists cart_lines_read on "better_supabase"."cart_lines";
 create policy cart_lines_read on "better_supabase"."cart_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."orders" (
+create table "better_supabase"."orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "number" text not null,
@@ -219,21 +121,20 @@ create table if not exists "better_supabase"."orders" (
   unique ("tenant_id", "number"),
   unique ("tenant_id", "invoice_number")
 );
-create index if not exists orders_status_idx on "better_supabase"."orders" ("tenant_id", "status", "placed_at");
-create index if not exists orders_customer_idx on "better_supabase"."orders" ("customer_id");
-create index if not exists orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
-create unique index if not exists orders_origin_idx on "better_supabase"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
-create index if not exists orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
+create index orders_status_idx on "better_supabase"."orders" ("tenant_id", "status", "placed_at");
+create index orders_customer_idx on "better_supabase"."orders" ("customer_id");
+create index orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
+create unique index orders_origin_idx on "better_supabase"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
+create index orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
 alter table "better_supabase"."orders" enable row level security;
 revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
-drop policy if exists orders_read on "better_supabase"."orders";
 create policy orders_read on "better_supabase"."orders"
   for select to authenticated
   using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
-create table if not exists "better_supabase"."order_lines" (
+create table "better_supabase"."order_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
@@ -262,18 +163,17 @@ create table if not exists "better_supabase"."order_lines" (
   "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
-create index if not exists order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
-create index if not exists order_lines_variant_idx on "better_supabase"."order_lines" ("variant_id");
+create index order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
+create index order_lines_variant_idx on "better_supabase"."order_lines" ("variant_id");
 alter table "better_supabase"."order_lines" enable row level security;
 revoke all on "better_supabase"."order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_lines" to authenticated;
 grant all on "better_supabase"."order_lines" to service_role;
-drop policy if exists order_lines_read on "better_supabase"."order_lines";
 create policy order_lines_read on "better_supabase"."order_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."order_payments" (
+create table "better_supabase"."order_payments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
@@ -288,17 +188,16 @@ create table if not exists "better_supabase"."order_payments" (
   "updated_at" timestamptz not null default now(),
   unique ("provider", "reference")
 );
-create index if not exists order_payments_order_idx on "better_supabase"."order_payments" ("order_id");
+create index order_payments_order_idx on "better_supabase"."order_payments" ("order_id");
 alter table "better_supabase"."order_payments" enable row level security;
 revoke all on "better_supabase"."order_payments" from public, anon, authenticated;
 grant select on "better_supabase"."order_payments" to authenticated;
 grant all on "better_supabase"."order_payments" to service_role;
-drop policy if exists order_payments_read on "better_supabase"."order_payments";
 create policy order_payments_read on "better_supabase"."order_payments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."order_fulfillments" (
+create table "better_supabase"."order_fulfillments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
@@ -311,17 +210,16 @@ create table if not exists "better_supabase"."order_fulfillments" (
   "shipped_at" timestamptz,
   "delivered_at" timestamptz
 );
-create index if not exists "order_fulfillments_order_idx" on "better_supabase"."order_fulfillments" ("order_id");
+create index "order_fulfillments_order_idx" on "better_supabase"."order_fulfillments" ("order_id");
 alter table "better_supabase"."order_fulfillments" enable row level security;
 revoke all on "better_supabase"."order_fulfillments" from public, anon, authenticated;
 grant select on "better_supabase"."order_fulfillments" to authenticated;
 grant all on "better_supabase"."order_fulfillments" to service_role;
-drop policy if exists order_fulfillments_read on "better_supabase"."order_fulfillments";
 create policy order_fulfillments_read on "better_supabase"."order_fulfillments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."order_fulfillment_lines" (
+create table "better_supabase"."order_fulfillment_lines" (
   "tenant_id" uuid not null,
   "fulfillment_id" uuid not null references "better_supabase"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
@@ -329,17 +227,16 @@ create table if not exists "better_supabase"."order_fulfillment_lines" (
   "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
-create index if not exists "order_fulfillment_lines_line_idx" on "better_supabase"."order_fulfillment_lines" ("order_line_id");
+create index "order_fulfillment_lines_line_idx" on "better_supabase"."order_fulfillment_lines" ("order_line_id");
 alter table "better_supabase"."order_fulfillment_lines" enable row level security;
 revoke all on "better_supabase"."order_fulfillment_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_fulfillment_lines" to authenticated;
 grant all on "better_supabase"."order_fulfillment_lines" to service_role;
-drop policy if exists order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines";
 create policy order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
-create table if not exists "better_supabase"."order_returns" (
+create table "better_supabase"."order_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
@@ -349,34 +246,32 @@ create table if not exists "better_supabase"."order_returns" (
   "created_at" timestamptz not null default now(),
   "received_at" timestamptz
 );
-create index if not exists order_returns_order_idx on "better_supabase"."order_returns" ("order_id");
+create index order_returns_order_idx on "better_supabase"."order_returns" ("order_id");
 alter table "better_supabase"."order_returns" enable row level security;
 revoke all on "better_supabase"."order_returns" from public, anon, authenticated;
 grant select on "better_supabase"."order_returns" to authenticated;
 grant all on "better_supabase"."order_returns" to service_role;
-drop policy if exists order_returns_read on "better_supabase"."order_returns";
 create policy order_returns_read on "better_supabase"."order_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."order_return_lines" (
+create table "better_supabase"."order_return_lines" (
   "tenant_id" uuid not null,
   "return_id" uuid not null references "better_supabase"."order_returns" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
   "quantity" integer not null check ("quantity" > 0),
   primary key ("return_id", "order_line_id")
 );
-create index if not exists order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
+create index order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
 alter table "better_supabase"."order_return_lines" enable row level security;
 revoke all on "better_supabase"."order_return_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
-drop policy if exists order_return_lines_read on "better_supabase"."order_return_lines";
 create policy order_return_lines_read on "better_supabase"."order_return_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
-create table if not exists "better_supabase"."order_refunds" (
+create table "better_supabase"."order_refunds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
@@ -390,15 +285,14 @@ create table if not exists "better_supabase"."order_refunds" (
   "created_at" timestamptz not null default now(),
   "completed_at" timestamptz
 );
-create index if not exists order_refunds_order_idx on "better_supabase"."order_refunds" ("order_id");
-create index if not exists order_refunds_payment_idx on "better_supabase"."order_refunds" ("payment_id");
-create index if not exists order_refunds_return_idx on "better_supabase"."order_refunds" ("return_id");
-create unique index if not exists order_refunds_provider_reference_idx on "better_supabase"."order_refunds" ("provider_reference") where "provider_reference" is not null;
+create index order_refunds_order_idx on "better_supabase"."order_refunds" ("order_id");
+create index order_refunds_payment_idx on "better_supabase"."order_refunds" ("payment_id");
+create index order_refunds_return_idx on "better_supabase"."order_refunds" ("return_id");
+create unique index order_refunds_provider_reference_idx on "better_supabase"."order_refunds" ("provider_reference") where "provider_reference" is not null;
 alter table "better_supabase"."order_refunds" enable row level security;
 revoke all on "better_supabase"."order_refunds" from public, anon, authenticated;
 grant select on "better_supabase"."order_refunds" to authenticated;
 grant all on "better_supabase"."order_refunds" to service_role;
-drop policy if exists order_refunds_read on "better_supabase"."order_refunds";
 create policy order_refunds_read on "better_supabase"."order_refunds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
@@ -1023,7 +917,7 @@ revoke execute on function "better_supabase"."order_json"(uuid) from public, ano
 -- promotions. tax is the TaxQuote as JSON (amounts as text) or null.
 -- Placing the same cart again returns its order. Service only: the
 -- TypeScript checkout calls the tax and payment providers around it.
-drop function if exists "better_supabase"."place_order"(uuid, jsonb, bigint, uuid, jsonb);
+
 create or replace function "better_supabase"."place_order"(cart uuid, tax jsonb default null, expected_total bigint default null, location uuid default null)
 returns jsonb
 language plpgsql
@@ -2556,7 +2450,7 @@ grant execute on function "better_supabase"."order_status_board"(uuid, integer) 
 
 -- Kitchen stations (grill, bar, cold) a line is prepared at, and the
 -- products routed to each. Lines of an unrouted product go to the default.
-create table if not exists "better_supabase"."order_kitchen_stations" (
+create table "better_supabase"."order_kitchen_stations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -2568,34 +2462,32 @@ create table if not exists "better_supabase"."order_kitchen_stations" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
-create unique index if not exists "order_kitchen_stations_default_idx" on "better_supabase"."order_kitchen_stations" ("tenant_id") where "is_default";
+create unique index "order_kitchen_stations_default_idx" on "better_supabase"."order_kitchen_stations" ("tenant_id") where "is_default";
 alter table "better_supabase"."order_kitchen_stations" enable row level security;
 revoke all on "better_supabase"."order_kitchen_stations" from public, anon, authenticated;
 grant select on "better_supabase"."order_kitchen_stations" to authenticated;
 grant all on "better_supabase"."order_kitchen_stations" to service_role;
-drop policy if exists order_kitchen_stations_read on "better_supabase"."order_kitchen_stations";
 create policy order_kitchen_stations_read on "better_supabase"."order_kitchen_stations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.prepare')));
 
-create table if not exists "better_supabase"."order_kitchen_routes" (
+create table "better_supabase"."order_kitchen_routes" (
   "product_id" uuid primary key references "better_supabase"."products" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "station_id" uuid not null references "better_supabase"."order_kitchen_stations" ("id") on delete cascade
 );
-create index if not exists "order_kitchen_routes_station_idx" on "better_supabase"."order_kitchen_routes" ("station_id");
+create index "order_kitchen_routes_station_idx" on "better_supabase"."order_kitchen_routes" ("station_id");
 alter table "better_supabase"."order_kitchen_routes" enable row level security;
 revoke all on "better_supabase"."order_kitchen_routes" from public, anon, authenticated;
 grant select on "better_supabase"."order_kitchen_routes" to authenticated;
 grant all on "better_supabase"."order_kitchen_routes" to service_role;
-drop policy if exists order_kitchen_routes_read on "better_supabase"."order_kitchen_routes";
 create policy order_kitchen_routes_read on "better_supabase"."order_kitchen_routes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.prepare')));
 
 -- Where each line of an order sent to the kitchen is: queued, preparing,
 -- ready or served, with when it reached each state.
-create table if not exists "better_supabase"."order_line_preparations" (
+create table "better_supabase"."order_line_preparations" (
   "order_line_id" uuid primary key references "better_supabase"."order_lines" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
@@ -2609,14 +2501,13 @@ create table if not exists "better_supabase"."order_line_preparations" (
   "updated_at" timestamptz not null default now(),
   "updated_by" uuid
 );
-create index if not exists order_line_preparations_order_idx on "better_supabase"."order_line_preparations" ("order_id");
-create index if not exists order_line_preparations_station_idx on "better_supabase"."order_line_preparations" ("station_id");
-create index if not exists order_line_preparations_open_idx on "better_supabase"."order_line_preparations" ("tenant_id", "queued_at") where "state" <> 'served';
+create index order_line_preparations_order_idx on "better_supabase"."order_line_preparations" ("order_id");
+create index order_line_preparations_station_idx on "better_supabase"."order_line_preparations" ("station_id");
+create index order_line_preparations_open_idx on "better_supabase"."order_line_preparations" ("tenant_id", "queued_at") where "state" <> 'served';
 alter table "better_supabase"."order_line_preparations" enable row level security;
 revoke all on "better_supabase"."order_line_preparations" from public, anon, authenticated;
 grant select on "better_supabase"."order_line_preparations" to authenticated;
 grant all on "better_supabase"."order_line_preparations" to service_role;
-drop policy if exists order_line_preparations_read on "better_supabase"."order_line_preparations";
 create policy order_line_preparations_read on "better_supabase"."order_line_preparations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.prepare')));
@@ -2640,14 +2531,12 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."order_line_preparations_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_order_line_preparations_broadcast" on "better_supabase"."order_line_preparations";
 create trigger "bsb_order_line_preparations_broadcast" after insert or update on "better_supabase"."order_line_preparations"
   for each row execute function "better_supabase"."order_line_preparations_changed"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_kitchen_receive on realtime.messages;
-create policy bsb_kitchen_receive on realtime.messages
+        create policy bsb_kitchen_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'kitchen:%'
@@ -2996,234 +2885,179 @@ grant execute on function "better_supabase"."order_board"(uuid, timestamptz, int
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."carts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."carts";
 create policy bsb_tenant_scope_select on "better_supabase"."carts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."carts";
 create policy bsb_tenant_scope_insert on "better_supabase"."carts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."carts";
 create policy bsb_tenant_scope_update on "better_supabase"."carts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."carts";
 create policy bsb_tenant_scope_delete on "better_supabase"."carts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."cart_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."cart_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."cart_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."cart_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."cart_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."cart_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."cart_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."cart_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."cart_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."order_shipping_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_shipping_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."order_shipping_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_shipping_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."order_shipping_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_shipping_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."order_shipping_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_shipping_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."order_shipping_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."orders";
 create policy bsb_tenant_scope_select on "better_supabase"."orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."orders";
 create policy bsb_tenant_scope_update on "better_supabase"."orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."order_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."order_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."order_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."order_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."order_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."order_payments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_payments";
 create policy bsb_tenant_scope_select on "better_supabase"."order_payments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_payments";
 create policy bsb_tenant_scope_insert on "better_supabase"."order_payments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_payments";
 create policy bsb_tenant_scope_update on "better_supabase"."order_payments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_payments";
 create policy bsb_tenant_scope_delete on "better_supabase"."order_payments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."order_fulfillments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_fulfillments";
 create policy bsb_tenant_scope_select on "better_supabase"."order_fulfillments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_fulfillments";
 create policy bsb_tenant_scope_insert on "better_supabase"."order_fulfillments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_fulfillments";
 create policy bsb_tenant_scope_update on "better_supabase"."order_fulfillments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_fulfillments";
 create policy bsb_tenant_scope_delete on "better_supabase"."order_fulfillments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."order_fulfillment_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_fulfillment_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."order_fulfillment_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_fulfillment_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."order_fulfillment_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_fulfillment_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."order_fulfillment_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_fulfillment_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."order_fulfillment_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."order_returns";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_returns";
 create policy bsb_tenant_scope_select on "better_supabase"."order_returns" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_returns";
 create policy bsb_tenant_scope_insert on "better_supabase"."order_returns" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_returns";
 create policy bsb_tenant_scope_update on "better_supabase"."order_returns" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_returns";
 create policy bsb_tenant_scope_delete on "better_supabase"."order_returns" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."order_return_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_return_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."order_return_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_return_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."order_return_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_return_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."order_return_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_return_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."order_return_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."order_refunds";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_refunds";
 create policy bsb_tenant_scope_select on "better_supabase"."order_refunds" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_refunds";
 create policy bsb_tenant_scope_insert on "better_supabase"."order_refunds" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_refunds";
 create policy bsb_tenant_scope_update on "better_supabase"."order_refunds" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_refunds";
 create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3239,8 +3073,6 @@ $$;
 -- blocks.orders.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."place_order"(uuid, jsonb, bigint, uuid, jsonb);
 
 create or replace function "api"."save_shipping_rate"(tenant uuid, rate uuid, data jsonb)
 returns jsonb

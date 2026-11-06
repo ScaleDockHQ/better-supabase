@@ -516,7 +516,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:becce3f67bef6d3f88d139e61691399478bd28728b6c255f9bb0838463b258eb
+-- @bsb-hash sha256:14fe3de5682a6bd52a9e436c7baaff094e8dee6bf4c852ea1c787f2af3590d1e
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -696,7 +696,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_credential_vault_secret"() from public, anon, authenticated;
-drop trigger if exists "bsb_credential_vault" on "better_supabase"."credentials";
 create trigger "bsb_credential_vault" after delete or update of "vault_id" on "better_supabase"."credentials"
   for each row execute function "better_supabase"."drop_credential_vault_secret"();
 

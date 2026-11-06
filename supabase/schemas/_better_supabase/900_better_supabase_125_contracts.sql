@@ -1,37 +1,14 @@
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:2f85b132bb7abe1819641b4dfcf40138bbfbfdc752d6918329f5dad590d59151
+-- @bsb-hash sha256:23df56fbae7649669095450a4b9acae5be165b3651d3d4f0532c8647c6141efe
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."contracts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."contracts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."contracts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."contracts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."contracts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."contract_obligations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."contract_obligations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."contract_obligations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."contract_obligations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."contract_obligations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Contracts: a lifecycle from draft to signed, renewal terms with reminders
 -- before the notice deadline, and obligations with due dates and owners.
 
-create table if not exists "better_supabase"."contracts" (
+create table "better_supabase"."contracts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") >= 1 and length("title") <= 200),
@@ -64,20 +41,19 @@ create table if not exists "better_supabase"."contracts" (
   check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
   unique ("tenant_id", "id")
 );
-create index if not exists "contracts_status_idx" on "better_supabase"."contracts" ("tenant_id", "status", "ends_on");
-create index if not exists "contracts_counterparty_idx" on "better_supabase"."contracts" ("tenant_id", "counterparty_type", "counterparty_id") where "counterparty_type" is not null;
-create index if not exists "contracts_owner_idx" on "better_supabase"."contracts" ("tenant_id", "owner_id") where "owner_id" is not null;
-create index if not exists "contracts_signature_idx" on "better_supabase"."contracts" ("signature_request_id") where "signature_request_id" is not null;
+create index "contracts_status_idx" on "better_supabase"."contracts" ("tenant_id", "status", "ends_on");
+create index "contracts_counterparty_idx" on "better_supabase"."contracts" ("tenant_id", "counterparty_type", "counterparty_id") where "counterparty_type" is not null;
+create index "contracts_owner_idx" on "better_supabase"."contracts" ("tenant_id", "owner_id") where "owner_id" is not null;
+create index "contracts_signature_idx" on "better_supabase"."contracts" ("signature_request_id") where "signature_request_id" is not null;
 alter table "better_supabase"."contracts" enable row level security;
 revoke all on "better_supabase"."contracts" from public, anon, authenticated;
 grant select on "better_supabase"."contracts" to authenticated;
 grant all on "better_supabase"."contracts" to service_role;
-drop policy if exists "contracts_read" on "better_supabase"."contracts";
 create policy contracts_read on "better_supabase"."contracts"
   for select to authenticated
   using ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')));
 
-create table if not exists "better_supabase"."contract_obligations" (
+create table "better_supabase"."contract_obligations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "contract_id" uuid not null,
@@ -92,14 +68,13 @@ create table if not exists "better_supabase"."contract_obligations" (
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "contract_id") references "better_supabase"."contracts" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "contract_obligations_parent_idx" on "better_supabase"."contract_obligations" ("tenant_id", "contract_id", "due_on");
-create index if not exists "contract_obligations_owner_idx" on "better_supabase"."contract_obligations" ("tenant_id", "owner_id", "due_on") where "owner_id" is not null;
-create index if not exists "contract_obligations_due_idx" on "better_supabase"."contract_obligations" ("tenant_id", "due_on") where "status" = 'open';
+create index "contract_obligations_parent_idx" on "better_supabase"."contract_obligations" ("tenant_id", "contract_id", "due_on");
+create index "contract_obligations_owner_idx" on "better_supabase"."contract_obligations" ("tenant_id", "owner_id", "due_on") where "owner_id" is not null;
+create index "contract_obligations_due_idx" on "better_supabase"."contract_obligations" ("tenant_id", "due_on") where "status" = 'open';
 alter table "better_supabase"."contract_obligations" enable row level security;
 revoke all on "better_supabase"."contract_obligations" from public, anon, authenticated;
 grant select on "better_supabase"."contract_obligations" to authenticated;
 grant all on "better_supabase"."contract_obligations" to service_role;
-drop policy if exists "contract_obligations_read" on "better_supabase"."contract_obligations";
 create policy contract_obligations_read on "better_supabase"."contract_obligations"
   for select to authenticated
   using ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')));
@@ -194,7 +169,7 @@ grant execute on function "better_supabase"."contract_apply_status"(uuid, text, 
 -- counterpartyType and counterpartyId (a registered subject), ownerId, value
 -- (minor units as text) and currency, startsOn, endsOn, autoRenew,
 -- renewalMonths and noticeDays. fields: the extra columns to set.
-drop function if exists "better_supabase"."create_contract"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."create_contract"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -322,7 +297,7 @@ grant execute on function "better_supabase"."create_contract"(uuid, jsonb) to au
 -- Changes a contract's terms while it is a draft or in review. An active
 -- contract takes changes to its owner, description and renewal terms only,
 -- and its renewal reminder moves with them.
-drop function if exists "better_supabase"."update_contract"(uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."update_contract"(contract_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -585,7 +560,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."contract_signature_settled"() from public, anon, authenticated;
-drop trigger if exists "bsb_contracts_signature_settled" on "better_supabase"."signature_requests";
 create trigger "bsb_contracts_signature_settled" after update of "status" on "better_supabase"."signature_requests"
   for each row when (old."status" = 'pending' and new."status" <> 'pending')
   execute function "better_supabase"."contract_signature_settled"();
@@ -876,45 +850,35 @@ comment on function "better_supabase"."contracts_subject_merge"(text, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."contracts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."contracts";
 create policy bsb_tenant_scope_select on "better_supabase"."contracts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."contracts";
 create policy bsb_tenant_scope_insert on "better_supabase"."contracts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."contracts";
 create policy bsb_tenant_scope_update on "better_supabase"."contracts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."contracts";
 create policy bsb_tenant_scope_delete on "better_supabase"."contracts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."contract_obligations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."contract_obligations";
 create policy bsb_tenant_scope_select on "better_supabase"."contract_obligations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."contract_obligations";
 create policy bsb_tenant_scope_insert on "better_supabase"."contract_obligations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."contract_obligations";
 create policy bsb_tenant_scope_update on "better_supabase"."contract_obligations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."contract_obligations";
 create policy bsb_tenant_scope_delete on "better_supabase"."contract_obligations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -932,11 +896,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."contract_schedule_renewal"(uuid);
-drop function if exists "api"."contract_apply_status"(uuid, text, text);
 
-drop function if exists "api"."create_contract"(uuid, jsonb, jsonb);
-drop function if exists "api"."update_contract"(uuid, jsonb, jsonb);
 
 create or replace function "api"."create_contract"(tenant uuid, attrs jsonb)
 returns jsonb

@@ -40,7 +40,7 @@ describe("legal-entities module", () => {
     ]);
 
     expect(sql).toMatch(
-      /alter table "better_supabase"\."number_sequences" add column if not exists legal_entity_id uuid;/,
+      /alter table "better_supabase"\."number_sequences" add column legal_entity_id uuid;/,
     );
   });
 

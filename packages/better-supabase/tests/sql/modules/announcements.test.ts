@@ -16,10 +16,8 @@ const sqlOf = (
 describe("announcements module", () => {
   it("writes the tables, the functions and the broadcast", () => {
     const sql = sqlOf(["announcements"]);
-    expect(sql).toMatch(/create table if not exists \S+announcements" \(/);
-    expect(sql).toMatch(
-      /create table if not exists \S+announcement_dismissals/,
-    );
+    expect(sql).toMatch(/create table \S+announcements" \(/);
+    expect(sql).toMatch(/create table \S+announcement_dismissals/);
     expect(sql).toContain("'announcements.manage'");
     expect(sql).toContain("in ('all', 'tenant', 'role')");
     expect(sql).not.toContain("tenant_entitlements");

@@ -1,24 +1,9 @@
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:1e87cf9528c59e445b883aec4a10c7c7a6aa27c2f10460e53e2f31fb1601b0c4
+-- @bsb-hash sha256:7fbb5d985186c97b813b4178c4790ede91051e05baae133df4d8a9e23ac1baf3
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."inbound_webhooks";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."inbound_webhooks";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."inbound_webhooks";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."inbound_webhooks";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."inbound_webhooks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Trigger URLs over the app's table "centrakit"."inbound_webhooks" (the app's table): the app owns its
 -- columns, indexes, grants and policies. Only the token's hash is kept.
@@ -35,7 +20,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bsb_incoming_webhook_vault" on "centrakit"."inbound_webhooks";
 create trigger "bsb_incoming_webhook_vault" after delete on "centrakit"."inbound_webhooks"
   for each row when (old."vault_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 
@@ -98,8 +82,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."create_incoming_webhook"(uuid, text, text, jsonb, text);
 -- Creates an endpoint and returns it with its token (and the signing secret
 -- for standard-webhooks and hmac-sha256), shown once.
 create or replace function "better_supabase"."create_incoming_webhook"(
@@ -407,7 +389,7 @@ $$;
 
 -- The endpoint behind a token, with its secret and metadata, for the
 -- receiving route.
-drop function if exists "better_supabase"."incoming_webhook_by_token"(text);
+
 create or replace function "better_supabase"."incoming_webhook_by_token"(token text)
 returns table (id uuid, tenant text, enabled boolean, verify text, secret text, signature_header text, max_body_bytes integer, previous_secret text, metadata jsonb)
 language sql

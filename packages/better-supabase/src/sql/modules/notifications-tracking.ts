@@ -139,7 +139,7 @@ ${renderPolicy(
       and r.${n.col("recipients", "user")} = (select auth.uid())
   )`,
   }),
-  { drop: true, target: t },
+  { target: t },
 )}${partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(t)}` : ""}`;
 }
 

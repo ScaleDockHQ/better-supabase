@@ -1,26 +1,11 @@
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:3f5b97c34900e536ac4bfa6a4ee6b78883fca520014b7eb96ef77d3fb480eaa9
+-- @bsb-hash sha256:679ba9265e0808a7a256526b4c26daecc539a2bfc972595cf21eaa41f857e612
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."metric_points";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."metric_points";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."metric_points";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."metric_points";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."metric_points";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."metric_points" (
+create table "better_supabase"."metric_points" (
   "tenant_id" uuid not null,
   "metric" text not null,
   "grain" text not null check ("grain" in ('hour', 'day', 'week', 'month')),
@@ -34,7 +19,7 @@ create table if not exists "better_supabase"."metric_points" (
 alter table "better_supabase"."metric_points" enable row level security;
 revoke all on "better_supabase"."metric_points" from public, anon, authenticated;
 grant all on "better_supabase"."metric_points" to service_role;
-create index if not exists metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_start");
+create index metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_start");
 
 -- Re-aggregates the window [since, until), default the last 3 days, so
 -- rows that arrive late or change land in their buckets. Run it from cron or

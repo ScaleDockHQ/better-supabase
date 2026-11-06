@@ -1,56 +1,17 @@
 -- ==== schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:2a0a2138e322044572ff2d724174d0ab51f1ba6c1053ed0061725df0d2c01382
+-- @bsb-hash sha256:118689c7f91f385ee94e3f865c62c8f88cd315daeaa0cd9285585c88603618d7
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sso_domains";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sso_domains";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sso_domains";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sso_domains";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sso_domains";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sso_providers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sso_providers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sso_providers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sso_providers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sso_providers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."scim_users";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_users";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_users";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_users";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_users";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."scim_groups";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."scim_groups";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."scim_groups";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."scim_groups";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."scim_groups";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Email domains an organization claims. A domain is verified once a DNS TXT
 -- record _better-supabase.<domain> holds its token; one organization holds each
 -- verified domain.
-create table if not exists "better_supabase"."sso_domains" (
+create table "better_supabase"."sso_domains" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "domain" text not null check ("domain" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
@@ -63,14 +24,14 @@ create table if not exists "better_supabase"."sso_domains" (
   unique ("workspace_id", "domain"),
   check (not "enforce_sso" or "verified_at" is not null)
 );
-create unique index if not exists "sso_domains_verified_idx" on "better_supabase"."sso_domains" ("domain") where "verified_at" is not null;
-create index if not exists "sso_domains_created_by_idx" on "better_supabase"."sso_domains" ("created_by") where "created_by" is not null;
+create unique index "sso_domains_verified_idx" on "better_supabase"."sso_domains" ("domain") where "verified_at" is not null;
+create index "sso_domains_created_by_idx" on "better_supabase"."sso_domains" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."sso_domains" enable row level security;
 revoke all on "better_supabase"."sso_domains" from public, anon, authenticated;
 grant all on "better_supabase"."sso_domains" to service_role;
 
 -- SAML identity providers registered with Supabase Auth for an organization.
-create table if not exists "better_supabase"."sso_providers" (
+create table "better_supabase"."sso_providers" (
   "id" uuid primary key,
   "workspace_id" uuid not null,
   "type" text not null default 'saml' check ("type" = 'saml'),
@@ -78,7 +39,7 @@ create table if not exists "better_supabase"."sso_providers" (
   "domains" text[] not null default '{}',
   "created_at" timestamptz not null default now()
 );
-create index if not exists "sso_providers_tenant_idx" on "better_supabase"."sso_providers" ("workspace_id");
+create index "sso_providers_tenant_idx" on "better_supabase"."sso_providers" ("workspace_id");
 alter table "better_supabase"."sso_providers" enable row level security;
 revoke all on "better_supabase"."sso_providers" from public, anon, authenticated;
 grant all on "better_supabase"."sso_providers" to service_role;
@@ -86,7 +47,7 @@ grant all on "better_supabase"."sso_providers" to service_role;
 -- SCIM 2.0 users and groups per organization, written by the SCIM handler.
 -- A user links to an account whose confirmed email is at a verified domain
 -- of the organization; groups map to roles.
-create table if not exists "better_supabase"."scim_users" (
+create table "better_supabase"."scim_users" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete set null,
@@ -102,16 +63,16 @@ create table if not exists "better_supabase"."scim_users" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists scim_users_user_name_idx on "better_supabase"."scim_users" ("workspace_id", lower("user_name"));
-create unique index if not exists scim_users_external_id_idx on "better_supabase"."scim_users" ("workspace_id", "external_id") where "external_id" is not null;
-create unique index if not exists scim_users_user_idx on "better_supabase"."scim_users" ("workspace_id", "user_id") where "user_id" is not null;
-create index if not exists scim_users_email_idx on "better_supabase"."scim_users" ("email") where "user_id" is null;
-create index if not exists scim_users_account_idx on "better_supabase"."scim_users" ("user_id") where "user_id" is not null;
+create unique index scim_users_user_name_idx on "better_supabase"."scim_users" ("workspace_id", lower("user_name"));
+create unique index scim_users_external_id_idx on "better_supabase"."scim_users" ("workspace_id", "external_id") where "external_id" is not null;
+create unique index scim_users_user_idx on "better_supabase"."scim_users" ("workspace_id", "user_id") where "user_id" is not null;
+create index scim_users_email_idx on "better_supabase"."scim_users" ("email") where "user_id" is null;
+create index scim_users_account_idx on "better_supabase"."scim_users" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."scim_users" enable row level security;
 revoke all on "better_supabase"."scim_users" from public, anon, authenticated;
 grant all on "better_supabase"."scim_users" to service_role;
 
-create table if not exists "better_supabase"."scim_groups" (
+create table "better_supabase"."scim_groups" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "display_name" text not null check (length("display_name") >= 1 and length("display_name") <= 256),
@@ -121,18 +82,18 @@ create table if not exists "better_supabase"."scim_groups" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists scim_groups_display_name_idx on "better_supabase"."scim_groups" ("workspace_id", lower("display_name"));
-create unique index if not exists scim_groups_external_id_idx on "better_supabase"."scim_groups" ("workspace_id", "external_id") where "external_id" is not null;
+create unique index scim_groups_display_name_idx on "better_supabase"."scim_groups" ("workspace_id", lower("display_name"));
+create unique index scim_groups_external_id_idx on "better_supabase"."scim_groups" ("workspace_id", "external_id") where "external_id" is not null;
 alter table "better_supabase"."scim_groups" enable row level security;
 revoke all on "better_supabase"."scim_groups" from public, anon, authenticated;
 grant all on "better_supabase"."scim_groups" to service_role;
 
-create table if not exists "better_supabase"."scim_group_members" (
+create table "better_supabase"."scim_group_members" (
   "group_id" uuid not null references "better_supabase"."scim_groups" ("id") on delete cascade,
   "scim_user_id" uuid not null references "better_supabase"."scim_users" ("id") on delete cascade,
   primary key ("group_id", "scim_user_id")
 );
-create index if not exists scim_group_members_member_idx on "better_supabase"."scim_group_members" ("scim_user_id");
+create index scim_group_members_member_idx on "better_supabase"."scim_group_members" ("scim_user_id");
 alter table "better_supabase"."scim_group_members" enable row level security;
 revoke all on "better_supabase"."scim_group_members" from public, anon, authenticated;
 grant all on "better_supabase"."scim_group_members" to service_role;
@@ -587,7 +548,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_sso_auth_user" on auth.users;
 create trigger "bsb_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."sso_on_auth_user"();
 

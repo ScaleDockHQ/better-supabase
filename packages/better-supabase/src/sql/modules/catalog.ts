@@ -549,7 +549,7 @@ function tables(ctx: BlockSqlContext, names: Names): string {
         roles: ["authenticated"],
         using: `${c(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`,
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   return `

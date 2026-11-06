@@ -341,7 +341,7 @@ ${
 }  unique (${ty("tenant")}, ${ty("id")})
 );${auto && ctx.owns("types") ? `\nalter table ${types} add column if not exists ${ty("autoApprove")} boolean not null default false;` : ""}${ctx.has("types", "key") ? appUniqueIndex(ctx, "types", ["tenant", "key"]) : ""}${appUniqueIndex(ctx, "types", ["tenant", "id"])}
 ${lockModuleTable(ctx, "types", { read: true })}
-${renderPolicy(makePolicy({ table: types, name: ctx.naming.rename("leave_types_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(ty("tenant"), request)} or ${ctx.scope.check(ty("tenant"), read)}` }), { drop: true, target: types })}
+${renderPolicy(makePolicy({ table: types, name: ctx.naming.rename("leave_types_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(ty("tenant"), request)} or ${ctx.scope.check(ty("tenant"), read)}` }), { target: types })}
 
 create table if not exists ${requests} (
   ${q("id")} uuid primary key default gen_random_uuid(),
@@ -364,7 +364,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_user_id
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_dates_idx`)} on ${requests} (${q("tenant")}, ${q("startsOn")}, ${q("endsOn")});
 ${approvals === undefined ? "" : `create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${q("approval")}) where ${q("approval")} is not null;\n`}create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_type_idx`)} on ${requests} (${q("tenant")}, ${q("type")});
 ${lockModuleTable(ctx, "requests", { read: true })}
-${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("leave_requests_read"), command: "select", roles: ["authenticated"], using: `${owner.mine} or ${ctx.scope.check(q("tenant"), read)}${leaveConfidential(ctx) ? ` and (${ctx.scope.check(q("tenant"), leaveConfidentialKey(ctx))} or not exists (select 1 from ${types} lc where lc.${ty("id")} = ${requests}.${q("type")} and lc.${ty("confidential")}))` : ""}` }), { drop: true, target: requests })}
+${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("leave_requests_read"), command: "select", roles: ["authenticated"], using: `${owner.mine} or ${ctx.scope.check(q("tenant"), read)}${leaveConfidential(ctx) ? ` and (${ctx.scope.check(q("tenant"), leaveConfidentialKey(ctx))} or not exists (select 1 from ${types} lc where lc.${ty("id")} = ${requests}.${q("type")} and lc.${ty("confidential")}))` : ""}` }), { target: requests })}
 
 `
     : "";

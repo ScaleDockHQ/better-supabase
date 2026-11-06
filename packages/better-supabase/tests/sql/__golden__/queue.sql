@@ -1,27 +1,23 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:a18dd13fa7cdbe41d3d47b753c4415c451497971f852d32623dd447984e84ff6
+-- @bsb-hash sha256:55d5bd639ec2ca3e25451de0093e9c6682161c6f9f2100fa0a753c4e7edda334
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+
 -- enqueue_job before dedupe_running.
-drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);
+
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -520,7 +516,7 @@ $$;
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
 -- busy (another holder does; retry_after_ms says when it ends) or completed
 -- (a holder finished it, and it stays finished until its keep time ends).
-create table if not exists "better_supabase"."job_leases" (
+create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
@@ -695,27 +691,23 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:10011df963154167eeecfb6d64b81d95f8b40f8c6293323965a0898421a031a0
+-- @bsb-hash sha256:d35ef2068f8ad8d8b7665fd1fba31e0b7f6712f107b98392801739c9069fcf00
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+
 -- enqueue_job before dedupe_running.
-drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);
+
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -1218,7 +1210,7 @@ $$;
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
 -- busy (another holder does; retry_after_ms says when it ends) or completed
 -- (a holder finished it, and it stays finished until its keep time ends).
-create table if not exists "better_supabase"."job_leases" (
+create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
@@ -1396,27 +1388,23 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:36a297021360b48b1ed8fe20d59ede3e848955f2d8155fe838593d9483d5c52e
+-- @bsb-hash sha256:0aa88feffda8d01f9492c294160fc7cda1e22a57c4de9ed47b6d111fd02f9568
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+
 -- enqueue_job before dedupe_running.
-drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);
+
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -1915,7 +1903,7 @@ $$;
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
 -- busy (another holder does; retry_after_ms says when it ends) or completed
 -- (a holder finished it, and it stays finished until its keep time ends).
-create table if not exists "better_supabase"."job_leases" (
+create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
@@ -2071,17 +2059,6 @@ grant execute on function better_supabase.release_lease_claim(text, text, uuid) 
 -- blocks.queue.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."enqueue_job"(text, jsonb, timestamptz, integer, text, integer);
-drop function if exists "api"."enqueue_job"(text, jsonb, integer, integer, text);
-drop function if exists "api"."claim_jobs"(text, text, integer, interval);
-drop function if exists "api"."complete_job"(bigint, text);
-drop function if exists "api"."fail_job"(bigint, text, text, interval);
-drop function if exists "api"."extend_job_lease"(bigint, text, interval);
-drop function if exists "api"."schedule_job"(text, text, text, jsonb);
-drop function if exists "api"."purge_job_archive"(text, interval, integer);
-drop function if exists "api"."schedule_job"(text, text, text, jsonb, text, timestamptz);
-drop function if exists "api"."claim_due_schedules"(integer, integer);
 
 create or replace function "api"."index_job_queue"(queue text)
 returns void
@@ -2325,27 +2302,23 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:2bf9318edec6b11c4dc0e95649ecc63b200b0ba0f08e7dd0dd556de8695c335c
+-- @bsb-hash sha256:d4f65000c153407401237a8d18839dcc1a425c479f3b976697ef7db1c0bcfdc2
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+
 -- enqueue_job before dedupe_running.
-drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);
+
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -3017,27 +2990,23 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:a18dd13fa7cdbe41d3d47b753c4415c451497971f852d32623dd447984e84ff6
+-- @bsb-hash sha256:55d5bd639ec2ca3e25451de0093e9c6682161c6f9f2100fa0a753c4e7edda334
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+
 -- enqueue_job before dedupe_running.
-drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);
+
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -3536,7 +3505,7 @@ $$;
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
 -- busy (another holder does; retry_after_ms says when it ends) or completed
 -- (a holder finished it, and it stays finished until its keep time ends).
-create table if not exists "better_supabase"."job_leases" (
+create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,

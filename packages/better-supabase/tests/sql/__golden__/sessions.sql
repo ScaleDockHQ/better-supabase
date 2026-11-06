@@ -601,7 +601,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:53e0167170a56ed0191fe258359c90359ff9ab708e6ec86c2806ae8c74877f4e
+-- @bsb-hash sha256:e2dbda36a4b38dfb232e90dbaf645cbdb8b39e4bc1c80fe05e65da4a7999bd16
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -789,8 +789,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."session_active"();
-drop function if exists "api"."session_end_reason"();
+
 
 create or replace function "api"."last_sign_ins"(p_users uuid[])
 returns table (user_id uuid, last_sign_in_at timestamptz)

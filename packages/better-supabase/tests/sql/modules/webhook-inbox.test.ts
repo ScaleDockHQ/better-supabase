@@ -28,9 +28,7 @@ describe("webhook-inbox module", () => {
 
   it("owns its table in managed mode and refuses renames there", () => {
     const sql = moduleBody("webhook-inbox")!;
-    expect(sql).toContain(
-      "create table if not exists better_supabase.webhook_inbox",
-    );
+    expect(sql).toContain("create table better_supabase.webhook_inbox");
     expect(sql).toContain("returns jsonb");
     expect(sql).toContain("'id', w.id, 'source', w.source");
     expect(() =>
@@ -60,9 +58,6 @@ describe("webhook-inbox module", () => {
     expect(sql).toContain("then 'dead' else 'pending' end");
     expect(sql).toContain(">= 8");
     expect(sql).not.toContain('"checkpoint"');
-    expect(sql).toContain(
-      "drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);",
-    );
   });
 
   it("needs the columns its leases run on", () => {

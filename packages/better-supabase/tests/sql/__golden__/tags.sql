@@ -1,35 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:6f53a3ab63c064e8615a80aa34a937683f7ad9dab3e0fac70ba45ff1df9386bc
+-- @bsb-hash sha256:0a9469e3d62ff9d228193e21e2189edfbde20244eb546a0d41866c20edd4340e
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."tags" (
+create table "better_supabase"."tags" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null,
@@ -46,7 +23,7 @@ alter table "better_supabase"."tags" enable row level security;
 revoke all on "better_supabase"."tags" from public, anon, authenticated;
 grant select on "better_supabase"."tags" to authenticated;
 grant all on "better_supabase"."tags" to service_role;
-create table if not exists "better_supabase"."taggings" (
+create table "better_supabase"."taggings" (
   "tenant_id" uuid not null,
   "tag_id" uuid not null references "better_supabase"."tags" ("id") on delete cascade,
   "subject_type" text not null,
@@ -54,14 +31,14 @@ create table if not exists "better_supabase"."taggings" (
   "created_at" timestamptz not null default now(),
   primary key ("tag_id", "subject_type", "subject_id")
 );
-create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
+create index "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
 revoke all on "better_supabase"."taggings" from public, anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
 returns jsonb
 language plpgsql
@@ -154,8 +131,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb);
 create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
 returns boolean
 language plpgsql
@@ -341,39 +316,29 @@ grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
 create policy bsb_tenant_scope_select on "better_supabase"."tags" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
 create policy bsb_tenant_scope_insert on "better_supabase"."tags" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
 create policy bsb_tenant_scope_update on "better_supabase"."tags" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
 create policy bsb_tenant_scope_delete on "better_supabase"."tags" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
 create policy bsb_tenant_scope_select on "better_supabase"."taggings" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
 create policy bsb_tenant_scope_insert on "better_supabase"."taggings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
 create policy bsb_tenant_scope_update on "better_supabase"."taggings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
 create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -395,35 +360,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:8bd55ed46783dc9afaf4b5c439736884cba24c818b4c31014396b6d3f2757b20
+-- @bsb-hash sha256:222ff46fb4596ad55fdb9bfca064772611f5c4b7886fc290b166498cf84566b6
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."tags" (
+create table "better_supabase"."tags" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null,
@@ -440,7 +382,7 @@ alter table "better_supabase"."tags" enable row level security;
 revoke all on "better_supabase"."tags" from public, anon, authenticated;
 grant select on "better_supabase"."tags" to authenticated;
 grant all on "better_supabase"."tags" to service_role;
-create table if not exists "better_supabase"."taggings" (
+create table "better_supabase"."taggings" (
   "tenant_id" uuid not null,
   "tag_id" uuid not null references "better_supabase"."tags" ("id") on delete cascade,
   "subject_type" text not null,
@@ -448,14 +390,14 @@ create table if not exists "better_supabase"."taggings" (
   "created_at" timestamptz not null default now(),
   primary key ("tag_id", "subject_type", "subject_id")
 );
-create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
+create index "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
 revoke all on "better_supabase"."taggings" from public, anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
 returns jsonb
 language plpgsql
@@ -548,8 +490,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb);
 create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
 returns boolean
 language plpgsql
@@ -735,39 +675,29 @@ grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
 create policy bsb_tenant_scope_select on "better_supabase"."tags" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
 create policy bsb_tenant_scope_insert on "better_supabase"."tags" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
 create policy bsb_tenant_scope_update on "better_supabase"."tags" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
 create policy bsb_tenant_scope_delete on "better_supabase"."tags" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
 create policy bsb_tenant_scope_select on "better_supabase"."taggings" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
 create policy bsb_tenant_scope_insert on "better_supabase"."taggings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
 create policy bsb_tenant_scope_update on "better_supabase"."taggings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
 create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -796,39 +726,17 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:673427dff7f021d8e8daa17927a49aa80c8c092da077f30023e36e10055ec998
+-- @bsb-hash sha256:ec52652d21f5e084ff388c02560d37a547261de49376af3292869ee68807ce12
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."tags";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."tags";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."tags";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."tags";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."tags";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."taggings";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."taggings";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."taggings";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."taggings";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."taggings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."tags" (
+create table "app_private"."tags" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null,
@@ -845,7 +753,7 @@ alter table "app_private"."tags" enable row level security;
 revoke all on "app_private"."tags" from public, anon, authenticated;
 grant select on "app_private"."tags" to authenticated;
 grant all on "app_private"."tags" to service_role;
-create table if not exists "app_private"."taggings" (
+create table "app_private"."taggings" (
   "tenant_id" uuid not null,
   "tag_id" uuid not null references "app_private"."tags" ("id") on delete cascade,
   "subject_type" text not null,
@@ -853,14 +761,14 @@ create table if not exists "app_private"."taggings" (
   "created_at" timestamptz not null default now(),
   primary key ("tag_id", "subject_type", "subject_id")
 );
-create index if not exists "taggings_subject_idx" on "app_private"."taggings" ("tenant_id", "subject_type", "subject_id");
+create index "taggings_subject_idx" on "app_private"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "app_private"."taggings" enable row level security;
 revoke all on "app_private"."taggings" from public, anon, authenticated;
 grant select on "app_private"."taggings" to authenticated;
 grant all on "app_private"."taggings" to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-drop function if exists "app_private"."create_tag"(uuid, text, text, text, text, jsonb);
+
 create or replace function "app_private"."create_tag"(tenant uuid, kind text, name text, color text, description text)
 returns jsonb
 language plpgsql
@@ -953,8 +861,6 @@ end;
 $$;
 revoke execute on function "app_private"."tag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "app_private"."tag"(uuid, text, text, uuid) to authenticated, service_role;
-
-drop function if exists "app_private"."update_tag"(uuid, text, jsonb);
 create or replace function "app_private"."update_tag"(tag_id uuid, name text)
 returns boolean
 language plpgsql
@@ -1140,39 +1046,29 @@ grant execute on function "app_private"."subjects_tags"(uuid, text, text[]) to a
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."tags";
-drop policy if exists bsb_tenant_scope_select on "app_private"."tags";
 create policy bsb_tenant_scope_select on "app_private"."tags" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "app_private"."tags";
 create policy bsb_tenant_scope_insert on "app_private"."tags" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."tags";
 create policy bsb_tenant_scope_update on "app_private"."tags" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."tags";
 create policy bsb_tenant_scope_delete on "app_private"."tags" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."taggings";
-drop policy if exists bsb_tenant_scope_select on "app_private"."taggings";
 create policy bsb_tenant_scope_select on "app_private"."taggings" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "app_private"."taggings";
 create policy bsb_tenant_scope_insert on "app_private"."taggings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."taggings";
 create policy bsb_tenant_scope_update on "app_private"."taggings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."taggings";
 create policy bsb_tenant_scope_delete on "app_private"."taggings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1194,35 +1090,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:03241be6a9272f171022d649544830c73493a88e86cbc87ded4c7b487ab2d44e
+-- @bsb-hash sha256:87cbd547885a8763576dd6d890c0ed11d8169b3525f2d685ab9ed75741fb5b01
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."tags" (
+create table "better_supabase"."tags" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null,
@@ -1239,7 +1112,7 @@ alter table "better_supabase"."tags" enable row level security;
 revoke all on "better_supabase"."tags" from public, anon, authenticated;
 grant select on "better_supabase"."tags" to authenticated;
 grant all on "better_supabase"."tags" to service_role;
-create table if not exists "better_supabase"."taggings" (
+create table "better_supabase"."taggings" (
   "tenant_id" uuid not null,
   "tag_id" uuid not null references "better_supabase"."tags" ("id") on delete cascade,
   "subject_type" text not null,
@@ -1247,14 +1120,14 @@ create table if not exists "better_supabase"."taggings" (
   "created_at" timestamptz not null default now(),
   primary key ("tag_id", "subject_type", "subject_id")
 );
-create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
+create index "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
 revoke all on "better_supabase"."taggings" from public, anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
 returns jsonb
 language plpgsql
@@ -1347,8 +1220,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb);
 create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
 returns boolean
 language plpgsql
@@ -1534,39 +1405,29 @@ grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
 create policy bsb_tenant_scope_select on "better_supabase"."tags" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
 create policy bsb_tenant_scope_insert on "better_supabase"."tags" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
 create policy bsb_tenant_scope_update on "better_supabase"."tags" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
 create policy bsb_tenant_scope_delete on "better_supabase"."tags" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
 create policy bsb_tenant_scope_select on "better_supabase"."taggings" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
 create policy bsb_tenant_scope_insert on "better_supabase"."taggings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
 create policy bsb_tenant_scope_update on "better_supabase"."taggings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
 create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1574,9 +1435,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restric
 -- blocks.tags.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."create_tag"(uuid, text, text, text, text, jsonb);
-drop function if exists "api"."update_tag"(uuid, text, jsonb);
 
 create or replace function "api"."create_tag"(tenant uuid, kind text, name text, color text, description text)
 returns jsonb
@@ -1679,33 +1537,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:2c92e7a126fe4e4b85ff4c6554d821eaa2e6a9d9129b356878deca063acb2052
+-- @bsb-hash sha256:fd50373198c36edf9119003e44f6c254a4588221d483d785847bc7ec459ccf68
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- better_supabase.tags is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."tags" add column if not exists "id" uuid default gen_random_uuid();
@@ -1733,7 +1568,7 @@ grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
 returns jsonb
 language plpgsql
@@ -1826,8 +1661,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb);
 create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
 returns boolean
 language plpgsql
@@ -2013,39 +1846,29 @@ grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
 create policy bsb_tenant_scope_select on "better_supabase"."tags" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
 create policy bsb_tenant_scope_insert on "better_supabase"."tags" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
 create policy bsb_tenant_scope_update on "better_supabase"."tags" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
 create policy bsb_tenant_scope_delete on "better_supabase"."tags" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
 create policy bsb_tenant_scope_select on "better_supabase"."taggings" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
 create policy bsb_tenant_scope_insert on "better_supabase"."taggings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
 create policy bsb_tenant_scope_update on "better_supabase"."taggings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
 create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2067,35 +1890,12 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:fe6716c8f7221c9aa968b3bf81a6a95c4110f8845db52d7efa8317bd09ff902d
+-- @bsb-hash sha256:fa5ca52c6148efaca1535131237156162a572d21b7ff2ea3a16831126c6812c2
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."tags" (
+create table "better_supabase"."tags" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "kind" text not null,
@@ -2112,7 +1912,7 @@ alter table "better_supabase"."tags" enable row level security;
 revoke all on "better_supabase"."tags" from public, anon, authenticated;
 grant select on "better_supabase"."tags" to authenticated;
 grant all on "better_supabase"."tags" to service_role;
-create table if not exists "better_supabase"."taggings" (
+create table "better_supabase"."taggings" (
   "org_id" uuid not null,
   "tag_id" uuid not null references "better_supabase"."tags" ("id") on delete cascade,
   "subject_type" text not null,
@@ -2120,14 +1920,14 @@ create table if not exists "better_supabase"."taggings" (
   "created_at" timestamptz not null default now(),
   primary key ("tag_id", "subject_type", "subject_id")
 );
-create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("org_id", "subject_type", "subject_id");
+create index "taggings_subject_idx" on "better_supabase"."taggings" ("org_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
 revoke all on "better_supabase"."taggings" from public, anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
 returns jsonb
 language plpgsql
@@ -2220,8 +2020,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb);
 create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
 returns boolean
 language plpgsql
@@ -2407,39 +2205,29 @@ grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
 create policy bsb_tenant_scope_select on "better_supabase"."tags" as restrictive
   for select to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
 create policy bsb_tenant_scope_insert on "better_supabase"."tags" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
 create policy bsb_tenant_scope_update on "better_supabase"."tags" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
 create policy bsb_tenant_scope_delete on "better_supabase"."tags" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
 create policy bsb_tenant_scope_select on "better_supabase"."taggings" as restrictive
   for select to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
 create policy bsb_tenant_scope_insert on "better_supabase"."taggings" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
 create policy bsb_tenant_scope_update on "better_supabase"."taggings" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
 create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

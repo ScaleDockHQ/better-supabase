@@ -433,12 +433,12 @@ $$;
 revoke execute on function ${visible}(uuid) from public, anon;
 grant execute on function ${visible}(uuid) to authenticated, service_role;
 
-${renderPolicy(makePolicy({ table: t("accounts"), name: policy("accounts"), command: "select", roles: ["authenticated"], using: `${a("user")} = (select auth.uid()) or ${ctx.scope.check(a("tenant"), n.manage)}` }), { drop: true, target: t("accounts") })}
-${renderPolicy(makePolicy({ table: t("threads"), name: policy("threads"), command: "select", roles: ["authenticated"], using: `${visible}(${h("id")})` }), { drop: true, target: t("threads") })}
-${renderPolicy(makePolicy({ table: t("messages"), name: policy("messages"), command: "select", roles: ["authenticated"], using: `${visible}(${m("thread")})` }), { drop: true, target: t("messages") })}
-${renderPolicy(makePolicy({ table: t("links"), name: policy("links"), command: "select", roles: ["authenticated"], using: `${visible}(${l("thread")})` }), { drop: true, target: t("links") })}
-${renderPolicy(makePolicy({ table: t("trackedLinks"), name: policy("trackedLinks"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("messages")} y where y.${m("id")} = ${k("message")} and ${visible}(y.${m("thread")}))` }), { drop: true, target: t("trackedLinks") })}
-${renderPolicy(makePolicy({ table: t("tracking"), name: policy("tracking"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("messages")} y where y.${m("id")} = ${e("message")} and ${visible}(y.${m("thread")}))` }), { drop: true, target: t("tracking") })}
+${renderPolicy(makePolicy({ table: t("accounts"), name: policy("accounts"), command: "select", roles: ["authenticated"], using: `${a("user")} = (select auth.uid()) or ${ctx.scope.check(a("tenant"), n.manage)}` }), { target: t("accounts") })}
+${renderPolicy(makePolicy({ table: t("threads"), name: policy("threads"), command: "select", roles: ["authenticated"], using: `${visible}(${h("id")})` }), { target: t("threads") })}
+${renderPolicy(makePolicy({ table: t("messages"), name: policy("messages"), command: "select", roles: ["authenticated"], using: `${visible}(${m("thread")})` }), { target: t("messages") })}
+${renderPolicy(makePolicy({ table: t("links"), name: policy("links"), command: "select", roles: ["authenticated"], using: `${visible}(${l("thread")})` }), { target: t("links") })}
+${renderPolicy(makePolicy({ table: t("trackedLinks"), name: policy("trackedLinks"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("messages")} y where y.${m("id")} = ${k("message")} and ${visible}(y.${m("thread")}))` }), { target: t("trackedLinks") })}
+${renderPolicy(makePolicy({ table: t("tracking"), name: policy("tracking"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("messages")} y where y.${m("id")} = ${e("message")} and ${visible}(y.${m("thread")}))` }), { target: t("tracking") })}
 `;
 }
 

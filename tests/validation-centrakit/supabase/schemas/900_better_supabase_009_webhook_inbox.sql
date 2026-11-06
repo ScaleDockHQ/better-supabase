@@ -1,6 +1,6 @@
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:ac30a03ac4611f1d3f5246e3b67f32b8b16c048a74a4bfc5cbbf212ca9849d0c
+-- @bsb-hash sha256:534247b990fcfd8c33b49c5638f34b42fdc799a3d7884d5d0d6b70f42757f8aa
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,17 +11,7 @@
 
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
-drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
-drop function if exists better_supabase.complete_webhook(bigint, text);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);
-drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer, jsonb);
-drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
-drop function if exists better_supabase.list_webhooks(text, text, text, integer);
+
 
 -- { id, duplicate }: duplicate = true when the source and tenant saw the
 -- message id before (the sender retried). max_attempts is the source's

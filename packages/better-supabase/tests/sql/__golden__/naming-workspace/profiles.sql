@@ -1,12 +1,12 @@
 -- ==== schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:22a2a3198e94f891ef1c6568da504b1e7dbb1f7a76cefea0c7934b589e2e0c37
+-- @bsb-hash sha256:ad5686727c467d13932422ab91e2c3d087978e9308d63aa04c499a21a3cf3c3b
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists "better_supabase"."profiles" (
+create table "better_supabase"."profiles" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "email" text,
   "username" text,
@@ -23,11 +23,8 @@ create table if not exists "better_supabase"."profiles" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;
-alter table "better_supabase"."profiles" add column if not exists "locale" text;
 
-create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
-alter table "better_supabase"."profiles" drop constraint if exists profiles_username_check;
+create unique index profiles_username_idx on "better_supabase"."profiles" (lower("username"));
 alter table "better_supabase"."profiles" add constraint profiles_username_check check (
   "username" is null or (
     length("username") >= 3
@@ -44,11 +41,9 @@ exception when check_violation then
 end;
 $$;
 alter table "better_supabase"."profiles" enable row level security;
-drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
 create policy bsb_profiles_read on "better_supabase"."profiles"
   for select to authenticated
   using ("id" = (select auth.uid()));
-drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
 create policy bsb_profiles_update on "better_supabase"."profiles"
   for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
@@ -85,7 +80,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_guard" on "better_supabase"."profiles";
 create trigger "bsb_profile_guard" before update on "better_supabase"."profiles"
   for each row execute function "better_supabase"."guard_profile"();
 
@@ -188,8 +182,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."backfill_profiles"() from public, anon, authenticated;
 grant execute on function "better_supabase"."backfill_profiles"() to service_role;
-
-drop function if exists "better_supabase"."my_profile"();
 create or replace function "better_supabase"."my_profile"()
 returns jsonb
 language sql
@@ -267,7 +259,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_created"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_sync" on auth.users;
 create trigger "bsb_profile_sync" after insert on auth.users
   for each row execute function "better_supabase"."on_auth_user_created"();
 
@@ -285,7 +276,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_email" on auth.users;
 create trigger "bsb_profile_email" after update of email on auth.users
   for each row execute function "better_supabase"."mirror_profile_email"();
 

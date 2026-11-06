@@ -491,7 +491,7 @@ begin
         and (select realtime.topic()) like ${prefix} || '%'
         and ${fn("conversation_topic_allowed")}(substr((select realtime.topic()), ${start}))`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
         ${renderPolicy(
           makePolicy({
@@ -503,7 +503,7 @@ begin
         and (select realtime.topic()) like ${prefix} || '%'
         and ${fn("conversation_topic_allowed")}(substr((select realtime.topic()), ${start}))`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
   end if;
 end;

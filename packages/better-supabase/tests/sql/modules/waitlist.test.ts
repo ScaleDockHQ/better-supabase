@@ -17,11 +17,9 @@ const sqlOf = (
 describe("waitlist module", () => {
   it("writes the tables, the sign-up trigger and the admit check", () => {
     const sql = sqlOf(["waitlist"]);
-    expect(sql).toMatch(/create table if not exists \S+waitlist_entries/);
-    expect(sql).toMatch(/create table if not exists \S+invite_codes/);
-    expect(sql).toMatch(
-      /create table if not exists \S+invite_code_redemptions/,
-    );
+    expect(sql).toMatch(/create table \S+waitlist_entries/);
+    expect(sql).toMatch(/create table \S+invite_codes/);
+    expect(sql).toMatch(/create table \S+invite_code_redemptions/);
     expect(sql).toContain("'waitlist.manage'");
     expect(sql).toContain("'waitlist.invite'");
     expect(sql).toContain("->> 'invite_code'");

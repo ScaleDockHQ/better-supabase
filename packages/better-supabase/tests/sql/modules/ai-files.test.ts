@@ -28,9 +28,7 @@ describe("ai-files module", () => {
       "ai_documents",
       "ai_suggestions",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}" (`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}" (`);
     }
 
     expect(sql).not.toContain(`"better_supabase"."ai_document_versions"`);

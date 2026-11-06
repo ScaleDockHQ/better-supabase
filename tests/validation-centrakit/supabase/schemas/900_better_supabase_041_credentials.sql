@@ -1,6 +1,6 @@
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:f35e45edd434824cc5ad7f9f2da4943ce933a028c4ae1d4f6c98f0833ecba86a
+-- @bsb-hash sha256:142c49a254de2fa529f49a8567178fdbbfa3b1222b114150af16f6eb5d9dfc73
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -181,6 +181,5 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_credential_vault_secret"() from public, anon, authenticated;
-drop trigger if exists "bsb_credential_vault" on "centrakit"."integration_credentials";
 create trigger "bsb_credential_vault" after delete or update of "vault_secret_id" on "centrakit"."integration_credentials"
   for each row execute function "better_supabase"."drop_credential_vault_secret"();

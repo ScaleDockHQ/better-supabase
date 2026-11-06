@@ -42,10 +42,6 @@ describe("tenantScopePolicy", () => {
       members: MEMBERS,
     });
 
-    expect(sql).toContain(
-      `drop policy if exists bsb_tenant_scope on ${TABLE};`,
-    );
-
     for (const command of ["select", "insert", "update", "delete"]) {
       expect(sql).toContain(
         `create policy bsb_tenant_scope_${command} on ${TABLE} as restrictive
@@ -112,23 +108,6 @@ describe("applyTenantScope", () => {
     expect(sql).toMatch(
       /bsb_tenant_scope_insert[^;]*with check \("tenant_id" in \(select better_supabase.member_organization_ids\(\)\)\);/,
     );
-  });
-
-  it("drops the scope policy before the module can drop a function it calls", () => {
-    const body = `drop function if exists better_supabase.invoice_readers();
-create policy invoices_read on ${TABLE}
-  for select to authenticated
-  using (true);`;
-
-    const sql = scoped(body);
-
-    const drop = sql.indexOf(
-      `drop policy if exists ${TENANT_SCOPE_POLICY}_delete on ${TABLE};
-  exception when undefined_table or invalid_schema_name then null;`,
-    );
-
-    expect(drop).toBeGreaterThan(-1);
-    expect(drop).toBeLessThan(sql.indexOf(body));
   });
 
   it("leaves member_organization_ids to the prelude and the memberships module", () => {

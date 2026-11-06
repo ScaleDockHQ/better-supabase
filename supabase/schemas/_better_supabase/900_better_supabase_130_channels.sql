@@ -1,31 +1,16 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:efa7042e54869ccb25d0d0392123b55f5c39909b6f6ba86a797417d7cd9d8552
+-- @bsb-hash sha256:98bbd91656c99af3286ab57267733e02c1c5f1bce6af66c35f7b605c645f800c
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Channels: named conversations in a tenant, public (read by the tenant) or
 -- private (read by their members), with a topic, a purpose and an optional
 -- linked record. Messages, threads, typing and read markers come from the
 -- messaging module; a channel's id is its conversation's id.
 
-create table if not exists "better_supabase"."channels" (
+create table "better_supabase"."channels" (
   "id" uuid primary key references "better_supabase"."conversations" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
@@ -39,8 +24,8 @@ create table if not exists "better_supabase"."channels" (
   "updated_at" timestamptz not null default now(),
   check (("subject_type" is null) = ("subject_id" is null))
 );
-create unique index if not exists channels_name_idx on "better_supabase"."channels" ("tenant_id", "name");
-create index if not exists channels_subject_idx on "better_supabase"."channels" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
+create unique index channels_name_idx on "better_supabase"."channels" ("tenant_id", "name");
+create index channels_subject_idx on "better_supabase"."channels" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
 alter table "better_supabase"."channels" enable row level security;
 revoke all on "better_supabase"."channels" from public, anon, authenticated;
 grant select on "better_supabase"."channels" to authenticated;
@@ -48,7 +33,6 @@ grant all on "better_supabase"."channels" to service_role;
 
 -- A channel is visible when its conversation is: a public one to the tenant,
 -- a private one to its members.
-drop policy if exists channels_read on "better_supabase"."channels";
 create policy channels_read on "better_supabase"."channels"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "better_supabase"."channels"."id"));
@@ -436,29 +420,22 @@ grant execute on function "better_supabase"."channels_for_record"(text, text) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."channels";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."channels";
 create policy bsb_tenant_scope_select on "better_supabase"."channels" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."conversations" c where c."id" = "better_supabase"."channels"."id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."channels";
 create policy bsb_tenant_scope_insert on "better_supabase"."channels" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."channels";
 create policy bsb_tenant_scope_update on "better_supabase"."channels" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."channels";
 create policy bsb_tenant_scope_delete on "better_supabase"."channels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-drop trigger if exists "bsb_search_channel_index" on "better_supabase"."channels";
 create trigger "bsb_search_channel_index"
   after insert or delete or update of "id", "tenant_id", "name", "topic", "purpose" on "better_supabase"."channels"
   for each row execute function "better_supabase"."search_index_row"('channel', 'id');

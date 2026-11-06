@@ -1,55 +1,16 @@
 -- ==== schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:e4343c00cbec5c2a6ffa5fbdd55d45117a40db618737dfe9bab49645733c4960
+-- @bsb-hash sha256:435ebbbe4053d2bcb03dddc3edde89f99364e2047ce659601ff92a295fe06c5d
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inspection_programs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inspection_programs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inspection_programs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inspection_programs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inspection_programs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inspections";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inspections";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inspections";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inspections";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inspections";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inspection_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inspection_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inspection_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inspection_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inspection_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."inspection_findings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."inspection_findings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inspection_findings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."inspection_findings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inspection_findings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Audits and inspections per organization: programmes, scheduled inspections
 -- with a team and a checklist form, findings, and the cases nonconformities
 -- open.
 
-create table if not exists "better_supabase"."inspection_programs" (
+create table "better_supabase"."inspection_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -64,17 +25,16 @@ create table if not exists "better_supabase"."inspection_programs" (
   unique ("tenant_id", "id"),
   check ("period_end" >= "period_start")
 );
-create index if not exists "inspection_programs_tenant_idx" on "better_supabase"."inspection_programs" ("tenant_id", "period_start" desc);
+create index "inspection_programs_tenant_idx" on "better_supabase"."inspection_programs" ("tenant_id", "period_start" desc);
 alter table "better_supabase"."inspection_programs" enable row level security;
 revoke all on "better_supabase"."inspection_programs" from public, anon, authenticated;
 grant select on "better_supabase"."inspection_programs" to authenticated;
 grant all on "better_supabase"."inspection_programs" to service_role;
-drop policy if exists inspection_programs_read on "better_supabase"."inspection_programs";
 create policy inspection_programs_read on "better_supabase"."inspection_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read')));
 
-create table if not exists "better_supabase"."inspections" (
+create table "better_supabase"."inspections" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "program_id" uuid,
@@ -109,18 +69,18 @@ create table if not exists "better_supabase"."inspections" (
   check ("planned_end" is null or "planned_start" is null or "planned_end" >= "planned_start"),
   foreign key ("tenant_id", "program_id") references "better_supabase"."inspection_programs" ("tenant_id", "id") on delete restrict
 );
-create index if not exists "inspections_tenant_idx" on "better_supabase"."inspections" ("tenant_id", "status", "planned_start" desc);
-create index if not exists "inspections_program_idx" on "better_supabase"."inspections" ("tenant_id", "program_id") where "program_id" is not null;
-create index if not exists "inspections_lead_idx" on "better_supabase"."inspections" ("tenant_id", "lead_id") where "lead_id" is not null;
-create index if not exists "inspections_auditee_idx" on "better_supabase"."inspections" ("tenant_id", "auditee_type", "auditee_id") where "auditee_type" is not null;
-create index if not exists "inspections_checklist_form_idx" on "better_supabase"."inspections" ("checklist_form_id") where "checklist_form_id" is not null;
-create index if not exists "inspections_checklist_submission_idx" on "better_supabase"."inspections" ("checklist_submission_id") where "checklist_submission_id" is not null;
+create index "inspections_tenant_idx" on "better_supabase"."inspections" ("tenant_id", "status", "planned_start" desc);
+create index "inspections_program_idx" on "better_supabase"."inspections" ("tenant_id", "program_id") where "program_id" is not null;
+create index "inspections_lead_idx" on "better_supabase"."inspections" ("tenant_id", "lead_id") where "lead_id" is not null;
+create index "inspections_auditee_idx" on "better_supabase"."inspections" ("tenant_id", "auditee_type", "auditee_id") where "auditee_type" is not null;
+create index "inspections_checklist_form_idx" on "better_supabase"."inspections" ("checklist_form_id") where "checklist_form_id" is not null;
+create index "inspections_checklist_submission_idx" on "better_supabase"."inspections" ("checklist_submission_id") where "checklist_submission_id" is not null;
 alter table "better_supabase"."inspections" enable row level security;
 revoke all on "better_supabase"."inspections" from public, anon, authenticated;
 grant select on "better_supabase"."inspections" to authenticated;
 grant all on "better_supabase"."inspections" to service_role;
 
-create table if not exists "better_supabase"."inspection_members" (
+create table "better_supabase"."inspection_members" (
   "inspection_id" uuid not null,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -129,10 +89,10 @@ create table if not exists "better_supabase"."inspection_members" (
   primary key ("inspection_id", "user_id"),
   foreign key ("tenant_id", "inspection_id") references "better_supabase"."inspections" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "inspection_members_parent_idx" on "better_supabase"."inspection_members" ("tenant_id", "inspection_id");
-create index if not exists "inspection_members_user_idx" on "better_supabase"."inspection_members" ("user_id", "inspection_id");
+create index "inspection_members_parent_idx" on "better_supabase"."inspection_members" ("tenant_id", "inspection_id");
+create index "inspection_members_user_idx" on "better_supabase"."inspection_members" ("user_id", "inspection_id");
 -- One lead per inspection; inspections.lead_id names the same user.
-create unique index if not exists "inspection_members_lead_key" on "better_supabase"."inspection_members" ("inspection_id") where "role" = 'lead';
+create unique index "inspection_members_lead_key" on "better_supabase"."inspection_members" ("inspection_id") where "role" = 'lead';
 alter table "better_supabase"."inspection_members" enable row level security;
 revoke all on "better_supabase"."inspection_members" from public, anon, authenticated;
 grant select on "better_supabase"."inspection_members" to authenticated;
@@ -152,16 +112,14 @@ as $$
 $$;
 revoke execute on function "better_supabase"."inspection_role"(uuid) from public, anon;
 grant execute on function "better_supabase"."inspection_role"(uuid) to authenticated, service_role;
-drop policy if exists inspections_read on "better_supabase"."inspections";
 create policy inspections_read on "better_supabase"."inspections"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("id") is not null);
-drop policy if exists inspection_members_read on "better_supabase"."inspection_members";
 create policy inspection_members_read on "better_supabase"."inspection_members"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null);
 
-create table if not exists "better_supabase"."inspection_findings" (
+create table "better_supabase"."inspection_findings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "inspection_id" uuid not null,
@@ -181,14 +139,13 @@ create table if not exists "better_supabase"."inspection_findings" (
   unique ("inspection_id", "number"),
   foreign key ("tenant_id", "inspection_id") references "better_supabase"."inspections" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "inspection_findings_parent_idx" on "better_supabase"."inspection_findings" ("tenant_id", "inspection_id", "number");
-create index if not exists "inspection_findings_control_idx" on "better_supabase"."inspection_findings" ("control_id") where "control_id" is not null;
-create index if not exists "inspection_findings_case_idx" on "better_supabase"."inspection_findings" ("case_id") where "case_id" is not null;
+create index "inspection_findings_parent_idx" on "better_supabase"."inspection_findings" ("tenant_id", "inspection_id", "number");
+create index "inspection_findings_control_idx" on "better_supabase"."inspection_findings" ("control_id") where "control_id" is not null;
+create index "inspection_findings_case_idx" on "better_supabase"."inspection_findings" ("case_id") where "case_id" is not null;
 alter table "better_supabase"."inspection_findings" enable row level security;
 revoke all on "better_supabase"."inspection_findings" from public, anon, authenticated;
 grant select on "better_supabase"."inspection_findings" to authenticated;
 grant all on "better_supabase"."inspection_findings" to service_role;
-drop policy if exists inspection_findings_read on "better_supabase"."inspection_findings";
 create policy inspection_findings_read on "better_supabase"."inspection_findings"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null);
@@ -1205,87 +1162,67 @@ grant execute on function "better_supabase"."notify_overdue_inspections"() to se
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."inspection_programs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."inspection_programs";
 create policy bsb_tenant_scope_select on "better_supabase"."inspection_programs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inspection_programs";
 create policy bsb_tenant_scope_insert on "better_supabase"."inspection_programs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."inspection_programs";
 create policy bsb_tenant_scope_update on "better_supabase"."inspection_programs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inspection_programs";
 create policy bsb_tenant_scope_delete on "better_supabase"."inspection_programs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."inspections";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."inspections";
 create policy bsb_tenant_scope_select on "better_supabase"."inspections" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("id") is not null)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inspections";
 create policy bsb_tenant_scope_insert on "better_supabase"."inspections" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."inspections";
 create policy bsb_tenant_scope_update on "better_supabase"."inspections" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inspections";
 create policy bsb_tenant_scope_delete on "better_supabase"."inspections" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."inspection_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."inspection_members";
 create policy bsb_tenant_scope_select on "better_supabase"."inspection_members" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inspection_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."inspection_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."inspection_members";
 create policy bsb_tenant_scope_update on "better_supabase"."inspection_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inspection_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."inspection_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."inspection_findings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."inspection_findings";
 create policy bsb_tenant_scope_select on "better_supabase"."inspection_findings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inspection_findings";
 create policy bsb_tenant_scope_insert on "better_supabase"."inspection_findings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."inspection_findings";
 create policy bsb_tenant_scope_update on "better_supabase"."inspection_findings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inspection_findings";
 create policy bsb_tenant_scope_delete on "better_supabase"."inspection_findings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

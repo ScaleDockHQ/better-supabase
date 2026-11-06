@@ -1024,9 +1024,6 @@ create table public.bill_lines (
       .join("\n");
 
     expect(sql).not.toContain("create trigger bsb_invoice_lines_totals_insert");
-    expect(sql).toContain(
-      "drop trigger if exists bsb_invoice_lines_totals_insert",
-    );
     expect(sql).not.toContain(
       'create or replace function "better_supabase"."set_invoice_lines_recount"',
     );

@@ -1,45 +1,14 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:dad34048b28f777863be86aaceb17dc51eee65ad53b070b3abb2b02a546d4989
+-- @bsb-hash sha256:d3a6e711312e9a20b4dcbe1cc36061c38a5db47aa0534b9b2886efd88943203a
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "better_supabase"."automations" (
+create table "better_supabase"."automations" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -57,11 +26,11 @@ create table if not exists "better_supabase"."automations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "rank");
-create index if not exists "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
-create index if not exists "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
-alter table "better_supabase"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("organization_id", "default_key") where "default_key" is not null;
+create index "automations_trigger_idx" on "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "rank");
+create index "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
+create index "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."automations" add column "default_key" text;
+create unique index "automations_default_key_idx" on "better_supabase"."automations" ("organization_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."automations" enable row level security;
 revoke all on "better_supabase"."automations" from public, anon, authenticated;
 grant all on "better_supabase"."automations" to service_role;
@@ -69,7 +38,7 @@ grant all on "better_supabase"."automations" to service_role;
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "better_supabase"."automation_defaults" (
+create table "better_supabase"."automation_defaults" (
   "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -86,7 +55,7 @@ revoke all on "better_supabase"."automation_defaults" from public, anon, authent
 grant all on "better_supabase"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "better_supabase"."automation_versions" (
+create table "better_supabase"."automation_versions" (
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
   "organization_id" uuid not null,
@@ -97,14 +66,14 @@ create table if not exists "better_supabase"."automation_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("organization_id");
+create index "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("organization_id");
 alter table "better_supabase"."automation_versions" enable row level security;
 revoke all on "better_supabase"."automation_versions" from public, anon, authenticated;
 grant all on "better_supabase"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "better_supabase"."automation_evaluations" (
+create table "better_supabase"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
   "organization_id" uuid not null,
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
@@ -118,15 +87,15 @@ create table if not exists "better_supabase"."automation_evaluations" (
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("organization_id", "evaluated_at" desc);
+create index "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("organization_id", "evaluated_at" desc);
 alter table "better_supabase"."automation_evaluations" enable row level security;
 revoke all on "better_supabase"."automation_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "better_supabase"."automation_fields" (
+create table "better_supabase"."automation_fields" (
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
@@ -1269,45 +1238,14 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:53e6555d8ad6cdd1ffdebb9c22b0c73456349af93d954054e048f5556e8f99ae
+-- @bsb-hash sha256:60678a1ee61d96c515f1def19984242d32c5fad0cd5dcfbd0aac2f49c9d6f133
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "better_supabase"."automations" (
+create table "better_supabase"."automations" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -1325,11 +1263,11 @@ create table if not exists "better_supabase"."automations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "rank");
-create index if not exists "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
-create index if not exists "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
-alter table "better_supabase"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("organization_id", "default_key") where "default_key" is not null;
+create index "automations_trigger_idx" on "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "rank");
+create index "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
+create index "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."automations" add column "default_key" text;
+create unique index "automations_default_key_idx" on "better_supabase"."automations" ("organization_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."automations" enable row level security;
 revoke all on "better_supabase"."automations" from public, anon, authenticated;
 grant all on "better_supabase"."automations" to service_role;
@@ -1337,7 +1275,7 @@ grant all on "better_supabase"."automations" to service_role;
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "better_supabase"."automation_defaults" (
+create table "better_supabase"."automation_defaults" (
   "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -1354,7 +1292,7 @@ revoke all on "better_supabase"."automation_defaults" from public, anon, authent
 grant all on "better_supabase"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "better_supabase"."automation_versions" (
+create table "better_supabase"."automation_versions" (
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
   "organization_id" uuid not null,
@@ -1365,14 +1303,14 @@ create table if not exists "better_supabase"."automation_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("organization_id");
+create index "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("organization_id");
 alter table "better_supabase"."automation_versions" enable row level security;
 revoke all on "better_supabase"."automation_versions" from public, anon, authenticated;
 grant all on "better_supabase"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "better_supabase"."automation_evaluations" (
+create table "better_supabase"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
   "organization_id" uuid not null,
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
@@ -1386,15 +1324,15 @@ create table if not exists "better_supabase"."automation_evaluations" (
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("organization_id", "evaluated_at" desc);
+create index "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("organization_id", "evaluated_at" desc);
 alter table "better_supabase"."automation_evaluations" enable row level security;
 revoke all on "better_supabase"."automation_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "better_supabase"."automation_fields" (
+create table "better_supabase"."automation_fields" (
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
@@ -2624,40 +2562,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:987b763bad86e4fe91af81f55d127f146b7c339d1c9f371ecb67e92e59c7cee4
+-- @bsb-hash sha256:b1b151ff641a4de8a160bbccf873822c9b2b967a7924cb226a88d9e9f3aa6a7c
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."automations";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."automations";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -2666,7 +2574,7 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "app_private"."automations" (
+create table "app_private"."automations" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -2684,11 +2592,11 @@ create table if not exists "app_private"."automations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "automations_trigger_idx" on "app_private"."automations" ("organization_id", "subject_type", "trigger", "rank");
-create index if not exists "automations_created_by_idx" on "app_private"."automations" ("created_by") where "created_by" is not null;
-create index if not exists "automations_updated_by_idx" on "app_private"."automations" ("updated_by") where "updated_by" is not null;
-alter table "app_private"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "app_private"."automations" ("organization_id", "default_key") where "default_key" is not null;
+create index "automations_trigger_idx" on "app_private"."automations" ("organization_id", "subject_type", "trigger", "rank");
+create index "automations_created_by_idx" on "app_private"."automations" ("created_by") where "created_by" is not null;
+create index "automations_updated_by_idx" on "app_private"."automations" ("updated_by") where "updated_by" is not null;
+alter table "app_private"."automations" add column "default_key" text;
+create unique index "automations_default_key_idx" on "app_private"."automations" ("organization_id", "default_key") where "default_key" is not null;
 alter table "app_private"."automations" enable row level security;
 revoke all on "app_private"."automations" from public, anon, authenticated;
 grant all on "app_private"."automations" to service_role;
@@ -2696,7 +2604,7 @@ grant all on "app_private"."automations" to service_role;
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "app_private"."automation_defaults" (
+create table "app_private"."automation_defaults" (
   "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -2713,7 +2621,7 @@ revoke all on "app_private"."automation_defaults" from public, anon, authenticat
 grant all on "app_private"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "app_private"."automation_versions" (
+create table "app_private"."automation_versions" (
   "rule_id" uuid not null references "app_private"."automations" ("id") on delete cascade,
   "version" integer not null,
   "organization_id" uuid not null,
@@ -2724,14 +2632,14 @@ create table if not exists "app_private"."automation_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists "automation_versions_tenant_idx" on "app_private"."automation_versions" ("organization_id");
+create index "automation_versions_tenant_idx" on "app_private"."automation_versions" ("organization_id");
 alter table "app_private"."automation_versions" enable row level security;
 revoke all on "app_private"."automation_versions" from public, anon, authenticated;
 grant all on "app_private"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "app_private"."automation_evaluations" (
+create table "app_private"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
   "organization_id" uuid not null,
   "rule_id" uuid not null references "app_private"."automations" ("id") on delete cascade,
@@ -2745,15 +2653,15 @@ create table if not exists "app_private"."automation_evaluations" (
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists "automation_evaluations_rule_idx" on "app_private"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "app_private"."automation_evaluations" ("organization_id", "evaluated_at" desc);
+create index "automation_evaluations_rule_idx" on "app_private"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index "automation_evaluations_tenant_idx" on "app_private"."automation_evaluations" ("organization_id", "evaluated_at" desc);
 alter table "app_private"."automation_evaluations" enable row level security;
 revoke all on "app_private"."automation_evaluations" from public, anon, authenticated;
 grant all on "app_private"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "app_private"."automation_fields" (
+create table "app_private"."automation_fields" (
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
@@ -3896,45 +3804,14 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:8a854886f4a18836d75b049857aa51005cbbfc2d338577b84774df3e31f1d0ec
+-- @bsb-hash sha256:9840a2f16c14046120ecd69cdab2974983df486af076470dc1347e16a7dcd9ba
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "better_supabase"."automations" (
+create table "better_supabase"."automations" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -3952,11 +3829,11 @@ create table if not exists "better_supabase"."automations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "rank");
-create index if not exists "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
-create index if not exists "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
-alter table "better_supabase"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("organization_id", "default_key") where "default_key" is not null;
+create index "automations_trigger_idx" on "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "rank");
+create index "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
+create index "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."automations" add column "default_key" text;
+create unique index "automations_default_key_idx" on "better_supabase"."automations" ("organization_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."automations" enable row level security;
 revoke all on "better_supabase"."automations" from public, anon, authenticated;
 grant all on "better_supabase"."automations" to service_role;
@@ -3964,7 +3841,7 @@ grant all on "better_supabase"."automations" to service_role;
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "better_supabase"."automation_defaults" (
+create table "better_supabase"."automation_defaults" (
   "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -3981,7 +3858,7 @@ revoke all on "better_supabase"."automation_defaults" from public, anon, authent
 grant all on "better_supabase"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "better_supabase"."automation_versions" (
+create table "better_supabase"."automation_versions" (
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
   "organization_id" uuid not null,
@@ -3992,14 +3869,14 @@ create table if not exists "better_supabase"."automation_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("organization_id");
+create index "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("organization_id");
 alter table "better_supabase"."automation_versions" enable row level security;
 revoke all on "better_supabase"."automation_versions" from public, anon, authenticated;
 grant all on "better_supabase"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "better_supabase"."automation_evaluations" (
+create table "better_supabase"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
   "organization_id" uuid not null,
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
@@ -4013,15 +3890,15 @@ create table if not exists "better_supabase"."automation_evaluations" (
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("organization_id", "evaluated_at" desc);
+create index "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("organization_id", "evaluated_at" desc);
 alter table "better_supabase"."automation_evaluations" enable row level security;
 revoke all on "better_supabase"."automation_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "better_supabase"."automation_fields" (
+create table "better_supabase"."automation_fields" (
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
@@ -5448,41 +5325,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:56fd1bf0956303f09b97ae776d30fefc34f6b119458ffdc3240866663dd50c5c
+-- @bsb-hash sha256:6bc0e9a596a61c21492b0258325d264c26bc78234f1e37de09017dcde2d75f1f
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
@@ -6706,45 +6552,14 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:e7712bc8341d6c71bfa1f7cda8ff62be250c3544277c2ddc70fdf706cfc42a34
+-- @bsb-hash sha256:bcaffefd2cde96d5cd48d407568f101543930a02f2fdfbb6cec07c38f5168d41
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "better_supabase"."automations" (
+create table "better_supabase"."automations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -6762,11 +6577,11 @@ create table if not exists "better_supabase"."automations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("org_id", "subject_type", "trigger", "rank");
-create index if not exists "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
-create index if not exists "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
-alter table "better_supabase"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("org_id", "default_key") where "default_key" is not null;
+create index "automations_trigger_idx" on "better_supabase"."automations" ("org_id", "subject_type", "trigger", "rank");
+create index "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
+create index "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."automations" add column "default_key" text;
+create unique index "automations_default_key_idx" on "better_supabase"."automations" ("org_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."automations" enable row level security;
 revoke all on "better_supabase"."automations" from public, anon, authenticated;
 grant all on "better_supabase"."automations" to service_role;
@@ -6774,7 +6589,7 @@ grant all on "better_supabase"."automations" to service_role;
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "better_supabase"."automation_defaults" (
+create table "better_supabase"."automation_defaults" (
   "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -6791,7 +6606,7 @@ revoke all on "better_supabase"."automation_defaults" from public, anon, authent
 grant all on "better_supabase"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "better_supabase"."automation_versions" (
+create table "better_supabase"."automation_versions" (
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
   "org_id" uuid not null,
@@ -6802,14 +6617,14 @@ create table if not exists "better_supabase"."automation_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("org_id");
+create index "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("org_id");
 alter table "better_supabase"."automation_versions" enable row level security;
 revoke all on "better_supabase"."automation_versions" from public, anon, authenticated;
 grant all on "better_supabase"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "better_supabase"."automation_evaluations" (
+create table "better_supabase"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
   "org_id" uuid not null,
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
@@ -6823,15 +6638,15 @@ create table if not exists "better_supabase"."automation_evaluations" (
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("org_id", "evaluated_at" desc);
+create index "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("org_id", "evaluated_at" desc);
 alter table "better_supabase"."automation_evaluations" enable row level security;
 revoke all on "better_supabase"."automation_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "better_supabase"."automation_fields" (
+create table "better_supabase"."automation_fields" (
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,

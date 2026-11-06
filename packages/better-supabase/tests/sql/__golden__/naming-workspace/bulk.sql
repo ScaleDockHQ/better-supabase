@@ -1,27 +1,12 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:c1eb8ff88e89be72393d59f7b3d20a3a9d4b7ecf1ab026d683a59fdeca87b6da
+-- @bsb-hash sha256:7b551891a03bf56ffc963a912c8cc9ace267a1129565f6f63df20c8e518c0b77
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."bulk_runs" (
+create table "better_supabase"."bulk_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -37,13 +22,12 @@ create table if not exists "better_supabase"."bulk_runs" (
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
 );
-create index if not exists bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
-create index if not exists "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("tenant_id");
+create index bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
+create index "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("tenant_id");
 alter table "better_supabase"."bulk_runs" enable row level security;
 revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
-drop policy if exists bulk_runs_read on "better_supabase"."bulk_runs";
 create policy bulk_runs_read on "better_supabase"."bulk_runs"
   for select to authenticated
   using ("created_by" = (select auth.uid()));
@@ -236,24 +220,19 @@ grant execute on function "better_supabase"."bulk_step"(uuid, integer) to servic
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."bulk_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."bulk_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."bulk_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("created_by" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bulk_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."bulk_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."bulk_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."bulk_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bulk_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

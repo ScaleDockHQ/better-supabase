@@ -17,9 +17,7 @@ describe("vercel-marketplace module", () => {
       "marketplace_invoices",
       "marketplace_meter_reports",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}"`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}"`);
     }
   });
 

@@ -78,7 +78,7 @@ begin
         and (select realtime.topic()) like ${sqlString(`${topic}:%`)}
         and substr((select realtime.topic()), ${String(topic.length + 2)}) in (select x::text from ${ctx.scope.ids(parts.read)} x)`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
   end if;
 end;

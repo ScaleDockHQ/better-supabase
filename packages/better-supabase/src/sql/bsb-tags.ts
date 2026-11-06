@@ -1,3 +1,5 @@
+import { commentOn } from "./emit/comment.ts";
+
 /**
  * One `@bsb` feature: `subject title=number` is `{ name: "subject", args: {
  * title: "number" } }`.
@@ -163,5 +165,5 @@ export function setBsbTag(
 
 /** The `comment on table` statement for `table` (already quoted) and `comment`. */
 export function commentOnTableSql(table: string, comment: string): string {
-  return `comment on table ${table} is '${comment.replaceAll("'", "''")}';`;
+  return commentOn("table", table, comment);
 }

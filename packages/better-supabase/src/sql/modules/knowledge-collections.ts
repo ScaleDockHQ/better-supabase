@@ -186,7 +186,7 @@ as $$
   )
 $$;
 ${userGrant(`${fn("knowledge_collection_readable")}(uuid)`)}
-${renderPolicy(makePolicy({ table: collections, name: ctx.naming.rename("knowledge_collections_read"), command: "select", roles: ["authenticated"], using: collectionReadable(ctx, k("id")) }), { drop: true, target: collections })}
+${renderPolicy(makePolicy({ table: collections, name: ctx.naming.rename("knowledge_collections_read"), command: "select", roles: ["authenticated"], using: collectionReadable(ctx, k("id")) }), { target: collections })}
 
 -- Creates a collection. A tenant's admins create its collections; only the
 -- service role creates a system collection (tenant null).

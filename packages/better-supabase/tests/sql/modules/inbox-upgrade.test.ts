@@ -176,7 +176,7 @@ const BOOT = { timeout: 60_000 };
 
 describe("inbox version 8 upgrade", BOOT, () => {
   it("moves inbox contacts onto people without losing a row", async () => {
-    const files = renderBlocks(["inbox", "identities"]);
+    const files = renderBlocks(["inbox", "identities"], { rerunnable: true });
 
     const plan = upgradePlan(
       [

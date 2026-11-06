@@ -15,17 +15,12 @@ const sqlOf = (
 describe("comments module", () => {
   it("puts comments on the record's conversation and leaves out what isn't installed", () => {
     const sql = sqlOf(["comments"]);
-    expect(sql).toContain(
-      `create table if not exists "better_supabase"."comment_tasks" (`,
-    );
-    expect(sql).not.toMatch(/create table if not exists \S+"comments"/);
+    expect(sql).toContain(`create table "better_supabase"."comment_tasks" (`);
+    expect(sql).not.toMatch(/create table \S+"comments"/);
     expect(sql).toContain(
       `"better_supabase"."open_conversation"(\n    create_comment.tenant,\n    'subject',`,
     );
     expect(sql).toContain(`v_msg := "better_supabase"."send_message"(`);
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb);`,
-    );
     expect(sql).not.toContain("comment_sent");
     expect(sql).not.toContain('"assign_comment"(');
     expect(sql).not.toContain('"notify"(');

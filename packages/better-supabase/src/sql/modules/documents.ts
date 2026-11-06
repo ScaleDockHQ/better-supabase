@@ -305,7 +305,7 @@ function build(ctx: BlockSqlContext): string {
 );${unique("documents", "subject", `${c("subjectType")}, ${c("subjectId")}, ${c("name")}`)}
 create index if not exists ${sqlIdent(`${ctx.tableName("documents").name}_tenant_idx`)} on ${documents} (${c("tenant")}${ctx.has("documents", "updatedAt") ? `, ${c("updatedAt")} desc` : ""});
 ${lockTable(documents, { read: true })}
-${renderPolicy(makePolicy({ table: documents, name: sqlIdent(`${ctx.tableName("documents").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: documents })}
+${renderPolicy(makePolicy({ table: documents, name: sqlIdent(`${ctx.tableName("documents").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { target: documents })}
 
 create table if not exists ${updates} (
   ${u("seq")} bigint generated always as identity primary key,
@@ -861,7 +861,7 @@ begin
             using: `realtime.messages.extension in ('broadcast', 'presence')
         and ${fn("document_topic_access")}((select realtime.topic()), false)`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
         ${renderPolicy(
           makePolicy({
@@ -872,7 +872,7 @@ begin
             check: `(realtime.messages.extension = 'broadcast' and ${fn("document_topic_access")}((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and ${fn("document_topic_access")}((select realtime.topic()), false))`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
   end if;
 end;

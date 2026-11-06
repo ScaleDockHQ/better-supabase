@@ -1,119 +1,16 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:99eeef83a793516831bf15d8383898783f83f2a95ad2c4f82b0cb8ffe284cd3d
+-- @bsb-hash sha256:fa92d17a421f891c7f894b804d5f955cc24fa36666f20a585a9469431fe058c6
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approvals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Invoices an organization sends its own customers and the bills its
 -- suppliers send it: drafts with lines, a number on issue, payments, credit
 -- notes, void and write-off, aging and the three-way match of a bill.
 
-create table if not exists "better_supabase"."invoices" (
+create table "better_supabase"."invoices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null default 'invoice' check ("kind" in ('invoice', 'credit_note')),
@@ -168,21 +65,20 @@ create table if not exists "better_supabase"."invoices" (
   check ("status" in ('draft', 'void') or "number" is not null),
   check (("company_type" is null) = ("company_id" is null))
 );
-create index if not exists invoices_tenant_status_idx on "better_supabase"."invoices" ("tenant_id", "status", "due_on");
-create index if not exists invoices_origin_idx on "better_supabase"."invoices" ("origin_type", "origin_id");
-create index if not exists invoices_original_idx on "better_supabase"."invoices" ("original_id");
-create index if not exists invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
-create index if not exists invoices_purchase_order_idx on "better_supabase"."invoices" ("purchase_order_id");
+create index invoices_tenant_status_idx on "better_supabase"."invoices" ("tenant_id", "status", "due_on");
+create index invoices_origin_idx on "better_supabase"."invoices" ("origin_type", "origin_id");
+create index invoices_original_idx on "better_supabase"."invoices" ("original_id");
+create index invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
+create index invoices_purchase_order_idx on "better_supabase"."invoices" ("purchase_order_id");
 alter table "better_supabase"."invoices" enable row level security;
 revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
-drop policy if exists invoices_read on "better_supabase"."invoices";
 create policy invoices_read on "better_supabase"."invoices"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_charges" (
+create table "better_supabase"."invoice_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -192,17 +88,16 @@ create table if not exists "better_supabase"."invoice_charges" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists invoice_charges_invoice_idx on "better_supabase"."invoice_charges" ("invoice_id");
+create index invoice_charges_invoice_idx on "better_supabase"."invoice_charges" ("invoice_id");
 alter table "better_supabase"."invoice_charges" enable row level security;
 revoke all on "better_supabase"."invoice_charges" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_charges" to authenticated;
 grant all on "better_supabase"."invoice_charges" to service_role;
-drop policy if exists invoice_charges_read on "better_supabase"."invoice_charges";
 create policy invoice_charges_read on "better_supabase"."invoice_charges"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"));
 
-create table if not exists "better_supabase"."invoice_dunning_levels" (
+create table "better_supabase"."invoice_dunning_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "level" integer not null check ("level" >= 1 and "level" <= 20),
@@ -219,29 +114,27 @@ alter table "better_supabase"."invoice_dunning_levels" enable row level security
 revoke all on "better_supabase"."invoice_dunning_levels" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
 grant all on "better_supabase"."invoice_dunning_levels" to service_role;
-drop policy if exists invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels";
 create policy invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_runs" (
+create table "better_supabase"."invoice_dunning_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "as_of" date not null,
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
 alter table "better_supabase"."invoice_dunning_runs" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
 grant all on "better_supabase"."invoice_dunning_runs" to service_role;
-drop policy if exists invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs";
 create policy invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_run_items" (
+create table "better_supabase"."invoice_dunning_run_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "run_id" uuid not null references "better_supabase"."invoice_dunning_runs" ("id") on delete cascade,
@@ -256,18 +149,17 @@ create table if not exists "better_supabase"."invoice_dunning_run_items" (
   "created_at" timestamptz not null default now(),
   unique ("run_id", "invoice_id")
 );
-create index if not exists invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
-create index if not exists invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
+create index invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
+create index invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
 alter table "better_supabase"."invoice_dunning_run_items" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_run_items" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_run_items" to authenticated;
 grant all on "better_supabase"."invoice_dunning_run_items" to service_role;
-drop policy if exists invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items";
 create policy invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_history" (
+create table "better_supabase"."invoice_dunning_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -281,18 +173,17 @@ create table if not exists "better_supabase"."invoice_dunning_history" (
   "note" text,
   "created_at" timestamptz not null default clock_timestamp()
 );
-create index if not exists invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
-create index if not exists invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
+create index invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
+create index invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
 alter table "better_supabase"."invoice_dunning_history" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_history" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_history" to authenticated;
 grant all on "better_supabase"."invoice_dunning_history" to service_role;
-drop policy if exists invoice_dunning_history_read on "better_supabase"."invoice_dunning_history";
 create policy invoice_dunning_history_read on "better_supabase"."invoice_dunning_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_allocations" (
+create table "better_supabase"."invoice_allocations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "reference" text not null check (length("reference") >= 1 and length("reference") <= 200),
@@ -310,18 +201,17 @@ create table if not exists "better_supabase"."invoice_allocations" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "reference", "invoice_id")
 );
-create index if not exists invoice_allocations_invoice_idx on "better_supabase"."invoice_allocations" ("invoice_id");
-create index if not exists invoice_allocations_party_idx on "better_supabase"."invoice_allocations" ("tenant_id", "party_id", "created_at" desc);
+create index invoice_allocations_invoice_idx on "better_supabase"."invoice_allocations" ("invoice_id");
+create index invoice_allocations_party_idx on "better_supabase"."invoice_allocations" ("tenant_id", "party_id", "created_at" desc);
 alter table "better_supabase"."invoice_allocations" enable row level security;
 revoke all on "better_supabase"."invoice_allocations" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_allocations" to authenticated;
 grant all on "better_supabase"."invoice_allocations" to service_role;
-drop policy if exists invoice_allocations_read on "better_supabase"."invoice_allocations";
 create policy invoice_allocations_read on "better_supabase"."invoice_allocations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_approval_levels" (
+create table "better_supabase"."invoice_approval_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- Null: the level counts for every legal entity without levels of its own.
@@ -332,17 +222,16 @@ create table if not exists "better_supabase"."invoice_approval_levels" (
   "approver_id" uuid not null,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists invoice_approval_levels_level_key on "better_supabase"."invoice_approval_levels" ("tenant_id", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), "level");
+create unique index invoice_approval_levels_level_key on "better_supabase"."invoice_approval_levels" ("tenant_id", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), "level");
 alter table "better_supabase"."invoice_approval_levels" enable row level security;
 revoke all on "better_supabase"."invoice_approval_levels" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_approval_levels" to authenticated;
 grant all on "better_supabase"."invoice_approval_levels" to service_role;
-drop policy if exists invoice_approval_levels_read on "better_supabase"."invoice_approval_levels";
 create policy invoice_approval_levels_read on "better_supabase"."invoice_approval_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_approvals" (
+create table "better_supabase"."invoice_approvals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -352,17 +241,16 @@ create table if not exists "better_supabase"."invoice_approvals" (
   "decided_at" timestamptz not null default now(),
   unique ("invoice_id", "level")
 );
-create index if not exists invoice_approvals_tenant_idx on "better_supabase"."invoice_approvals" ("tenant_id", "invoice_id");
+create index invoice_approvals_tenant_idx on "better_supabase"."invoice_approvals" ("tenant_id", "invoice_id");
 alter table "better_supabase"."invoice_approvals" enable row level security;
 revoke all on "better_supabase"."invoice_approvals" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_approvals" to authenticated;
 grant all on "better_supabase"."invoice_approvals" to service_role;
-drop policy if exists invoice_approvals_read on "better_supabase"."invoice_approvals";
 create policy invoice_approvals_read on "better_supabase"."invoice_approvals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_e_endpoints" (
+create table "better_supabase"."invoice_e_endpoints" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_kind" text not null check ("party_kind" in ('organization', 'legal_entity', 'company')),
@@ -373,18 +261,17 @@ create table if not exists "better_supabase"."invoice_e_endpoints" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists invoice_e_endpoints_party_key on "better_supabase"."invoice_e_endpoints" ("tenant_id", "party_kind", "party_id");
-create index if not exists invoice_e_endpoints_lookup_idx on "better_supabase"."invoice_e_endpoints" ("tenant_id", "scheme", "endpoint_id");
+create unique index invoice_e_endpoints_party_key on "better_supabase"."invoice_e_endpoints" ("tenant_id", "party_kind", "party_id");
+create index invoice_e_endpoints_lookup_idx on "better_supabase"."invoice_e_endpoints" ("tenant_id", "scheme", "endpoint_id");
 alter table "better_supabase"."invoice_e_endpoints" enable row level security;
 revoke all on "better_supabase"."invoice_e_endpoints" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_e_endpoints" to authenticated;
 grant all on "better_supabase"."invoice_e_endpoints" to service_role;
-drop policy if exists invoice_e_endpoints_read on "better_supabase"."invoice_e_endpoints";
 create policy invoice_e_endpoints_read on "better_supabase"."invoice_e_endpoints"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."e_invoice_deliveries" (
+create table "better_supabase"."e_invoice_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid references "better_supabase"."invoices" ("id") on delete set null,
@@ -398,14 +285,13 @@ create table if not exists "better_supabase"."e_invoice_deliveries" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists e_invoice_deliveries_message_key on "better_supabase"."e_invoice_deliveries" ("tenant_id", "channel", "message_id");
-create index if not exists e_invoice_deliveries_invoice_idx on "better_supabase"."e_invoice_deliveries" ("invoice_id", "tenant_id");
-create index if not exists e_invoice_deliveries_state_idx on "better_supabase"."e_invoice_deliveries" ("tenant_id", "direction", "state");
+create unique index e_invoice_deliveries_message_key on "better_supabase"."e_invoice_deliveries" ("tenant_id", "channel", "message_id");
+create index e_invoice_deliveries_invoice_idx on "better_supabase"."e_invoice_deliveries" ("invoice_id", "tenant_id");
+create index e_invoice_deliveries_state_idx on "better_supabase"."e_invoice_deliveries" ("tenant_id", "direction", "state");
 alter table "better_supabase"."e_invoice_deliveries" enable row level security;
 revoke all on "better_supabase"."e_invoice_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."e_invoice_deliveries" to authenticated;
 grant all on "better_supabase"."e_invoice_deliveries" to service_role;
-drop policy if exists e_invoice_deliveries_read on "better_supabase"."e_invoice_deliveries";
 create policy e_invoice_deliveries_read on "better_supabase"."e_invoice_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -615,7 +501,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
-create table if not exists "better_supabase"."invoice_lines" (
+create table "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -641,13 +527,11 @@ create table if not exists "better_supabase"."invoice_lines" (
   "created_at" timestamptz not null default now(),
   check (("product_type" is null) = ("product_id" is null))
 );
-alter table "better_supabase"."invoice_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
-create index if not exists "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
+create index "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
 alter table "better_supabase"."invoice_lines" enable row level security;
 revoke all on "better_supabase"."invoice_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
-drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
 create policy "invoice_lines_read" on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
@@ -756,10 +640,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_invoice_lines_totals() from public, anon, authenticated;
-drop trigger if exists bsb_invoice_lines_totals on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_insert on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_update on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_delete on "better_supabase"."invoice_lines";
 create trigger bsb_invoice_lines_totals_insert after insert on "better_supabase"."invoice_lines"
 referencing new table as new_rows
 for each statement execute function better_supabase.bsb_invoice_lines_totals();
@@ -844,9 +724,7 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- number is only taken when the invoice is final), its issue and due date,
 -- and its lines freeze. A credit note reduces the balance of its original.
 -- actor: who issued it, for the state machine's history.
-drop function if exists "better_supabase"."issue_invoice"(uuid, date);
-drop function if exists "better_supabase"."issue_invoice"(uuid, date, date);
-drop function if exists "better_supabase"."issue_invoice"(uuid, date, date, jsonb);
+
 -- fixed_number: a historical number to keep as is, only while an import runs
 -- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
 -- of its series (kind, direction, legal entity, period) rises to it.
@@ -1019,10 +897,7 @@ grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, js
 -- organization, so recording the same payment twice adds it once. actor:
 -- who recorded it, and reason: why the status changes, for the state
 -- machine's history.
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb);
+
 create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
@@ -1172,7 +1047,7 @@ grant execute on function "better_supabase"."list_invoice_payments"(uuid) to aut
 -- import (better_supabase.import_run()), a historical credit note number; the
 -- credit note is then issued at once on issued_on (today by default) with that
 -- number. NUMBER_FIXED_FORBIDDEN outside an import.
-drop function if exists "better_supabase"."credit_invoice"(uuid, jsonb, text);
+
 create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
@@ -1230,7 +1105,7 @@ grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor
 -- go to the state machine's history.
-drop function if exists "better_supabase"."void_invoice"(uuid, text);
+
 create or replace function "better_supabase"."void_invoice"(invoice uuid, reason text, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -1284,8 +1159,7 @@ grant execute on function "better_supabase"."void_invoice"(uuid, text, jsonb) to
 
 -- Writes an open invoice off as uncollectible. Needs invoices.manage. The
 -- reason and actor go to the state machine's history.
-drop function if exists "better_supabase"."write_off_invoice"(uuid);
-drop function if exists "better_supabase"."write_off_invoice"(uuid, text);
+
 create or replace function "better_supabase"."write_off_invoice"(invoice uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -1335,7 +1209,7 @@ grant execute on function "better_supabase"."write_off_invoice"(uuid, text, json
 
 -- Reverses a recorded payment. The reason and actor go to the state machine's
 -- history.
-drop function if exists "better_supabase"."reverse_invoice_payment"(uuid, text);
+
 create or replace function "better_supabase"."reverse_invoice_payment"(payment uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -1413,9 +1287,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."reverse_invoice_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text, jsonb) to authenticated, service_role;
-
-drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
-drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
@@ -1489,8 +1360,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-
-drop function if exists "better_supabase"."remove_invoice_charge"(uuid);
 create or replace function "better_supabase"."remove_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -1558,7 +1427,7 @@ grant execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb)
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
 -- direction: sales (what customers owe) or purchase (what it owes suppliers).
-drop function if exists "better_supabase"."invoice_aging"(uuid, text, date);
+
 create or replace function "better_supabase"."invoice_aging"(tenant uuid, currency text, as_of date, direction text default 'sales')
 returns jsonb
 language sql
@@ -3560,255 +3429,195 @@ grant execute on function "better_supabase"."document_totals_by_billing_party"(u
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
 create policy bsb_tenant_scope_select on "better_supabase"."invoices" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoices" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
 create policy bsb_tenant_scope_update on "better_supabase"."invoices" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoices" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_charges";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_charges" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_charges" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_charges" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_charges" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_allocations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_allocations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_allocations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_allocations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_allocations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approval_levels";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approvals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_approvals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_approvals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_approvals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approvals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_e_endpoints";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."e_invoice_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3830,127 +3639,16 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:b34246da6a899c0245d86bf866d8f0f73ea6efcf95bdc54600c727c49917d578
+-- @bsb-hash sha256:3df05af5b0cc38c8c003109a97385b09d9e15f9f3d8d742ae24e9f7bee424708
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_line_sources";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_line_sources";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_line_sources";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_line_sources";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_line_sources";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approvals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Invoices an organization sends its own customers and the bills its
 -- suppliers send it: drafts with lines, a number on issue, payments, credit
 -- notes, void and write-off, aging and the three-way match of a bill.
 
-create table if not exists "better_supabase"."invoices" (
+create table "better_supabase"."invoices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null default 'invoice' check ("kind" in ('invoice', 'credit_note')),
@@ -4005,21 +3703,20 @@ create table if not exists "better_supabase"."invoices" (
   check ("status" in ('draft', 'void') or "number" is not null),
   check (("company_type" is null) = ("company_id" is null))
 );
-create index if not exists invoices_tenant_status_idx on "better_supabase"."invoices" ("tenant_id", "status", "due_on");
-create index if not exists invoices_origin_idx on "better_supabase"."invoices" ("origin_type", "origin_id");
-create index if not exists invoices_original_idx on "better_supabase"."invoices" ("original_id");
-create index if not exists invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
-create index if not exists invoices_purchase_order_idx on "better_supabase"."invoices" ("purchase_order_id");
+create index invoices_tenant_status_idx on "better_supabase"."invoices" ("tenant_id", "status", "due_on");
+create index invoices_origin_idx on "better_supabase"."invoices" ("origin_type", "origin_id");
+create index invoices_original_idx on "better_supabase"."invoices" ("original_id");
+create index invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
+create index invoices_purchase_order_idx on "better_supabase"."invoices" ("purchase_order_id");
 alter table "better_supabase"."invoices" enable row level security;
 revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
-drop policy if exists invoices_read on "better_supabase"."invoices";
 create policy invoices_read on "better_supabase"."invoices"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))) or (("tenant_id")::text, ('invoice')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or (("tenant_id")::text, ("company_type")::text, ("company_id"::text)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or (("tenant_id")::text, ("contact_type")::text, ("contact_id"::text)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g));
 
-create table if not exists "better_supabase"."invoice_charges" (
+create table "better_supabase"."invoice_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -4029,17 +3726,16 @@ create table if not exists "better_supabase"."invoice_charges" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists invoice_charges_invoice_idx on "better_supabase"."invoice_charges" ("invoice_id");
+create index invoice_charges_invoice_idx on "better_supabase"."invoice_charges" ("invoice_id");
 alter table "better_supabase"."invoice_charges" enable row level security;
 revoke all on "better_supabase"."invoice_charges" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_charges" to authenticated;
 grant all on "better_supabase"."invoice_charges" to service_role;
-drop policy if exists invoice_charges_read on "better_supabase"."invoice_charges";
 create policy invoice_charges_read on "better_supabase"."invoice_charges"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"));
 
-create table if not exists "better_supabase"."invoice_dunning_levels" (
+create table "better_supabase"."invoice_dunning_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "level" integer not null check ("level" >= 1 and "level" <= 20),
@@ -4056,29 +3752,27 @@ alter table "better_supabase"."invoice_dunning_levels" enable row level security
 revoke all on "better_supabase"."invoice_dunning_levels" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
 grant all on "better_supabase"."invoice_dunning_levels" to service_role;
-drop policy if exists invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels";
 create policy invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_runs" (
+create table "better_supabase"."invoice_dunning_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "as_of" date not null,
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
 alter table "better_supabase"."invoice_dunning_runs" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
 grant all on "better_supabase"."invoice_dunning_runs" to service_role;
-drop policy if exists invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs";
 create policy invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_run_items" (
+create table "better_supabase"."invoice_dunning_run_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "run_id" uuid not null references "better_supabase"."invoice_dunning_runs" ("id") on delete cascade,
@@ -4093,18 +3787,17 @@ create table if not exists "better_supabase"."invoice_dunning_run_items" (
   "created_at" timestamptz not null default now(),
   unique ("run_id", "invoice_id")
 );
-create index if not exists invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
-create index if not exists invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
+create index invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
+create index invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
 alter table "better_supabase"."invoice_dunning_run_items" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_run_items" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_run_items" to authenticated;
 grant all on "better_supabase"."invoice_dunning_run_items" to service_role;
-drop policy if exists invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items";
 create policy invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_history" (
+create table "better_supabase"."invoice_dunning_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -4118,18 +3811,17 @@ create table if not exists "better_supabase"."invoice_dunning_history" (
   "note" text,
   "created_at" timestamptz not null default clock_timestamp()
 );
-create index if not exists invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
-create index if not exists invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
+create index invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
+create index invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
 alter table "better_supabase"."invoice_dunning_history" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_history" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_history" to authenticated;
 grant all on "better_supabase"."invoice_dunning_history" to service_role;
-drop policy if exists invoice_dunning_history_read on "better_supabase"."invoice_dunning_history";
 create policy invoice_dunning_history_read on "better_supabase"."invoice_dunning_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_allocations" (
+create table "better_supabase"."invoice_allocations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "reference" text not null check (length("reference") >= 1 and length("reference") <= 200),
@@ -4147,13 +3839,12 @@ create table if not exists "better_supabase"."invoice_allocations" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "reference", "invoice_id")
 );
-create index if not exists invoice_allocations_invoice_idx on "better_supabase"."invoice_allocations" ("invoice_id");
-create index if not exists invoice_allocations_party_idx on "better_supabase"."invoice_allocations" ("tenant_id", "party_id", "created_at" desc);
+create index invoice_allocations_invoice_idx on "better_supabase"."invoice_allocations" ("invoice_id");
+create index invoice_allocations_party_idx on "better_supabase"."invoice_allocations" ("tenant_id", "party_id", "created_at" desc);
 alter table "better_supabase"."invoice_allocations" enable row level security;
 revoke all on "better_supabase"."invoice_allocations" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_allocations" to authenticated;
 grant all on "better_supabase"."invoice_allocations" to service_role;
-drop policy if exists invoice_allocations_read on "better_supabase"."invoice_allocations";
 create policy invoice_allocations_read on "better_supabase"."invoice_allocations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -4161,7 +3852,7 @@ create policy invoice_allocations_read on "better_supabase"."invoice_allocations
 -- What each invoice line of invoice_from_sources bills: the order line,
 -- shipment line or time entry and the quantity. A voided invoice releases its
 -- rows, so the same source can be invoiced again.
-create table if not exists "better_supabase"."invoice_line_sources" (
+create table "better_supabase"."invoice_line_sources" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -4173,20 +3864,19 @@ create table if not exists "better_supabase"."invoice_line_sources" (
   "quantity" numeric(18, 4) not null check ("quantity" > 0),
   "created_at" timestamptz not null default now()
 );
-create index if not exists invoice_line_sources_invoice_idx on "better_supabase"."invoice_line_sources" ("invoice_id");
-create index if not exists invoice_line_sources_source_idx on "better_supabase"."invoice_line_sources" ("tenant_id", "source", "source_id");
-create index if not exists invoice_line_sources_order_line_idx on "better_supabase"."invoice_line_sources" ("order_line_id") where "order_line_id" is not null;
-create index if not exists invoice_line_sources_line_idx on "better_supabase"."invoice_line_sources" ("source", "source_line_id") where "source_line_id" is not null;
+create index invoice_line_sources_invoice_idx on "better_supabase"."invoice_line_sources" ("invoice_id");
+create index invoice_line_sources_source_idx on "better_supabase"."invoice_line_sources" ("tenant_id", "source", "source_id");
+create index invoice_line_sources_order_line_idx on "better_supabase"."invoice_line_sources" ("order_line_id") where "order_line_id" is not null;
+create index invoice_line_sources_line_idx on "better_supabase"."invoice_line_sources" ("source", "source_line_id") where "source_line_id" is not null;
 alter table "better_supabase"."invoice_line_sources" enable row level security;
 revoke all on "better_supabase"."invoice_line_sources" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_line_sources" to authenticated;
 grant all on "better_supabase"."invoice_line_sources" to service_role;
-drop policy if exists invoice_line_sources_read on "better_supabase"."invoice_line_sources";
 create policy invoice_line_sources_read on "better_supabase"."invoice_line_sources"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_approval_levels" (
+create table "better_supabase"."invoice_approval_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- Null: the level counts for every legal entity without levels of its own.
@@ -4197,17 +3887,16 @@ create table if not exists "better_supabase"."invoice_approval_levels" (
   "approver_id" uuid not null,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists invoice_approval_levels_level_key on "better_supabase"."invoice_approval_levels" ("tenant_id", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), "level");
+create unique index invoice_approval_levels_level_key on "better_supabase"."invoice_approval_levels" ("tenant_id", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), "level");
 alter table "better_supabase"."invoice_approval_levels" enable row level security;
 revoke all on "better_supabase"."invoice_approval_levels" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_approval_levels" to authenticated;
 grant all on "better_supabase"."invoice_approval_levels" to service_role;
-drop policy if exists invoice_approval_levels_read on "better_supabase"."invoice_approval_levels";
 create policy invoice_approval_levels_read on "better_supabase"."invoice_approval_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_approvals" (
+create table "better_supabase"."invoice_approvals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -4217,17 +3906,16 @@ create table if not exists "better_supabase"."invoice_approvals" (
   "decided_at" timestamptz not null default now(),
   unique ("invoice_id", "level")
 );
-create index if not exists invoice_approvals_tenant_idx on "better_supabase"."invoice_approvals" ("tenant_id", "invoice_id");
+create index invoice_approvals_tenant_idx on "better_supabase"."invoice_approvals" ("tenant_id", "invoice_id");
 alter table "better_supabase"."invoice_approvals" enable row level security;
 revoke all on "better_supabase"."invoice_approvals" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_approvals" to authenticated;
 grant all on "better_supabase"."invoice_approvals" to service_role;
-drop policy if exists invoice_approvals_read on "better_supabase"."invoice_approvals";
 create policy invoice_approvals_read on "better_supabase"."invoice_approvals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_e_endpoints" (
+create table "better_supabase"."invoice_e_endpoints" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_kind" text not null check ("party_kind" in ('organization', 'legal_entity', 'company')),
@@ -4238,18 +3926,17 @@ create table if not exists "better_supabase"."invoice_e_endpoints" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists invoice_e_endpoints_party_key on "better_supabase"."invoice_e_endpoints" ("tenant_id", "party_kind", "party_id");
-create index if not exists invoice_e_endpoints_lookup_idx on "better_supabase"."invoice_e_endpoints" ("tenant_id", "scheme", "endpoint_id");
+create unique index invoice_e_endpoints_party_key on "better_supabase"."invoice_e_endpoints" ("tenant_id", "party_kind", "party_id");
+create index invoice_e_endpoints_lookup_idx on "better_supabase"."invoice_e_endpoints" ("tenant_id", "scheme", "endpoint_id");
 alter table "better_supabase"."invoice_e_endpoints" enable row level security;
 revoke all on "better_supabase"."invoice_e_endpoints" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_e_endpoints" to authenticated;
 grant all on "better_supabase"."invoice_e_endpoints" to service_role;
-drop policy if exists invoice_e_endpoints_read on "better_supabase"."invoice_e_endpoints";
 create policy invoice_e_endpoints_read on "better_supabase"."invoice_e_endpoints"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."e_invoice_deliveries" (
+create table "better_supabase"."e_invoice_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid references "better_supabase"."invoices" ("id") on delete set null,
@@ -4263,14 +3950,13 @@ create table if not exists "better_supabase"."e_invoice_deliveries" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists e_invoice_deliveries_message_key on "better_supabase"."e_invoice_deliveries" ("tenant_id", "channel", "message_id");
-create index if not exists e_invoice_deliveries_invoice_idx on "better_supabase"."e_invoice_deliveries" ("invoice_id", "tenant_id");
-create index if not exists e_invoice_deliveries_state_idx on "better_supabase"."e_invoice_deliveries" ("tenant_id", "direction", "state");
+create unique index e_invoice_deliveries_message_key on "better_supabase"."e_invoice_deliveries" ("tenant_id", "channel", "message_id");
+create index e_invoice_deliveries_invoice_idx on "better_supabase"."e_invoice_deliveries" ("invoice_id", "tenant_id");
+create index e_invoice_deliveries_state_idx on "better_supabase"."e_invoice_deliveries" ("tenant_id", "direction", "state");
 alter table "better_supabase"."e_invoice_deliveries" enable row level security;
 revoke all on "better_supabase"."e_invoice_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."e_invoice_deliveries" to authenticated;
 grant all on "better_supabase"."e_invoice_deliveries" to service_role;
-drop policy if exists e_invoice_deliveries_read on "better_supabase"."e_invoice_deliveries";
 create policy e_invoice_deliveries_read on "better_supabase"."e_invoice_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -4496,7 +4182,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
-create table if not exists "better_supabase"."invoice_lines" (
+create table "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -4522,13 +4208,11 @@ create table if not exists "better_supabase"."invoice_lines" (
   "created_at" timestamptz not null default now(),
   check (("product_type" is null) = ("product_id" is null))
 );
-alter table "better_supabase"."invoice_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
-create index if not exists "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
+create index "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
 alter table "better_supabase"."invoice_lines" enable row level security;
 revoke all on "better_supabase"."invoice_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
-drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
 create policy "invoice_lines_read" on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
@@ -4637,10 +4321,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_invoice_lines_totals() from public, anon, authenticated;
-drop trigger if exists bsb_invoice_lines_totals on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_insert on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_update on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_delete on "better_supabase"."invoice_lines";
 create trigger bsb_invoice_lines_totals_insert after insert on "better_supabase"."invoice_lines"
 referencing new table as new_rows
 for each statement execute function better_supabase.bsb_invoice_lines_totals();
@@ -4725,9 +4405,7 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- number is only taken when the invoice is final), its issue and due date,
 -- and its lines freeze. A credit note reduces the balance of its original.
 -- actor: who issued it, for the state machine's history.
-drop function if exists "better_supabase"."issue_invoice"(uuid, date);
-drop function if exists "better_supabase"."issue_invoice"(uuid, date, date);
-drop function if exists "better_supabase"."issue_invoice"(uuid, date, date, jsonb);
+
 -- fixed_number: a historical number to keep as is, only while an import runs
 -- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
 -- of its series (kind, direction, legal entity, period) rises to it.
@@ -4931,10 +4609,7 @@ grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, js
 -- organization, so recording the same payment twice adds it once. actor:
 -- who recorded it, and reason: why the status changes, for the state
 -- machine's history.
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb);
+
 create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
@@ -5091,7 +4766,7 @@ grant execute on function "better_supabase"."list_invoice_payments"(uuid) to aut
 -- import (better_supabase.import_run()), a historical credit note number; the
 -- credit note is then issued at once on issued_on (today by default) with that
 -- number. NUMBER_FIXED_FORBIDDEN outside an import.
-drop function if exists "better_supabase"."credit_invoice"(uuid, jsonb, text);
+
 create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
@@ -5149,7 +4824,7 @@ grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor
 -- go to the state machine's history.
-drop function if exists "better_supabase"."void_invoice"(uuid, text);
+
 create or replace function "better_supabase"."void_invoice"(invoice uuid, reason text, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -5215,8 +4890,7 @@ grant execute on function "better_supabase"."void_invoice"(uuid, text, jsonb) to
 
 -- Writes an open invoice off as uncollectible. Needs invoices.manage. The
 -- reason and actor go to the state machine's history.
-drop function if exists "better_supabase"."write_off_invoice"(uuid);
-drop function if exists "better_supabase"."write_off_invoice"(uuid, text);
+
 create or replace function "better_supabase"."write_off_invoice"(invoice uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -5278,7 +4952,7 @@ grant execute on function "better_supabase"."write_off_invoice"(uuid, text, json
 
 -- Reverses a recorded payment. The reason and actor go to the state machine's
 -- history.
-drop function if exists "better_supabase"."reverse_invoice_payment"(uuid, text);
+
 create or replace function "better_supabase"."reverse_invoice_payment"(payment uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -5366,9 +5040,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."reverse_invoice_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text, jsonb) to authenticated, service_role;
-
-drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
-drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
@@ -5454,8 +5125,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-
-drop function if exists "better_supabase"."remove_invoice_charge"(uuid);
 create or replace function "better_supabase"."remove_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -5533,7 +5202,7 @@ grant execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb)
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
 -- direction: sales (what customers owe) or purchase (what it owes suppliers).
-drop function if exists "better_supabase"."invoice_aging"(uuid, text, date);
+
 create or replace function "better_supabase"."invoice_aging"(tenant uuid, currency text, as_of date, direction text default 'sales')
 returns jsonb
 language sql
@@ -5567,8 +5236,7 @@ grant execute on function "better_supabase"."invoice_aging"(uuid, text, date, te
 -- which subtracts the deposits already issued, one line per deposit and tax
 -- rate described by deposit_description ({identifier} is the deposit's), and
 -- is made once per quote.
-drop function if exists "better_supabase"."invoice_from_quote"(uuid, integer);
-drop function if exists "better_supabase"."invoice_from_quote"(uuid, integer, bigint);
+
 create or replace function "better_supabase"."invoice_from_quote"(quote uuid, deposit_bps integer, deposit_amount bigint default null, deposit_description text default null)
 returns jsonb
 language plpgsql
@@ -8366,276 +8034,211 @@ revoke execute on function "better_supabase"."accounting_invoice_party_payment_l
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
 create policy bsb_tenant_scope_select on "better_supabase"."invoices" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))) or (("tenant_id")::text, ('invoice')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or (("tenant_id")::text, ("company_type")::text, ("company_id"::text)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or (("tenant_id")::text, ("contact_type")::text, ("contact_id"::text)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoices" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
 create policy bsb_tenant_scope_update on "better_supabase"."invoices" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoices" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_charges";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_charges" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_charges" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_charges" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_charges" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_allocations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_allocations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_allocations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_allocations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_allocations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_line_sources";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_line_sources";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_line_sources" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_line_sources";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_line_sources" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_line_sources";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_line_sources" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_line_sources";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_line_sources" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approval_levels";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approvals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_approvals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_approvals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_approvals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approvals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_e_endpoints";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."e_invoice_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -8664,112 +8267,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:c53f0729c3dcb36884d0de00c4105c2c79f0e983dd298a64ddd8145bb6539ecf
+-- @bsb-hash sha256:ef314f42fd4747a1285171d6efa843e7138eddb4274df524b4d423d29aa68e6c
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoices";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoices";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoices";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoices";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_charges";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_run_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_allocations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_approval_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_approvals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_e_endpoints";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."e_invoice_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -8780,7 +8281,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- suppliers send it: drafts with lines, a number on issue, payments, credit
 -- notes, void and write-off, aging and the three-way match of a bill.
 
-create table if not exists "app_private"."invoices" (
+create table "app_private"."invoices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null default 'invoice' check ("kind" in ('invoice', 'credit_note')),
@@ -8835,21 +8336,20 @@ create table if not exists "app_private"."invoices" (
   check ("status" in ('draft', 'void') or "number" is not null),
   check (("company_type" is null) = ("company_id" is null))
 );
-create index if not exists invoices_tenant_status_idx on "app_private"."invoices" ("tenant_id", "status", "due_on");
-create index if not exists invoices_origin_idx on "app_private"."invoices" ("origin_type", "origin_id");
-create index if not exists invoices_original_idx on "app_private"."invoices" ("original_id");
-create index if not exists invoices_company_idx on "app_private"."invoices" ("company_type", "company_id");
-create index if not exists invoices_purchase_order_idx on "app_private"."invoices" ("purchase_order_id");
+create index invoices_tenant_status_idx on "app_private"."invoices" ("tenant_id", "status", "due_on");
+create index invoices_origin_idx on "app_private"."invoices" ("origin_type", "origin_id");
+create index invoices_original_idx on "app_private"."invoices" ("original_id");
+create index invoices_company_idx on "app_private"."invoices" ("company_type", "company_id");
+create index invoices_purchase_order_idx on "app_private"."invoices" ("purchase_order_id");
 alter table "app_private"."invoices" enable row level security;
 revoke all on "app_private"."invoices" from public, anon, authenticated;
 grant select on "app_private"."invoices" to authenticated;
 grant all on "app_private"."invoices" to service_role;
-drop policy if exists invoices_read on "app_private"."invoices";
 create policy invoices_read on "app_private"."invoices"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "app_private"."invoice_charges" (
+create table "app_private"."invoice_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "app_private"."invoices" ("id") on delete cascade,
@@ -8859,17 +8359,16 @@ create table if not exists "app_private"."invoice_charges" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists invoice_charges_invoice_idx on "app_private"."invoice_charges" ("invoice_id");
+create index invoice_charges_invoice_idx on "app_private"."invoice_charges" ("invoice_id");
 alter table "app_private"."invoice_charges" enable row level security;
 revoke all on "app_private"."invoice_charges" from public, anon, authenticated;
 grant select on "app_private"."invoice_charges" to authenticated;
 grant all on "app_private"."invoice_charges" to service_role;
-drop policy if exists invoice_charges_read on "app_private"."invoice_charges";
 create policy invoice_charges_read on "app_private"."invoice_charges"
   for select to authenticated
   using (exists (select 1 from "app_private"."invoices" x where x."id" = "invoice_id"));
 
-create table if not exists "app_private"."invoice_dunning_levels" (
+create table "app_private"."invoice_dunning_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "level" integer not null check ("level" >= 1 and "level" <= 20),
@@ -8886,29 +8385,27 @@ alter table "app_private"."invoice_dunning_levels" enable row level security;
 revoke all on "app_private"."invoice_dunning_levels" from public, anon, authenticated;
 grant select on "app_private"."invoice_dunning_levels" to authenticated;
 grant all on "app_private"."invoice_dunning_levels" to service_role;
-drop policy if exists invoice_dunning_levels_read on "app_private"."invoice_dunning_levels";
 create policy invoice_dunning_levels_read on "app_private"."invoice_dunning_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "app_private"."invoice_dunning_runs" (
+create table "app_private"."invoice_dunning_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "as_of" date not null,
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists invoice_dunning_runs_tenant_idx on "app_private"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+create index invoice_dunning_runs_tenant_idx on "app_private"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
 alter table "app_private"."invoice_dunning_runs" enable row level security;
 revoke all on "app_private"."invoice_dunning_runs" from public, anon, authenticated;
 grant select on "app_private"."invoice_dunning_runs" to authenticated;
 grant all on "app_private"."invoice_dunning_runs" to service_role;
-drop policy if exists invoice_dunning_runs_read on "app_private"."invoice_dunning_runs";
 create policy invoice_dunning_runs_read on "app_private"."invoice_dunning_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "app_private"."invoice_dunning_run_items" (
+create table "app_private"."invoice_dunning_run_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "run_id" uuid not null references "app_private"."invoice_dunning_runs" ("id") on delete cascade,
@@ -8923,18 +8420,17 @@ create table if not exists "app_private"."invoice_dunning_run_items" (
   "created_at" timestamptz not null default now(),
   unique ("run_id", "invoice_id")
 );
-create index if not exists invoice_dunning_run_items_run_idx on "app_private"."invoice_dunning_run_items" ("run_id", "party_id");
-create index if not exists invoice_dunning_run_items_invoice_idx on "app_private"."invoice_dunning_run_items" ("invoice_id");
+create index invoice_dunning_run_items_run_idx on "app_private"."invoice_dunning_run_items" ("run_id", "party_id");
+create index invoice_dunning_run_items_invoice_idx on "app_private"."invoice_dunning_run_items" ("invoice_id");
 alter table "app_private"."invoice_dunning_run_items" enable row level security;
 revoke all on "app_private"."invoice_dunning_run_items" from public, anon, authenticated;
 grant select on "app_private"."invoice_dunning_run_items" to authenticated;
 grant all on "app_private"."invoice_dunning_run_items" to service_role;
-drop policy if exists invoice_dunning_run_items_read on "app_private"."invoice_dunning_run_items";
 create policy invoice_dunning_run_items_read on "app_private"."invoice_dunning_run_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "app_private"."invoice_dunning_history" (
+create table "app_private"."invoice_dunning_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "app_private"."invoices" ("id") on delete cascade,
@@ -8948,18 +8444,17 @@ create table if not exists "app_private"."invoice_dunning_history" (
   "note" text,
   "created_at" timestamptz not null default clock_timestamp()
 );
-create index if not exists invoice_dunning_history_invoice_idx on "app_private"."invoice_dunning_history" ("invoice_id", "created_at");
-create index if not exists invoice_dunning_history_run_idx on "app_private"."invoice_dunning_history" ("run_id") where "run_id" is not null;
+create index invoice_dunning_history_invoice_idx on "app_private"."invoice_dunning_history" ("invoice_id", "created_at");
+create index invoice_dunning_history_run_idx on "app_private"."invoice_dunning_history" ("run_id") where "run_id" is not null;
 alter table "app_private"."invoice_dunning_history" enable row level security;
 revoke all on "app_private"."invoice_dunning_history" from public, anon, authenticated;
 grant select on "app_private"."invoice_dunning_history" to authenticated;
 grant all on "app_private"."invoice_dunning_history" to service_role;
-drop policy if exists invoice_dunning_history_read on "app_private"."invoice_dunning_history";
 create policy invoice_dunning_history_read on "app_private"."invoice_dunning_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "app_private"."invoice_allocations" (
+create table "app_private"."invoice_allocations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "reference" text not null check (length("reference") >= 1 and length("reference") <= 200),
@@ -8977,18 +8472,17 @@ create table if not exists "app_private"."invoice_allocations" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "reference", "invoice_id")
 );
-create index if not exists invoice_allocations_invoice_idx on "app_private"."invoice_allocations" ("invoice_id");
-create index if not exists invoice_allocations_party_idx on "app_private"."invoice_allocations" ("tenant_id", "party_id", "created_at" desc);
+create index invoice_allocations_invoice_idx on "app_private"."invoice_allocations" ("invoice_id");
+create index invoice_allocations_party_idx on "app_private"."invoice_allocations" ("tenant_id", "party_id", "created_at" desc);
 alter table "app_private"."invoice_allocations" enable row level security;
 revoke all on "app_private"."invoice_allocations" from public, anon, authenticated;
 grant select on "app_private"."invoice_allocations" to authenticated;
 grant all on "app_private"."invoice_allocations" to service_role;
-drop policy if exists invoice_allocations_read on "app_private"."invoice_allocations";
 create policy invoice_allocations_read on "app_private"."invoice_allocations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "app_private"."invoice_approval_levels" (
+create table "app_private"."invoice_approval_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- Null: the level counts for every legal entity without levels of its own.
@@ -8999,17 +8493,16 @@ create table if not exists "app_private"."invoice_approval_levels" (
   "approver_id" uuid not null,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists invoice_approval_levels_level_key on "app_private"."invoice_approval_levels" ("tenant_id", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), "level");
+create unique index invoice_approval_levels_level_key on "app_private"."invoice_approval_levels" ("tenant_id", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), "level");
 alter table "app_private"."invoice_approval_levels" enable row level security;
 revoke all on "app_private"."invoice_approval_levels" from public, anon, authenticated;
 grant select on "app_private"."invoice_approval_levels" to authenticated;
 grant all on "app_private"."invoice_approval_levels" to service_role;
-drop policy if exists invoice_approval_levels_read on "app_private"."invoice_approval_levels";
 create policy invoice_approval_levels_read on "app_private"."invoice_approval_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "app_private"."invoice_approvals" (
+create table "app_private"."invoice_approvals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "app_private"."invoices" ("id") on delete cascade,
@@ -9019,17 +8512,16 @@ create table if not exists "app_private"."invoice_approvals" (
   "decided_at" timestamptz not null default now(),
   unique ("invoice_id", "level")
 );
-create index if not exists invoice_approvals_tenant_idx on "app_private"."invoice_approvals" ("tenant_id", "invoice_id");
+create index invoice_approvals_tenant_idx on "app_private"."invoice_approvals" ("tenant_id", "invoice_id");
 alter table "app_private"."invoice_approvals" enable row level security;
 revoke all on "app_private"."invoice_approvals" from public, anon, authenticated;
 grant select on "app_private"."invoice_approvals" to authenticated;
 grant all on "app_private"."invoice_approvals" to service_role;
-drop policy if exists invoice_approvals_read on "app_private"."invoice_approvals";
 create policy invoice_approvals_read on "app_private"."invoice_approvals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "app_private"."invoice_e_endpoints" (
+create table "app_private"."invoice_e_endpoints" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_kind" text not null check ("party_kind" in ('organization', 'legal_entity', 'company')),
@@ -9040,18 +8532,17 @@ create table if not exists "app_private"."invoice_e_endpoints" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists invoice_e_endpoints_party_key on "app_private"."invoice_e_endpoints" ("tenant_id", "party_kind", "party_id");
-create index if not exists invoice_e_endpoints_lookup_idx on "app_private"."invoice_e_endpoints" ("tenant_id", "scheme", "endpoint_id");
+create unique index invoice_e_endpoints_party_key on "app_private"."invoice_e_endpoints" ("tenant_id", "party_kind", "party_id");
+create index invoice_e_endpoints_lookup_idx on "app_private"."invoice_e_endpoints" ("tenant_id", "scheme", "endpoint_id");
 alter table "app_private"."invoice_e_endpoints" enable row level security;
 revoke all on "app_private"."invoice_e_endpoints" from public, anon, authenticated;
 grant select on "app_private"."invoice_e_endpoints" to authenticated;
 grant all on "app_private"."invoice_e_endpoints" to service_role;
-drop policy if exists invoice_e_endpoints_read on "app_private"."invoice_e_endpoints";
 create policy invoice_e_endpoints_read on "app_private"."invoice_e_endpoints"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "app_private"."e_invoice_deliveries" (
+create table "app_private"."e_invoice_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid references "app_private"."invoices" ("id") on delete set null,
@@ -9065,14 +8556,13 @@ create table if not exists "app_private"."e_invoice_deliveries" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists e_invoice_deliveries_message_key on "app_private"."e_invoice_deliveries" ("tenant_id", "channel", "message_id");
-create index if not exists e_invoice_deliveries_invoice_idx on "app_private"."e_invoice_deliveries" ("invoice_id", "tenant_id");
-create index if not exists e_invoice_deliveries_state_idx on "app_private"."e_invoice_deliveries" ("tenant_id", "direction", "state");
+create unique index e_invoice_deliveries_message_key on "app_private"."e_invoice_deliveries" ("tenant_id", "channel", "message_id");
+create index e_invoice_deliveries_invoice_idx on "app_private"."e_invoice_deliveries" ("invoice_id", "tenant_id");
+create index e_invoice_deliveries_state_idx on "app_private"."e_invoice_deliveries" ("tenant_id", "direction", "state");
 alter table "app_private"."e_invoice_deliveries" enable row level security;
 revoke all on "app_private"."e_invoice_deliveries" from public, anon, authenticated;
 grant select on "app_private"."e_invoice_deliveries" to authenticated;
 grant all on "app_private"."e_invoice_deliveries" to service_role;
-drop policy if exists e_invoice_deliveries_read on "app_private"."e_invoice_deliveries";
 create policy e_invoice_deliveries_read on "app_private"."e_invoice_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -9282,7 +8772,7 @@ end;
 $$;
 revoke execute on function "app_private"."delete_invoice"(uuid) from public, anon;
 grant execute on function "app_private"."delete_invoice"(uuid) to authenticated, service_role;
-create table if not exists "app_private"."invoice_lines" (
+create table "app_private"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid not null references "app_private"."invoices" ("id") on delete cascade,
@@ -9308,13 +8798,11 @@ create table if not exists "app_private"."invoice_lines" (
   "created_at" timestamptz not null default now(),
   check (("product_type" is null) = ("product_id" is null))
 );
-alter table "app_private"."invoice_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
-create index if not exists "invoice_lines_parent_idx" on "app_private"."invoice_lines" ("parent_id", "position");
+create index "invoice_lines_parent_idx" on "app_private"."invoice_lines" ("parent_id", "position");
 alter table "app_private"."invoice_lines" enable row level security;
 revoke all on "app_private"."invoice_lines" from public, anon, authenticated;
 grant select on "app_private"."invoice_lines" to authenticated;
 grant all on "app_private"."invoice_lines" to service_role;
-drop policy if exists "invoice_lines_read" on "app_private"."invoice_lines";
 create policy "invoice_lines_read" on "app_private"."invoice_lines" for select to authenticated
 using (exists (select 1 from "app_private"."invoices" x where x."id" = "parent_id"));
 
@@ -9423,10 +8911,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_invoice_lines_totals() from public, anon, authenticated;
-drop trigger if exists bsb_invoice_lines_totals on "app_private"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_insert on "app_private"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_update on "app_private"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_delete on "app_private"."invoice_lines";
 create trigger bsb_invoice_lines_totals_insert after insert on "app_private"."invoice_lines"
 referencing new table as new_rows
 for each statement execute function better_supabase.bsb_invoice_lines_totals();
@@ -9511,9 +8995,7 @@ grant execute on function "app_private"."set_invoice_lines"(uuid, jsonb) to auth
 -- number is only taken when the invoice is final), its issue and due date,
 -- and its lines freeze. A credit note reduces the balance of its original.
 -- actor: who issued it, for the state machine's history.
-drop function if exists "app_private"."issue_invoice"(uuid, date);
-drop function if exists "app_private"."issue_invoice"(uuid, date, date);
-drop function if exists "app_private"."issue_invoice"(uuid, date, date, jsonb);
+
 -- fixed_number: a historical number to keep as is, only while an import runs
 -- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
 -- of its series (kind, direction, legal entity, period) rises to it.
@@ -9686,10 +9168,7 @@ grant execute on function "app_private"."issue_invoice"(uuid, date, date, jsonb,
 -- organization, so recording the same payment twice adds it once. actor:
 -- who recorded it, and reason: why the status changes, for the state
 -- machine's history.
-drop function if exists "app_private"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
-drop function if exists "app_private"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
-drop function if exists "app_private"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
-drop function if exists "app_private"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb);
+
 create or replace function "app_private"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
@@ -9839,7 +9318,7 @@ grant execute on function "app_private"."list_invoice_payments"(uuid) to authent
 -- import (better_supabase.import_run()), a historical credit note number; the
 -- credit note is then issued at once on issued_on (today by default) with that
 -- number. NUMBER_FIXED_FORBIDDEN outside an import.
-drop function if exists "app_private"."credit_invoice"(uuid, jsonb, text);
+
 create or replace function "app_private"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
@@ -9897,7 +9376,7 @@ grant execute on function "app_private"."credit_invoice"(uuid, jsonb, text, text
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor
 -- go to the state machine's history.
-drop function if exists "app_private"."void_invoice"(uuid, text);
+
 create or replace function "app_private"."void_invoice"(invoice uuid, reason text, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -9951,8 +9430,7 @@ grant execute on function "app_private"."void_invoice"(uuid, text, jsonb) to aut
 
 -- Writes an open invoice off as uncollectible. Needs invoices.manage. The
 -- reason and actor go to the state machine's history.
-drop function if exists "app_private"."write_off_invoice"(uuid);
-drop function if exists "app_private"."write_off_invoice"(uuid, text);
+
 create or replace function "app_private"."write_off_invoice"(invoice uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -10002,7 +9480,7 @@ grant execute on function "app_private"."write_off_invoice"(uuid, text, jsonb) t
 
 -- Reverses a recorded payment. The reason and actor go to the state machine's
 -- history.
-drop function if exists "app_private"."reverse_invoice_payment"(uuid, text);
+
 create or replace function "app_private"."reverse_invoice_payment"(payment uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -10080,9 +9558,6 @@ end;
 $$;
 revoke execute on function "app_private"."reverse_invoice_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "app_private"."reverse_invoice_payment"(uuid, text, jsonb) to authenticated, service_role;
-
-drop function if exists "app_private"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
-drop function if exists "app_private"."add_invoice_charge"(uuid, bigint, text, text);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
@@ -10156,8 +9631,6 @@ end;
 $$;
 revoke execute on function "app_private"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
 grant execute on function "app_private"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-
-drop function if exists "app_private"."remove_invoice_charge"(uuid);
 create or replace function "app_private"."remove_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -10225,7 +9698,7 @@ grant execute on function "app_private"."remove_invoice_charge"(uuid, jsonb) to 
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
 -- direction: sales (what customers owe) or purchase (what it owes suppliers).
-drop function if exists "app_private"."invoice_aging"(uuid, text, date);
+
 create or replace function "app_private"."invoice_aging"(tenant uuid, currency text, as_of date, direction text default 'sales')
 returns jsonb
 language sql
@@ -12227,255 +11700,195 @@ grant execute on function "app_private"."document_totals_by_billing_party"(uuid)
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."invoices";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoices";
 create policy bsb_tenant_scope_select on "app_private"."invoices" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoices";
 create policy bsb_tenant_scope_insert on "app_private"."invoices" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoices";
 create policy bsb_tenant_scope_update on "app_private"."invoices" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoices";
 create policy bsb_tenant_scope_delete on "app_private"."invoices" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."invoice_lines";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_lines";
 create policy bsb_tenant_scope_select on "app_private"."invoice_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "app_private"."invoices" x where x."id" = "parent_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_lines";
 create policy bsb_tenant_scope_insert on "app_private"."invoice_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_lines";
 create policy bsb_tenant_scope_update on "app_private"."invoice_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_lines";
 create policy bsb_tenant_scope_delete on "app_private"."invoice_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."invoice_charges";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_charges";
 create policy bsb_tenant_scope_select on "app_private"."invoice_charges" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "app_private"."invoices" x where x."id" = "invoice_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_charges";
 create policy bsb_tenant_scope_insert on "app_private"."invoice_charges" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_charges";
 create policy bsb_tenant_scope_update on "app_private"."invoice_charges" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_charges";
 create policy bsb_tenant_scope_delete on "app_private"."invoice_charges" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_levels";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_levels";
 create policy bsb_tenant_scope_select on "app_private"."invoice_dunning_levels" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_levels";
 create policy bsb_tenant_scope_insert on "app_private"."invoice_dunning_levels" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_levels";
 create policy bsb_tenant_scope_update on "app_private"."invoice_dunning_levels" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_levels";
 create policy bsb_tenant_scope_delete on "app_private"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_runs";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_runs";
 create policy bsb_tenant_scope_select on "app_private"."invoice_dunning_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_runs";
 create policy bsb_tenant_scope_insert on "app_private"."invoice_dunning_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_runs";
 create policy bsb_tenant_scope_update on "app_private"."invoice_dunning_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_runs";
 create policy bsb_tenant_scope_delete on "app_private"."invoice_dunning_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_run_items";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_select on "app_private"."invoice_dunning_run_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_insert on "app_private"."invoice_dunning_run_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_update on "app_private"."invoice_dunning_run_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_delete on "app_private"."invoice_dunning_run_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."invoice_dunning_history";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_dunning_history";
 create policy bsb_tenant_scope_select on "app_private"."invoice_dunning_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_dunning_history";
 create policy bsb_tenant_scope_insert on "app_private"."invoice_dunning_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_dunning_history";
 create policy bsb_tenant_scope_update on "app_private"."invoice_dunning_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_dunning_history";
 create policy bsb_tenant_scope_delete on "app_private"."invoice_dunning_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."invoice_allocations";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_allocations";
 create policy bsb_tenant_scope_select on "app_private"."invoice_allocations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_allocations";
 create policy bsb_tenant_scope_insert on "app_private"."invoice_allocations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_allocations";
 create policy bsb_tenant_scope_update on "app_private"."invoice_allocations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_allocations";
 create policy bsb_tenant_scope_delete on "app_private"."invoice_allocations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."invoice_approval_levels";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_approval_levels";
 create policy bsb_tenant_scope_select on "app_private"."invoice_approval_levels" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_approval_levels";
 create policy bsb_tenant_scope_insert on "app_private"."invoice_approval_levels" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_approval_levels";
 create policy bsb_tenant_scope_update on "app_private"."invoice_approval_levels" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_approval_levels";
 create policy bsb_tenant_scope_delete on "app_private"."invoice_approval_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."invoice_approvals";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_approvals";
 create policy bsb_tenant_scope_select on "app_private"."invoice_approvals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_approvals";
 create policy bsb_tenant_scope_insert on "app_private"."invoice_approvals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_approvals";
 create policy bsb_tenant_scope_update on "app_private"."invoice_approvals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_approvals";
 create policy bsb_tenant_scope_delete on "app_private"."invoice_approvals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."invoice_e_endpoints";
-drop policy if exists bsb_tenant_scope_select on "app_private"."invoice_e_endpoints";
 create policy bsb_tenant_scope_select on "app_private"."invoice_e_endpoints" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."invoice_e_endpoints";
 create policy bsb_tenant_scope_insert on "app_private"."invoice_e_endpoints" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."invoice_e_endpoints";
 create policy bsb_tenant_scope_update on "app_private"."invoice_e_endpoints" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."invoice_e_endpoints";
 create policy bsb_tenant_scope_delete on "app_private"."invoice_e_endpoints" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."e_invoice_deliveries";
-drop policy if exists bsb_tenant_scope_select on "app_private"."e_invoice_deliveries";
 create policy bsb_tenant_scope_select on "app_private"."e_invoice_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."e_invoice_deliveries";
 create policy bsb_tenant_scope_insert on "app_private"."e_invoice_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."e_invoice_deliveries";
 create policy bsb_tenant_scope_update on "app_private"."e_invoice_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."e_invoice_deliveries";
 create policy bsb_tenant_scope_delete on "app_private"."e_invoice_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -12497,119 +11910,16 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:195a3a6df336aa3650437a02ed8b81e6ccff7953ffa93000b58c372305a035fe
+-- @bsb-hash sha256:24abc2a9930f1def651ed38c767fe07ef7d728c64a47d015f805a9ce93cf76a8
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approvals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Invoices an organization sends its own customers and the bills its
 -- suppliers send it: drafts with lines, a number on issue, payments, credit
 -- notes, void and write-off, aging and the three-way match of a bill.
 
-create table if not exists "better_supabase"."invoices" (
+create table "better_supabase"."invoices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null default 'invoice' check ("kind" in ('invoice', 'credit_note')),
@@ -12664,21 +11974,20 @@ create table if not exists "better_supabase"."invoices" (
   check ("status" in ('draft', 'void') or "number" is not null),
   check (("company_type" is null) = ("company_id" is null))
 );
-create index if not exists invoices_tenant_status_idx on "better_supabase"."invoices" ("tenant_id", "status", "due_on");
-create index if not exists invoices_origin_idx on "better_supabase"."invoices" ("origin_type", "origin_id");
-create index if not exists invoices_original_idx on "better_supabase"."invoices" ("original_id");
-create index if not exists invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
-create index if not exists invoices_purchase_order_idx on "better_supabase"."invoices" ("purchase_order_id");
+create index invoices_tenant_status_idx on "better_supabase"."invoices" ("tenant_id", "status", "due_on");
+create index invoices_origin_idx on "better_supabase"."invoices" ("origin_type", "origin_id");
+create index invoices_original_idx on "better_supabase"."invoices" ("original_id");
+create index invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
+create index invoices_purchase_order_idx on "better_supabase"."invoices" ("purchase_order_id");
 alter table "better_supabase"."invoices" enable row level security;
 revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
-drop policy if exists invoices_read on "better_supabase"."invoices";
 create policy invoices_read on "better_supabase"."invoices"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_charges" (
+create table "better_supabase"."invoice_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -12688,17 +11997,16 @@ create table if not exists "better_supabase"."invoice_charges" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists invoice_charges_invoice_idx on "better_supabase"."invoice_charges" ("invoice_id");
+create index invoice_charges_invoice_idx on "better_supabase"."invoice_charges" ("invoice_id");
 alter table "better_supabase"."invoice_charges" enable row level security;
 revoke all on "better_supabase"."invoice_charges" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_charges" to authenticated;
 grant all on "better_supabase"."invoice_charges" to service_role;
-drop policy if exists invoice_charges_read on "better_supabase"."invoice_charges";
 create policy invoice_charges_read on "better_supabase"."invoice_charges"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"));
 
-create table if not exists "better_supabase"."invoice_dunning_levels" (
+create table "better_supabase"."invoice_dunning_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "level" integer not null check ("level" >= 1 and "level" <= 20),
@@ -12715,29 +12023,27 @@ alter table "better_supabase"."invoice_dunning_levels" enable row level security
 revoke all on "better_supabase"."invoice_dunning_levels" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
 grant all on "better_supabase"."invoice_dunning_levels" to service_role;
-drop policy if exists invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels";
 create policy invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_runs" (
+create table "better_supabase"."invoice_dunning_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "as_of" date not null,
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
 alter table "better_supabase"."invoice_dunning_runs" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
 grant all on "better_supabase"."invoice_dunning_runs" to service_role;
-drop policy if exists invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs";
 create policy invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_run_items" (
+create table "better_supabase"."invoice_dunning_run_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "run_id" uuid not null references "better_supabase"."invoice_dunning_runs" ("id") on delete cascade,
@@ -12752,18 +12058,17 @@ create table if not exists "better_supabase"."invoice_dunning_run_items" (
   "created_at" timestamptz not null default now(),
   unique ("run_id", "invoice_id")
 );
-create index if not exists invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
-create index if not exists invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
+create index invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
+create index invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
 alter table "better_supabase"."invoice_dunning_run_items" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_run_items" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_run_items" to authenticated;
 grant all on "better_supabase"."invoice_dunning_run_items" to service_role;
-drop policy if exists invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items";
 create policy invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_history" (
+create table "better_supabase"."invoice_dunning_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -12777,18 +12082,17 @@ create table if not exists "better_supabase"."invoice_dunning_history" (
   "note" text,
   "created_at" timestamptz not null default clock_timestamp()
 );
-create index if not exists invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
-create index if not exists invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
+create index invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
+create index invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
 alter table "better_supabase"."invoice_dunning_history" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_history" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_history" to authenticated;
 grant all on "better_supabase"."invoice_dunning_history" to service_role;
-drop policy if exists invoice_dunning_history_read on "better_supabase"."invoice_dunning_history";
 create policy invoice_dunning_history_read on "better_supabase"."invoice_dunning_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_allocations" (
+create table "better_supabase"."invoice_allocations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "reference" text not null check (length("reference") >= 1 and length("reference") <= 200),
@@ -12806,18 +12110,17 @@ create table if not exists "better_supabase"."invoice_allocations" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "reference", "invoice_id")
 );
-create index if not exists invoice_allocations_invoice_idx on "better_supabase"."invoice_allocations" ("invoice_id");
-create index if not exists invoice_allocations_party_idx on "better_supabase"."invoice_allocations" ("tenant_id", "party_id", "created_at" desc);
+create index invoice_allocations_invoice_idx on "better_supabase"."invoice_allocations" ("invoice_id");
+create index invoice_allocations_party_idx on "better_supabase"."invoice_allocations" ("tenant_id", "party_id", "created_at" desc);
 alter table "better_supabase"."invoice_allocations" enable row level security;
 revoke all on "better_supabase"."invoice_allocations" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_allocations" to authenticated;
 grant all on "better_supabase"."invoice_allocations" to service_role;
-drop policy if exists invoice_allocations_read on "better_supabase"."invoice_allocations";
 create policy invoice_allocations_read on "better_supabase"."invoice_allocations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_approval_levels" (
+create table "better_supabase"."invoice_approval_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- Null: the level counts for every legal entity without levels of its own.
@@ -12828,17 +12131,16 @@ create table if not exists "better_supabase"."invoice_approval_levels" (
   "approver_id" uuid not null,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists invoice_approval_levels_level_key on "better_supabase"."invoice_approval_levels" ("tenant_id", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), "level");
+create unique index invoice_approval_levels_level_key on "better_supabase"."invoice_approval_levels" ("tenant_id", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), "level");
 alter table "better_supabase"."invoice_approval_levels" enable row level security;
 revoke all on "better_supabase"."invoice_approval_levels" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_approval_levels" to authenticated;
 grant all on "better_supabase"."invoice_approval_levels" to service_role;
-drop policy if exists invoice_approval_levels_read on "better_supabase"."invoice_approval_levels";
 create policy invoice_approval_levels_read on "better_supabase"."invoice_approval_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_approvals" (
+create table "better_supabase"."invoice_approvals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -12848,17 +12150,16 @@ create table if not exists "better_supabase"."invoice_approvals" (
   "decided_at" timestamptz not null default now(),
   unique ("invoice_id", "level")
 );
-create index if not exists invoice_approvals_tenant_idx on "better_supabase"."invoice_approvals" ("tenant_id", "invoice_id");
+create index invoice_approvals_tenant_idx on "better_supabase"."invoice_approvals" ("tenant_id", "invoice_id");
 alter table "better_supabase"."invoice_approvals" enable row level security;
 revoke all on "better_supabase"."invoice_approvals" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_approvals" to authenticated;
 grant all on "better_supabase"."invoice_approvals" to service_role;
-drop policy if exists invoice_approvals_read on "better_supabase"."invoice_approvals";
 create policy invoice_approvals_read on "better_supabase"."invoice_approvals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_e_endpoints" (
+create table "better_supabase"."invoice_e_endpoints" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_kind" text not null check ("party_kind" in ('organization', 'legal_entity', 'company')),
@@ -12869,18 +12170,17 @@ create table if not exists "better_supabase"."invoice_e_endpoints" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists invoice_e_endpoints_party_key on "better_supabase"."invoice_e_endpoints" ("tenant_id", "party_kind", "party_id");
-create index if not exists invoice_e_endpoints_lookup_idx on "better_supabase"."invoice_e_endpoints" ("tenant_id", "scheme", "endpoint_id");
+create unique index invoice_e_endpoints_party_key on "better_supabase"."invoice_e_endpoints" ("tenant_id", "party_kind", "party_id");
+create index invoice_e_endpoints_lookup_idx on "better_supabase"."invoice_e_endpoints" ("tenant_id", "scheme", "endpoint_id");
 alter table "better_supabase"."invoice_e_endpoints" enable row level security;
 revoke all on "better_supabase"."invoice_e_endpoints" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_e_endpoints" to authenticated;
 grant all on "better_supabase"."invoice_e_endpoints" to service_role;
-drop policy if exists invoice_e_endpoints_read on "better_supabase"."invoice_e_endpoints";
 create policy invoice_e_endpoints_read on "better_supabase"."invoice_e_endpoints"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."e_invoice_deliveries" (
+create table "better_supabase"."e_invoice_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid references "better_supabase"."invoices" ("id") on delete set null,
@@ -12894,14 +12194,13 @@ create table if not exists "better_supabase"."e_invoice_deliveries" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists e_invoice_deliveries_message_key on "better_supabase"."e_invoice_deliveries" ("tenant_id", "channel", "message_id");
-create index if not exists e_invoice_deliveries_invoice_idx on "better_supabase"."e_invoice_deliveries" ("invoice_id", "tenant_id");
-create index if not exists e_invoice_deliveries_state_idx on "better_supabase"."e_invoice_deliveries" ("tenant_id", "direction", "state");
+create unique index e_invoice_deliveries_message_key on "better_supabase"."e_invoice_deliveries" ("tenant_id", "channel", "message_id");
+create index e_invoice_deliveries_invoice_idx on "better_supabase"."e_invoice_deliveries" ("invoice_id", "tenant_id");
+create index e_invoice_deliveries_state_idx on "better_supabase"."e_invoice_deliveries" ("tenant_id", "direction", "state");
 alter table "better_supabase"."e_invoice_deliveries" enable row level security;
 revoke all on "better_supabase"."e_invoice_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."e_invoice_deliveries" to authenticated;
 grant all on "better_supabase"."e_invoice_deliveries" to service_role;
-drop policy if exists e_invoice_deliveries_read on "better_supabase"."e_invoice_deliveries";
 create policy e_invoice_deliveries_read on "better_supabase"."e_invoice_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -13111,7 +12410,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
-create table if not exists "better_supabase"."invoice_lines" (
+create table "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -13137,13 +12436,11 @@ create table if not exists "better_supabase"."invoice_lines" (
   "created_at" timestamptz not null default now(),
   check (("product_type" is null) = ("product_id" is null))
 );
-alter table "better_supabase"."invoice_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
-create index if not exists "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
+create index "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
 alter table "better_supabase"."invoice_lines" enable row level security;
 revoke all on "better_supabase"."invoice_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
-drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
 create policy "invoice_lines_read" on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
@@ -13252,10 +12549,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_invoice_lines_totals() from public, anon, authenticated;
-drop trigger if exists bsb_invoice_lines_totals on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_insert on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_update on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_delete on "better_supabase"."invoice_lines";
 create trigger bsb_invoice_lines_totals_insert after insert on "better_supabase"."invoice_lines"
 referencing new table as new_rows
 for each statement execute function better_supabase.bsb_invoice_lines_totals();
@@ -13340,9 +12633,7 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- number is only taken when the invoice is final), its issue and due date,
 -- and its lines freeze. A credit note reduces the balance of its original.
 -- actor: who issued it, for the state machine's history.
-drop function if exists "better_supabase"."issue_invoice"(uuid, date);
-drop function if exists "better_supabase"."issue_invoice"(uuid, date, date);
-drop function if exists "better_supabase"."issue_invoice"(uuid, date, date, jsonb);
+
 -- fixed_number: a historical number to keep as is, only while an import runs
 -- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
 -- of its series (kind, direction, legal entity, period) rises to it.
@@ -13515,10 +12806,7 @@ grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, js
 -- organization, so recording the same payment twice adds it once. actor:
 -- who recorded it, and reason: why the status changes, for the state
 -- machine's history.
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb);
+
 create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
@@ -13668,7 +12956,7 @@ grant execute on function "better_supabase"."list_invoice_payments"(uuid) to aut
 -- import (better_supabase.import_run()), a historical credit note number; the
 -- credit note is then issued at once on issued_on (today by default) with that
 -- number. NUMBER_FIXED_FORBIDDEN outside an import.
-drop function if exists "better_supabase"."credit_invoice"(uuid, jsonb, text);
+
 create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
@@ -13726,7 +13014,7 @@ grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor
 -- go to the state machine's history.
-drop function if exists "better_supabase"."void_invoice"(uuid, text);
+
 create or replace function "better_supabase"."void_invoice"(invoice uuid, reason text, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -13780,8 +13068,7 @@ grant execute on function "better_supabase"."void_invoice"(uuid, text, jsonb) to
 
 -- Writes an open invoice off as uncollectible. Needs invoices.manage. The
 -- reason and actor go to the state machine's history.
-drop function if exists "better_supabase"."write_off_invoice"(uuid);
-drop function if exists "better_supabase"."write_off_invoice"(uuid, text);
+
 create or replace function "better_supabase"."write_off_invoice"(invoice uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -13831,7 +13118,7 @@ grant execute on function "better_supabase"."write_off_invoice"(uuid, text, json
 
 -- Reverses a recorded payment. The reason and actor go to the state machine's
 -- history.
-drop function if exists "better_supabase"."reverse_invoice_payment"(uuid, text);
+
 create or replace function "better_supabase"."reverse_invoice_payment"(payment uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -13909,9 +13196,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."reverse_invoice_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text, jsonb) to authenticated, service_role;
-
-drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
-drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
@@ -13985,8 +13269,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-
-drop function if exists "better_supabase"."remove_invoice_charge"(uuid);
 create or replace function "better_supabase"."remove_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -14054,7 +13336,7 @@ grant execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb)
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
 -- direction: sales (what customers owe) or purchase (what it owes suppliers).
-drop function if exists "better_supabase"."invoice_aging"(uuid, text, date);
+
 create or replace function "better_supabase"."invoice_aging"(tenant uuid, currency text, as_of date, direction text default 'sales')
 returns jsonb
 language sql
@@ -16056,255 +15338,195 @@ grant execute on function "better_supabase"."document_totals_by_billing_party"(u
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
 create policy bsb_tenant_scope_select on "better_supabase"."invoices" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoices" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
 create policy bsb_tenant_scope_update on "better_supabase"."invoices" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoices" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_charges";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_charges" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_charges" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_charges" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_charges" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_allocations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_allocations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_allocations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_allocations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_allocations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approval_levels";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approvals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_approvals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_approvals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_approvals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approvals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_e_endpoints";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."e_invoice_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -16312,23 +15534,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries
 -- blocks.invoices.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."issue_invoice"(uuid, date);
-drop function if exists "api"."issue_invoice"(uuid, date, date);
-drop function if exists "api"."issue_invoice"(uuid, date, date, jsonb);
-drop function if exists "api"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
-drop function if exists "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
-drop function if exists "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
-drop function if exists "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb);
-drop function if exists "api"."credit_invoice"(uuid, jsonb, text);
-drop function if exists "api"."void_invoice"(uuid, text);
-drop function if exists "api"."write_off_invoice"(uuid);
-drop function if exists "api"."write_off_invoice"(uuid, text);
-drop function if exists "api"."reverse_invoice_payment"(uuid, text);
-drop function if exists "api"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
-drop function if exists "api"."add_invoice_charge"(uuid, bigint, text, text);
-drop function if exists "api"."remove_invoice_charge"(uuid);
-drop function if exists "api"."invoice_aging"(uuid, text, date);
 
 create or replace function "api"."create_invoice"(tenant uuid, attrs jsonb, lines jsonb)
 returns jsonb
@@ -16806,113 +16011,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:c6f262e48679c5b8730103cb560b8634ffcc9a86eabb2693ceff322b79e18606
+-- @bsb-hash sha256:8308bffa7c8bf757e3553b318e513fbbd384a99ce665ac631a3626f7d7edd5ac
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approvals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Invoices an organization sends its own customers and the bills its
 -- suppliers send it: drafts with lines, a number on issue, payments, credit
@@ -16976,7 +16078,6 @@ create unique index if not exists "invoices_tenant_id_direction_kind_number_key"
 alter table "better_supabase"."invoices" enable row level security;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
-drop policy if exists bsb_invoices_select on "better_supabase"."invoices";
 create policy bsb_invoices_select on "better_supabase"."invoices"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -16994,7 +16095,6 @@ create index if not exists invoice_charges_invoice_idx on "better_supabase"."inv
 alter table "better_supabase"."invoice_charges" enable row level security;
 grant select on "better_supabase"."invoice_charges" to authenticated;
 grant all on "better_supabase"."invoice_charges" to service_role;
-drop policy if exists bsb_invoice_charges_select on "better_supabase"."invoice_charges";
 create policy bsb_invoice_charges_select on "better_supabase"."invoice_charges"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"));
@@ -17013,7 +16113,6 @@ alter table "better_supabase"."invoice_dunning_levels" add column if not exists 
 alter table "better_supabase"."invoice_dunning_levels" enable row level security;
 grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
 grant all on "better_supabase"."invoice_dunning_levels" to service_role;
-drop policy if exists bsb_invoice_dunning_levels_select on "better_supabase"."invoice_dunning_levels";
 create policy bsb_invoice_dunning_levels_select on "better_supabase"."invoice_dunning_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -17028,7 +16127,6 @@ create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase".
 alter table "better_supabase"."invoice_dunning_runs" enable row level security;
 grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
 grant all on "better_supabase"."invoice_dunning_runs" to service_role;
-drop policy if exists bsb_invoice_dunning_runs_select on "better_supabase"."invoice_dunning_runs";
 create policy bsb_invoice_dunning_runs_select on "better_supabase"."invoice_dunning_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -17051,7 +16149,6 @@ create index if not exists invoice_dunning_run_items_invoice_idx on "better_supa
 alter table "better_supabase"."invoice_dunning_run_items" enable row level security;
 grant select on "better_supabase"."invoice_dunning_run_items" to authenticated;
 grant all on "better_supabase"."invoice_dunning_run_items" to service_role;
-drop policy if exists bsb_invoice_dunning_run_items_select on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_invoice_dunning_run_items_select on "better_supabase"."invoice_dunning_run_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -17074,7 +16171,6 @@ create index if not exists invoice_dunning_history_run_idx on "better_supabase".
 alter table "better_supabase"."invoice_dunning_history" enable row level security;
 grant select on "better_supabase"."invoice_dunning_history" to authenticated;
 grant all on "better_supabase"."invoice_dunning_history" to service_role;
-drop policy if exists bsb_invoice_dunning_history_select on "better_supabase"."invoice_dunning_history";
 create policy bsb_invoice_dunning_history_select on "better_supabase"."invoice_dunning_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -17099,7 +16195,6 @@ create index if not exists invoice_allocations_party_idx on "better_supabase"."i
 alter table "better_supabase"."invoice_allocations" enable row level security;
 grant select on "better_supabase"."invoice_allocations" to authenticated;
 grant all on "better_supabase"."invoice_allocations" to service_role;
-drop policy if exists bsb_invoice_allocations_select on "better_supabase"."invoice_allocations";
 create policy bsb_invoice_allocations_select on "better_supabase"."invoice_allocations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -17117,7 +16212,6 @@ create unique index if not exists invoice_approval_levels_level_key on "better_s
 alter table "better_supabase"."invoice_approval_levels" enable row level security;
 grant select on "better_supabase"."invoice_approval_levels" to authenticated;
 grant all on "better_supabase"."invoice_approval_levels" to service_role;
-drop policy if exists bsb_invoice_approval_levels_select on "better_supabase"."invoice_approval_levels";
 create policy bsb_invoice_approval_levels_select on "better_supabase"."invoice_approval_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -17134,7 +16228,6 @@ create index if not exists invoice_approvals_tenant_idx on "better_supabase"."in
 alter table "better_supabase"."invoice_approvals" enable row level security;
 grant select on "better_supabase"."invoice_approvals" to authenticated;
 grant all on "better_supabase"."invoice_approvals" to service_role;
-drop policy if exists bsb_invoice_approvals_select on "better_supabase"."invoice_approvals";
 create policy bsb_invoice_approvals_select on "better_supabase"."invoice_approvals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -17153,7 +16246,6 @@ create index if not exists invoice_e_endpoints_lookup_idx on "better_supabase"."
 alter table "better_supabase"."invoice_e_endpoints" enable row level security;
 grant select on "better_supabase"."invoice_e_endpoints" to authenticated;
 grant all on "better_supabase"."invoice_e_endpoints" to service_role;
-drop policy if exists bsb_invoice_e_endpoints_select on "better_supabase"."invoice_e_endpoints";
 create policy bsb_invoice_e_endpoints_select on "better_supabase"."invoice_e_endpoints"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -17177,7 +16269,6 @@ create index if not exists e_invoice_deliveries_state_idx on "better_supabase"."
 alter table "better_supabase"."e_invoice_deliveries" enable row level security;
 grant select on "better_supabase"."e_invoice_deliveries" to authenticated;
 grant all on "better_supabase"."e_invoice_deliveries" to service_role;
-drop policy if exists bsb_e_invoice_deliveries_select on "better_supabase"."e_invoice_deliveries";
 create policy bsb_e_invoice_deliveries_select on "better_supabase"."e_invoice_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -17417,7 +16508,6 @@ create unique index if not exists "bsb_invoice_lines_position_key" on "better_su
 alter table "better_supabase"."invoice_lines" enable row level security;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
-drop policy if exists bsb_invoice_lines_select on "better_supabase"."invoice_lines";
 create policy bsb_invoice_lines_select on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
@@ -17526,10 +16616,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_invoice_lines_totals() from public, anon, authenticated;
-drop trigger if exists bsb_invoice_lines_totals on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_insert on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_update on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_delete on "better_supabase"."invoice_lines";
 create trigger bsb_invoice_lines_totals_insert after insert on "better_supabase"."invoice_lines"
 referencing new table as new_rows
 for each statement execute function better_supabase.bsb_invoice_lines_totals();
@@ -17615,9 +16701,7 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- number is only taken when the invoice is final), its issue and due date,
 -- and its lines freeze. A credit note reduces the balance of its original.
 -- actor: who issued it, for the state machine's history.
-drop function if exists "better_supabase"."issue_invoice"(uuid, date);
-drop function if exists "better_supabase"."issue_invoice"(uuid, date, date);
-drop function if exists "better_supabase"."issue_invoice"(uuid, date, date, jsonb);
+
 -- fixed_number: a historical number to keep as is, only while an import runs
 -- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
 -- of its series (kind, direction, legal entity, period) rises to it.
@@ -17790,10 +16874,7 @@ grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, js
 -- organization, so recording the same payment twice adds it once. actor:
 -- who recorded it, and reason: why the status changes, for the state
 -- machine's history.
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb);
+
 create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
@@ -17943,7 +17024,7 @@ grant execute on function "better_supabase"."list_invoice_payments"(uuid) to aut
 -- import (better_supabase.import_run()), a historical credit note number; the
 -- credit note is then issued at once on issued_on (today by default) with that
 -- number. NUMBER_FIXED_FORBIDDEN outside an import.
-drop function if exists "better_supabase"."credit_invoice"(uuid, jsonb, text);
+
 create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
@@ -18001,7 +17082,7 @@ grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor
 -- go to the state machine's history.
-drop function if exists "better_supabase"."void_invoice"(uuid, text);
+
 create or replace function "better_supabase"."void_invoice"(invoice uuid, reason text, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -18055,8 +17136,7 @@ grant execute on function "better_supabase"."void_invoice"(uuid, text, jsonb) to
 
 -- Writes an open invoice off as uncollectible. Needs invoices.manage. The
 -- reason and actor go to the state machine's history.
-drop function if exists "better_supabase"."write_off_invoice"(uuid);
-drop function if exists "better_supabase"."write_off_invoice"(uuid, text);
+
 create or replace function "better_supabase"."write_off_invoice"(invoice uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -18106,7 +17186,7 @@ grant execute on function "better_supabase"."write_off_invoice"(uuid, text, json
 
 -- Reverses a recorded payment. The reason and actor go to the state machine's
 -- history.
-drop function if exists "better_supabase"."reverse_invoice_payment"(uuid, text);
+
 create or replace function "better_supabase"."reverse_invoice_payment"(payment uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -18184,9 +17264,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."reverse_invoice_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text, jsonb) to authenticated, service_role;
-
-drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
-drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
@@ -18260,8 +17337,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-
-drop function if exists "better_supabase"."remove_invoice_charge"(uuid);
 create or replace function "better_supabase"."remove_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -18329,7 +17404,7 @@ grant execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb)
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
 -- direction: sales (what customers owe) or purchase (what it owes suppliers).
-drop function if exists "better_supabase"."invoice_aging"(uuid, text, date);
+
 create or replace function "better_supabase"."invoice_aging"(tenant uuid, currency text, as_of date, direction text default 'sales')
 returns jsonb
 language sql
@@ -20331,255 +19406,195 @@ grant execute on function "better_supabase"."document_totals_by_billing_party"(u
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
 create policy bsb_tenant_scope_select on "better_supabase"."invoices" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoices" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
 create policy bsb_tenant_scope_update on "better_supabase"."invoices" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoices" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_charges";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_charges" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_charges" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_charges" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_charges" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_allocations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_allocations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_allocations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_allocations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_allocations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approval_levels";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approvals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_approvals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_approvals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_approvals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approvals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_e_endpoints";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."e_invoice_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -20601,119 +19616,16 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:a3bbe1ec4d09f83fc2e9655f487e248b2f3ac7e3b7fc7130c735c0c126e4e5c4
+-- @bsb-hash sha256:758e5de1c0efda60c35b026449a37d6998e6363fa47d309207ef95f90f1c93c0
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_charges";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_allocations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approvals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approvals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Invoices an organization sends its own customers and the bills its
 -- suppliers send it: drafts with lines, a number on issue, payments, credit
 -- notes, void and write-off, aging and the three-way match of a bill.
 
-create table if not exists "better_supabase"."invoices" (
+create table "better_supabase"."invoices" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "kind" text not null default 'invoice' check ("kind" in ('invoice', 'credit_note')),
@@ -20768,21 +19680,20 @@ create table if not exists "better_supabase"."invoices" (
   check ("status" in ('draft', 'void') or "number" is not null),
   check (("company_type" is null) = ("company_id" is null))
 );
-create index if not exists invoices_tenant_status_idx on "better_supabase"."invoices" ("org_id", "status", "due_on");
-create index if not exists invoices_origin_idx on "better_supabase"."invoices" ("origin_type", "origin_id");
-create index if not exists invoices_original_idx on "better_supabase"."invoices" ("original_id");
-create index if not exists invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
-create index if not exists invoices_purchase_order_idx on "better_supabase"."invoices" ("purchase_order_id");
+create index invoices_tenant_status_idx on "better_supabase"."invoices" ("org_id", "status", "due_on");
+create index invoices_origin_idx on "better_supabase"."invoices" ("origin_type", "origin_id");
+create index invoices_original_idx on "better_supabase"."invoices" ("original_id");
+create index invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
+create index invoices_purchase_order_idx on "better_supabase"."invoices" ("purchase_order_id");
 alter table "better_supabase"."invoices" enable row level security;
 revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
-drop policy if exists invoices_read on "better_supabase"."invoices";
 create policy invoices_read on "better_supabase"."invoices"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_charges" (
+create table "better_supabase"."invoice_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -20792,17 +19703,16 @@ create table if not exists "better_supabase"."invoice_charges" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists invoice_charges_invoice_idx on "better_supabase"."invoice_charges" ("invoice_id");
+create index invoice_charges_invoice_idx on "better_supabase"."invoice_charges" ("invoice_id");
 alter table "better_supabase"."invoice_charges" enable row level security;
 revoke all on "better_supabase"."invoice_charges" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_charges" to authenticated;
 grant all on "better_supabase"."invoice_charges" to service_role;
-drop policy if exists invoice_charges_read on "better_supabase"."invoice_charges";
 create policy invoice_charges_read on "better_supabase"."invoice_charges"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"));
 
-create table if not exists "better_supabase"."invoice_dunning_levels" (
+create table "better_supabase"."invoice_dunning_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "level" integer not null check ("level" >= 1 and "level" <= 20),
@@ -20819,29 +19729,27 @@ alter table "better_supabase"."invoice_dunning_levels" enable row level security
 revoke all on "better_supabase"."invoice_dunning_levels" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
 grant all on "better_supabase"."invoice_dunning_levels" to service_role;
-drop policy if exists invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels";
 create policy invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_runs" (
+create table "better_supabase"."invoice_dunning_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "as_of" date not null,
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("org_id", "created_at" desc);
+create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("org_id", "created_at" desc);
 alter table "better_supabase"."invoice_dunning_runs" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
 grant all on "better_supabase"."invoice_dunning_runs" to service_role;
-drop policy if exists invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs";
 create policy invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_run_items" (
+create table "better_supabase"."invoice_dunning_run_items" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "run_id" uuid not null references "better_supabase"."invoice_dunning_runs" ("id") on delete cascade,
@@ -20856,18 +19764,17 @@ create table if not exists "better_supabase"."invoice_dunning_run_items" (
   "created_at" timestamptz not null default now(),
   unique ("run_id", "invoice_id")
 );
-create index if not exists invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
-create index if not exists invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
+create index invoice_dunning_run_items_run_idx on "better_supabase"."invoice_dunning_run_items" ("run_id", "party_id");
+create index invoice_dunning_run_items_invoice_idx on "better_supabase"."invoice_dunning_run_items" ("invoice_id");
 alter table "better_supabase"."invoice_dunning_run_items" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_run_items" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_run_items" to authenticated;
 grant all on "better_supabase"."invoice_dunning_run_items" to service_role;
-drop policy if exists invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items";
 create policy invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_dunning_history" (
+create table "better_supabase"."invoice_dunning_history" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -20881,18 +19788,17 @@ create table if not exists "better_supabase"."invoice_dunning_history" (
   "note" text,
   "created_at" timestamptz not null default clock_timestamp()
 );
-create index if not exists invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
-create index if not exists invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
+create index invoice_dunning_history_invoice_idx on "better_supabase"."invoice_dunning_history" ("invoice_id", "created_at");
+create index invoice_dunning_history_run_idx on "better_supabase"."invoice_dunning_history" ("run_id") where "run_id" is not null;
 alter table "better_supabase"."invoice_dunning_history" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_history" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_history" to authenticated;
 grant all on "better_supabase"."invoice_dunning_history" to service_role;
-drop policy if exists invoice_dunning_history_read on "better_supabase"."invoice_dunning_history";
 create policy invoice_dunning_history_read on "better_supabase"."invoice_dunning_history"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_allocations" (
+create table "better_supabase"."invoice_allocations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "reference" text not null check (length("reference") >= 1 and length("reference") <= 200),
@@ -20910,18 +19816,17 @@ create table if not exists "better_supabase"."invoice_allocations" (
   "created_at" timestamptz not null default now(),
   unique ("org_id", "reference", "invoice_id")
 );
-create index if not exists invoice_allocations_invoice_idx on "better_supabase"."invoice_allocations" ("invoice_id");
-create index if not exists invoice_allocations_party_idx on "better_supabase"."invoice_allocations" ("org_id", "party_id", "created_at" desc);
+create index invoice_allocations_invoice_idx on "better_supabase"."invoice_allocations" ("invoice_id");
+create index invoice_allocations_party_idx on "better_supabase"."invoice_allocations" ("org_id", "party_id", "created_at" desc);
 alter table "better_supabase"."invoice_allocations" enable row level security;
 revoke all on "better_supabase"."invoice_allocations" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_allocations" to authenticated;
 grant all on "better_supabase"."invoice_allocations" to service_role;
-drop policy if exists invoice_allocations_read on "better_supabase"."invoice_allocations";
 create policy invoice_allocations_read on "better_supabase"."invoice_allocations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_approval_levels" (
+create table "better_supabase"."invoice_approval_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- Null: the level counts for every legal entity without levels of its own.
@@ -20932,17 +19837,16 @@ create table if not exists "better_supabase"."invoice_approval_levels" (
   "approver_id" uuid not null,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists invoice_approval_levels_level_key on "better_supabase"."invoice_approval_levels" ("org_id", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), "level");
+create unique index invoice_approval_levels_level_key on "better_supabase"."invoice_approval_levels" ("org_id", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), "level");
 alter table "better_supabase"."invoice_approval_levels" enable row level security;
 revoke all on "better_supabase"."invoice_approval_levels" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_approval_levels" to authenticated;
 grant all on "better_supabase"."invoice_approval_levels" to service_role;
-drop policy if exists invoice_approval_levels_read on "better_supabase"."invoice_approval_levels";
 create policy invoice_approval_levels_read on "better_supabase"."invoice_approval_levels"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_approvals" (
+create table "better_supabase"."invoice_approvals" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -20952,17 +19856,16 @@ create table if not exists "better_supabase"."invoice_approvals" (
   "decided_at" timestamptz not null default now(),
   unique ("invoice_id", "level")
 );
-create index if not exists invoice_approvals_tenant_idx on "better_supabase"."invoice_approvals" ("org_id", "invoice_id");
+create index invoice_approvals_tenant_idx on "better_supabase"."invoice_approvals" ("org_id", "invoice_id");
 alter table "better_supabase"."invoice_approvals" enable row level security;
 revoke all on "better_supabase"."invoice_approvals" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_approvals" to authenticated;
 grant all on "better_supabase"."invoice_approvals" to service_role;
-drop policy if exists invoice_approvals_read on "better_supabase"."invoice_approvals";
 create policy invoice_approvals_read on "better_supabase"."invoice_approvals"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."invoice_e_endpoints" (
+create table "better_supabase"."invoice_e_endpoints" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "party_kind" text not null check ("party_kind" in ('organization', 'legal_entity', 'company')),
@@ -20973,18 +19876,17 @@ create table if not exists "better_supabase"."invoice_e_endpoints" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists invoice_e_endpoints_party_key on "better_supabase"."invoice_e_endpoints" ("org_id", "party_kind", "party_id");
-create index if not exists invoice_e_endpoints_lookup_idx on "better_supabase"."invoice_e_endpoints" ("org_id", "scheme", "endpoint_id");
+create unique index invoice_e_endpoints_party_key on "better_supabase"."invoice_e_endpoints" ("org_id", "party_kind", "party_id");
+create index invoice_e_endpoints_lookup_idx on "better_supabase"."invoice_e_endpoints" ("org_id", "scheme", "endpoint_id");
 alter table "better_supabase"."invoice_e_endpoints" enable row level security;
 revoke all on "better_supabase"."invoice_e_endpoints" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_e_endpoints" to authenticated;
 grant all on "better_supabase"."invoice_e_endpoints" to service_role;
-drop policy if exists invoice_e_endpoints_read on "better_supabase"."invoice_e_endpoints";
 create policy invoice_e_endpoints_read on "better_supabase"."invoice_e_endpoints"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table if not exists "better_supabase"."e_invoice_deliveries" (
+create table "better_supabase"."e_invoice_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "invoice_id" uuid references "better_supabase"."invoices" ("id") on delete set null,
@@ -20998,14 +19900,13 @@ create table if not exists "better_supabase"."e_invoice_deliveries" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists e_invoice_deliveries_message_key on "better_supabase"."e_invoice_deliveries" ("org_id", "channel", "message_id");
-create index if not exists e_invoice_deliveries_invoice_idx on "better_supabase"."e_invoice_deliveries" ("invoice_id", "org_id");
-create index if not exists e_invoice_deliveries_state_idx on "better_supabase"."e_invoice_deliveries" ("org_id", "direction", "state");
+create unique index e_invoice_deliveries_message_key on "better_supabase"."e_invoice_deliveries" ("org_id", "channel", "message_id");
+create index e_invoice_deliveries_invoice_idx on "better_supabase"."e_invoice_deliveries" ("invoice_id", "org_id");
+create index e_invoice_deliveries_state_idx on "better_supabase"."e_invoice_deliveries" ("org_id", "direction", "state");
 alter table "better_supabase"."e_invoice_deliveries" enable row level security;
 revoke all on "better_supabase"."e_invoice_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."e_invoice_deliveries" to authenticated;
 grant all on "better_supabase"."e_invoice_deliveries" to service_role;
-drop policy if exists e_invoice_deliveries_read on "better_supabase"."e_invoice_deliveries";
 create policy e_invoice_deliveries_read on "better_supabase"."e_invoice_deliveries"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
@@ -21215,7 +20116,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
-create table if not exists "better_supabase"."invoice_lines" (
+create table "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "parent_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -21241,13 +20142,11 @@ create table if not exists "better_supabase"."invoice_lines" (
   "created_at" timestamptz not null default now(),
   check (("product_type" is null) = ("product_id" is null))
 );
-alter table "better_supabase"."invoice_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
-create index if not exists "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
+create index "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
 alter table "better_supabase"."invoice_lines" enable row level security;
 revoke all on "better_supabase"."invoice_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
-drop policy if exists "invoice_lines_read" on "better_supabase"."invoice_lines";
 create policy "invoice_lines_read" on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
@@ -21356,10 +20255,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_invoice_lines_totals() from public, anon, authenticated;
-drop trigger if exists bsb_invoice_lines_totals on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_insert on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_update on "better_supabase"."invoice_lines";
-drop trigger if exists bsb_invoice_lines_totals_delete on "better_supabase"."invoice_lines";
 create trigger bsb_invoice_lines_totals_insert after insert on "better_supabase"."invoice_lines"
 referencing new table as new_rows
 for each statement execute function better_supabase.bsb_invoice_lines_totals();
@@ -21444,9 +20339,7 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- number is only taken when the invoice is final), its issue and due date,
 -- and its lines freeze. A credit note reduces the balance of its original.
 -- actor: who issued it, for the state machine's history.
-drop function if exists "better_supabase"."issue_invoice"(uuid, date);
-drop function if exists "better_supabase"."issue_invoice"(uuid, date, date);
-drop function if exists "better_supabase"."issue_invoice"(uuid, date, date, jsonb);
+
 -- fixed_number: a historical number to keep as is, only while an import runs
 -- (better_supabase.import_run()); NUMBER_FIXED_FORBIDDEN otherwise. The counter
 -- of its series (kind, direction, legal entity, period) rises to it.
@@ -21619,10 +20512,7 @@ grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, js
 -- organization, so recording the same payment twice adds it once. actor:
 -- who recorded it, and reason: why the status changes, for the state
 -- machine's history.
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
-drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb);
+
 create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
@@ -21772,7 +20662,7 @@ grant execute on function "better_supabase"."list_invoice_payments"(uuid) to aut
 -- import (better_supabase.import_run()), a historical credit note number; the
 -- credit note is then issued at once on issued_on (today by default) with that
 -- number. NUMBER_FIXED_FORBIDDEN outside an import.
-drop function if exists "better_supabase"."credit_invoice"(uuid, jsonb, text);
+
 create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text, fixed_number text default null, issued_on date default null)
 returns jsonb
 language plpgsql
@@ -21830,7 +20720,7 @@ grant execute on function "better_supabase"."credit_invoice"(uuid, jsonb, text, 
 -- Voids an invoice without payments: a draft, or an issued one sent in
 -- error. Its number stays taken. Needs invoices.manage. The reason and actor
 -- go to the state machine's history.
-drop function if exists "better_supabase"."void_invoice"(uuid, text);
+
 create or replace function "better_supabase"."void_invoice"(invoice uuid, reason text, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -21884,8 +20774,7 @@ grant execute on function "better_supabase"."void_invoice"(uuid, text, jsonb) to
 
 -- Writes an open invoice off as uncollectible. Needs invoices.manage. The
 -- reason and actor go to the state machine's history.
-drop function if exists "better_supabase"."write_off_invoice"(uuid);
-drop function if exists "better_supabase"."write_off_invoice"(uuid, text);
+
 create or replace function "better_supabase"."write_off_invoice"(invoice uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -21935,7 +20824,7 @@ grant execute on function "better_supabase"."write_off_invoice"(uuid, text, json
 
 -- Reverses a recorded payment. The reason and actor go to the state machine's
 -- history.
-drop function if exists "better_supabase"."reverse_invoice_payment"(uuid, text);
+
 create or replace function "better_supabase"."reverse_invoice_payment"(payment uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -22013,9 +20902,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."reverse_invoice_payment"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text, jsonb) to authenticated, service_role;
-
-drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb);
-drop function if exists "better_supabase"."add_invoice_charge"(uuid, bigint, text, text);
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
@@ -22089,8 +20975,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-
-drop function if exists "better_supabase"."remove_invoice_charge"(uuid);
 create or replace function "better_supabase"."remove_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -22158,7 +21042,7 @@ grant execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb)
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
 -- direction: sales (what customers owe) or purchase (what it owes suppliers).
-drop function if exists "better_supabase"."invoice_aging"(uuid, text, date);
+
 create or replace function "better_supabase"."invoice_aging"(tenant uuid, currency text, as_of date, direction text default 'sales')
 returns jsonb
 language sql
@@ -24160,255 +23044,195 @@ grant execute on function "better_supabase"."document_totals_by_billing_party"(u
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoices";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoices";
 create policy bsb_tenant_scope_select on "better_supabase"."invoices" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoices";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoices" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoices";
 create policy bsb_tenant_scope_update on "better_supabase"."invoices" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoices";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoices" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_lines" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_lines" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_lines" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_lines" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_charges";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_charges" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_charges" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_charges" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_charges";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_charges" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_levels";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_levels" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_levels" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_levels" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_levels" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_runs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_runs" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_runs" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_runs" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_runs" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_run_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_run_items" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_run_items" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_run_items" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_run_items" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_dunning_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_dunning_history" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_dunning_history" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_dunning_history" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_dunning_history" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_allocations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_allocations" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_allocations" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_allocations" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_allocations";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_allocations" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approval_levels";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_approval_levels" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_approval_levels" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_approval_levels" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approval_levels" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_approvals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_approvals" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_approvals" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_approvals" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_approvals";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approvals" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."invoice_e_endpoints";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints";
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."e_invoice_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."e_invoice_deliveries" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

@@ -528,7 +528,7 @@ describe("data-lifecycle module", () => {
         "v_parts := v_parts || jsonb_build_object('better_supabase.conversations', v_rows);",
       );
       expect(sql).toContain(
-        'create table if not exists "better_supabase"."data_export_contents"',
+        'create table "better_supabase"."data_export_contents"',
       );
     });
 
@@ -600,7 +600,7 @@ describe("data-lifecycle module", () => {
 
     it("creates the request table and locks it", () => {
       expect(sql).toContain(
-        'create table if not exists "better_supabase"."data_subject_requests"',
+        'create table "better_supabase"."data_subject_requests"',
       );
       expect(sql).toContain(
         `"kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability'))`,

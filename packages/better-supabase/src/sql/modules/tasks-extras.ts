@@ -92,7 +92,7 @@ create table if not exists ${t("checklist")} (
 );
 create index if not exists ${sqlIdent(ctx.tableName("checklist").name.replace(/items$/, "item_idx"))} on ${t("checklist")} (${k("item")}, ${k("rank")});
 ${lockModuleTable(ctx, "checklist", { read: true })}
-${renderPolicy(makePolicy({ table: t("checklist"), name: `${name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(k("tenant"), n.read) }), { drop: true, target: t("checklist") })}
+${renderPolicy(makePolicy({ table: t("checklist"), name: `${name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(k("tenant"), n.read) }), { target: t("checklist") })}
 `;
 }
 

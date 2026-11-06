@@ -418,7 +418,7 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
   unique (${f("tenant")}, ${f("key")})
 );${addExtraColumns(forms, extras)}
 ${lockTable(forms, { read: true })}
-${renderPolicy(makePolicy({ table: forms, name: ctx.naming.rename("forms_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(f("tenant"), read) }), { drop: true, target: forms })}
+${renderPolicy(makePolicy({ table: forms, name: ctx.naming.rename("forms_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(f("tenant"), read) }), { target: forms })}
 
 create table if not exists ${versions} (
   ${v("id")} uuid primary key default gen_random_uuid(),
@@ -432,7 +432,7 @@ create table if not exists ${versions} (
   unique (${v("form")}, ${v("number")})
 );
 ${lockTable(versions, { read: true })}
-${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("form_versions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(v("tenant"), read) }), { drop: true, target: versions })}
+${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("form_versions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(v("tenant"), read) }), { target: versions })}
 
 create table if not exists ${submissions} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -457,7 +457,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_vers
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_respondent_idx`)} on ${submissions} (${s("respondent")}) where ${s("respondent")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_subject_idx`)} on ${submissions} (${s("subjectType")}, ${s("subjectId")}) where ${s("subjectType")} is not null;
 ${lockTable(submissions, { read: true })}
-${renderPolicy(makePolicy({ table: submissions, name: ctx.naming.rename("form_submissions_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), review)} or ${s("respondent")} = (select auth.uid())` }), { drop: true, target: submissions })}
+${renderPolicy(makePolicy({ table: submissions, name: ctx.naming.rename("form_submissions_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), review)} or ${s("respondent")} = (select auth.uid())` }), { target: submissions })}
 alter table ${submissions} add column if not exists ${s("score")} numeric;
 alter table ${submissions} add column if not exists ${s("maxScore")} numeric;
 alter table ${submissions} add column if not exists ${s("passed")} boolean;

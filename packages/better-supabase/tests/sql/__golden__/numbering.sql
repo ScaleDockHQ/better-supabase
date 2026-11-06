@@ -1,30 +1,15 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:63d22232253bedaa6fe4e55a2009e72e1932d414b046387bade0a734427572f9
+-- @bsb-hash sha256:2ecfa6e74f6120e461ca4f8f05fe9d54d3d20f8835102a143cd9fe3d5cac9750
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."number_sequences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Gapless numbers. next_number locks the sequence row inside the caller's
 -- transaction, so a rollback releases the number. Clients get a number
 -- only through a trigger: the function is service-only.
-create table if not exists "better_supabase"."number_sequences" (
+create table "better_supabase"."number_sequences" (
   "tenant_id" uuid not null,
   "entity" text not null,
   -- The legal entity (its id as text) the series belongs to; '' is the default entity.
@@ -138,8 +123,7 @@ revoke execute on function better_supabase.number_format_pattern(text) from publ
 grant execute on function better_supabase.number_format_pattern(text) to service_role;
 
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz) cascade;
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz, text) cascade;
+
 create or replace function "better_supabase"."next_number"(tenant uuid, p_entity text, at timestamptz default now(), p_scope text default '')
 returns bigint
 language plpgsql
@@ -310,8 +294,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."number_period"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."number_period"(uuid, text) to service_role;
-
-drop function if exists "better_supabase"."preview_number"(uuid, text, timestamptz);
 create or replace function "better_supabase"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now(), p_scope text default '')
 returns text
 language plpgsql
@@ -350,7 +332,7 @@ grant execute on function "better_supabase"."preview_number"(uuid, text, timesta
 -- syncs every one. Returns { synced, mismatched }: the numbers that don't
 -- match the current format are listed (and added to the import run as
 -- warnings), never rejected.
-drop function if exists "better_supabase"."sync_number_sequences"(uuid, text);
+
 create or replace function "better_supabase"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null, p_scope text default null)
 returns jsonb
 language plpgsql
@@ -392,30 +374,15 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:88cfbb4f73dd7eabaceeb29ae2ece5924d0c784dc45c3ee4f217728a9eab52b7
+-- @bsb-hash sha256:54b2f6d0311cb37f1a87a14486d80a538b6ebdc6012890331d83e89f72f279b7
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."number_sequences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Gapless numbers. next_number locks the sequence row inside the caller's
 -- transaction, so a rollback releases the number. Clients get a number
 -- only through a trigger: the function is service-only.
-create table if not exists "better_supabase"."number_sequences" (
+create table "better_supabase"."number_sequences" (
   "tenant_id" uuid not null,
   "entity" text not null,
   -- The legal entity (its id as text) the series belongs to; '' is the default entity.
@@ -529,8 +496,7 @@ revoke execute on function better_supabase.number_format_pattern(text) from publ
 grant execute on function better_supabase.number_format_pattern(text) to service_role;
 
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz) cascade;
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz, text) cascade;
+
 create or replace function "better_supabase"."next_number"(tenant uuid, p_entity text, at timestamptz default now(), p_scope text default '')
 returns bigint
 language plpgsql
@@ -739,8 +705,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."number_period"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."number_period"(uuid, text) to service_role;
-
-drop function if exists "better_supabase"."preview_number"(uuid, text, timestamptz);
 create or replace function "better_supabase"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now(), p_scope text default '')
 returns text
 language plpgsql
@@ -786,7 +750,7 @@ grant execute on function "better_supabase"."preview_number"(uuid, text, timesta
 -- syncs every one. Returns { synced, mismatched }: the numbers that don't
 -- match the current format are listed (and added to the import run as
 -- warnings), never rejected.
-drop function if exists "better_supabase"."sync_number_sequences"(uuid, text);
+
 create or replace function "better_supabase"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null, p_scope text default null)
 returns jsonb
 language plpgsql
@@ -836,24 +800,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:247a6535f073c96d773ceb5228bc20e4fa01dd95695aa6c6319ba0325ddc691a
+-- @bsb-hash sha256:37a622e4868d52e387678c2abe0f9dfe36155c532b587fa24960e603d3f97655
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."number_sequences";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."number_sequences";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."number_sequences";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."number_sequences";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."number_sequences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -863,7 +813,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Gapless numbers. next_number locks the sequence row inside the caller's
 -- transaction, so a rollback releases the number. Clients get a number
 -- only through a trigger: the function is service-only.
-create table if not exists "app_private"."number_sequences" (
+create table "app_private"."number_sequences" (
   "tenant_id" uuid not null,
   "entity" text not null,
   -- The legal entity (its id as text) the series belongs to; '' is the default entity.
@@ -977,8 +927,7 @@ revoke execute on function better_supabase.number_format_pattern(text) from publ
 grant execute on function better_supabase.number_format_pattern(text) to service_role;
 
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
-drop function if exists "app_private"."next_number"(uuid, text, timestamptz) cascade;
-drop function if exists "app_private"."next_number"(uuid, text, timestamptz, text) cascade;
+
 create or replace function "app_private"."next_number"(tenant uuid, p_entity text, at timestamptz default now(), p_scope text default '')
 returns bigint
 language plpgsql
@@ -1149,8 +1098,6 @@ end;
 $$;
 revoke execute on function "app_private"."number_period"(uuid, text) from public, anon, authenticated;
 grant execute on function "app_private"."number_period"(uuid, text) to service_role;
-
-drop function if exists "app_private"."preview_number"(uuid, text, timestamptz);
 create or replace function "app_private"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now(), p_scope text default '')
 returns text
 language plpgsql
@@ -1189,7 +1136,7 @@ grant execute on function "app_private"."preview_number"(uuid, text, timestamptz
 -- syncs every one. Returns { synced, mismatched }: the numbers that don't
 -- match the current format are listed (and added to the import run as
 -- warnings), never rejected.
-drop function if exists "app_private"."sync_number_sequences"(uuid, text);
+
 create or replace function "app_private"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null, p_scope text default null)
 returns jsonb
 language plpgsql
@@ -1231,30 +1178,15 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:b11b08fd7f7d6fb4dd66a7c5decfcbc71ed77c99a630eaa5f44bef225ab96f6d
+-- @bsb-hash sha256:abc7c17118571bd768352fa1f979238c0a0ca025a326ec6562c8e3a8663cb4e3
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."number_sequences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Gapless numbers. next_number locks the sequence row inside the caller's
 -- transaction, so a rollback releases the number. Clients get a number
 -- only through a trigger: the function is service-only.
-create table if not exists "better_supabase"."number_sequences" (
+create table "better_supabase"."number_sequences" (
   "tenant_id" uuid not null,
   "entity" text not null,
   -- The legal entity (its id as text) the series belongs to; '' is the default entity.
@@ -1368,8 +1300,7 @@ revoke execute on function better_supabase.number_format_pattern(text) from publ
 grant execute on function better_supabase.number_format_pattern(text) to service_role;
 
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz) cascade;
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz, text) cascade;
+
 create or replace function "better_supabase"."next_number"(tenant uuid, p_entity text, at timestamptz default now(), p_scope text default '')
 returns bigint
 language plpgsql
@@ -1540,8 +1471,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."number_period"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."number_period"(uuid, text) to service_role;
-
-drop function if exists "better_supabase"."preview_number"(uuid, text, timestamptz);
 create or replace function "better_supabase"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now(), p_scope text default '')
 returns text
 language plpgsql
@@ -1580,7 +1509,7 @@ grant execute on function "better_supabase"."preview_number"(uuid, text, timesta
 -- syncs every one. Returns { synced, mismatched }: the numbers that don't
 -- match the current format are listed (and added to the import run as
 -- warnings), never rejected.
-drop function if exists "better_supabase"."sync_number_sequences"(uuid, text);
+
 create or replace function "better_supabase"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null, p_scope text default null)
 returns jsonb
 language plpgsql
@@ -1608,9 +1537,6 @@ grant execute on function "better_supabase"."sync_number_sequences"(uuid, text, 
 -- blocks.numbering.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."preview_number"(uuid, text, timestamptz);
-drop function if exists "api"."sync_number_sequences"(uuid, text);
 
 create or replace function "api"."format_assigned_number"(template text, n bigint, at timestamptz)
 returns text
@@ -1775,25 +1701,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:b22c657dea80c46547b2f1b23029c7c3b8d57d9db1acbe818fefe558fbacaf28
+-- @bsb-hash sha256:3d969c2c621a6265070c588dcc592e77b642ba9a8c9654522336e25d7df73f43
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."number_sequences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Gapless numbers. next_number locks the sequence row inside the caller's
 -- transaction, so a rollback releases the number. Clients get a number
@@ -1930,8 +1841,7 @@ revoke execute on function better_supabase.number_format_pattern(text) from publ
 grant execute on function better_supabase.number_format_pattern(text) to service_role;
 
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz) cascade;
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz, text) cascade;
+
 create or replace function "better_supabase"."next_number"(tenant uuid, p_entity text, at timestamptz default now(), p_scope text default '')
 returns bigint
 language plpgsql
@@ -2102,8 +2012,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."number_period"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."number_period"(uuid, text) to service_role;
-
-drop function if exists "better_supabase"."preview_number"(uuid, text, timestamptz);
 create or replace function "better_supabase"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now(), p_scope text default '')
 returns text
 language plpgsql
@@ -2142,7 +2050,7 @@ grant execute on function "better_supabase"."preview_number"(uuid, text, timesta
 -- syncs every one. Returns { synced, mismatched }: the numbers that don't
 -- match the current format are listed (and added to the import run as
 -- warnings), never rejected.
-drop function if exists "better_supabase"."sync_number_sequences"(uuid, text);
+
 create or replace function "better_supabase"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null, p_scope text default null)
 returns jsonb
 language plpgsql
@@ -2184,30 +2092,15 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:cbd49cbdbe2765e18711a7809016f4655b7d063b0e3208ff142fcaaf95be2200
+-- @bsb-hash sha256:025060084fa2d1f2af1263237643764d018a017d16717bdb876a1b6e32cf4b52
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."number_sequences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."number_sequences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Gapless numbers. next_number locks the sequence row inside the caller's
 -- transaction, so a rollback releases the number. Clients get a number
 -- only through a trigger: the function is service-only.
-create table if not exists "better_supabase"."number_sequences" (
+create table "better_supabase"."number_sequences" (
   "org_id" uuid not null,
   "entity" text not null,
   -- The legal entity (its id as text) the series belongs to; '' is the default entity.
@@ -2321,8 +2214,7 @@ revoke execute on function better_supabase.number_format_pattern(text) from publ
 grant execute on function better_supabase.number_format_pattern(text) to service_role;
 
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz) cascade;
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz, text) cascade;
+
 create or replace function "better_supabase"."next_number"(tenant uuid, p_entity text, at timestamptz default now(), p_scope text default '')
 returns bigint
 language plpgsql
@@ -2493,8 +2385,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."number_period"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."number_period"(uuid, text) to service_role;
-
-drop function if exists "better_supabase"."preview_number"(uuid, text, timestamptz);
 create or replace function "better_supabase"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now(), p_scope text default '')
 returns text
 language plpgsql
@@ -2533,7 +2423,7 @@ grant execute on function "better_supabase"."preview_number"(uuid, text, timesta
 -- syncs every one. Returns { synced, mismatched }: the numbers that don't
 -- match the current format are listed (and added to the import run as
 -- warnings), never rejected.
-drop function if exists "better_supabase"."sync_number_sequences"(uuid, text);
+
 create or replace function "better_supabase"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null, p_scope text default null)
 returns jsonb
 language plpgsql

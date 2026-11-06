@@ -1,47 +1,16 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:c3300dcbf84fed1f9942aaa9890af26a8cd964f56e31b02dd9c837d3297f4c18
+-- @bsb-hash sha256:997cb45df00d89a41f476408d32244e692599ccf6e3b63137a9d8369644276a8
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employees";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_private_details";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_contracts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
 
-create table if not exists "better_supabase"."employees" (
+create table "better_supabase"."employees" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete set null,
@@ -64,23 +33,22 @@ create table if not exists "better_supabase"."employees" (
   check ("end_date" is null or "start_date" is null or "end_date" >= "start_date"),
   check (("origin_type" is null) = ("origin_id" is null))
 );
-create unique index if not exists employees_user_idx on "better_supabase"."employees" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists employees_account_idx on "better_supabase"."employees" ("user_id") where "user_id" is not null;
-create unique index if not exists employees_origin_idx on "better_supabase"."employees" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null;
-create index if not exists employees_tenant_status_idx on "better_supabase"."employees" ("tenant_id", "status");
-create index if not exists employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
+create unique index employees_user_idx on "better_supabase"."employees" ("tenant_id", "user_id") where "user_id" is not null;
+create index employees_account_idx on "better_supabase"."employees" ("user_id") where "user_id" is not null;
+create unique index employees_origin_idx on "better_supabase"."employees" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null;
+create index employees_tenant_status_idx on "better_supabase"."employees" ("tenant_id", "status");
+create index employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
 alter table "better_supabase"."employees" enable row level security;
 revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
-drop policy if exists employees_read on "better_supabase"."employees";
 create policy employees_read on "better_supabase"."employees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
 -- Private details stay out of the directory: readable with
 -- employees.view_sensitive and by the employee.
-create table if not exists "better_supabase"."employee_private_details" (
+create table "better_supabase"."employee_private_details" (
   "employee_id" uuid primary key references "better_supabase"."employees" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid,
@@ -96,19 +64,18 @@ create table if not exists "better_supabase"."employee_private_details" (
   "updated_at" timestamptz not null default now(),
   "updated_by" uuid
 );
-create index if not exists employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
+create index employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."employee_private_details" enable row level security;
 revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
-drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
 create policy employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
-create table if not exists "better_supabase"."employee_contracts" (
+create table "better_supabase"."employee_contracts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "employee_id" uuid not null references "better_supabase"."employees" ("id") on delete cascade,
@@ -124,12 +91,11 @@ create table if not exists "better_supabase"."employee_contracts" (
   check ("ends_on" is null or "ends_on" >= "starts_on"),
   check (("salary" is null) = ("currency" is null))
 );
-create index if not exists employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
+create index employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
 alter table "better_supabase"."employee_contracts" enable row level security;
 revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
-drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
 create policy employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
@@ -167,7 +133,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bsb_employee_manager_guard on "better_supabase"."employees";
 create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_manager_guard();
 
@@ -186,7 +151,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bsb_employee_user_mirror on "better_supabase"."employees";
 create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_user_mirror();
 
@@ -280,7 +244,7 @@ grant execute on function "better_supabase"."create_employee"(uuid, jsonb) to au
 -- preboarding, active or on_leave; setting it on an offboarded employee
 -- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
 -- [{ employeeId, field, hint, reason }] }.
-drop function if exists "better_supabase"."update_employees"(jsonb);
+
 create or replace function "better_supabase"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
@@ -755,50 +719,38 @@ grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb)
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employees";
 create policy bsb_tenant_scope_select on "better_supabase"."employees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employees";
 create policy bsb_tenant_scope_insert on "better_supabase"."employees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employees";
 create policy bsb_tenant_scope_update on "better_supabase"."employees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employees";
 create policy bsb_tenant_scope_delete on "better_supabase"."employees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_select on "better_supabase"."employee_private_details" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_private_details" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_update on "better_supabase"."employee_private_details" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_delete on "better_supabase"."employee_private_details" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" as restrictive
   for select to public
   using (
@@ -806,16 +758,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" 
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_contracts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_update on "better_supabase"."employee_contracts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_delete on "better_supabase"."employee_contracts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -837,47 +786,16 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:4a73c72fc923af6913be40bdb2b3787ad9cf84c3b891d3ed0f37daf00c053b6e
+-- @bsb-hash sha256:2f08ef986a74acebffc961b9c6d5a6b6a456b6fc8881ccb920593d1306689118
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employees";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_private_details";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_contracts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
 
-create table if not exists "better_supabase"."employees" (
+create table "better_supabase"."employees" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete set null,
@@ -900,23 +818,22 @@ create table if not exists "better_supabase"."employees" (
   check ("end_date" is null or "start_date" is null or "end_date" >= "start_date"),
   check (("origin_type" is null) = ("origin_id" is null))
 );
-create unique index if not exists employees_user_idx on "better_supabase"."employees" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists employees_account_idx on "better_supabase"."employees" ("user_id") where "user_id" is not null;
-create unique index if not exists employees_origin_idx on "better_supabase"."employees" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null;
-create index if not exists employees_tenant_status_idx on "better_supabase"."employees" ("tenant_id", "status");
-create index if not exists employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
+create unique index employees_user_idx on "better_supabase"."employees" ("tenant_id", "user_id") where "user_id" is not null;
+create index employees_account_idx on "better_supabase"."employees" ("user_id") where "user_id" is not null;
+create unique index employees_origin_idx on "better_supabase"."employees" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null;
+create index employees_tenant_status_idx on "better_supabase"."employees" ("tenant_id", "status");
+create index employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
 alter table "better_supabase"."employees" enable row level security;
 revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
-drop policy if exists employees_read on "better_supabase"."employees";
 create policy employees_read on "better_supabase"."employees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
 -- Private details stay out of the directory: readable with
 -- employees.view_sensitive and by the employee.
-create table if not exists "better_supabase"."employee_private_details" (
+create table "better_supabase"."employee_private_details" (
   "employee_id" uuid primary key references "better_supabase"."employees" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid,
@@ -932,19 +849,18 @@ create table if not exists "better_supabase"."employee_private_details" (
   "updated_at" timestamptz not null default now(),
   "updated_by" uuid
 );
-create index if not exists employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
+create index employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."employee_private_details" enable row level security;
 revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
-drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
 create policy employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
-create table if not exists "better_supabase"."employee_contracts" (
+create table "better_supabase"."employee_contracts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "employee_id" uuid not null references "better_supabase"."employees" ("id") on delete cascade,
@@ -960,12 +876,11 @@ create table if not exists "better_supabase"."employee_contracts" (
   check ("ends_on" is null or "ends_on" >= "starts_on"),
   check (("salary" is null) = ("currency" is null))
 );
-create index if not exists employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
+create index employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
 alter table "better_supabase"."employee_contracts" enable row level security;
 revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
-drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
 create policy employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
@@ -1003,7 +918,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bsb_employee_manager_guard on "better_supabase"."employees";
 create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_manager_guard();
 
@@ -1022,11 +936,8 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bsb_employee_user_mirror on "better_supabase"."employees";
 create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_user_mirror();
-
-drop trigger if exists "bsb_approval_memo" on "better_supabase"."employees";
 create trigger "bsb_approval_memo" after insert or update or delete on "better_supabase"."employees"
   for each statement execute function "better_supabase"."approval_memo_bump"();
 
@@ -1125,7 +1036,7 @@ grant execute on function "better_supabase"."create_employee"(uuid, jsonb) to au
 -- preboarding, active or on_leave; setting it on an offboarded employee
 -- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
 -- [{ employeeId, field, hint, reason }] }.
-drop function if exists "better_supabase"."update_employees"(jsonb);
+
 create or replace function "better_supabase"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
@@ -1641,8 +1552,8 @@ grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb)
 
 -- time_entries.employee_id: the employee behind the row's user, kept in step with
 -- employees by the two triggers below.
-alter table "better_supabase"."time_entries" add column if not exists employee_id uuid references "better_supabase"."employees" ("id") on delete set null;
-create index if not exists "time_entries_employee_idx" on "better_supabase"."time_entries" (employee_id) where employee_id is not null;
+alter table "better_supabase"."time_entries" add column employee_id uuid references "better_supabase"."employees" ("id") on delete set null;
+create index "time_entries_employee_idx" on "better_supabase"."time_entries" (employee_id) where employee_id is not null;
 
 create or replace function better_supabase.bsb_time_entries_employee()
 returns trigger
@@ -1659,7 +1570,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_time_entries_employee() from public, anon, authenticated;
-drop trigger if exists bsb_time_entries_employee on "better_supabase"."time_entries";
 create trigger bsb_time_entries_employee before insert or update of "user_id" on "better_supabase"."time_entries"
 for each row execute function better_supabase.bsb_time_entries_employee();
 
@@ -1683,57 +1593,44 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_time_entries_employee_sync() from public, anon, authenticated;
-drop trigger if exists bsb_time_entries_employee_sync on "better_supabase"."employees";
 create trigger bsb_time_entries_employee_sync after insert or update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_time_entries_employee_sync();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employees";
 create policy bsb_tenant_scope_select on "better_supabase"."employees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employees";
 create policy bsb_tenant_scope_insert on "better_supabase"."employees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employees";
 create policy bsb_tenant_scope_update on "better_supabase"."employees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employees";
 create policy bsb_tenant_scope_delete on "better_supabase"."employees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_select on "better_supabase"."employee_private_details" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_private_details" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_update on "better_supabase"."employee_private_details" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_delete on "better_supabase"."employee_private_details" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" as restrictive
   for select to public
   using (
@@ -1741,16 +1638,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" 
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_contracts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_update on "better_supabase"."employee_contracts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_delete on "better_supabase"."employee_contracts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1779,40 +1673,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:ccf043828eb1572e5a213d1708107086842ebca467f4909f222b1bc110ce2069
+-- @bsb-hash sha256:454d77fe858f31867505b677f2e36a106d7cc0a4b4e4be0d9aec25019426c022
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."employees";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."employees";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."employees";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."employees";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."employees";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."employee_private_details";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."employee_contracts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -1823,7 +1687,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
 
-create table if not exists "app_private"."employees" (
+create table "app_private"."employees" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete set null,
@@ -1846,23 +1710,22 @@ create table if not exists "app_private"."employees" (
   check ("end_date" is null or "start_date" is null or "end_date" >= "start_date"),
   check (("origin_type" is null) = ("origin_id" is null))
 );
-create unique index if not exists employees_user_idx on "app_private"."employees" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists employees_account_idx on "app_private"."employees" ("user_id") where "user_id" is not null;
-create unique index if not exists employees_origin_idx on "app_private"."employees" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null;
-create index if not exists employees_tenant_status_idx on "app_private"."employees" ("tenant_id", "status");
-create index if not exists employees_manager_idx on "app_private"."employees" ("manager_id") where "manager_id" is not null;
+create unique index employees_user_idx on "app_private"."employees" ("tenant_id", "user_id") where "user_id" is not null;
+create index employees_account_idx on "app_private"."employees" ("user_id") where "user_id" is not null;
+create unique index employees_origin_idx on "app_private"."employees" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null;
+create index employees_tenant_status_idx on "app_private"."employees" ("tenant_id", "status");
+create index employees_manager_idx on "app_private"."employees" ("manager_id") where "manager_id" is not null;
 alter table "app_private"."employees" enable row level security;
 revoke all on "app_private"."employees" from public, anon, authenticated;
 grant select on "app_private"."employees" to authenticated;
 grant all on "app_private"."employees" to service_role;
-drop policy if exists employees_read on "app_private"."employees";
 create policy employees_read on "app_private"."employees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
 -- Private details stay out of the directory: readable with
 -- employees.view_sensitive and by the employee.
-create table if not exists "app_private"."employee_private_details" (
+create table "app_private"."employee_private_details" (
   "employee_id" uuid primary key references "app_private"."employees" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid,
@@ -1878,19 +1741,18 @@ create table if not exists "app_private"."employee_private_details" (
   "updated_at" timestamptz not null default now(),
   "updated_by" uuid
 );
-create index if not exists employee_private_details_user_idx on "app_private"."employee_private_details" ("user_id") where "user_id" is not null;
+create index employee_private_details_user_idx on "app_private"."employee_private_details" ("user_id") where "user_id" is not null;
 alter table "app_private"."employee_private_details" enable row level security;
 revoke all on "app_private"."employee_private_details" from public, anon, authenticated;
 grant select on "app_private"."employee_private_details" to authenticated;
 grant all on "app_private"."employee_private_details" to service_role;
-drop policy if exists employee_private_details_read on "app_private"."employee_private_details";
 create policy employee_private_details_read on "app_private"."employee_private_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
-create table if not exists "app_private"."employee_contracts" (
+create table "app_private"."employee_contracts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "employee_id" uuid not null references "app_private"."employees" ("id") on delete cascade,
@@ -1906,12 +1768,11 @@ create table if not exists "app_private"."employee_contracts" (
   check ("ends_on" is null or "ends_on" >= "starts_on"),
   check (("salary" is null) = ("currency" is null))
 );
-create index if not exists employee_contracts_employee_idx on "app_private"."employee_contracts" ("employee_id", "starts_on" desc);
+create index employee_contracts_employee_idx on "app_private"."employee_contracts" ("employee_id", "starts_on" desc);
 alter table "app_private"."employee_contracts" enable row level security;
 revoke all on "app_private"."employee_contracts" from public, anon, authenticated;
 grant select on "app_private"."employee_contracts" to authenticated;
 grant all on "app_private"."employee_contracts" to service_role;
-drop policy if exists employee_contracts_read on "app_private"."employee_contracts";
 create policy employee_contracts_read on "app_private"."employee_contracts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
@@ -1949,7 +1810,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bsb_employee_manager_guard on "app_private"."employees";
 create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "app_private"."employees"
 for each row execute function better_supabase.bsb_employee_manager_guard();
 
@@ -1968,7 +1828,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bsb_employee_user_mirror on "app_private"."employees";
 create trigger bsb_employee_user_mirror after update of "user_id" on "app_private"."employees"
 for each row execute function better_supabase.bsb_employee_user_mirror();
 
@@ -2062,7 +1921,7 @@ grant execute on function "app_private"."create_employee"(uuid, jsonb) to authen
 -- preboarding, active or on_leave; setting it on an offboarded employee
 -- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
 -- [{ employeeId, field, hint, reason }] }.
-drop function if exists "app_private"."update_employees"(jsonb);
+
 create or replace function "app_private"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
@@ -2537,50 +2396,38 @@ grant execute on function "app_private"."add_employee_contract"(uuid, jsonb) to 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."employees";
-drop policy if exists bsb_tenant_scope_select on "app_private"."employees";
 create policy bsb_tenant_scope_select on "app_private"."employees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."employees";
 create policy bsb_tenant_scope_insert on "app_private"."employees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."employees";
 create policy bsb_tenant_scope_update on "app_private"."employees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."employees";
 create policy bsb_tenant_scope_delete on "app_private"."employees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."employee_private_details";
-drop policy if exists bsb_tenant_scope_select on "app_private"."employee_private_details";
 create policy bsb_tenant_scope_select on "app_private"."employee_private_details" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."employee_private_details";
 create policy bsb_tenant_scope_insert on "app_private"."employee_private_details" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."employee_private_details";
 create policy bsb_tenant_scope_update on "app_private"."employee_private_details" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."employee_private_details";
 create policy bsb_tenant_scope_delete on "app_private"."employee_private_details" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."employee_contracts";
-drop policy if exists bsb_tenant_scope_select on "app_private"."employee_contracts";
 create policy bsb_tenant_scope_select on "app_private"."employee_contracts" as restrictive
   for select to public
   using (
@@ -2588,16 +2435,13 @@ create policy bsb_tenant_scope_select on "app_private"."employee_contracts" as r
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "app_private"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."employee_contracts";
 create policy bsb_tenant_scope_insert on "app_private"."employee_contracts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."employee_contracts";
 create policy bsb_tenant_scope_update on "app_private"."employee_contracts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."employee_contracts";
 create policy bsb_tenant_scope_delete on "app_private"."employee_contracts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2619,47 +2463,16 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:8976a98d4df96aaa9f147154ee078af4d0992ea6d2e23f9631d7b581b561b0d7
+-- @bsb-hash sha256:4eb887d95a823e254c66bd7a23cfa165494ee30763cf21da61493a1e9ab4a934
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employees";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_private_details";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_contracts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
 
-create table if not exists "better_supabase"."employees" (
+create table "better_supabase"."employees" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete set null,
@@ -2682,23 +2495,22 @@ create table if not exists "better_supabase"."employees" (
   check ("end_date" is null or "start_date" is null or "end_date" >= "start_date"),
   check (("origin_type" is null) = ("origin_id" is null))
 );
-create unique index if not exists employees_user_idx on "better_supabase"."employees" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists employees_account_idx on "better_supabase"."employees" ("user_id") where "user_id" is not null;
-create unique index if not exists employees_origin_idx on "better_supabase"."employees" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null;
-create index if not exists employees_tenant_status_idx on "better_supabase"."employees" ("tenant_id", "status");
-create index if not exists employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
+create unique index employees_user_idx on "better_supabase"."employees" ("tenant_id", "user_id") where "user_id" is not null;
+create index employees_account_idx on "better_supabase"."employees" ("user_id") where "user_id" is not null;
+create unique index employees_origin_idx on "better_supabase"."employees" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null;
+create index employees_tenant_status_idx on "better_supabase"."employees" ("tenant_id", "status");
+create index employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
 alter table "better_supabase"."employees" enable row level security;
 revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
-drop policy if exists employees_read on "better_supabase"."employees";
 create policy employees_read on "better_supabase"."employees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
 -- Private details stay out of the directory: readable with
 -- employees.view_sensitive and by the employee.
-create table if not exists "better_supabase"."employee_private_details" (
+create table "better_supabase"."employee_private_details" (
   "employee_id" uuid primary key references "better_supabase"."employees" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid,
@@ -2714,19 +2526,18 @@ create table if not exists "better_supabase"."employee_private_details" (
   "updated_at" timestamptz not null default now(),
   "updated_by" uuid
 );
-create index if not exists employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
+create index employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."employee_private_details" enable row level security;
 revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
-drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
 create policy employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
-create table if not exists "better_supabase"."employee_contracts" (
+create table "better_supabase"."employee_contracts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "employee_id" uuid not null references "better_supabase"."employees" ("id") on delete cascade,
@@ -2742,12 +2553,11 @@ create table if not exists "better_supabase"."employee_contracts" (
   check ("ends_on" is null or "ends_on" >= "starts_on"),
   check (("salary" is null) = ("currency" is null))
 );
-create index if not exists employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
+create index employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
 alter table "better_supabase"."employee_contracts" enable row level security;
 revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
-drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
 create policy employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
@@ -2785,7 +2595,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bsb_employee_manager_guard on "better_supabase"."employees";
 create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_manager_guard();
 
@@ -2804,7 +2613,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bsb_employee_user_mirror on "better_supabase"."employees";
 create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_user_mirror();
 
@@ -2898,7 +2706,7 @@ grant execute on function "better_supabase"."create_employee"(uuid, jsonb) to au
 -- preboarding, active or on_leave; setting it on an offboarded employee
 -- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
 -- [{ employeeId, field, hint, reason }] }.
-drop function if exists "better_supabase"."update_employees"(jsonb);
+
 create or replace function "better_supabase"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
@@ -3373,50 +3181,38 @@ grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb)
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employees";
 create policy bsb_tenant_scope_select on "better_supabase"."employees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employees";
 create policy bsb_tenant_scope_insert on "better_supabase"."employees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employees";
 create policy bsb_tenant_scope_update on "better_supabase"."employees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employees";
 create policy bsb_tenant_scope_delete on "better_supabase"."employees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_select on "better_supabase"."employee_private_details" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_private_details" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_update on "better_supabase"."employee_private_details" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_delete on "better_supabase"."employee_private_details" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" as restrictive
   for select to public
   using (
@@ -3424,16 +3220,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" 
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_contracts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_update on "better_supabase"."employee_contracts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_delete on "better_supabase"."employee_contracts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3441,8 +3234,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."employee_contracts" 
 -- blocks.employees.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."update_employees"(jsonb);
 
 create or replace function "api"."create_employee"(tenant uuid, attrs jsonb)
 returns jsonb
@@ -3555,41 +3346,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:57127417b261ea62cc51d9af87055b9275cfdc4d71619b5a66613c1f672697a7
+-- @bsb-hash sha256:0abdeaf17356e6edf388c6de0a78bde423814c391fce7b16475eb9ff543ba26c
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employees";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_private_details";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_contracts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
@@ -3622,7 +3382,6 @@ create index if not exists employees_manager_idx on "better_supabase"."employees
 alter table "better_supabase"."employees" enable row level security;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
-drop policy if exists bsb_employees_select on "better_supabase"."employees";
 create policy bsb_employees_select on "better_supabase"."employees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
@@ -3648,7 +3407,6 @@ create index if not exists employee_private_details_user_idx on "better_supabase
 alter table "better_supabase"."employee_private_details" enable row level security;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
-drop policy if exists bsb_employee_private_details_select on "better_supabase"."employee_private_details";
 create policy bsb_employee_private_details_select on "better_supabase"."employee_private_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
@@ -3672,7 +3430,6 @@ create index if not exists employee_contracts_employee_idx on "better_supabase".
 alter table "better_supabase"."employee_contracts" enable row level security;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
-drop policy if exists bsb_employee_contracts_select on "better_supabase"."employee_contracts";
 create policy bsb_employee_contracts_select on "better_supabase"."employee_contracts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
@@ -3710,7 +3467,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bsb_employee_manager_guard on "better_supabase"."employees";
 create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_manager_guard();
 
@@ -3729,7 +3485,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bsb_employee_user_mirror on "better_supabase"."employees";
 create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_user_mirror();
 
@@ -3823,7 +3578,7 @@ grant execute on function "better_supabase"."create_employee"(uuid, jsonb) to au
 -- preboarding, active or on_leave; setting it on an offboarded employee
 -- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
 -- [{ employeeId, field, hint, reason }] }.
-drop function if exists "better_supabase"."update_employees"(jsonb);
+
 create or replace function "better_supabase"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
@@ -4304,50 +4059,38 @@ grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb)
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employees";
 create policy bsb_tenant_scope_select on "better_supabase"."employees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employees";
 create policy bsb_tenant_scope_insert on "better_supabase"."employees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employees";
 create policy bsb_tenant_scope_update on "better_supabase"."employees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employees";
 create policy bsb_tenant_scope_delete on "better_supabase"."employees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_select on "better_supabase"."employee_private_details" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_private_details" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_update on "better_supabase"."employee_private_details" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_delete on "better_supabase"."employee_private_details" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" as restrictive
   for select to public
   using (
@@ -4355,16 +4098,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" 
     or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_contracts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_update on "better_supabase"."employee_contracts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_delete on "better_supabase"."employee_contracts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4386,47 +4126,16 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:8de681f3a37613239cd46accbbdd308684f5b015e0ea77a0c14621d82d45817d
+-- @bsb-hash sha256:f85f6feba9ac1213c5adb4b8a45a55ce20166015b4b42661b46efa98bc8a77d6
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employees";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_private_details";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_private_details";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_contracts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_contracts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
 
-create table if not exists "better_supabase"."employees" (
+create table "better_supabase"."employees" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete set null,
@@ -4449,23 +4158,22 @@ create table if not exists "better_supabase"."employees" (
   check ("end_date" is null or "start_date" is null or "end_date" >= "start_date"),
   check (("origin_type" is null) = ("origin_id" is null))
 );
-create unique index if not exists employees_user_idx on "better_supabase"."employees" ("org_id", "user_id") where "user_id" is not null;
-create index if not exists employees_account_idx on "better_supabase"."employees" ("user_id") where "user_id" is not null;
-create unique index if not exists employees_origin_idx on "better_supabase"."employees" ("org_id", "origin_type", "origin_id") where "origin_id" is not null;
-create index if not exists employees_tenant_status_idx on "better_supabase"."employees" ("org_id", "status");
-create index if not exists employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
+create unique index employees_user_idx on "better_supabase"."employees" ("org_id", "user_id") where "user_id" is not null;
+create index employees_account_idx on "better_supabase"."employees" ("user_id") where "user_id" is not null;
+create unique index employees_origin_idx on "better_supabase"."employees" ("org_id", "origin_type", "origin_id") where "origin_id" is not null;
+create index employees_tenant_status_idx on "better_supabase"."employees" ("org_id", "status");
+create index employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
 alter table "better_supabase"."employees" enable row level security;
 revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
-drop policy if exists employees_read on "better_supabase"."employees";
 create policy employees_read on "better_supabase"."employees"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
 -- Private details stay out of the directory: readable with
 -- employees.view_sensitive and by the employee.
-create table if not exists "better_supabase"."employee_private_details" (
+create table "better_supabase"."employee_private_details" (
   "employee_id" uuid primary key references "better_supabase"."employees" ("id") on delete cascade,
   "org_id" uuid not null,
   "user_id" uuid,
@@ -4481,19 +4189,18 @@ create table if not exists "better_supabase"."employee_private_details" (
   "updated_at" timestamptz not null default now(),
   "updated_by" uuid
 );
-create index if not exists employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
+create index employee_private_details_user_idx on "better_supabase"."employee_private_details" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."employee_private_details" enable row level security;
 revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
-drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
 create policy employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
-create table if not exists "better_supabase"."employee_contracts" (
+create table "better_supabase"."employee_contracts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "employee_id" uuid not null references "better_supabase"."employees" ("id") on delete cascade,
@@ -4509,12 +4216,11 @@ create table if not exists "better_supabase"."employee_contracts" (
   check ("ends_on" is null or "ends_on" >= "starts_on"),
   check (("salary" is null) = ("currency" is null))
 );
-create index if not exists employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
+create index employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
 alter table "better_supabase"."employee_contracts" enable row level security;
 revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
-drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
 create policy employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
@@ -4552,7 +4258,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bsb_employee_manager_guard on "better_supabase"."employees";
 create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_manager_guard();
 
@@ -4571,7 +4276,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bsb_employee_user_mirror on "better_supabase"."employees";
 create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_user_mirror();
 
@@ -4665,7 +4369,7 @@ grant execute on function "better_supabase"."create_employee"(uuid, jsonb) to au
 -- preboarding, active or on_leave; setting it on an offboarded employee
 -- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
 -- [{ employeeId, field, hint, reason }] }.
-drop function if exists "better_supabase"."update_employees"(jsonb);
+
 create or replace function "better_supabase"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
@@ -5140,50 +4844,38 @@ grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb)
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."employees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employees";
 create policy bsb_tenant_scope_select on "better_supabase"."employees" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employees";
 create policy bsb_tenant_scope_insert on "better_supabase"."employees" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employees";
 create policy bsb_tenant_scope_update on "better_supabase"."employees" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employees";
 create policy bsb_tenant_scope_delete on "better_supabase"."employees" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."employee_private_details";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_select on "better_supabase"."employee_private_details" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_private_details" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_update on "better_supabase"."employee_private_details" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_delete on "better_supabase"."employee_private_details" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."employee_contracts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" as restrictive
   for select to public
   using (
@@ -5191,16 +4883,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" 
     or ("org_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_contracts" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_update on "better_supabase"."employee_contracts" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."employee_contracts";
 create policy bsb_tenant_scope_delete on "better_supabase"."employee_contracts" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

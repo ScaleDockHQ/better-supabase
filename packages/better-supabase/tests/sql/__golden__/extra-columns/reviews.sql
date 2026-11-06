@@ -1,35 +1,12 @@
 -- ==== schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:10ed563eeb697bc7ead42845727c19d5add9aa43775700b00454032c7af2d740
+-- @bsb-hash sha256:94d5a4899e7f00379e655130ca284383f650c66b08639afd0082f7882e8add2b
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reviews";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reviews";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reviews";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reviews";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reviews";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."review_stats";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."review_stats";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."review_stats";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."review_stats";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."review_stats";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."reviews" (
+create table "better_supabase"."reviews" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -50,15 +27,15 @@ create table if not exists "better_supabase"."reviews" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "author_id")
 );
-alter table "better_supabase"."reviews" add column if not exists "app_note" text;
-create index if not exists "reviews_subject_idx" on "better_supabase"."reviews" ("tenant_id", "subject_type", "subject_id", "status", "created_at" desc);
-create index if not exists "reviews_queue_idx" on "better_supabase"."reviews" ("tenant_id", "status", "created_at" desc);
-create index if not exists "reviews_author_idx" on "better_supabase"."reviews" ("author_id");
+alter table "better_supabase"."reviews" add column "app_note" text;
+create index "reviews_subject_idx" on "better_supabase"."reviews" ("tenant_id", "subject_type", "subject_id", "status", "created_at" desc);
+create index "reviews_queue_idx" on "better_supabase"."reviews" ("tenant_id", "status", "created_at" desc);
+create index "reviews_author_idx" on "better_supabase"."reviews" ("author_id");
 alter table "better_supabase"."reviews" enable row level security;
 revoke all on "better_supabase"."reviews" from public, anon, authenticated;
 grant all on "better_supabase"."reviews" to service_role;
 
-create table if not exists "better_supabase"."review_stats" (
+create table "better_supabase"."review_stats" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -137,7 +114,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."reviews_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_reviews_changed" on "better_supabase"."reviews";
 create trigger "bsb_reviews_changed"
   after insert or update of "rating", "status" or delete on "better_supabase"."reviews"
   for each row execute function "better_supabase"."reviews_changed"();
@@ -146,7 +122,7 @@ create trigger "bsb_reviews_changed"
 -- user and subject. Under pre-moderation (options.moderation "pre") it
 -- waits for publish_review; under "post" it is published at once. verified
 -- is true when the orders module shows a paid order for the product.
-drop function if exists "better_supabase"."submit_review"(uuid, text, text, integer, text, text, text);
+
 create or replace function "better_supabase"."submit_review"(tenant uuid, subject_type text, subject_id text, rating integer, body text default null, title text default null, author_name text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
@@ -271,7 +247,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."reviews_moderated"() from public, anon, authenticated;
-drop trigger if exists "bsb_reviews_moderated" on "better_supabase"."moderation_items";
 create trigger "bsb_reviews_moderated"
   after update of "status", "decided_at" on "better_supabase"."moderation_items"
   for each row when (new."subject_type" = 'review')

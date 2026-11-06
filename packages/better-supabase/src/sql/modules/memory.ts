@@ -411,7 +411,7 @@ alter table ${memories} enable row level security;
 ${revokeTable(memories)}
 grant select on ${memories} to authenticated;
 grant all on ${memories} to service_role;
-${renderPolicy(makePolicy({ table: memories, name: ctx.naming.rename("memories_read"), command: "select", roles: ["authenticated"], using: `(${m.owner} = (select auth.uid()) or (${m.owner} is null and ${ctx.scope.check(m.tenant, read)}))${live("")}` }), { drop: true, target: memories })}
+${renderPolicy(makePolicy({ table: memories, name: ctx.naming.rename("memories_read"), command: "select", roles: ["authenticated"], using: `(${m.owner} = (select auth.uid()) or (${m.owner} is null and ${ctx.scope.check(m.tenant, read)}))${live("")}` }), { target: memories })}
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
@@ -429,7 +429,7 @@ alter table ${messageEmbeddings} enable row level security;
 ${revokeTable(messageEmbeddings)}
 grant select on ${messageEmbeddings} to authenticated;
 grant all on ${messageEmbeddings} to service_role;
-${renderPolicy(makePolicy({ table: messageEmbeddings, name: sqlIdent(`${ctx.tableName("messageEmbeddings").name}_read`), command: "select", roles: ["authenticated"], using: `${e.user} = (select auth.uid())` }), { drop: true, target: messageEmbeddings })}
+${renderPolicy(makePolicy({ table: messageEmbeddings, name: sqlIdent(`${ctx.tableName("messageEmbeddings").name}_read`), command: "select", roles: ["authenticated"], using: `${e.user} = (select auth.uid())` }), { target: messageEmbeddings })}
 
 -- A core memory file, or the files under a directory, or null.
 create or replace function ${fn("memory_view")}(tenant ${id}, path text default '/memories', ns jsonb default '{}')

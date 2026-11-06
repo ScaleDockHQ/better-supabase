@@ -1,52 +1,13 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:faae004cdb8f9f9a0b2808d0759632839cd787c4dcae8951df3aa37a05e2f387
+-- @bsb-hash sha256:f834db8bea3d65e26e7f1da4363a5493855fd90c853dc373b88122015f49cbf1
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
-create table if not exists "better_supabase"."usage_counters" (
+create table "better_supabase"."usage_counters" (
   "organization_id" uuid not null,
   "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
@@ -58,19 +19,18 @@ create table if not exists "better_supabase"."usage_counters" (
 -- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
 alter table "better_supabase"."usage_counters" alter column "value" type numeric;
 alter table "better_supabase"."usage_counters" alter column "reported_value" type numeric;
-create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
+create index usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
 create policy usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
-create table if not exists "better_supabase"."usage_events" (
+create table "better_supabase"."usage_events" (
   "organization_id" uuid not null,
   "meter" text not null,
   "idempotency_key" text not null,
@@ -80,14 +40,14 @@ create table if not exists "better_supabase"."usage_events" (
 );
 alter table "better_supabase"."usage_events" alter column "quantity" type numeric;
 
-create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
+create index usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
 revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
-create table if not exists "better_supabase"."usage_quotas" (
+create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "plan" text,
@@ -100,28 +60,21 @@ create table if not exists "better_supabase"."usage_quotas" (
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
 alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
-alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
 alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
 create policy usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "better_supabase"."usage_quota"(uuid, text);
-drop function if exists "better_supabase"."usage_used"(uuid, text, text);
-drop function if exists "better_supabase"."record_usage"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "better_supabase"."record_usage"(uuid, text, numeric, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "better_supabase"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -706,45 +659,35 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_counters" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_counters" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_quotas" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_quotas" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_quotas" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -766,60 +709,13 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:a812048dbc6fa434a5d6930d13984be04fe328f230e32a573dd338a2fa0ffff7
+-- @bsb-hash sha256:8d1b8e0da9cc38524f9ac04bee29e590e57d11dd554e3f2ed875afb324897175
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_billed_periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_billed_periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_billed_periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_billed_periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_billed_periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
-create table if not exists "better_supabase"."usage_counters" (
+create table "better_supabase"."usage_counters" (
   "organization_id" uuid not null,
   "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
@@ -831,19 +727,18 @@ create table if not exists "better_supabase"."usage_counters" (
 -- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
 alter table "better_supabase"."usage_counters" alter column "value" type numeric;
 alter table "better_supabase"."usage_counters" alter column "reported_value" type numeric;
-create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
+create index usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
 create policy usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
-create table if not exists "better_supabase"."usage_events" (
+create table "better_supabase"."usage_events" (
   "organization_id" uuid not null,
   "meter" text not null,
   "idempotency_key" text not null,
@@ -855,7 +750,7 @@ alter table "better_supabase"."usage_events" alter column "quantity" type numeri
 
 -- options.history: one row per recorded quantity, with who (actor_id) and
 -- what (source, metadata) used it, for a usage page.
-create table if not exists "better_supabase"."usage_history" (
+create table "better_supabase"."usage_history" (
   "id" bigint generated always as identity primary key,
   "organization_id" uuid not null,
   "meter" text not null,
@@ -865,24 +760,23 @@ create table if not exists "better_supabase"."usage_history" (
   "metadata" jsonb not null default '{}',
   "recorded_at" timestamptz not null default now()
 );
-create index if not exists usage_history_tenant_idx on "better_supabase"."usage_history" ("organization_id", "recorded_at" desc, "id" desc);
+create index usage_history_tenant_idx on "better_supabase"."usage_history" ("organization_id", "recorded_at" desc, "id" desc);
 alter table "better_supabase"."usage_history" enable row level security;
 revoke all on "better_supabase"."usage_history" from public, anon, authenticated;
 grant select on "better_supabase"."usage_history" to authenticated;
 grant all on "better_supabase"."usage_history" to service_role;
-drop policy if exists usage_history_read on "better_supabase"."usage_history";
 create policy usage_history_read on "better_supabase"."usage_history"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
-create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
+create index usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
 revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
-create table if not exists "better_supabase"."usage_quotas" (
+create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "plan" text,
@@ -895,28 +789,21 @@ create table if not exists "better_supabase"."usage_quotas" (
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
 alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
-alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
 alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
 create policy usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "better_supabase"."usage_quota"(uuid, text);
-drop function if exists "better_supabase"."usage_used"(uuid, text, text);
-drop function if exists "better_supabase"."record_usage"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "better_supabase"."record_usage"(uuid, text, numeric, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "better_supabase"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -1540,7 +1427,7 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 
 -- What one unit of a meter costs: unit_amount in minor units of currency
 -- (ADR 0024), and how many units each billing period includes for free.
-create table if not exists "better_supabase"."usage_meter_prices" (
+create table "better_supabase"."usage_meter_prices" (
   "meter" text not null check (length("meter") >= 1 and length("meter") <= 100),
   "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
   "unit_amount" bigint not null check ("unit_amount" >= 0),
@@ -1554,7 +1441,7 @@ grant all on "better_supabase"."usage_meter_prices" to service_role;
 
 -- One row per tenant and billed period, so billing a period twice returns the
 -- first invoice.
-create table if not exists "better_supabase"."usage_billed_periods" (
+create table "better_supabase"."usage_billed_periods" (
   "organization_id" uuid not null,
   "period_start" date not null,
   "period_end" date not null,
@@ -1661,66 +1548,51 @@ grant execute on function "better_supabase"."bill_usage_period"(uuid, date, date
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_counters" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_counters" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_history" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_history" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_history" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_history" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_quotas" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_quotas" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_quotas" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -1742,48 +1614,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:ce3cfe3376217f8f127a119a29ed4cc4abd4ca038faf750bf7e90795100c5c08
+-- @bsb-hash sha256:e753ad70e69fe3a4e1643a7fc3d365cc7df7a9b2cdcdddea93a8b581be5371e4
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -1791,7 +1625,7 @@ alter default privileges in schema "app_private" revoke all on tables from publi
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
-create table if not exists "app_private"."usage_counters" (
+create table "app_private"."usage_counters" (
   "organization_id" uuid not null,
   "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
@@ -1803,19 +1637,18 @@ create table if not exists "app_private"."usage_counters" (
 -- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
 alter table "app_private"."usage_counters" alter column "value" type numeric;
 alter table "app_private"."usage_counters" alter column "reported_value" type numeric;
-create index if not exists usage_counters_unreported_idx on "app_private"."usage_counters" ("day")
+create index usage_counters_unreported_idx on "app_private"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "app_private"."usage_counters" enable row level security;
 revoke all on "app_private"."usage_counters" from public, anon, authenticated;
 grant select on "app_private"."usage_counters" to authenticated;
 grant all on "app_private"."usage_counters" to service_role;
-drop policy if exists usage_counters_read on "app_private"."usage_counters";
 create policy usage_counters_read on "app_private"."usage_counters"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
-create table if not exists "app_private"."usage_events" (
+create table "app_private"."usage_events" (
   "organization_id" uuid not null,
   "meter" text not null,
   "idempotency_key" text not null,
@@ -1825,14 +1658,14 @@ create table if not exists "app_private"."usage_events" (
 );
 alter table "app_private"."usage_events" alter column "quantity" type numeric;
 
-create index if not exists usage_events_recorded_at_idx on "app_private"."usage_events" ("recorded_at");
+create index usage_events_recorded_at_idx on "app_private"."usage_events" ("recorded_at");
 alter table "app_private"."usage_events" enable row level security;
 revoke all on "app_private"."usage_events" from public, anon, authenticated;
 grant all on "app_private"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
-create table if not exists "app_private"."usage_quotas" (
+create table "app_private"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "plan" text,
@@ -1845,28 +1678,21 @@ create table if not exists "app_private"."usage_quotas" (
 );
 alter table "app_private"."usage_quotas" alter column "limit" type numeric;
 alter table "app_private"."usage_quotas" alter column "limit" drop not null;
-alter table "app_private"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
 alter table "app_private"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "app_private"."usage_quotas" enable row level security;
 revoke all on "app_private"."usage_quotas" from public, anon, authenticated;
 grant select on "app_private"."usage_quotas" to authenticated;
 grant all on "app_private"."usage_quotas" to service_role;
-drop policy if exists usage_quotas_read on "app_private"."usage_quotas";
 create policy usage_quotas_read on "app_private"."usage_quotas"
   for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "app_private"."usage_quota"(uuid, text);
-drop function if exists "app_private"."usage_used"(uuid, text, text);
-drop function if exists "app_private"."record_usage"(uuid, text, bigint, text);
-drop function if exists "app_private"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "app_private"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "app_private"."record_usage"(uuid, text, numeric, text);
-drop function if exists "app_private"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "app_private"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -2451,45 +2277,35 @@ grant execute on function "app_private"."mark_usage_reported"(uuid, text, date, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "app_private"."usage_counters";
 create policy bsb_tenant_scope_select on "app_private"."usage_counters" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_counters";
 create policy bsb_tenant_scope_insert on "app_private"."usage_counters" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."usage_counters";
 create policy bsb_tenant_scope_update on "app_private"."usage_counters" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_counters";
 create policy bsb_tenant_scope_delete on "app_private"."usage_counters" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "app_private"."usage_quotas";
 create policy bsb_tenant_scope_select on "app_private"."usage_quotas" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_quotas";
 create policy bsb_tenant_scope_insert on "app_private"."usage_quotas" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."usage_quotas";
 create policy bsb_tenant_scope_update on "app_private"."usage_quotas" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_quotas";
 create policy bsb_tenant_scope_delete on "app_private"."usage_quotas" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -2511,52 +2327,13 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:1a5b3e73a02dab1cd814f7ff8e208aca7e6b937ab8ec0d39d23684e1c9a513d8
+-- @bsb-hash sha256:3e88b576fed100496764427b08d397e8e4f95b7798eaadad07ce84b0628c4a6f
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
-create table if not exists "better_supabase"."usage_counters" (
+create table "better_supabase"."usage_counters" (
   "organization_id" uuid not null,
   "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
@@ -2568,19 +2345,18 @@ create table if not exists "better_supabase"."usage_counters" (
 -- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
 alter table "better_supabase"."usage_counters" alter column "value" type numeric;
 alter table "better_supabase"."usage_counters" alter column "reported_value" type numeric;
-create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
+create index usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
 create policy usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
-create table if not exists "better_supabase"."usage_events" (
+create table "better_supabase"."usage_events" (
   "organization_id" uuid not null,
   "meter" text not null,
   "idempotency_key" text not null,
@@ -2590,14 +2366,14 @@ create table if not exists "better_supabase"."usage_events" (
 );
 alter table "better_supabase"."usage_events" alter column "quantity" type numeric;
 
-create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
+create index usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
 revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
-create table if not exists "better_supabase"."usage_quotas" (
+create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "plan" text,
@@ -2610,28 +2386,21 @@ create table if not exists "better_supabase"."usage_quotas" (
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
 alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
-alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
 alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
 create policy usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "better_supabase"."usage_quota"(uuid, text);
-drop function if exists "better_supabase"."usage_used"(uuid, text, text);
-drop function if exists "better_supabase"."record_usage"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "better_supabase"."record_usage"(uuid, text, numeric, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "better_supabase"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -3216,45 +2985,35 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_counters" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_counters" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_quotas" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_quotas" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_quotas" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -3262,15 +3021,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as res
 -- blocks.usage.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."usage_quota"(uuid, text);
-drop function if exists "api"."usage_used"(uuid, text, text);
-drop function if exists "api"."record_usage"(uuid, text, bigint, text);
-drop function if exists "api"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "api"."mark_usage_reported"(uuid, text, date, bigint);
-drop function if exists "api"."record_usage"(uuid, text, numeric, text);
-drop function if exists "api"."consume_quota"(uuid, text, numeric, text);
-drop function if exists "api"."unreported_usage"(integer);
 
 create or replace function "api"."usage_history"(tenant uuid, meter text default null, max_rows integer default 100, before_id bigint default null)
 returns jsonb
@@ -3471,49 +3221,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:37e682b569f276930d66f607016a986c330b7c573ee226716176b45d79f6e7f5
+-- @bsb-hash sha256:2322f7243eacb02c5c15c410cef17651b94294978552838e20d10ffe08022450
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 -- better_supabase.usage_counters is the app's table: this block adds only the columns it needs.
@@ -3529,7 +3240,6 @@ create index if not exists usage_counters_unreported_idx on "better_supabase"."u
 alter table "better_supabase"."usage_counters" enable row level security;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists bsb_usage_counters_select on "better_supabase"."usage_counters";
 create policy bsb_usage_counters_select on "better_supabase"."usage_counters"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
@@ -3560,22 +3270,16 @@ alter table "better_supabase"."usage_quotas" add column if not exists "created_a
 alter table "better_supabase"."usage_quotas" enable row level security;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists bsb_usage_quotas_select on "better_supabase"."usage_quotas";
 create policy bsb_usage_quotas_select on "better_supabase"."usage_quotas"
   for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "better_supabase"."usage_quota"(uuid, text);
-drop function if exists "better_supabase"."usage_used"(uuid, text, text);
-drop function if exists "better_supabase"."record_usage"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "better_supabase"."record_usage"(uuid, text, numeric, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "better_supabase"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -4163,45 +3867,35 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_counters" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_counters" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_quotas" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_quotas" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_quotas" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -4223,52 +3917,13 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:94b8ac31b91b23ac687a6bc70acd0a3c9df717a7f3e5b1a4f97583580e6fadd6
+-- @bsb-hash sha256:1ae880c5e9c20b33e8b47a4a5c837f63568c5611af0926f4c01450afa0f52fb7
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
-create table if not exists "better_supabase"."usage_counters" (
+create table "better_supabase"."usage_counters" (
   "org_id" uuid not null,
   "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
@@ -4280,19 +3935,18 @@ create table if not exists "better_supabase"."usage_counters" (
 -- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
 alter table "better_supabase"."usage_counters" alter column "value" type numeric;
 alter table "better_supabase"."usage_counters" alter column "reported_value" type numeric;
-create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
+create index usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
 create policy usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
-create table if not exists "better_supabase"."usage_events" (
+create table "better_supabase"."usage_events" (
   "org_id" uuid not null,
   "meter" text not null,
   "idempotency_key" text not null,
@@ -4302,14 +3956,14 @@ create table if not exists "better_supabase"."usage_events" (
 );
 alter table "better_supabase"."usage_events" alter column "quantity" type numeric;
 
-create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
+create index usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
 revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
-create table if not exists "better_supabase"."usage_quotas" (
+create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
   "plan" text,
@@ -4322,28 +3976,21 @@ create table if not exists "better_supabase"."usage_quotas" (
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
 alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
-alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
 alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
 create policy usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
   using ("org_id" is null or "org_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "better_supabase"."usage_quota"(uuid, text);
-drop function if exists "better_supabase"."usage_used"(uuid, text, text);
-drop function if exists "better_supabase"."record_usage"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "better_supabase"."record_usage"(uuid, text, numeric, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "better_supabase"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -4928,45 +4575,35 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_counters" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_counters" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_quotas" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" is null or "org_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_quotas" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_quotas" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

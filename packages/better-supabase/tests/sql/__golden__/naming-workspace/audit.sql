@@ -1,38 +1,24 @@
 -- ==== schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:a2506f343c2b9c7167dcdc7d47aaff767fede625dde9a3e49828e022f0a6b96b
+-- @bsb-hash sha256:0388d1f4979d177a2844aebe0319dacfbfb899aab83d627b4a0a9f02bce57e36
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."audit_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."audit_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."audit_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."audit_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."audit_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create table if not exists "better_supabase"."audited_tables" (
+create table "better_supabase"."audited_tables" (
   "target" regclass primary key,
   "ignore" text[] not null default '{}'
 );
 -- The primary key columns, read when the table is registered; composite keys are joined with ','.
-alter table "better_supabase"."audited_tables" add column if not exists "key_columns" text[] not null default '{id}';
+alter table "better_supabase"."audited_tables" add column "key_columns" text[] not null default '{id}';
 -- Per-table event naming and redaction.
-alter table "better_supabase"."audited_tables" add column if not exists "redact" text[] not null default '{}';
-alter table "better_supabase"."audited_tables" add column if not exists "category" text;
-alter table "better_supabase"."audited_tables" add column if not exists "event_prefix" text;
-alter table "better_supabase"."audited_tables" add column if not exists "target_type" text;
-alter table "better_supabase"."audited_tables" add column if not exists "tenant_column" text;
-alter table "better_supabase"."audited_tables" add column if not exists "label_column" text;
+alter table "better_supabase"."audited_tables" add column "redact" text[] not null default '{}';
+alter table "better_supabase"."audited_tables" add column "category" text;
+alter table "better_supabase"."audited_tables" add column "event_prefix" text;
+alter table "better_supabase"."audited_tables" add column "target_type" text;
+alter table "better_supabase"."audited_tables" add column "tenant_column" text;
+alter table "better_supabase"."audited_tables" add column "label_column" text;
 alter table "better_supabase"."audited_tables" enable row level security;
 revoke all on "better_supabase"."audited_tables" from public, anon, authenticated;
 
@@ -88,7 +74,7 @@ exception when others then
 end;
 $$;
 
-create table if not exists "better_supabase"."audit_events" (
+create table "better_supabase"."audit_events" (
   "id" bigint generated always as identity primary key,
   "table_name" text,
   "record_id" text,
@@ -101,46 +87,35 @@ create table if not exists "better_supabase"."audit_events" (
   "workspace_id" uuid,
   "occurred_at" timestamptz not null default now()
 );
-alter table "better_supabase"."audit_events" drop constraint if exists audit_log_op_check;
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."audit_events"'::regclass and c.conname = 'bsb_audit_op_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check 50fe4698' then
-    alter table "better_supabase"."audit_events" drop constraint if exists "bsb_audit_op_check";
-    alter table "better_supabase"."audit_events" add constraint "bsb_audit_op_check" check ("op" in ('insert', 'update', 'delete', 'event'));
-    comment on constraint "bsb_audit_op_check" on "better_supabase"."audit_events" is 'better-supabase check 50fe4698';
-  end if;
-end;
-$$;
+alter table "better_supabase"."audit_events" add constraint "bsb_audit_op_check"
+  check ("op" in ('insert', 'update', 'delete', 'event'));
 alter table "better_supabase"."audit_events" alter column "table_name" drop not null;
 -- Set when an admin acted as the user (the act claim).
-alter table "better_supabase"."audit_events" add column if not exists "impersonated_by" uuid;
-alter table "better_supabase"."audit_events" add column if not exists "impersonation_reason" text;
-alter table "better_supabase"."audit_events" add column if not exists "support_session_id" uuid;
+alter table "better_supabase"."audit_events" add column "impersonated_by" uuid;
+alter table "better_supabase"."audit_events" add column "impersonation_reason" text;
+alter table "better_supabase"."audit_events" add column "support_session_id" uuid;
 -- Semantic events (audit_event) and the per-table registry fill these.
-alter table "better_supabase"."audit_events" add column if not exists "event_type" text;
-alter table "better_supabase"."audit_events" add column if not exists "category" text;
-alter table "better_supabase"."audit_events" add column if not exists "outcome" text;
-alter table "better_supabase"."audit_events" add column if not exists "source" text;
-alter table "better_supabase"."audit_events" add column if not exists "target_type" text;
-alter table "better_supabase"."audit_events" add column if not exists "metadata" jsonb;
-alter table "better_supabase"."audit_events" add column if not exists "idempotency_key" text;
+alter table "better_supabase"."audit_events" add column "event_type" text;
+alter table "better_supabase"."audit_events" add column "category" text;
+alter table "better_supabase"."audit_events" add column "outcome" text;
+alter table "better_supabase"."audit_events" add column "source" text;
+alter table "better_supabase"."audit_events" add column "target_type" text;
+alter table "better_supabase"."audit_events" add column "metadata" jsonb;
+alter table "better_supabase"."audit_events" add column "idempotency_key" text;
 -- Who acted and on what, as it was then, for audit pages.
-alter table "better_supabase"."audit_events" add column if not exists "actor_kind" text;
-alter table "better_supabase"."audit_events" add column if not exists "actor_label" text;
-alter table "better_supabase"."audit_events" add column if not exists "tenant_label" text;
-alter table "better_supabase"."audit_events" add column if not exists "target_label" text;
-alter table "better_supabase"."audit_events" add column if not exists "summary" text;
-alter table "better_supabase"."audit_events" add column if not exists "request_id" text;
-alter table "better_supabase"."audit_events" add column if not exists "correlation_id" text;
-alter table "better_supabase"."audit_events" add column if not exists "scope" text;
-create index if not exists audit_events_record_idx on "better_supabase"."audit_events" ("table_name", "record_id", "occurred_at" desc);
-create index if not exists audit_events_workspace_idx on "better_supabase"."audit_events" ("workspace_id", "occurred_at" desc);
-create index if not exists audit_events_occurred_at_idx on "better_supabase"."audit_events" ("occurred_at");
-create index if not exists audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;
-create unique index if not exists audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "workspace_id") nulls not distinct where "idempotency_key" is not null;
+alter table "better_supabase"."audit_events" add column "actor_kind" text;
+alter table "better_supabase"."audit_events" add column "actor_label" text;
+alter table "better_supabase"."audit_events" add column "tenant_label" text;
+alter table "better_supabase"."audit_events" add column "target_label" text;
+alter table "better_supabase"."audit_events" add column "summary" text;
+alter table "better_supabase"."audit_events" add column "request_id" text;
+alter table "better_supabase"."audit_events" add column "correlation_id" text;
+alter table "better_supabase"."audit_events" add column "scope" text;
+create index audit_events_record_idx on "better_supabase"."audit_events" ("table_name", "record_id", "occurred_at" desc);
+create index audit_events_workspace_idx on "better_supabase"."audit_events" ("workspace_id", "occurred_at" desc);
+create index audit_events_occurred_at_idx on "better_supabase"."audit_events" ("occurred_at");
+create index audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;
+create unique index audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "workspace_id") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."audit_events" enable row level security;
 revoke all on "better_supabase"."audit_events" from public, anon, authenticated;
 grant select on "better_supabase"."audit_events" to service_role;
@@ -512,13 +487,6 @@ end;
 $$;
 revoke execute on function better_supabase.audit_statement_change() from public, anon, authenticated;
 
-drop function if exists better_supabase.audit(regclass, text[]);
-drop function if exists better_supabase.audit(regclass, text[], boolean);
-drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
-drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
-drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure);
-drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);
-
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
 -- event_prefix, category and target_type name the entries (event_prefix.created);
@@ -828,11 +796,7 @@ revoke execute on function better_supabase.audit_schema(text, text, text[]) from
 -- session), and otherwise get the act claim's values. restricted goes to the
 -- restricted table, with no row when every restricted value is empty; without
 -- that table, passing it fails instead of dropping the details.
-drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid);
-drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text);
-drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text);
-drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text);
-drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text);
+
 create or replace function better_supabase.audit_event(
   event_type text,
   category text default null,
@@ -1025,8 +989,7 @@ grant execute on function better_supabase.audit_event_many(jsonb) to "service_ro
 -- caller, so only the owner, the service role and
 -- blocks.audit.options.trustedRoles may execute it. A function owned by
 -- postgres calls it on behalf of a client with the real actor context.
-drop function if exists better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text);
-drop function if exists better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text);
+
 create or replace function better_supabase.audit_event_trusted(
   event_type text,
   category text default null,
@@ -1152,10 +1115,8 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.audit_append_only() from public, anon, authenticated;
-drop trigger if exists "bsb_audit_append_only" on "better_supabase"."audit_events";
 create trigger "bsb_audit_append_only" before update or delete on "better_supabase"."audit_events"
   for each row execute function better_supabase.audit_append_only();
-drop trigger if exists "bsb_audit_no_truncate" on "better_supabase"."audit_events";
 create trigger "bsb_audit_no_truncate" before truncate on "better_supabase"."audit_events"
   for each statement execute function better_supabase.audit_append_only();
 
@@ -1267,7 +1228,7 @@ end;
 $$;
 
 -- Signed heads of any chained table, recorded by a signing job.
-create table if not exists better_supabase.chain_checkpoints (
+create table better_supabase.chain_checkpoints (
   id bigint generated always as identity primary key,
   table_name text not null,
   tenant text,
@@ -1277,7 +1238,7 @@ create table if not exists better_supabase.chain_checkpoints (
   signature text not null,
   created_at timestamptz not null default now()
 );
-create index if not exists chain_checkpoints_idx on better_supabase.chain_checkpoints (table_name, tenant, chain_seq desc);
+create index chain_checkpoints_idx on better_supabase.chain_checkpoints (table_name, tenant, chain_seq desc);
 alter table better_supabase.chain_checkpoints enable row level security;
 revoke all on better_supabase.chain_checkpoints from public, anon, authenticated;
 grant all on better_supabase.chain_checkpoints to service_role;
@@ -1494,13 +1455,6 @@ revoke execute on function better_supabase.record_chain_checkpoint(regclass, tex
 grant execute on function better_supabase.verify_chain(regclass, text, text) to service_role;
 grant execute on function better_supabase.record_chain_checkpoint(regclass, text, text, bigint, text, text, text) to service_role;
 
-drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";
-drop trigger if exists bsb_chain on "better_supabase"."audit_events";
-
-drop policy if exists bsb_audit_read on "better_supabase"."audit_events";
-drop function if exists "better_supabase"."audit_read_tenants"();
-drop function if exists "better_supabase"."audit_reads_all"();
-
 -- Deletes up to batch entries older than older_than and returns how many.
 -- With an audit_retention(tenant) function, each tenant keeps its own
 -- interval (a plan's days, say); null falls back to the data-lifecycle
@@ -1508,7 +1462,7 @@ drop function if exists "better_supabase"."audit_reads_all"();
 -- for_tenant, only entries of tenant (null: entries without one).
 -- Nightly with pg_cron or the jobs drain route:
 --   select better_supabase.purge_audit_log();
-drop function if exists better_supabase.purge_audit_log(interval, integer);
+
 create or replace function better_supabase.purge_audit_log(
   older_than interval default '1 year',
   batch integer default 10000,
@@ -1614,8 +1568,7 @@ grant execute on function better_supabase.audit_events_tenants(interval) to serv
 -- Page with the last entry's occurred_at and id as cursor_at and cursor_id,
 -- or open page N with skip (an offset) and count_audit_events for the total.
 -- skip is ignored with a cursor, so keyset pages never scan skipped rows.
-drop function if exists "better_supabase"."list_audit_events"(uuid, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
-drop function if exists "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean);
+
 create or replace function "better_supabase"."list_audit_events"(
   for_tenants uuid[] default null,
   for_event_types text[] default null,

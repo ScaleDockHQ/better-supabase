@@ -1,38 +1,15 @@
 -- ==== schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:6b62d46a4ffa752fb2ba6eb1f04b54aeb8e8311f56dba16613cacdc4a142f9c5
+-- @bsb-hash sha256:24af6d93695305d677a73ca3ff199bf5d32535ec27bd130ec8e3cd4b4fc1806c
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- MCP servers a tenant connects its assistants to. A server names how to
 -- authenticate (none, OAuth per user, or a header from credential_ref) and
 -- never holds a token itself.
-create table if not exists "better_supabase"."connector_servers" (
+create table "better_supabase"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -48,20 +25,19 @@ create table if not exists "better_supabase"."connector_servers" (
   "updated_at" timestamptz not null default now(),
   check (("auth_type" = 'header') = ("credential_ref" is not null))
 );
-create index if not exists connector_servers_tenant_idx on "better_supabase"."connector_servers" ("workspace_id");
-create index if not exists connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
+create index connector_servers_tenant_idx on "better_supabase"."connector_servers" ("workspace_id");
+create index connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
 alter table "better_supabase"."connector_servers" enable row level security;
 revoke all on "better_supabase"."connector_servers" from public, anon, authenticated;
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
-drop policy if exists connector_servers_read on "better_supabase"."connector_servers";
 create policy connector_servers_read on "better_supabase"."connector_servers"
   for select to authenticated
   using ("workspace_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
 -- A user's connection to a server. credential_ref names where the provider
 -- keeps the token (Vault, Vercel Connect); the row holds none.
-create table if not exists "better_supabase"."connector_grants" (
+create table "better_supabase"."connector_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
@@ -72,21 +48,20 @@ create table if not exists "better_supabase"."connector_grants" (
   "granted_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create unique index if not exists connector_grants_active_idx on "better_supabase"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
-create index if not exists connector_grants_server_idx on "better_supabase"."connector_grants" ("server_id");
-create index if not exists connector_grants_user_idx on "better_supabase"."connector_grants" ("user_id");
+create unique index connector_grants_active_idx on "better_supabase"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
+create index connector_grants_server_idx on "better_supabase"."connector_grants" ("server_id");
+create index connector_grants_user_idx on "better_supabase"."connector_grants" ("user_id");
 alter table "better_supabase"."connector_grants" enable row level security;
 revoke all on "better_supabase"."connector_grants" from public, anon, authenticated;
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
-drop policy if exists connector_grants_read on "better_supabase"."connector_grants";
 create policy connector_grants_read on "better_supabase"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The MCP session a user holds with a server per chat, so a later request
 -- reuses it instead of initializing again.
-create table if not exists "better_supabase"."connector_sessions" (
+create table "better_supabase"."connector_sessions" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_key" text not null default '',
@@ -96,20 +71,19 @@ create table if not exists "better_supabase"."connector_sessions" (
   "expires_at" timestamptz not null,
   primary key ("server_id", "user_id", "chat_key")
 );
-create index if not exists connector_sessions_expires_idx on "better_supabase"."connector_sessions" ("expires_at");
-create index if not exists connector_sessions_user_idx on "better_supabase"."connector_sessions" ("user_id");
+create index connector_sessions_expires_idx on "better_supabase"."connector_sessions" ("expires_at");
+create index connector_sessions_user_idx on "better_supabase"."connector_sessions" ("user_id");
 alter table "better_supabase"."connector_sessions" enable row level security;
 revoke all on "better_supabase"."connector_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
-drop policy if exists connector_sessions_read on "better_supabase"."connector_sessions";
 create policy connector_sessions_read on "better_supabase"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- Fingerprints of a server's tool list. A list that changed waits for an
 -- admin before an assistant may call it.
-create table if not exists "better_supabase"."connector_tool_fingerprints" (
+create table "better_supabase"."connector_tool_fingerprints" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
   "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
   "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
@@ -119,12 +93,11 @@ create table if not exists "better_supabase"."connector_tool_fingerprints" (
   "created_at" timestamptz not null default now(),
   primary key ("server_id", "fingerprint")
 );
-create index if not exists connector_tool_fingerprints_approved_by_idx on "better_supabase"."connector_tool_fingerprints" ("approved_by");
+create index connector_tool_fingerprints_approved_by_idx on "better_supabase"."connector_tool_fingerprints" ("approved_by");
 alter table "better_supabase"."connector_tool_fingerprints" enable row level security;
 revoke all on "better_supabase"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
-drop policy if exists connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints";
 create policy connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
@@ -497,45 +470,35 @@ grant execute on function "better_supabase"."purge_connector_sessions"() to serv
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_select on "better_supabase"."connector_servers" as restrictive
   for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("workspace_id" in (select better_supabase.tenant_ids_with('connectors.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_servers" as restrictive
   for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_update on "better_supabase"."connector_servers" as restrictive
   for update to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()))
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_servers" as restrictive
   for delete to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_select on "better_supabase"."connector_grants" as restrictive
   for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_grants" as restrictive
   for insert to public
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_update on "better_supabase"."connector_grants" as restrictive
   for update to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()))
   with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_grants" as restrictive
   for delete to public
   using ("workspace_id" in (select better_supabase.member_workspace_ids()));

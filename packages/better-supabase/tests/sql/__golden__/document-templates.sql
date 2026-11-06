@@ -1,41 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:62cc41a4d91a0c136012ccdeb37a2581f2f50be8c340d989c29cdb1e293254a2
+-- @bsb-hash sha256:fbcf5c1103c3aeb8685c4b2f4174dfcb90fac223fb92a89f1eeb354c360c4088
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Document templates (ADR 0145): per legal entity and language templates, text
 -- blocks, one variable contract per document type, render_document and the
@@ -191,7 +160,7 @@ grant execute on function "better_supabase"."document_variables"(uuid, text, uui
 
 -- The templates of an organization, per document type, name, legal entity
 -- (null for the organization) and language (null for any).
-create table if not exists "better_supabase"."document_templates" (
+create table "better_supabase"."document_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -207,21 +176,20 @@ create table if not exists "better_supabase"."document_templates" (
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict
 );
 -- One template per slot.
-create unique index if not exists "document_templates_slot_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_templates_lookup_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name") where "active";
-create index if not exists "document_templates_entity_idx" on "better_supabase"."document_templates" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_templates_created_by_idx" on "better_supabase"."document_templates" ("created_by") where "created_by" is not null;
+create unique index "document_templates_slot_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_templates_lookup_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name") where "active";
+create index "document_templates_entity_idx" on "better_supabase"."document_templates" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_templates_created_by_idx" on "better_supabase"."document_templates" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."document_templates" enable row level security;
 revoke all on "better_supabase"."document_templates" from public, anon, authenticated;
 grant select on "better_supabase"."document_templates" to authenticated;
 grant all on "better_supabase"."document_templates" to service_role;
-drop policy if exists document_templates_read on "better_supabase"."document_templates";
 create policy document_templates_read on "better_supabase"."document_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
 -- Reusable texts, read in a template as texts.<key>.
-create table if not exists "better_supabase"."document_text_blocks" (
+create table "better_supabase"."document_text_blocks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -234,14 +202,13 @@ create table if not exists "better_supabase"."document_text_blocks" (
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict
 );
-create unique index if not exists "document_text_blocks_slot_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_text_blocks_entity_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_text_blocks_created_by_idx" on "better_supabase"."document_text_blocks" ("created_by") where "created_by" is not null;
+create unique index "document_text_blocks_slot_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_text_blocks_entity_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_text_blocks_created_by_idx" on "better_supabase"."document_text_blocks" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."document_text_blocks" enable row level security;
 revoke all on "better_supabase"."document_text_blocks" from public, anon, authenticated;
 grant select on "better_supabase"."document_text_blocks" to authenticated;
 grant all on "better_supabase"."document_text_blocks" to service_role;
-drop policy if exists document_text_blocks_read on "better_supabase"."document_text_blocks";
 create policy document_text_blocks_read on "better_supabase"."document_text_blocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
@@ -249,7 +216,7 @@ create policy document_text_blocks_read on "better_supabase"."document_text_bloc
 -- What a document looked like when it was frozen: its variables, the template
 -- and the text blocks it used. A snapshot never changes. The template column
 -- keeps the body, so deleting or editing the template leaves it as it was.
-create table if not exists "better_supabase"."rendered_documents" (
+create table "better_supabase"."rendered_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement')),
@@ -266,14 +233,13 @@ create table if not exists "better_supabase"."rendered_documents" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "document_type", "document_id")
 );
-create index if not exists "rendered_documents_created_by_idx" on "better_supabase"."rendered_documents" ("created_by") where "created_by" is not null;
+create index "rendered_documents_created_by_idx" on "better_supabase"."rendered_documents" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."rendered_documents" enable row level security;
 revoke all on "better_supabase"."rendered_documents" from public, anon, authenticated;
 grant select on "better_supabase"."rendered_documents" to authenticated;
 grant all on "better_supabase"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-drop policy if exists rendered_documents_read on "better_supabase"."rendered_documents";
 create policy rendered_documents_read on "better_supabase"."rendered_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end));
@@ -998,7 +964,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."document_snapshot_immutable"() from public, anon, authenticated;
-drop trigger if exists bsb_frozen_render_guard on "better_supabase"."rendered_documents";
 create trigger bsb_frozen_render_guard
   before update on "better_supabase"."rendered_documents"
   for each row execute function "better_supabase"."document_snapshot_immutable"();
@@ -1099,66 +1064,51 @@ grant execute on function "better_supabase"."document_text_block_updated_at"(tex
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_select on "better_supabase"."document_templates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_update on "better_supabase"."document_templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_select on "better_supabase"."document_text_blocks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_text_blocks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_update on "better_supabase"."document_text_blocks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_text_blocks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."rendered_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."rendered_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."rendered_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1180,41 +1130,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:d886215724ef0135709c17a7a7b1e04f7d9185e35958dbaef7a62bf3c998d520
+-- @bsb-hash sha256:0516a5b79b9bf351da8c5bba8c46aedec2448de9036304e3f81f50090d44daa2
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Document templates (ADR 0145): per legal entity and language templates, text
 -- blocks, one variable contract per document type, render_document and the
@@ -1761,7 +1680,7 @@ grant execute on function "better_supabase"."document_variables"(uuid, text, uui
 
 -- The templates of an organization, per document type, name, legal entity
 -- (null for the organization) and language (null for any).
-create table if not exists "better_supabase"."document_templates" (
+create table "better_supabase"."document_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -1777,21 +1696,20 @@ create table if not exists "better_supabase"."document_templates" (
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict
 );
 -- One template per slot.
-create unique index if not exists "document_templates_slot_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_templates_lookup_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name") where "active";
-create index if not exists "document_templates_entity_idx" on "better_supabase"."document_templates" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_templates_created_by_idx" on "better_supabase"."document_templates" ("created_by") where "created_by" is not null;
+create unique index "document_templates_slot_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_templates_lookup_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name") where "active";
+create index "document_templates_entity_idx" on "better_supabase"."document_templates" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_templates_created_by_idx" on "better_supabase"."document_templates" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."document_templates" enable row level security;
 revoke all on "better_supabase"."document_templates" from public, anon, authenticated;
 grant select on "better_supabase"."document_templates" to authenticated;
 grant all on "better_supabase"."document_templates" to service_role;
-drop policy if exists document_templates_read on "better_supabase"."document_templates";
 create policy document_templates_read on "better_supabase"."document_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
 -- Reusable texts, read in a template as texts.<key>.
-create table if not exists "better_supabase"."document_text_blocks" (
+create table "better_supabase"."document_text_blocks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -1804,14 +1722,13 @@ create table if not exists "better_supabase"."document_text_blocks" (
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict
 );
-create unique index if not exists "document_text_blocks_slot_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_text_blocks_entity_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_text_blocks_created_by_idx" on "better_supabase"."document_text_blocks" ("created_by") where "created_by" is not null;
+create unique index "document_text_blocks_slot_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_text_blocks_entity_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_text_blocks_created_by_idx" on "better_supabase"."document_text_blocks" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."document_text_blocks" enable row level security;
 revoke all on "better_supabase"."document_text_blocks" from public, anon, authenticated;
 grant select on "better_supabase"."document_text_blocks" to authenticated;
 grant all on "better_supabase"."document_text_blocks" to service_role;
-drop policy if exists document_text_blocks_read on "better_supabase"."document_text_blocks";
 create policy document_text_blocks_read on "better_supabase"."document_text_blocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
@@ -1819,7 +1736,7 @@ create policy document_text_blocks_read on "better_supabase"."document_text_bloc
 -- What a document looked like when it was frozen: its variables, the template
 -- and the text blocks it used. A snapshot never changes. The template column
 -- keeps the body, so deleting or editing the template leaves it as it was.
-create table if not exists "better_supabase"."rendered_documents" (
+create table "better_supabase"."rendered_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement')),
@@ -1836,14 +1753,13 @@ create table if not exists "better_supabase"."rendered_documents" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "document_type", "document_id")
 );
-create index if not exists "rendered_documents_created_by_idx" on "better_supabase"."rendered_documents" ("created_by") where "created_by" is not null;
+create index "rendered_documents_created_by_idx" on "better_supabase"."rendered_documents" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."rendered_documents" enable row level security;
 revoke all on "better_supabase"."rendered_documents" from public, anon, authenticated;
 grant select on "better_supabase"."rendered_documents" to authenticated;
 grant all on "better_supabase"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-drop policy if exists rendered_documents_read on "better_supabase"."rendered_documents";
 create policy rendered_documents_read on "better_supabase"."rendered_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end));
@@ -2622,7 +2538,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."document_snapshot_immutable"() from public, anon, authenticated;
-drop trigger if exists bsb_frozen_render_guard on "better_supabase"."rendered_documents";
 create trigger bsb_frozen_render_guard
   before update on "better_supabase"."rendered_documents"
   for each row execute function "better_supabase"."document_snapshot_immutable"();
@@ -2740,7 +2655,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."freeze_issued_invoice"() from public, anon, authenticated;
-drop trigger if exists bsb_document_freeze on "better_supabase"."invoices";
 create constraint trigger bsb_document_freeze
   after update of "status" on "better_supabase"."invoices"
   deferrable initially deferred
@@ -2751,66 +2665,51 @@ create constraint trigger bsb_document_freeze
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_select on "better_supabase"."document_templates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_update on "better_supabase"."document_templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_select on "better_supabase"."document_text_blocks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_text_blocks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_update on "better_supabase"."document_text_blocks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_text_blocks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."rendered_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."rendered_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."rendered_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2841,40 +2740,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:b59d80ab66371996b7e7ef78d99ca4658d03ecfdca2d7c847e405dc210c8e9a6
+-- @bsb-hash sha256:5708e9889614871a0502e660e35d5c06a824157b8e0c2a61c0a1f44c1782e33b
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."document_templates";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."document_templates";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."document_templates";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."document_templates";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."document_templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."document_text_blocks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."rendered_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -3035,7 +2904,7 @@ grant execute on function "app_private"."document_variables"(uuid, text, uuid) t
 
 -- The templates of an organization, per document type, name, legal entity
 -- (null for the organization) and language (null for any).
-create table if not exists "app_private"."document_templates" (
+create table "app_private"."document_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -3051,21 +2920,20 @@ create table if not exists "app_private"."document_templates" (
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict
 );
 -- One template per slot.
-create unique index if not exists "document_templates_slot_idx" on "app_private"."document_templates" ("tenant_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_templates_lookup_idx" on "app_private"."document_templates" ("tenant_id", "document_type", "name") where "active";
-create index if not exists "document_templates_entity_idx" on "app_private"."document_templates" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_templates_created_by_idx" on "app_private"."document_templates" ("created_by") where "created_by" is not null;
+create unique index "document_templates_slot_idx" on "app_private"."document_templates" ("tenant_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_templates_lookup_idx" on "app_private"."document_templates" ("tenant_id", "document_type", "name") where "active";
+create index "document_templates_entity_idx" on "app_private"."document_templates" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_templates_created_by_idx" on "app_private"."document_templates" ("created_by") where "created_by" is not null;
 alter table "app_private"."document_templates" enable row level security;
 revoke all on "app_private"."document_templates" from public, anon, authenticated;
 grant select on "app_private"."document_templates" to authenticated;
 grant all on "app_private"."document_templates" to service_role;
-drop policy if exists document_templates_read on "app_private"."document_templates";
 create policy document_templates_read on "app_private"."document_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
 -- Reusable texts, read in a template as texts.<key>.
-create table if not exists "app_private"."document_text_blocks" (
+create table "app_private"."document_text_blocks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -3078,14 +2946,13 @@ create table if not exists "app_private"."document_text_blocks" (
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict
 );
-create unique index if not exists "document_text_blocks_slot_idx" on "app_private"."document_text_blocks" ("tenant_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_text_blocks_entity_idx" on "app_private"."document_text_blocks" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_text_blocks_created_by_idx" on "app_private"."document_text_blocks" ("created_by") where "created_by" is not null;
+create unique index "document_text_blocks_slot_idx" on "app_private"."document_text_blocks" ("tenant_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_text_blocks_entity_idx" on "app_private"."document_text_blocks" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_text_blocks_created_by_idx" on "app_private"."document_text_blocks" ("created_by") where "created_by" is not null;
 alter table "app_private"."document_text_blocks" enable row level security;
 revoke all on "app_private"."document_text_blocks" from public, anon, authenticated;
 grant select on "app_private"."document_text_blocks" to authenticated;
 grant all on "app_private"."document_text_blocks" to service_role;
-drop policy if exists document_text_blocks_read on "app_private"."document_text_blocks";
 create policy document_text_blocks_read on "app_private"."document_text_blocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
@@ -3093,7 +2960,7 @@ create policy document_text_blocks_read on "app_private"."document_text_blocks"
 -- What a document looked like when it was frozen: its variables, the template
 -- and the text blocks it used. A snapshot never changes. The template column
 -- keeps the body, so deleting or editing the template leaves it as it was.
-create table if not exists "app_private"."rendered_documents" (
+create table "app_private"."rendered_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement')),
@@ -3110,14 +2977,13 @@ create table if not exists "app_private"."rendered_documents" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "document_type", "document_id")
 );
-create index if not exists "rendered_documents_created_by_idx" on "app_private"."rendered_documents" ("created_by") where "created_by" is not null;
+create index "rendered_documents_created_by_idx" on "app_private"."rendered_documents" ("created_by") where "created_by" is not null;
 alter table "app_private"."rendered_documents" enable row level security;
 revoke all on "app_private"."rendered_documents" from public, anon, authenticated;
 grant select on "app_private"."rendered_documents" to authenticated;
 grant all on "app_private"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-drop policy if exists rendered_documents_read on "app_private"."rendered_documents";
 create policy rendered_documents_read on "app_private"."rendered_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "app_private"."document_visible"("tenant_id", "document_type", "document_id") end));
@@ -3842,7 +3708,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."document_snapshot_immutable"() from public, anon, authenticated;
-drop trigger if exists bsb_frozen_render_guard on "app_private"."rendered_documents";
 create trigger bsb_frozen_render_guard
   before update on "app_private"."rendered_documents"
   for each row execute function "app_private"."document_snapshot_immutable"();
@@ -3943,66 +3808,51 @@ grant execute on function "app_private"."document_text_block_updated_at"(text) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."document_templates";
-drop policy if exists bsb_tenant_scope_select on "app_private"."document_templates";
 create policy bsb_tenant_scope_select on "app_private"."document_templates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."document_templates";
 create policy bsb_tenant_scope_insert on "app_private"."document_templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."document_templates";
 create policy bsb_tenant_scope_update on "app_private"."document_templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."document_templates";
 create policy bsb_tenant_scope_delete on "app_private"."document_templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."document_text_blocks";
-drop policy if exists bsb_tenant_scope_select on "app_private"."document_text_blocks";
 create policy bsb_tenant_scope_select on "app_private"."document_text_blocks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."document_text_blocks";
 create policy bsb_tenant_scope_insert on "app_private"."document_text_blocks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."document_text_blocks";
 create policy bsb_tenant_scope_update on "app_private"."document_text_blocks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."document_text_blocks";
 create policy bsb_tenant_scope_delete on "app_private"."document_text_blocks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."rendered_documents";
-drop policy if exists bsb_tenant_scope_select on "app_private"."rendered_documents";
 create policy bsb_tenant_scope_select on "app_private"."rendered_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "app_private"."document_visible"("tenant_id", "document_type", "document_id") end))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."rendered_documents";
 create policy bsb_tenant_scope_insert on "app_private"."rendered_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."rendered_documents";
 create policy bsb_tenant_scope_update on "app_private"."rendered_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."rendered_documents";
 create policy bsb_tenant_scope_delete on "app_private"."rendered_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4024,41 +3874,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:0735c5e8ca300b1cb8d6c443e297c55181dc1c3072686e1b506c5d70ddcc8880
+-- @bsb-hash sha256:5dc14fba0e99cddfaf5ecec797f672220095f434ef7050f2c439fc153036b70b
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Document templates (ADR 0145): per legal entity and language templates, text
 -- blocks, one variable contract per document type, render_document and the
@@ -4214,7 +4033,7 @@ grant execute on function "better_supabase"."document_variables"(uuid, text, uui
 
 -- The templates of an organization, per document type, name, legal entity
 -- (null for the organization) and language (null for any).
-create table if not exists "better_supabase"."document_templates" (
+create table "better_supabase"."document_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -4230,21 +4049,20 @@ create table if not exists "better_supabase"."document_templates" (
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict
 );
 -- One template per slot.
-create unique index if not exists "document_templates_slot_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_templates_lookup_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name") where "active";
-create index if not exists "document_templates_entity_idx" on "better_supabase"."document_templates" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_templates_created_by_idx" on "better_supabase"."document_templates" ("created_by") where "created_by" is not null;
+create unique index "document_templates_slot_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_templates_lookup_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name") where "active";
+create index "document_templates_entity_idx" on "better_supabase"."document_templates" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_templates_created_by_idx" on "better_supabase"."document_templates" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."document_templates" enable row level security;
 revoke all on "better_supabase"."document_templates" from public, anon, authenticated;
 grant select on "better_supabase"."document_templates" to authenticated;
 grant all on "better_supabase"."document_templates" to service_role;
-drop policy if exists document_templates_read on "better_supabase"."document_templates";
 create policy document_templates_read on "better_supabase"."document_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
 -- Reusable texts, read in a template as texts.<key>.
-create table if not exists "better_supabase"."document_text_blocks" (
+create table "better_supabase"."document_text_blocks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
@@ -4257,14 +4075,13 @@ create table if not exists "better_supabase"."document_text_blocks" (
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict
 );
-create unique index if not exists "document_text_blocks_slot_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_text_blocks_entity_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_text_blocks_created_by_idx" on "better_supabase"."document_text_blocks" ("created_by") where "created_by" is not null;
+create unique index "document_text_blocks_slot_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_text_blocks_entity_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_text_blocks_created_by_idx" on "better_supabase"."document_text_blocks" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."document_text_blocks" enable row level security;
 revoke all on "better_supabase"."document_text_blocks" from public, anon, authenticated;
 grant select on "better_supabase"."document_text_blocks" to authenticated;
 grant all on "better_supabase"."document_text_blocks" to service_role;
-drop policy if exists document_text_blocks_read on "better_supabase"."document_text_blocks";
 create policy document_text_blocks_read on "better_supabase"."document_text_blocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
@@ -4272,7 +4089,7 @@ create policy document_text_blocks_read on "better_supabase"."document_text_bloc
 -- What a document looked like when it was frozen: its variables, the template
 -- and the text blocks it used. A snapshot never changes. The template column
 -- keeps the body, so deleting or editing the template leaves it as it was.
-create table if not exists "better_supabase"."rendered_documents" (
+create table "better_supabase"."rendered_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement')),
@@ -4289,14 +4106,13 @@ create table if not exists "better_supabase"."rendered_documents" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "document_type", "document_id")
 );
-create index if not exists "rendered_documents_created_by_idx" on "better_supabase"."rendered_documents" ("created_by") where "created_by" is not null;
+create index "rendered_documents_created_by_idx" on "better_supabase"."rendered_documents" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."rendered_documents" enable row level security;
 revoke all on "better_supabase"."rendered_documents" from public, anon, authenticated;
 grant select on "better_supabase"."rendered_documents" to authenticated;
 grant all on "better_supabase"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-drop policy if exists rendered_documents_read on "better_supabase"."rendered_documents";
 create policy rendered_documents_read on "better_supabase"."rendered_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end));
@@ -5021,7 +4837,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."document_snapshot_immutable"() from public, anon, authenticated;
-drop trigger if exists bsb_frozen_render_guard on "better_supabase"."rendered_documents";
 create trigger bsb_frozen_render_guard
   before update on "better_supabase"."rendered_documents"
   for each row execute function "better_supabase"."document_snapshot_immutable"();
@@ -5122,66 +4937,51 @@ grant execute on function "better_supabase"."document_text_block_updated_at"(tex
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_select on "better_supabase"."document_templates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_update on "better_supabase"."document_templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_select on "better_supabase"."document_text_blocks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_text_blocks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_update on "better_supabase"."document_text_blocks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_text_blocks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."rendered_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."rendered_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."rendered_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -5441,41 +5241,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:a0ee66c9a1402525efd4ac5dbf9c3b5afb5564229604cd7a291aa93715ef692f
+-- @bsb-hash sha256:d51bb4e9f4bec521578910e5aa9a48d6930f4bc267601feb13a3115046399ae5
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Document templates (ADR 0145): per legal entity and language templates, text
 -- blocks, one variable contract per document type, render_document and the
@@ -5650,7 +5419,6 @@ create index if not exists "document_templates_created_by_idx" on "better_supaba
 alter table "better_supabase"."document_templates" enable row level security;
 grant select on "better_supabase"."document_templates" to authenticated;
 grant all on "better_supabase"."document_templates" to service_role;
-drop policy if exists bsb_document_templates_read on "better_supabase"."document_templates";
 create policy bsb_document_templates_read on "better_supabase"."document_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
@@ -5672,7 +5440,6 @@ create index if not exists "document_text_blocks_created_by_idx" on "better_supa
 alter table "better_supabase"."document_text_blocks" enable row level security;
 grant select on "better_supabase"."document_text_blocks" to authenticated;
 grant all on "better_supabase"."document_text_blocks" to service_role;
-drop policy if exists bsb_document_text_blocks_read on "better_supabase"."document_text_blocks";
 create policy bsb_document_text_blocks_read on "better_supabase"."document_text_blocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
@@ -5701,7 +5468,6 @@ grant select on "better_supabase"."rendered_documents" to authenticated;
 grant all on "better_supabase"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-drop policy if exists bsb_rendered_documents_read on "better_supabase"."rendered_documents";
 create policy bsb_rendered_documents_read on "better_supabase"."rendered_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end));
@@ -6426,7 +6192,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."document_snapshot_immutable"() from public, anon, authenticated;
-drop trigger if exists bsb_frozen_render_guard on "better_supabase"."rendered_documents";
 create trigger bsb_frozen_render_guard
   before update on "better_supabase"."rendered_documents"
   for each row execute function "better_supabase"."document_snapshot_immutable"();
@@ -6527,66 +6292,51 @@ grant execute on function "better_supabase"."document_text_block_updated_at"(tex
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_select on "better_supabase"."document_templates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_update on "better_supabase"."document_templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_select on "better_supabase"."document_text_blocks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_text_blocks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_update on "better_supabase"."document_text_blocks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_text_blocks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."rendered_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."rendered_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."rendered_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -6608,41 +6358,10 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:5dfda4c1e424bc3dddae7355a8bf318856fcaa2ec2e9184aa8c70195b57adcda
+-- @bsb-hash sha256:9a7da2420f8e89107b215f7d64a0ce4ccbf60f381967161fe305a5087c68667c
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Document templates (ADR 0145): per legal entity and language templates, text
 -- blocks, one variable contract per document type, render_document and the
@@ -6798,7 +6517,7 @@ grant execute on function "better_supabase"."document_variables"(uuid, text, uui
 
 -- The templates of an organization, per document type, name, legal entity
 -- (null for the organization) and language (null for any).
-create table if not exists "better_supabase"."document_templates" (
+create table "better_supabase"."document_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "legal_entity_id" uuid,
@@ -6814,21 +6533,20 @@ create table if not exists "better_supabase"."document_templates" (
   foreign key ("org_id", "legal_entity_id") references "better_supabase"."legal_entities" ("org_id", "id") on delete restrict
 );
 -- One template per slot.
-create unique index if not exists "document_templates_slot_idx" on "better_supabase"."document_templates" ("org_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_templates_lookup_idx" on "better_supabase"."document_templates" ("org_id", "document_type", "name") where "active";
-create index if not exists "document_templates_entity_idx" on "better_supabase"."document_templates" ("org_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_templates_created_by_idx" on "better_supabase"."document_templates" ("created_by") where "created_by" is not null;
+create unique index "document_templates_slot_idx" on "better_supabase"."document_templates" ("org_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_templates_lookup_idx" on "better_supabase"."document_templates" ("org_id", "document_type", "name") where "active";
+create index "document_templates_entity_idx" on "better_supabase"."document_templates" ("org_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_templates_created_by_idx" on "better_supabase"."document_templates" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."document_templates" enable row level security;
 revoke all on "better_supabase"."document_templates" from public, anon, authenticated;
 grant select on "better_supabase"."document_templates" to authenticated;
 grant all on "better_supabase"."document_templates" to service_role;
-drop policy if exists document_templates_read on "better_supabase"."document_templates";
 create policy document_templates_read on "better_supabase"."document_templates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
 -- Reusable texts, read in a template as texts.<key>.
-create table if not exists "better_supabase"."document_text_blocks" (
+create table "better_supabase"."document_text_blocks" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "legal_entity_id" uuid,
@@ -6841,14 +6559,13 @@ create table if not exists "better_supabase"."document_text_blocks" (
   "updated_at" timestamptz not null default now(),
   foreign key ("org_id", "legal_entity_id") references "better_supabase"."legal_entities" ("org_id", "id") on delete restrict
 );
-create unique index if not exists "document_text_blocks_slot_idx" on "better_supabase"."document_text_blocks" ("org_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_text_blocks_entity_idx" on "better_supabase"."document_text_blocks" ("org_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_text_blocks_created_by_idx" on "better_supabase"."document_text_blocks" ("created_by") where "created_by" is not null;
+create unique index "document_text_blocks_slot_idx" on "better_supabase"."document_text_blocks" ("org_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_text_blocks_entity_idx" on "better_supabase"."document_text_blocks" ("org_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_text_blocks_created_by_idx" on "better_supabase"."document_text_blocks" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."document_text_blocks" enable row level security;
 revoke all on "better_supabase"."document_text_blocks" from public, anon, authenticated;
 grant select on "better_supabase"."document_text_blocks" to authenticated;
 grant all on "better_supabase"."document_text_blocks" to service_role;
-drop policy if exists document_text_blocks_read on "better_supabase"."document_text_blocks";
 create policy document_text_blocks_read on "better_supabase"."document_text_blocks"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
@@ -6856,7 +6573,7 @@ create policy document_text_blocks_read on "better_supabase"."document_text_bloc
 -- What a document looked like when it was frozen: its variables, the template
 -- and the text blocks it used. A snapshot never changes. The template column
 -- keeps the body, so deleting or editing the template leaves it as it was.
-create table if not exists "better_supabase"."rendered_documents" (
+create table "better_supabase"."rendered_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement')),
@@ -6873,14 +6590,13 @@ create table if not exists "better_supabase"."rendered_documents" (
   "created_at" timestamptz not null default now(),
   unique ("org_id", "document_type", "document_id")
 );
-create index if not exists "rendered_documents_created_by_idx" on "better_supabase"."rendered_documents" ("created_by") where "created_by" is not null;
+create index "rendered_documents_created_by_idx" on "better_supabase"."rendered_documents" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."rendered_documents" enable row level security;
 revoke all on "better_supabase"."rendered_documents" from public, anon, authenticated;
 grant select on "better_supabase"."rendered_documents" to authenticated;
 grant all on "better_supabase"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-drop policy if exists rendered_documents_read on "better_supabase"."rendered_documents";
 create policy rendered_documents_read on "better_supabase"."rendered_documents"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "org_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("org_id", "document_type", "document_id") end));
@@ -7605,7 +7321,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."document_snapshot_immutable"() from public, anon, authenticated;
-drop trigger if exists bsb_frozen_render_guard on "better_supabase"."rendered_documents";
 create trigger bsb_frozen_render_guard
   before update on "better_supabase"."rendered_documents"
   for each row execute function "better_supabase"."document_snapshot_immutable"();
@@ -7706,66 +7421,51 @@ grant execute on function "better_supabase"."document_text_block_updated_at"(tex
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_select on "better_supabase"."document_templates" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_templates" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_update on "better_supabase"."document_templates" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_templates" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_select on "better_supabase"."document_text_blocks" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_text_blocks" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_update on "better_supabase"."document_text_blocks" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_text_blocks" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."rendered_documents" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "org_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("org_id", "document_type", "document_id") end))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."rendered_documents" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."rendered_documents" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

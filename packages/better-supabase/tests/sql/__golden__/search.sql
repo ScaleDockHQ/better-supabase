@@ -1,29 +1,14 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:9f91a5159f5b7bb9979d53ffa49dd11d04bd2dd4d670925ef2a527d0aabce7b7
+-- @bsb-hash sha256:497f3d65c08d7211d09785958e65013b67417bef86e13f492c16271bb7534ea6
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
-create table if not exists "better_supabase"."search_documents" (
+create table "better_supabase"."search_documents" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -40,11 +25,10 @@ alter table "better_supabase"."search_documents" enable row level security;
 revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
-create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
-create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
+create index search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
+create index search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
+create index search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
 
-drop policy if exists search_documents_read on "better_supabase"."search_documents";
 create policy search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
@@ -376,24 +360,19 @@ grant execute on function "better_supabase"."search_star"(text, text, boolean) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."search_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."search_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -418,29 +397,14 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:737a07878e4c45d250d48322c8cad9f154a1761c91083c474080361ae216ccca
+-- @bsb-hash sha256:91bd4765645c22f521eb9b6b32ce8f3d9055851f492b95b5e3fe2f4a867be62e
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
-create table if not exists "better_supabase"."search_documents" (
+create table "better_supabase"."search_documents" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -457,11 +421,10 @@ alter table "better_supabase"."search_documents" enable row level security;
 revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
-create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
-create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
+create index search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
+create index search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
+create index search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
 
-drop policy if exists search_documents_read on "better_supabase"."search_documents";
 create policy search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
@@ -805,24 +768,19 @@ grant execute on function "better_supabase"."search_star"(text, text, boolean) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."search_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."search_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -847,24 +805,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:f1fd38287c5075320b88856e3e225a676f32defa1ac6dda3dcdabe29380ed895
+-- @bsb-hash sha256:e6e6279781869ed496b64fadf2855bec928f568d5159154f0df39319ef897f47
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."search_documents";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."search_documents";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."search_documents";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."search_documents";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."search_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -873,7 +817,7 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
-create table if not exists "app_private"."search_documents" (
+create table "app_private"."search_documents" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -890,11 +834,10 @@ alter table "app_private"."search_documents" enable row level security;
 revoke all on "app_private"."search_documents" from public, anon, authenticated;
 grant select on "app_private"."search_documents" to authenticated;
 grant all on "app_private"."search_documents" to service_role;
-create index if not exists search_documents_tsv_idx on "app_private"."search_documents" using gin ("tsv");
-create index if not exists search_documents_title_trgm_idx on "app_private"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index if not exists search_documents_tenant_idx on "app_private"."search_documents" ("tenant_id", "subject_type");
+create index search_documents_tsv_idx on "app_private"."search_documents" using gin ("tsv");
+create index search_documents_title_trgm_idx on "app_private"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
+create index search_documents_tenant_idx on "app_private"."search_documents" ("tenant_id", "subject_type");
 
-drop policy if exists search_documents_read on "app_private"."search_documents";
 create policy search_documents_read on "app_private"."search_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
@@ -1226,24 +1169,19 @@ grant execute on function "app_private"."search_star"(text, text, boolean) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."search_documents";
-drop policy if exists bsb_tenant_scope_select on "app_private"."search_documents";
 create policy bsb_tenant_scope_select on "app_private"."search_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."search_documents";
 create policy bsb_tenant_scope_insert on "app_private"."search_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."search_documents";
 create policy bsb_tenant_scope_update on "app_private"."search_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."search_documents";
 create policy bsb_tenant_scope_delete on "app_private"."search_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1268,29 +1206,14 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:175c3c0703093095733e0361558167e6a7ad1a25ae1941e0375ab246e07f966b
+-- @bsb-hash sha256:af6ebe156be9a8a84acee4a15406b5f2f630ff00a98d370c8f3f75fb6092f516
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
-create table if not exists "better_supabase"."search_documents" (
+create table "better_supabase"."search_documents" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -1307,11 +1230,10 @@ alter table "better_supabase"."search_documents" enable row level security;
 revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
-create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
-create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
+create index search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
+create index search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
+create index search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
 
-drop policy if exists search_documents_read on "better_supabase"."search_documents";
 create policy search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
@@ -1643,24 +1565,19 @@ grant execute on function "better_supabase"."search_star"(text, text, boolean) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."search_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."search_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1670,8 +1587,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."search_normalize"(text);
-drop function if exists "api"."search_user_state"();
+
 
 create or replace function "api"."search_refresh"(subject_type text, subject_id text)
 returns boolean
@@ -1768,25 +1684,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:5f5fa6eedc2e12dff662410f614f2110f2884b47d2ed4c9600876d73c718c482
+-- @bsb-hash sha256:c699c0208e8808a02d5f57b1a8d51d228b63b25595f8291565f564bbc3e9d408
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
@@ -1808,7 +1709,6 @@ create index if not exists search_documents_tsv_idx on "better_supabase"."search
 create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
 create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
 
-drop policy if exists bsb_search_documents_select on "better_supabase"."search_documents";
 create policy bsb_search_documents_select on "better_supabase"."search_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
@@ -2140,24 +2040,19 @@ grant execute on function "better_supabase"."search_star"(text, text, boolean) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."search_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."search_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2182,29 +2077,14 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:4e72987cecd5d43f7a1a1ff15d4ca2294975c2d1968c61efa1b688c55079d71e
+-- @bsb-hash sha256:d9a6b8b2db40bb7fef3039e690c013a636d56d55e57f6453caa4b8afda2d7722
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
-create table if not exists "better_supabase"."search_documents" (
+create table "better_supabase"."search_documents" (
   "org_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -2221,11 +2101,10 @@ alter table "better_supabase"."search_documents" enable row level security;
 revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
-create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
-create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("org_id", "subject_type");
+create index search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
+create index search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
+create index search_documents_tenant_idx on "better_supabase"."search_documents" ("org_id", "subject_type");
 
-drop policy if exists search_documents_read on "better_supabase"."search_documents";
 create policy search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('search.read')));
@@ -2557,24 +2436,19 @@ grant execute on function "better_supabase"."search_star"(text, text, boolean) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('search.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."search_documents" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."search_documents" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

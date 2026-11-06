@@ -1,37 +1,14 @@
 -- ==== schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:8aaa735bec4ca608fbaa466abcfa009ec7157bb7403fb87dedde5efd2a181342
+-- @bsb-hash sha256:bcaaecebd451f98f152ffcb3316347000f5bf7ab16229cf9e865a7e1767d1616
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."retention_policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."retention_policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."retention_policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."retention_policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."retention_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."data_subject_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."data_subject_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."data_subject_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."data_subject_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."data_subject_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Exports of a user's or an organization's data, written by the app's
 -- export job as one NDJSON file per table under {id}/ in the data-exports bucket.
-create table if not exists "better_supabase"."data_exports" (
+create table "better_supabase"."data_exports" (
   "id" uuid primary key default gen_random_uuid(),
   "subject" text not null,
   "user_id" uuid references auth.users (id) on delete cascade,
@@ -45,31 +22,25 @@ create table if not exists "better_supabase"."data_exports" (
   "completed_at" timestamptz,
   "expires_at" timestamptz
 );
-alter table "better_supabase"."data_exports" add column if not exists "subject_type" text;
-alter table "better_supabase"."data_exports" add column if not exists "subject_id" text;
-alter table "better_supabase"."data_exports" add column if not exists "format" text;
-alter table "better_supabase"."data_exports" drop constraint if exists "data_exports_subject_check";
-alter table "better_supabase"."data_exports" drop constraint if exists "data_exports_check";
-alter table "better_supabase"."data_exports" drop constraint if exists "data_exports_check1";
-alter table "better_supabase"."data_exports" drop constraint if exists "bsb_data_exports_subject";
+alter table "better_supabase"."data_exports" add column "subject_type" text;
+alter table "better_supabase"."data_exports" add column "subject_id" text;
+alter table "better_supabase"."data_exports" add column "format" text;
 alter table "better_supabase"."data_exports" add constraint "bsb_data_exports_subject" check (case "subject"
   when 'user' then "user_id" is not null and "workspace_id" is null and "subject_type" is null and "subject_id" is null
   when 'organization' then "workspace_id" is not null and "user_id" is null and "subject_type" is null and "subject_id" is null
   when 'record' then "subject_type" is not null and "subject_id" is not null and "user_id" is null
   else false
 end);
-alter table "better_supabase"."data_exports" drop constraint if exists "bsb_data_exports_format";
 alter table "better_supabase"."data_exports" add constraint "bsb_data_exports_format" check ("format" is null or "format" in ('ndjson', 'csv'));
-create unique index if not exists "data_exports_open_record_idx" on "better_supabase"."data_exports" ("subject_type", "subject_id", "requested_by") where "status" in ('pending', 'running') and "subject" = 'record';
-create unique index if not exists data_exports_open_user_idx on "better_supabase"."data_exports" ("user_id") where "status" in ('pending', 'running') and "subject" = 'user';
-create unique index if not exists data_exports_open_tenant_idx on "better_supabase"."data_exports" ("workspace_id") where "status" in ('pending', 'running') and "subject" = 'organization';
-create index if not exists data_exports_requested_by_idx on "better_supabase"."data_exports" ("requested_by");
-create index if not exists data_exports_user_idx on "better_supabase"."data_exports" ("user_id") where "user_id" is not null;
+create unique index "data_exports_open_record_idx" on "better_supabase"."data_exports" ("subject_type", "subject_id", "requested_by") where "status" in ('pending', 'running') and "subject" = 'record';
+create unique index data_exports_open_user_idx on "better_supabase"."data_exports" ("user_id") where "status" in ('pending', 'running') and "subject" = 'user';
+create unique index data_exports_open_tenant_idx on "better_supabase"."data_exports" ("workspace_id") where "status" in ('pending', 'running') and "subject" = 'organization';
+create index data_exports_requested_by_idx on "better_supabase"."data_exports" ("requested_by");
+create index data_exports_user_idx on "better_supabase"."data_exports" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."data_exports" enable row level security;
 revoke all on "better_supabase"."data_exports" from public, anon, authenticated;
 grant select on "better_supabase"."data_exports" to authenticated;
 grant all on "better_supabase"."data_exports" to service_role;
-drop policy if exists data_exports_read on "better_supabase"."data_exports";
 create policy data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
   using ("requested_by" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
@@ -77,7 +48,7 @@ create policy data_exports_read on "better_supabase"."data_exports"
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
 -- disabled before.
-create table if not exists "better_supabase"."workspace_deletions" (
+create table "better_supabase"."workspace_deletions" (
   "workspace_id" uuid primary key,
   "requested_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "requested_at" timestamptz not null default now(),
@@ -86,8 +57,8 @@ create table if not exists "better_supabase"."workspace_deletions" (
   "purged_at" timestamptz,
   "previously_disabled" boolean not null default false
 );
-create index if not exists workspace_deletions_due_idx on "better_supabase"."workspace_deletions" ("purge_after") where "cancelled_at" is null and "purged_at" is null;
-create index if not exists workspace_deletions_requested_by_idx on "better_supabase"."workspace_deletions" ("requested_by") where "requested_by" is not null;
+create index workspace_deletions_due_idx on "better_supabase"."workspace_deletions" ("purge_after") where "cancelled_at" is null and "purged_at" is null;
+create index workspace_deletions_requested_by_idx on "better_supabase"."workspace_deletions" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."workspace_deletions" enable row level security;
 revoke all on "better_supabase"."workspace_deletions" from public, anon, authenticated;
 grant all on "better_supabase"."workspace_deletions" to service_role;
@@ -95,7 +66,7 @@ grant all on "better_supabase"."workspace_deletions" to service_role;
 -- How long each kind of record is kept: for one tenant, for the tenants
 -- on a plan, or for every tenant (both null). A purge keeps a row while
 -- retention_for says so, whatever its own older_than argument.
-create table if not exists "better_supabase"."retention_policies" (
+create table "better_supabase"."retention_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid,
   "plan" text,
@@ -105,7 +76,7 @@ create table if not exists "better_supabase"."retention_policies" (
   check ("workspace_id" is null or "plan" is null),
   unique nulls not distinct ("kind", "workspace_id", "plan")
 );
-create index if not exists retention_policies_tenant_idx on "better_supabase"."retention_policies" ("workspace_id") where "workspace_id" is not null;
+create index retention_policies_tenant_idx on "better_supabase"."retention_policies" ("workspace_id") where "workspace_id" is not null;
 alter table "better_supabase"."retention_policies" enable row level security;
 revoke all on "better_supabase"."retention_policies" from public, anon, authenticated;
 grant all on "better_supabase"."retention_policies" to service_role;
@@ -113,7 +84,7 @@ grant all on "better_supabase"."retention_policies" to service_role;
 -- Legal holds: while one is active (released_at null), no purge deletes
 -- the records it covers. A null tenant holds every tenant, a null kind
 -- every kind.
-create table if not exists "better_supabase"."legal_holds" (
+create table "better_supabase"."legal_holds" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid,
   "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
@@ -123,9 +94,9 @@ create table if not exists "better_supabase"."legal_holds" (
   "released_by" uuid references auth.users (id) on delete set null,
   "released_at" timestamptz
 );
-create index if not exists legal_holds_active_idx on "better_supabase"."legal_holds" ("workspace_id", "kind") where "released_at" is null;
-create index if not exists legal_holds_placed_by_idx on "better_supabase"."legal_holds" ("placed_by") where "placed_by" is not null;
-create index if not exists legal_holds_released_by_idx on "better_supabase"."legal_holds" ("released_by") where "released_by" is not null;
+create index legal_holds_active_idx on "better_supabase"."legal_holds" ("workspace_id", "kind") where "released_at" is null;
+create index legal_holds_placed_by_idx on "better_supabase"."legal_holds" ("placed_by") where "placed_by" is not null;
+create index legal_holds_released_by_idx on "better_supabase"."legal_holds" ("released_by") where "released_by" is not null;
 alter table "better_supabase"."legal_holds" enable row level security;
 revoke all on "better_supabase"."legal_holds" from public, anon, authenticated;
 grant all on "better_supabase"."legal_holds" to service_role;
@@ -337,7 +308,7 @@ grant execute on function "better_supabase"."list_legal_holds"(boolean) to servi
 
 -- One row per data subject request (GDPR Arts. 15 to 20). due_at is 30 days
 -- after receipt; extended_at records the single extension of two months.
-create table if not exists "better_supabase"."data_subject_requests" (
+create table "better_supabase"."data_subject_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
@@ -360,7 +331,7 @@ create table if not exists "better_supabase"."data_subject_requests" (
   "closed_by" uuid,
   check (("subject_type" is null) = ("subject_id" is null))
 );
-create index if not exists data_subject_requests_open_idx on "better_supabase"."data_subject_requests" ("workspace_id", "due_at") where "closed_at" is null;
+create index data_subject_requests_open_idx on "better_supabase"."data_subject_requests" ("workspace_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."data_subject_requests" enable row level security;
 revoke all on "better_supabase"."data_subject_requests" from public, anon, authenticated;
 grant all on "better_supabase"."data_subject_requests" to service_role;
@@ -745,7 +716,7 @@ grant execute on function "better_supabase"."restore_data_row"(uuid, jsonb, text
 
 -- What an export reads and the purge clears: subject, display name,
 -- quoted table, column and whether the purge deletes it.
-drop function if exists "better_supabase"."data_lifecycle_tables"();
+
 create or replace function "better_supabase"."data_lifecycle_tables"()
 returns table (subject text, name text, tbl text, col text, purge boolean, omit text[], exported boolean)
 language sql
@@ -764,7 +735,7 @@ $$;
 
 -- The credential_ref columns of module tables: display name, quoted table,
 -- column and the user column a ref is revoked for (null for the app).
-drop function if exists "better_supabase"."data_lifecycle_credentials"();
+
 create or replace function "better_supabase"."data_lifecycle_credentials"()
 returns table (name text, tbl text, col text, user_col text)
 language sql
@@ -857,7 +828,6 @@ $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
 grant execute on function "better_supabase"."data_export_object_allowed"(text) to authenticated, service_role;
 
-drop policy if exists bsb_data_exports_select on storage.objects;
 create policy bsb_data_exports_select on storage.objects
   for select to authenticated
   using (bucket_id = 'data-exports' and "better_supabase"."data_export_object_allowed"(name));
@@ -904,7 +874,7 @@ $$;
 
 -- A record export's rows, from request_subject_export until the export job
 -- writes them: parts maps each file name to its rows.
-create table if not exists "better_supabase"."data_export_contents" (
+create table "better_supabase"."data_export_contents" (
   "export_id" uuid primary key references "better_supabase"."data_exports" ("id") on delete cascade,
   "parts" jsonb not null default '{}'::jsonb
 );

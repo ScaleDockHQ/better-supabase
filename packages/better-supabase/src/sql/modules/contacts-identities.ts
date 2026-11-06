@@ -55,7 +55,7 @@ create table if not exists ${t("identities")} (
 );${appUniqueIndex(ctx, "identities", ["tenant", "channel", "address"])}
 create index if not exists ${ctx.naming.rename("person_identities_person_idx")} on ${t("identities")} (${ic("person")});
 ${lockModuleTable(ctx, "identities", { read: true })}
-${renderPolicy(makePolicy({ table: t("identities"), name: `${ctx.tableName("identities").name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(ic("tenant"), names.read) }), { drop: true, target: t("identities") })}
+${renderPolicy(makePolicy({ table: t("identities"), name: `${ctx.tableName("identities").name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(ic("tenant"), names.read) }), { target: t("identities") })}
 `;
 }
 

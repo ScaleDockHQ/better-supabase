@@ -149,7 +149,7 @@ describe("tags module", () => {
 
   it("indexes taggings by tenant and subject", () => {
     expect(sqlOf()).toContain(
-      `create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");`,
+      `create index "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");`,
     );
   });
 
@@ -199,9 +199,6 @@ describe("tags module", () => {
     expect(sql).toContain("hint = 'TAG_SLUG_INVALID'");
     expect(sql).toContain(
       `"color" = case when update_tag.patch ? 'color' then update_tag.patch ->> 'color' else t."color" end`,
-    );
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb, jsonb);',
     );
   });
 

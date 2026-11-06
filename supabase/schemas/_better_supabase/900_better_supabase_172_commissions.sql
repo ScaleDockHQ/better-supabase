@@ -1,52 +1,14 @@
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:453d6358f1ba53b56c70ffa660c3bdf301e274add7de83489d2311b7754727af
+-- @bsb-hash sha256:5f90aac5b4630eecdb2e5bab14657216d4d2388ce8f8ef6ebe0852c304aa37c5
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."commission_plans";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."commission_plans";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."commission_plans";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."commission_plans";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."commission_plans";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."commission_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."commission_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."commission_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."commission_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."commission_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."commissions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."commissions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."commissions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."commissions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."commissions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."commission_statements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."commission_statements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."commission_statements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."commission_statements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."commission_statements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 -- Commission plans (flat rate or marginal tiers), their assignments to sellers,
 -- the commissions accrued from paid records and the statements that collect
 -- a seller's commissions per period. Amounts are bigint minor units.
-create table if not exists "better_supabase"."commission_plans" (
+create table "better_supabase"."commission_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -62,17 +24,16 @@ create table if not exists "better_supabase"."commission_plans" (
   check (("kind" = 'flat' and "rate_bps" is not null and "tiers" is null)
     or ("kind" = 'tiered' and "rate_bps" is null and "tiers" is not null))
 );
-create index if not exists "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at" desc);
+create index "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at" desc);
 alter table "better_supabase"."commission_plans" enable row level security;
 revoke all on "better_supabase"."commission_plans" from public, anon, authenticated;
 grant select on "better_supabase"."commission_plans" to authenticated;
 grant all on "better_supabase"."commission_plans" to service_role;
-drop policy if exists commission_plans_read on "better_supabase"."commission_plans";
 create policy commission_plans_read on "better_supabase"."commission_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')));
 
-create table if not exists "better_supabase"."commission_assignments" (
+create table "better_supabase"."commission_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
@@ -87,18 +48,17 @@ create table if not exists "better_supabase"."commission_assignments" (
   check ("ends_on" is null or "ends_on" >= "starts_on"),
   foreign key ("tenant_id", "plan_id") references "better_supabase"."commission_plans" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "commission_assignments_plan_idx" on "better_supabase"."commission_assignments" ("tenant_id", "plan_id");
-create index if not exists "commission_assignments_seller_idx" on "better_supabase"."commission_assignments" ("tenant_id", "seller_id", "starts_on" desc);
+create index "commission_assignments_plan_idx" on "better_supabase"."commission_assignments" ("tenant_id", "plan_id");
+create index "commission_assignments_seller_idx" on "better_supabase"."commission_assignments" ("tenant_id", "seller_id", "starts_on" desc);
 alter table "better_supabase"."commission_assignments" enable row level security;
 revoke all on "better_supabase"."commission_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."commission_assignments" to authenticated;
 grant all on "better_supabase"."commission_assignments" to service_role;
-drop policy if exists commission_assignments_read on "better_supabase"."commission_assignments";
 create policy commission_assignments_read on "better_supabase"."commission_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."commission_statements" (
+create table "better_supabase"."commission_statements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "seller_id" uuid not null,
@@ -117,17 +77,16 @@ create table if not exists "better_supabase"."commission_statements" (
   unique ("tenant_id", "id"),
   unique ("tenant_id", "seller_id", "currency", "starts_on")
 );
-create index if not exists "commission_statements_range_idx" on "better_supabase"."commission_statements" ("tenant_id", "ends_on", "status");
+create index "commission_statements_range_idx" on "better_supabase"."commission_statements" ("tenant_id", "ends_on", "status");
 alter table "better_supabase"."commission_statements" enable row level security;
 revoke all on "better_supabase"."commission_statements" from public, anon, authenticated;
 grant select on "better_supabase"."commission_statements" to authenticated;
 grant all on "better_supabase"."commission_statements" to service_role;
-drop policy if exists commission_statements_read on "better_supabase"."commission_statements";
 create policy commission_statements_read on "better_supabase"."commission_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."commissions" (
+create table "better_supabase"."commissions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
@@ -149,14 +108,13 @@ create table if not exists "better_supabase"."commissions" (
   foreign key ("tenant_id", "plan_id") references "better_supabase"."commission_plans" ("tenant_id", "id"),
   foreign key ("tenant_id", "statement_id") references "better_supabase"."commission_statements" ("tenant_id", "id")
 );
-create index if not exists "commissions_seller_idx" on "better_supabase"."commissions" ("tenant_id", "seller_id", "currency", "occurred_on");
-create index if not exists "commissions_statement_idx" on "better_supabase"."commissions" ("tenant_id", "statement_id");
-create index if not exists "commissions_plan_idx" on "better_supabase"."commissions" ("tenant_id", "plan_id");
+create index "commissions_seller_idx" on "better_supabase"."commissions" ("tenant_id", "seller_id", "currency", "occurred_on");
+create index "commissions_statement_idx" on "better_supabase"."commissions" ("tenant_id", "statement_id");
+create index "commissions_plan_idx" on "better_supabase"."commissions" ("tenant_id", "plan_id");
 alter table "better_supabase"."commissions" enable row level security;
 revoke all on "better_supabase"."commissions" from public, anon, authenticated;
 grant select on "better_supabase"."commissions" to authenticated;
 grant all on "better_supabase"."commissions" to service_role;
-drop policy if exists commissions_read on "better_supabase"."commissions";
 create policy commissions_read on "better_supabase"."commissions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
@@ -942,87 +900,67 @@ grant execute on function "better_supabase"."commission_close_range"(uuid, date,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."commission_plans";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."commission_plans";
 create policy bsb_tenant_scope_select on "better_supabase"."commission_plans" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."commission_plans";
 create policy bsb_tenant_scope_insert on "better_supabase"."commission_plans" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."commission_plans";
 create policy bsb_tenant_scope_update on "better_supabase"."commission_plans" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."commission_plans";
 create policy bsb_tenant_scope_delete on "better_supabase"."commission_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."commission_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."commission_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."commission_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."commission_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."commission_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."commission_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."commission_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."commission_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."commission_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."commissions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."commissions";
 create policy bsb_tenant_scope_select on "better_supabase"."commissions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."commissions";
 create policy bsb_tenant_scope_insert on "better_supabase"."commissions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."commissions";
 create policy bsb_tenant_scope_update on "better_supabase"."commissions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."commissions";
 create policy bsb_tenant_scope_delete on "better_supabase"."commissions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."commission_statements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."commission_statements";
 create policy bsb_tenant_scope_select on "better_supabase"."commission_statements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."commission_statements";
 create policy bsb_tenant_scope_insert on "better_supabase"."commission_statements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."commission_statements";
 create policy bsb_tenant_scope_update on "better_supabase"."commission_statements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."commission_statements";
 create policy bsb_tenant_scope_delete on "better_supabase"."commission_statements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

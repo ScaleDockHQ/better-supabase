@@ -1,35 +1,12 @@
 -- ==== schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:f67cfccafcc468178bc8938bb4a12c0419e406139ba952e6783346d37f6a0ef4
+-- @bsb-hash sha256:57dc859b5832f514ba896e58a3e766fcd150a8c220a6def233a825b64885bc50
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."saved_views";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."saved_views";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."saved_views";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."saved_views";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."saved_view_preferences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."saved_view_preferences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."saved_view_preferences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."saved_view_preferences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."saved_views" (
+create table "better_supabase"."saved_views" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "list" text not null check (length("list") >= 1 and length("list") <= 80),
@@ -46,16 +23,15 @@ create table if not exists "better_supabase"."saved_views" (
   check ("scope" <> 'user' or "owner_id" is not null),
   check ("scope" <> 'team' or "team_id" is not null)
 );
-create index if not exists "saved_views_list_idx" on "better_supabase"."saved_views" ("tenant_id", "list");
-create index if not exists "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
-create unique index if not exists "saved_views_default_idx" on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
-alter table "better_supabase"."saved_views" add column if not exists "app_note" text;
+create index "saved_views_list_idx" on "better_supabase"."saved_views" ("tenant_id", "list");
+create index "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
+create unique index "saved_views_default_idx" on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
+alter table "better_supabase"."saved_views" add column "app_note" text;
 alter table "better_supabase"."saved_views" enable row level security;
 revoke all on "better_supabase"."saved_views" from public, anon, authenticated;
 grant select on "better_supabase"."saved_views" to authenticated;
 grant all on "better_supabase"."saved_views" to service_role;
 
-drop policy if exists saved_views_read on "better_supabase"."saved_views";
 create policy saved_views_read on "better_supabase"."saved_views"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('saved_views.read'))
@@ -64,7 +40,7 @@ create policy saved_views_read on "better_supabase"."saved_views"
     or ("scope" = 'team' and false)
     or "scope" = 'tenant'
   ));
-create table if not exists "better_supabase"."saved_view_preferences" (
+create table "better_supabase"."saved_view_preferences" (
   "view_id" uuid not null references "better_supabase"."saved_views" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
@@ -74,18 +50,14 @@ create table if not exists "better_supabase"."saved_view_preferences" (
   "updated_at" timestamptz not null default now(),
   primary key ("view_id", "user_id")
 );
-create index if not exists "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
+create index "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
 alter table "better_supabase"."saved_view_preferences" enable row level security;
 revoke all on "better_supabase"."saved_view_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
 grant all on "better_supabase"."saved_view_preferences" to service_role;
-drop policy if exists saved_view_preferences_read on "better_supabase"."saved_view_preferences";
 create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-
-
-drop function if exists "better_supabase"."save_view"(uuid, text, text, text, text, text, jsonb, uuid);
 create or replace function "better_supabase"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid, fields jsonb default null)
 returns jsonb
 language plpgsql
@@ -410,8 +382,6 @@ grant execute on function "better_supabase"."set_view_preference"(uuid, boolean,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."saved_views";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."saved_views";
 create policy bsb_tenant_scope_select on "better_supabase"."saved_views" as restrictive
   for select to public
   using (
@@ -423,37 +393,29 @@ create policy bsb_tenant_scope_select on "better_supabase"."saved_views" as rest
     or "scope" = 'tenant'
   ))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."saved_views";
 create policy bsb_tenant_scope_insert on "better_supabase"."saved_views" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."saved_views";
 create policy bsb_tenant_scope_update on "better_supabase"."saved_views" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."saved_views";
 create policy bsb_tenant_scope_delete on "better_supabase"."saved_views" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."saved_view_preferences";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."saved_view_preferences";
 create policy bsb_tenant_scope_select on "better_supabase"."saved_view_preferences" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."saved_view_preferences";
 create policy bsb_tenant_scope_insert on "better_supabase"."saved_view_preferences" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."saved_view_preferences";
 create policy bsb_tenant_scope_update on "better_supabase"."saved_view_preferences" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."saved_view_preferences";
 create policy bsb_tenant_scope_delete on "better_supabase"."saved_view_preferences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

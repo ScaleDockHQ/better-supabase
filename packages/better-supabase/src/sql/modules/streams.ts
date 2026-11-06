@@ -155,7 +155,7 @@ alter table ${s} enable row level security;
 ${revokeTable(s)}
 grant select on ${s} to authenticated;
 grant all on ${s} to service_role;
-${renderPolicy(makePolicy({ table: s, name: "streams_owner_read", command: "select", roles: ["authenticated"], using: `${cs("owner")} = (select auth.uid())` }), { drop: true, target: s })}
+${renderPolicy(makePolicy({ table: s, name: "streams_owner_read", command: "select", roles: ["authenticated"], using: `${cs("owner")} = (select auth.uid())` }), { target: s })}
 
 create table if not exists ${c} (
   ${cc("stream")} text not null references ${s} (${cs("id")}) on delete cascade,
@@ -178,7 +178,7 @@ ${renderPolicy(
     where st.${cs("id")} = ${cc("stream")} and st.${cs("owner")} = (select auth.uid())
   )`,
   }),
-  { drop: true, target: c },
+  { target: c },
 )}
 
 -- A key-value table with the Redis semantics resumable-stream needs from its
@@ -485,7 +485,7 @@ begin
             and st.${cs("owner")} = (select auth.uid())
         )`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
   end if;
 end;

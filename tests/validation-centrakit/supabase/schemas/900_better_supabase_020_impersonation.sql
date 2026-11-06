@@ -1,34 +1,11 @@
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:86b9c09a8d4c1def937ea46d3b4e771ec72a830bcafa53c1ea23a997bf32f6a6
+-- @bsb-hash sha256:cfe4015849fc99ce92f6e17f3dbf7b23b98a3d8f83be4d3072fd70df7cc28ac9
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."support_sessions" (
+create table "better_supabase"."support_sessions" (
   "id" uuid primary key default gen_random_uuid(),
   -- Sessions outlive a deleted user, so the record of who viewed whom stays.
   "admin_id" uuid references auth.users (id) on delete set null,
@@ -45,14 +22,13 @@ create table if not exists "better_supabase"."support_sessions" (
   check ("admin_id" <> "target_user_id"),
   check ("expires_at" > "started_at")
 );
-create index if not exists support_sessions_admin_idx on "better_supabase"."support_sessions" ("admin_id", "started_at" desc);
-create index if not exists support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
-create unique index if not exists support_sessions_one_active_idx on "better_supabase"."support_sessions" ("admin_id") where "ended_at" is null;
+create index support_sessions_admin_idx on "better_supabase"."support_sessions" ("admin_id", "started_at" desc);
+create index support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
+create unique index support_sessions_one_active_idx on "better_supabase"."support_sessions" ("admin_id") where "ended_at" is null;
 alter table "better_supabase"."support_sessions" enable row level security;
 revoke all on "better_supabase"."support_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."support_sessions" to service_role;
 -- Platform staff read every session.
-drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
 create policy bsb_support_read on "better_supabase"."support_sessions"
   for select to authenticated
   using ((select "better_supabase"."is_platform"('platform.users.manage')));
@@ -60,7 +36,7 @@ grant select on "better_supabase"."support_sessions" to authenticated;
 
 -- A support session waits for a second admin: the requester asks here, and
 -- another admin approves. Rows are written only through the functions below.
-create table if not exists "better_supabase"."support_requests" (
+create table "better_supabase"."support_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "admin_id" uuid not null references auth.users (id) on delete cascade,
   "target_user_id" uuid not null references auth.users (id) on delete cascade,
@@ -78,14 +54,13 @@ create table if not exists "better_supabase"."support_requests" (
   constraint support_requests_distinct_approver check ("approved_by" <> "admin_id"),
   check (("approved_by" is null) = ("approved_at" is null))
 );
-create index if not exists support_requests_admin_idx on "better_supabase"."support_requests" ("admin_id", "target_user_id", "requested_at" desc);
-create index if not exists support_requests_target_idx on "better_supabase"."support_requests" ("target_user_id");
-create index if not exists support_requests_approved_by_idx on "better_supabase"."support_requests" ("approved_by");
+create index support_requests_admin_idx on "better_supabase"."support_requests" ("admin_id", "target_user_id", "requested_at" desc);
+create index support_requests_target_idx on "better_supabase"."support_requests" ("target_user_id");
+create index support_requests_approved_by_idx on "better_supabase"."support_requests" ("approved_by");
 alter table "better_supabase"."support_requests" enable row level security;
 revoke all on "better_supabase"."support_requests" from public, anon, authenticated;
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
-drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
 create policy bsb_support_requests_read on "better_supabase"."support_requests"
   for select to authenticated
   using ("admin_id" = (select auth.uid())
@@ -713,29 +688,22 @@ grant execute on function "better_supabase"."expire_support_sessions"() to servi
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
 create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ((select "better_supabase"."is_platform"('platform.users.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
 create policy bsb_tenant_scope_update on "better_supabase"."support_sessions" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
 create policy bsb_tenant_scope_delete on "better_supabase"."support_sessions" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as restrictive
   for select to public
   using (
@@ -743,16 +711,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as
     or ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('platform.users.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."support_requests" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."support_requests" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));

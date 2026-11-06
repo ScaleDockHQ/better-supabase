@@ -130,7 +130,7 @@ export function eDeliveryTablesSql(
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, read),
       }),
-      { drop: true, target },
+      { target },
     );
 
   return `

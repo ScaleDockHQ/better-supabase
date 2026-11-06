@@ -1,31 +1,16 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:80351cc0d68452cf98ad3aca5eabfe63405d801202c1bfedf233d9512d7d9e9b
+-- @bsb-hash sha256:dbbf7cddb3573cdf8060e7d35f7af34b903a647d81988461a0ab17cf2ecb6607
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Trigger URLs a tenant hands to another system: /hooks/<token> stores each
 -- delivery in the webhook inbox (source webhook-in), with the endpoint's
 -- tenant. Only the token's hash is kept, and the signing secret is a Vault
 -- secret (secret_id) unless options.secretStorage is "column".
-create table if not exists "better_supabase"."incoming_webhooks" (
+create table "better_supabase"."incoming_webhooks" (
   id uuid primary key default gen_random_uuid(),
   tenant uuid not null,
   name text not null,
@@ -49,21 +34,13 @@ create table if not exists "better_supabase"."incoming_webhooks" (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table "better_supabase"."incoming_webhooks" add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200);
-alter table "better_supabase"."incoming_webhooks" add column if not exists secret_id uuid;
-alter table "better_supabase"."incoming_webhooks" drop constraint if exists incoming_webhooks_verify_check;
 alter table "better_supabase"."incoming_webhooks" add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));
-alter table "better_supabase"."incoming_webhooks" add column if not exists previous_secret text;
-alter table "better_supabase"."incoming_webhooks" add column if not exists previous_secret_id uuid;
-alter table "better_supabase"."incoming_webhooks" add column if not exists previous_secret_expires_at timestamptz;
-create index if not exists incoming_webhooks_tenant_idx on "better_supabase"."incoming_webhooks" (tenant);
-create index if not exists incoming_webhooks_subject_idx on "better_supabase"."incoming_webhooks" (tenant, subject_type, subject_id);
-create index if not exists incoming_webhooks_created_by_idx on "better_supabase"."incoming_webhooks" (created_by) where created_by is not null;
-alter table "better_supabase"."incoming_webhooks" add column if not exists updated_at timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."incoming_webhooks";
+create index incoming_webhooks_tenant_idx on "better_supabase"."incoming_webhooks" (tenant);
+create index incoming_webhooks_subject_idx on "better_supabase"."incoming_webhooks" (tenant, subject_type, subject_id);
+create index incoming_webhooks_created_by_idx on "better_supabase"."incoming_webhooks" (created_by) where created_by is not null;
 create trigger bsb_updated_at before update on "better_supabase"."incoming_webhooks"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
 create or replace function "better_supabase"."drop_incoming_webhook_secret"()
 returns trigger
@@ -77,7 +54,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
 create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 alter table "better_supabase"."incoming_webhooks" enable row level security;
@@ -113,7 +89,6 @@ $$;
 revoke execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
 create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks"
   for select to authenticated
   using (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
@@ -151,8 +126,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."create_incoming_webhook"(uuid, text, text, jsonb, text);
 -- Creates an endpoint and returns it with its token (and the signing secret
 -- for standard-webhooks and hmac-sha256), shown once.
 create or replace function "better_supabase"."create_incoming_webhook"(
@@ -422,7 +395,7 @@ $$;
 
 -- The endpoint behind a token, with its secret and metadata, for the
 -- receiving route.
-drop function if exists "better_supabase"."incoming_webhook_by_token"(text);
+
 create or replace function "better_supabase"."incoming_webhook_by_token"(token text)
 returns table (id uuid, tenant text, enabled boolean, verify text, secret text, signature_header text, max_body_bytes integer, previous_secret text, metadata jsonb)
 language sql
@@ -470,8 +443,6 @@ grant execute on function "better_supabase"."record_incoming_webhook"(uuid, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_select on "better_supabase"."incoming_webhooks" as restrictive
   for select to public
   using (
@@ -479,16 +450,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."incoming_webhooks" a
     or (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
     and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks" as restrictive
   for insert to public
   with check ("tenant" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_update on "better_supabase"."incoming_webhooks" as restrictive
   for update to public
   using ("tenant" in (select better_supabase.member_organization_ids()))
   with check ("tenant" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks" as restrictive
   for delete to public
   using ("tenant" in (select better_supabase.member_organization_ids()));
@@ -510,31 +478,16 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:d1766f2c9feaf2a88bb04d8975449a46b7b0f4127039883aa401dbe2f9643b85
+-- @bsb-hash sha256:4cbdf108099fdf9aebbbc9f2ac43592cdcf2d72359fb19945dac28ee0d1e923c
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Trigger URLs a tenant hands to another system: /hooks/<token> stores each
 -- delivery in the webhook inbox (source webhook-in), with the endpoint's
 -- tenant. Only the token's hash is kept, and the signing secret is a Vault
 -- secret (secret_id) unless options.secretStorage is "column".
-create table if not exists "better_supabase"."incoming_webhooks" (
+create table "better_supabase"."incoming_webhooks" (
   id uuid primary key default gen_random_uuid(),
   tenant uuid not null,
   name text not null,
@@ -558,21 +511,13 @@ create table if not exists "better_supabase"."incoming_webhooks" (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table "better_supabase"."incoming_webhooks" add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200);
-alter table "better_supabase"."incoming_webhooks" add column if not exists secret_id uuid;
-alter table "better_supabase"."incoming_webhooks" drop constraint if exists incoming_webhooks_verify_check;
 alter table "better_supabase"."incoming_webhooks" add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));
-alter table "better_supabase"."incoming_webhooks" add column if not exists previous_secret text;
-alter table "better_supabase"."incoming_webhooks" add column if not exists previous_secret_id uuid;
-alter table "better_supabase"."incoming_webhooks" add column if not exists previous_secret_expires_at timestamptz;
-create index if not exists incoming_webhooks_tenant_idx on "better_supabase"."incoming_webhooks" (tenant);
-create index if not exists incoming_webhooks_subject_idx on "better_supabase"."incoming_webhooks" (tenant, subject_type, subject_id);
-create index if not exists incoming_webhooks_created_by_idx on "better_supabase"."incoming_webhooks" (created_by) where created_by is not null;
-alter table "better_supabase"."incoming_webhooks" add column if not exists updated_at timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."incoming_webhooks";
+create index incoming_webhooks_tenant_idx on "better_supabase"."incoming_webhooks" (tenant);
+create index incoming_webhooks_subject_idx on "better_supabase"."incoming_webhooks" (tenant, subject_type, subject_id);
+create index incoming_webhooks_created_by_idx on "better_supabase"."incoming_webhooks" (created_by) where created_by is not null;
 create trigger bsb_updated_at before update on "better_supabase"."incoming_webhooks"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
 create or replace function "better_supabase"."drop_incoming_webhook_secret"()
 returns trigger
@@ -586,7 +531,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
 create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 alter table "better_supabase"."incoming_webhooks" enable row level security;
@@ -622,7 +566,6 @@ $$;
 revoke execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
 create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks"
   for select to authenticated
   using (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
@@ -660,8 +603,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."create_incoming_webhook"(uuid, text, text, jsonb, text);
 -- Creates an endpoint and returns it with its token (and the signing secret
 -- for standard-webhooks and hmac-sha256), shown once.
 create or replace function "better_supabase"."create_incoming_webhook"(
@@ -979,7 +920,7 @@ $$;
 
 -- The endpoint behind a token, with its secret and metadata, for the
 -- receiving route.
-drop function if exists "better_supabase"."incoming_webhook_by_token"(text);
+
 create or replace function "better_supabase"."incoming_webhook_by_token"(token text)
 returns table (id uuid, tenant text, enabled boolean, verify text, secret text, signature_header text, max_body_bytes integer, previous_secret text, metadata jsonb)
 language sql
@@ -1027,8 +968,6 @@ grant execute on function "better_supabase"."record_incoming_webhook"(uuid, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_select on "better_supabase"."incoming_webhooks" as restrictive
   for select to public
   using (
@@ -1036,16 +975,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."incoming_webhooks" a
     or (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
     and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks" as restrictive
   for insert to public
   with check ("tenant" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_update on "better_supabase"."incoming_webhooks" as restrictive
   for update to public
   using ("tenant" in (select better_supabase.member_organization_ids()))
   with check ("tenant" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks" as restrictive
   for delete to public
   using ("tenant" in (select better_supabase.member_organization_ids()));
@@ -1067,24 +1003,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:0820426d7dfad1bd950e2cd6490ba0142d4f1355dc09ef45f97f698596bce90b
+-- @bsb-hash sha256:b0dcb01c89009ac100e3c6ad0ab6bb3475304750ff29edec30a732b1212ff9b2
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."incoming_webhooks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -1095,7 +1017,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- delivery in the webhook inbox (source webhook-in), with the endpoint's
 -- tenant. Only the token's hash is kept, and the signing secret is a Vault
 -- secret (secret_id) unless options.secretStorage is "column".
-create table if not exists "app_private"."incoming_webhooks" (
+create table "app_private"."incoming_webhooks" (
   id uuid primary key default gen_random_uuid(),
   tenant uuid not null,
   name text not null,
@@ -1119,21 +1041,13 @@ create table if not exists "app_private"."incoming_webhooks" (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table "app_private"."incoming_webhooks" add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "app_private"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200);
-alter table "app_private"."incoming_webhooks" add column if not exists secret_id uuid;
-alter table "app_private"."incoming_webhooks" drop constraint if exists incoming_webhooks_verify_check;
 alter table "app_private"."incoming_webhooks" add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));
-alter table "app_private"."incoming_webhooks" add column if not exists previous_secret text;
-alter table "app_private"."incoming_webhooks" add column if not exists previous_secret_id uuid;
-alter table "app_private"."incoming_webhooks" add column if not exists previous_secret_expires_at timestamptz;
-create index if not exists incoming_webhooks_tenant_idx on "app_private"."incoming_webhooks" (tenant);
-create index if not exists incoming_webhooks_subject_idx on "app_private"."incoming_webhooks" (tenant, subject_type, subject_id);
-create index if not exists incoming_webhooks_created_by_idx on "app_private"."incoming_webhooks" (created_by) where created_by is not null;
-alter table "app_private"."incoming_webhooks" add column if not exists updated_at timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "app_private"."incoming_webhooks";
+create index incoming_webhooks_tenant_idx on "app_private"."incoming_webhooks" (tenant);
+create index incoming_webhooks_subject_idx on "app_private"."incoming_webhooks" (tenant, subject_type, subject_id);
+create index incoming_webhooks_created_by_idx on "app_private"."incoming_webhooks" (created_by) where created_by is not null;
 create trigger bsb_updated_at before update on "app_private"."incoming_webhooks"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
 create or replace function "app_private"."drop_incoming_webhook_secret"()
 returns trigger
@@ -1147,7 +1061,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bsb_incoming_webhook_vault" on "app_private"."incoming_webhooks";
 create trigger "bsb_incoming_webhook_vault" after delete on "app_private"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "app_private"."drop_incoming_webhook_secret"();
 alter table "app_private"."incoming_webhooks" enable row level security;
@@ -1183,7 +1096,6 @@ $$;
 revoke execute on function "app_private"."incoming_webhook_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "app_private"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists bsb_incoming_webhooks_read on "app_private"."incoming_webhooks";
 create policy bsb_incoming_webhooks_read on "app_private"."incoming_webhooks"
   for select to authenticated
   using (tenant in (select "app_private"."incoming_webhook_tenant_ids"())
@@ -1221,8 +1133,6 @@ as $$
 $$;
 revoke execute on function "app_private"."list_incoming_webhooks"(uuid, text, text) from public, anon;
 grant execute on function "app_private"."list_incoming_webhooks"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "app_private"."create_incoming_webhook"(uuid, text, text, jsonb, text);
 -- Creates an endpoint and returns it with its token (and the signing secret
 -- for standard-webhooks and hmac-sha256), shown once.
 create or replace function "app_private"."create_incoming_webhook"(
@@ -1492,7 +1402,7 @@ $$;
 
 -- The endpoint behind a token, with its secret and metadata, for the
 -- receiving route.
-drop function if exists "app_private"."incoming_webhook_by_token"(text);
+
 create or replace function "app_private"."incoming_webhook_by_token"(token text)
 returns table (id uuid, tenant text, enabled boolean, verify text, secret text, signature_header text, max_body_bytes integer, previous_secret text, metadata jsonb)
 language sql
@@ -1540,8 +1450,6 @@ grant execute on function "app_private"."record_incoming_webhook"(uuid, integer)
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."incoming_webhooks";
-drop policy if exists bsb_tenant_scope_select on "app_private"."incoming_webhooks";
 create policy bsb_tenant_scope_select on "app_private"."incoming_webhooks" as restrictive
   for select to public
   using (
@@ -1549,16 +1457,13 @@ create policy bsb_tenant_scope_select on "app_private"."incoming_webhooks" as re
     or (tenant in (select "app_private"."incoming_webhook_tenant_ids"())
     and "app_private"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."incoming_webhooks";
 create policy bsb_tenant_scope_insert on "app_private"."incoming_webhooks" as restrictive
   for insert to public
   with check ("tenant" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."incoming_webhooks";
 create policy bsb_tenant_scope_update on "app_private"."incoming_webhooks" as restrictive
   for update to public
   using ("tenant" in (select better_supabase.member_organization_ids()))
   with check ("tenant" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."incoming_webhooks";
 create policy bsb_tenant_scope_delete on "app_private"."incoming_webhooks" as restrictive
   for delete to public
   using ("tenant" in (select better_supabase.member_organization_ids()));
@@ -1580,31 +1485,16 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:be7f575bd1bbde139ff083263ba399acdb1d038b85ca3b12dc730caca3ddc597
+-- @bsb-hash sha256:35d32e7ab505aab41b9cbad666dc0e2b50fe6acdabb07c8f023fa55aeb66a376
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Trigger URLs a tenant hands to another system: /hooks/<token> stores each
 -- delivery in the webhook inbox (source webhook-in), with the endpoint's
 -- tenant. Only the token's hash is kept, and the signing secret is a Vault
 -- secret (secret_id) unless options.secretStorage is "column".
-create table if not exists "better_supabase"."incoming_webhooks" (
+create table "better_supabase"."incoming_webhooks" (
   id uuid primary key default gen_random_uuid(),
   tenant uuid not null,
   name text not null,
@@ -1628,21 +1518,13 @@ create table if not exists "better_supabase"."incoming_webhooks" (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table "better_supabase"."incoming_webhooks" add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."incoming_webhooks" add column if not exists subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200);
-alter table "better_supabase"."incoming_webhooks" add column if not exists secret_id uuid;
-alter table "better_supabase"."incoming_webhooks" drop constraint if exists incoming_webhooks_verify_check;
 alter table "better_supabase"."incoming_webhooks" add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));
-alter table "better_supabase"."incoming_webhooks" add column if not exists previous_secret text;
-alter table "better_supabase"."incoming_webhooks" add column if not exists previous_secret_id uuid;
-alter table "better_supabase"."incoming_webhooks" add column if not exists previous_secret_expires_at timestamptz;
-create index if not exists incoming_webhooks_tenant_idx on "better_supabase"."incoming_webhooks" (tenant);
-create index if not exists incoming_webhooks_subject_idx on "better_supabase"."incoming_webhooks" (tenant, subject_type, subject_id);
-create index if not exists incoming_webhooks_created_by_idx on "better_supabase"."incoming_webhooks" (created_by) where created_by is not null;
-alter table "better_supabase"."incoming_webhooks" add column if not exists updated_at timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."incoming_webhooks";
+create index incoming_webhooks_tenant_idx on "better_supabase"."incoming_webhooks" (tenant);
+create index incoming_webhooks_subject_idx on "better_supabase"."incoming_webhooks" (tenant, subject_type, subject_id);
+create index incoming_webhooks_created_by_idx on "better_supabase"."incoming_webhooks" (created_by) where created_by is not null;
 create trigger bsb_updated_at before update on "better_supabase"."incoming_webhooks"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
 create or replace function "better_supabase"."drop_incoming_webhook_secret"()
 returns trigger
@@ -1656,7 +1538,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
 create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 alter table "better_supabase"."incoming_webhooks" enable row level security;
@@ -1692,7 +1573,6 @@ $$;
 revoke execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
 create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks"
   for select to authenticated
   using (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
@@ -1730,8 +1610,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."create_incoming_webhook"(uuid, text, text, jsonb, text);
 -- Creates an endpoint and returns it with its token (and the signing secret
 -- for standard-webhooks and hmac-sha256), shown once.
 create or replace function "better_supabase"."create_incoming_webhook"(
@@ -2001,7 +1879,7 @@ $$;
 
 -- The endpoint behind a token, with its secret and metadata, for the
 -- receiving route.
-drop function if exists "better_supabase"."incoming_webhook_by_token"(text);
+
 create or replace function "better_supabase"."incoming_webhook_by_token"(token text)
 returns table (id uuid, tenant text, enabled boolean, verify text, secret text, signature_header text, max_body_bytes integer, previous_secret text, metadata jsonb)
 language sql
@@ -2049,8 +1927,6 @@ grant execute on function "better_supabase"."record_incoming_webhook"(uuid, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_select on "better_supabase"."incoming_webhooks" as restrictive
   for select to public
   using (
@@ -2058,16 +1934,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."incoming_webhooks" a
     or (tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
     and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks" as restrictive
   for insert to public
   with check ("tenant" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_update on "better_supabase"."incoming_webhooks" as restrictive
   for update to public
   using ("tenant" in (select better_supabase.member_organization_ids()))
   with check ("tenant" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks";
 create policy bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks" as restrictive
   for delete to public
   using ("tenant" in (select better_supabase.member_organization_ids()));
@@ -2077,11 +1950,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."incoming_webhook_tenant_ids"();
-drop function if exists "api"."incoming_webhook_subject_readable"(text, text, uuid);
 
-drop function if exists "api"."create_incoming_webhook"(uuid, text, text, jsonb, text);
-drop function if exists "api"."incoming_webhook_by_token"(text);
 
 create or replace function "api"."list_incoming_webhooks"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
@@ -2183,25 +2052,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:6a8cd4252606f19584d1506e4afadce3bd98681dcacd2908844e70c7b597fb9b
+-- @bsb-hash sha256:178ad05a3f829c9be9e10026bf32243de16d95b1ccd65dabbe8bca9ec8ed7750
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incoming_webhooks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Trigger URLs over the app's table "better_supabase"."incoming_webhooks" (the app's table): the app owns its
 -- columns, indexes, grants and policies. Only the token's hash is kept.
@@ -2218,7 +2072,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
 create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 
@@ -2282,8 +2135,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."create_incoming_webhook"(uuid, text, text, jsonb, text);
 -- Creates an endpoint and returns it with its token (and the signing secret
 -- for standard-webhooks and hmac-sha256), shown once.
 create or replace function "better_supabase"."create_incoming_webhook"(
@@ -2553,7 +2404,7 @@ $$;
 
 -- The endpoint behind a token, with its secret and metadata, for the
 -- receiving route.
-drop function if exists "better_supabase"."incoming_webhook_by_token"(text);
+
 create or replace function "better_supabase"."incoming_webhook_by_token"(token text)
 returns table (id uuid, tenant text, enabled boolean, verify text, secret text, signature_header text, max_body_bytes integer, previous_secret text, metadata jsonb)
 language sql

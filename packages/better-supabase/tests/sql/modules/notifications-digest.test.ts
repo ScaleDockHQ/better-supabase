@@ -27,7 +27,7 @@ describe("notification digests", () => {
   it("folds held deliveries into one digest per member and channel", () => {
     const sql = body();
 
-    expect(sql).toContain("create table if not exists");
+    expect(sql).toContain("create table");
     expect(sql).toContain('"notification_digests"');
     expect(sql).toContain("run_notification_digests");
     expect(sql).toContain(`"status" = 'digested'`);

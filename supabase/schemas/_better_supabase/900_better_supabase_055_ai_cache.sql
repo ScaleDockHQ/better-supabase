@@ -1,29 +1,14 @@
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:d7bee79d8ce99d11e832f1b114f7a7b2214bbd43c435520591d5a0228e9d8d44
+-- @bsb-hash sha256:4a194b0031f514f39fd03daadff5a6d44d82f1f75cb6981fbcb024b4da30f76d
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_cache_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Model responses cached by a key the application derives from the request
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
-create table if not exists "better_supabase"."ai_cache_entries" (
+create table "better_supabase"."ai_cache_entries" (
   "key" text primary key check (length("key") >= 1 and length("key") <= 256),
   "organization_id" uuid,
   "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other')),
@@ -34,8 +19,8 @@ create table if not exists "better_supabase"."ai_cache_entries" (
   "last_hit_at" timestamptz,
   "expires_at" timestamptz not null
 );
-create index if not exists ai_cache_entries_expires_idx on "better_supabase"."ai_cache_entries" ("expires_at");
-create index if not exists ai_cache_entries_tenant_idx on "better_supabase"."ai_cache_entries" ("organization_id");
+create index ai_cache_entries_expires_idx on "better_supabase"."ai_cache_entries" ("expires_at");
+create index ai_cache_entries_tenant_idx on "better_supabase"."ai_cache_entries" ("organization_id");
 alter table "better_supabase"."ai_cache_entries" enable row level security;
 revoke all on "better_supabase"."ai_cache_entries" from public, anon, authenticated;
 grant all on "better_supabase"."ai_cache_entries" to service_role;

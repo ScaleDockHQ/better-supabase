@@ -1,53 +1,14 @@
 -- ==== schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:6228f96f5b73fc39ba417b61e01ca34de5d0693cf4f62945c9f1b0aba793f90e
+-- @bsb-hash sha256:024fcb0a4512958be42a42cd1def87f5ad1bc310c83f78bcb622e4e8fac316ac
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_purposes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_purposes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_purposes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_purposes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_purposes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."consents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Consent per record and purpose: what an organization asks consent for, each
 -- decision with who made it and its evidence, withdrawals and expiry.
-create table if not exists "better_supabase"."consent_purposes" (
+create table "better_supabase"."consent_purposes" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system purpose every organization uses.
   "tenant_id" uuid,
@@ -62,16 +23,15 @@ create table if not exists "better_supabase"."consent_purposes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "consent_purposes_key_idx" on "better_supabase"."consent_purposes" ("tenant_id", "key", "version") nulls not distinct;
+create unique index "consent_purposes_key_idx" on "better_supabase"."consent_purposes" ("tenant_id", "key", "version") nulls not distinct;
 alter table "better_supabase"."consent_purposes" enable row level security;
 revoke all on "better_supabase"."consent_purposes" from public, anon, authenticated;
 grant select on "better_supabase"."consent_purposes" to authenticated;
 grant all on "better_supabase"."consent_purposes" to service_role;
-drop policy if exists consent_purposes_read on "better_supabase"."consent_purposes";
 create policy consent_purposes_read on "better_supabase"."consent_purposes"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.member_workspace_ids()));
-create table if not exists "better_supabase"."consents" (
+create table "better_supabase"."consents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "purpose_id" uuid not null references "better_supabase"."consent_purposes" ("id") on delete restrict,
@@ -97,15 +57,14 @@ create table if not exists "better_supabase"."consents" (
   check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
 );
 -- One grant in force per record and purpose version.
-create unique index if not exists "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
-create index if not exists "consents_subject_idx" on "better_supabase"."consents" ("tenant_id", "subject_type", "subject_id", "created_at" desc);
-create index if not exists "consents_purpose_idx" on "better_supabase"."consents" ("purpose_id");
-create index if not exists "consents_expiry_idx" on "better_supabase"."consents" ("valid_until") where "status" = 'granted' and "valid_until" is not null;
+create unique index "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
+create index "consents_subject_idx" on "better_supabase"."consents" ("tenant_id", "subject_type", "subject_id", "created_at" desc);
+create index "consents_purpose_idx" on "better_supabase"."consents" ("purpose_id");
+create index "consents_expiry_idx" on "better_supabase"."consents" ("valid_until") where "status" = 'granted' and "valid_until" is not null;
 alter table "better_supabase"."consents" enable row level security;
 revoke all on "better_supabase"."consents" from public, anon, authenticated;
 grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
-drop policy if exists consents_read on "better_supabase"."consents";
 create policy consents_read on "better_supabase"."consents"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
@@ -113,7 +72,7 @@ create policy consents_read on "better_supabase"."consents"
 
 -- A signal a browser or consent platform sent for a record: the Sec-GPC header,
 -- an IAB TCF v2.2 TC string or a GPP string, with what was parsed from it.
-create table if not exists "better_supabase"."consent_signals" (
+create table "better_supabase"."consent_signals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -125,19 +84,18 @@ create table if not exists "better_supabase"."consent_signals" (
   "created_by" uuid,
   "received_at" timestamptz not null default now()
 );
-create index if not exists "consent_signals_subject_idx" on "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "received_at" desc);
+create index "consent_signals_subject_idx" on "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "received_at" desc);
 alter table "better_supabase"."consent_signals" enable row level security;
 revoke all on "better_supabase"."consent_signals" from public, anon, authenticated;
 grant select on "better_supabase"."consent_signals" to authenticated;
 grant all on "better_supabase"."consent_signals" to service_role;
-drop policy if exists consent_signals_read on "better_supabase"."consent_signals";
 create policy consent_signals_read on "better_supabase"."consent_signals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
 
 -- A receipt for one consent decision: the document handed to the person, with
 -- the SHA-256 of its text. One receipt per consent and status, never changed.
-create table if not exists "better_supabase"."consent_receipts" (
+create table "better_supabase"."consent_receipts" (
   "id" uuid primary key,
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -149,12 +107,11 @@ create table if not exists "better_supabase"."consent_receipts" (
   "issued_at" timestamptz not null default now(),
   unique ("consent_id", "status")
 );
-create index if not exists "consent_receipts_tenant_idx" on "better_supabase"."consent_receipts" ("tenant_id", "issued_at" desc);
+create index "consent_receipts_tenant_idx" on "better_supabase"."consent_receipts" ("tenant_id", "issued_at" desc);
 alter table "better_supabase"."consent_receipts" enable row level security;
 revoke all on "better_supabase"."consent_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."consent_receipts" to authenticated;
 grant all on "better_supabase"."consent_receipts" to service_role;
-drop policy if exists consent_receipts_read on "better_supabase"."consent_receipts";
 create policy consent_receipts_read on "better_supabase"."consent_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
@@ -1003,87 +960,67 @@ grant execute on function "better_supabase"."requires_consent"(text, text, text)
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."consent_purposes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_purposes";
 create policy bsb_tenant_scope_select on "better_supabase"."consent_purposes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" is null or "tenant_id" in (select better_supabase.member_workspace_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_purposes";
 create policy bsb_tenant_scope_insert on "better_supabase"."consent_purposes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_purposes";
 create policy bsb_tenant_scope_update on "better_supabase"."consent_purposes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_purposes";
 create policy bsb_tenant_scope_delete on "better_supabase"."consent_purposes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."consents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."consents";
 create policy bsb_tenant_scope_select on "better_supabase"."consents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consents";
 create policy bsb_tenant_scope_insert on "better_supabase"."consents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."consents";
 create policy bsb_tenant_scope_update on "better_supabase"."consents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
 create policy bsb_tenant_scope_delete on "better_supabase"."consents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
 create policy bsb_tenant_scope_select on "better_supabase"."consent_signals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
 create policy bsb_tenant_scope_insert on "better_supabase"."consent_signals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
 create policy bsb_tenant_scope_update on "better_supabase"."consent_signals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
 create policy bsb_tenant_scope_delete on "better_supabase"."consent_signals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
 create policy bsb_tenant_scope_select on "better_supabase"."consent_receipts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
 create policy bsb_tenant_scope_insert on "better_supabase"."consent_receipts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
 create policy bsb_tenant_scope_update on "better_supabase"."consent_receipts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
 create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

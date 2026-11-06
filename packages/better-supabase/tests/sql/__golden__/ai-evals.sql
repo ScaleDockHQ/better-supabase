@@ -1,52 +1,29 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:09aed1731288f056d9312cbe0407eacf79355ce95b1ec27d181e13b8bc6a1c61
+-- @bsb-hash sha256:36a07aa50536b03bf26ed1764d59eb443b725a29cbc2e32f6567c3377700dd77
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_datasets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Evaluation datasets and runs. A dataset holds items (an input and, when
 -- known, the expected output); a run replays the items against one prompt
 -- version and model and keeps a score per scorer for each item. Inputs and
 -- outputs can hold user content, so only the service role reads and writes
 -- them.
-create table if not exists "better_supabase"."eval_datasets" (
+create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "description" text check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
+create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
 alter table "better_supabase"."eval_datasets" enable row level security;
 revoke all on "better_supabase"."eval_datasets" from public, anon, authenticated;
 grant all on "better_supabase"."eval_datasets" to service_role;
 
-create table if not exists "better_supabase"."eval_items" (
+create table "better_supabase"."eval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "input" jsonb not null,
@@ -56,13 +33,13 @@ create table if not exists "better_supabase"."eval_items" (
   "source_message_id" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "eval_items_dataset_idx" on "better_supabase"."eval_items" ("dataset_id", "id");
-create unique index if not exists "bsb_eval_items_source_key" on "better_supabase"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
+create index "eval_items_dataset_idx" on "better_supabase"."eval_items" ("dataset_id", "id");
+create unique index "bsb_eval_items_source_key" on "better_supabase"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
 alter table "better_supabase"."eval_items" enable row level security;
 revoke all on "better_supabase"."eval_items" from public, anon, authenticated;
 grant all on "better_supabase"."eval_items" to service_role;
 
-create table if not exists "better_supabase"."eval_runs" (
+create table "better_supabase"."eval_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "organization_id" uuid,
@@ -75,12 +52,12 @@ create table if not exists "better_supabase"."eval_runs" (
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
 );
-create index if not exists "eval_runs_dataset_idx" on "better_supabase"."eval_runs" ("dataset_id", "created_at" desc);
+create index "eval_runs_dataset_idx" on "better_supabase"."eval_runs" ("dataset_id", "created_at" desc);
 alter table "better_supabase"."eval_runs" enable row level security;
 revoke all on "better_supabase"."eval_runs" from public, anon, authenticated;
 grant all on "better_supabase"."eval_runs" to service_role;
 
-create table if not exists "better_supabase"."eval_results" (
+create table "better_supabase"."eval_results" (
   "run_id" uuid not null references "better_supabase"."eval_runs" ("id") on delete cascade,
   "item_id" uuid not null references "better_supabase"."eval_items" ("id") on delete cascade,
   "output" text,
@@ -91,7 +68,7 @@ create table if not exists "better_supabase"."eval_results" (
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "item_id")
 );
-create index if not exists "eval_results_item_idx" on "better_supabase"."eval_results" ("item_id");
+create index "eval_results_item_idx" on "better_supabase"."eval_results" ("item_id");
 alter table "better_supabase"."eval_results" enable row level security;
 revoke all on "better_supabase"."eval_results" from public, anon, authenticated;
 grant all on "better_supabase"."eval_results" to service_role;
@@ -475,52 +452,29 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:362058c2f6e3d127ebfa174579ced037e6fd47fce56bded6ebc4e6df803ef745
+-- @bsb-hash sha256:f49ad67debb05ace8b4ba24e4b483ddb2d5bcecdd7d93a4b957b630c87768977
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_datasets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Evaluation datasets and runs. A dataset holds items (an input and, when
 -- known, the expected output); a run replays the items against one prompt
 -- version and model and keeps a score per scorer for each item. Inputs and
 -- outputs can hold user content, so only the service role reads and writes
 -- them.
-create table if not exists "better_supabase"."eval_datasets" (
+create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "description" text check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
+create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
 alter table "better_supabase"."eval_datasets" enable row level security;
 revoke all on "better_supabase"."eval_datasets" from public, anon, authenticated;
 grant all on "better_supabase"."eval_datasets" to service_role;
 
-create table if not exists "better_supabase"."eval_items" (
+create table "better_supabase"."eval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "input" jsonb not null,
@@ -530,13 +484,13 @@ create table if not exists "better_supabase"."eval_items" (
   "source_message_id" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "eval_items_dataset_idx" on "better_supabase"."eval_items" ("dataset_id", "id");
-create unique index if not exists "bsb_eval_items_source_key" on "better_supabase"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
+create index "eval_items_dataset_idx" on "better_supabase"."eval_items" ("dataset_id", "id");
+create unique index "bsb_eval_items_source_key" on "better_supabase"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
 alter table "better_supabase"."eval_items" enable row level security;
 revoke all on "better_supabase"."eval_items" from public, anon, authenticated;
 grant all on "better_supabase"."eval_items" to service_role;
 
-create table if not exists "better_supabase"."eval_runs" (
+create table "better_supabase"."eval_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "organization_id" uuid,
@@ -549,12 +503,12 @@ create table if not exists "better_supabase"."eval_runs" (
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
 );
-create index if not exists "eval_runs_dataset_idx" on "better_supabase"."eval_runs" ("dataset_id", "created_at" desc);
+create index "eval_runs_dataset_idx" on "better_supabase"."eval_runs" ("dataset_id", "created_at" desc);
 alter table "better_supabase"."eval_runs" enable row level security;
 revoke all on "better_supabase"."eval_runs" from public, anon, authenticated;
 grant all on "better_supabase"."eval_runs" to service_role;
 
-create table if not exists "better_supabase"."eval_results" (
+create table "better_supabase"."eval_results" (
   "run_id" uuid not null references "better_supabase"."eval_runs" ("id") on delete cascade,
   "item_id" uuid not null references "better_supabase"."eval_items" ("id") on delete cascade,
   "output" text,
@@ -565,7 +519,7 @@ create table if not exists "better_supabase"."eval_results" (
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "item_id")
 );
-create index if not exists "eval_results_item_idx" on "better_supabase"."eval_results" ("item_id");
+create index "eval_results_item_idx" on "better_supabase"."eval_results" ("item_id");
 alter table "better_supabase"."eval_results" enable row level security;
 revoke all on "better_supabase"."eval_results" from public, anon, authenticated;
 grant all on "better_supabase"."eval_results" to service_role;
@@ -990,32 +944,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:89950b22ab3f261c53d441b4c31ab28237d46177c9418dce7ff551f6ea77e9df
+-- @bsb-hash sha256:ea4293f87de816cd1c4c7173fdd58c71e30242f8a0d308d1e6c79490481ad92c
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."eval_datasets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."eval_runs";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."eval_runs";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."eval_runs";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."eval_runs";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."eval_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -1027,19 +959,19 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- version and model and keeps a score per scorer for each item. Inputs and
 -- outputs can hold user content, so only the service role reads and writes
 -- them.
-create table if not exists "app_private"."eval_datasets" (
+create table "app_private"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "description" text check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "bsb_eval_datasets_key" on "app_private"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
+create unique index "bsb_eval_datasets_key" on "app_private"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
 alter table "app_private"."eval_datasets" enable row level security;
 revoke all on "app_private"."eval_datasets" from public, anon, authenticated;
 grant all on "app_private"."eval_datasets" to service_role;
 
-create table if not exists "app_private"."eval_items" (
+create table "app_private"."eval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "app_private"."eval_datasets" ("id") on delete cascade,
   "input" jsonb not null,
@@ -1049,13 +981,13 @@ create table if not exists "app_private"."eval_items" (
   "source_message_id" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "eval_items_dataset_idx" on "app_private"."eval_items" ("dataset_id", "id");
-create unique index if not exists "bsb_eval_items_source_key" on "app_private"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
+create index "eval_items_dataset_idx" on "app_private"."eval_items" ("dataset_id", "id");
+create unique index "bsb_eval_items_source_key" on "app_private"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
 alter table "app_private"."eval_items" enable row level security;
 revoke all on "app_private"."eval_items" from public, anon, authenticated;
 grant all on "app_private"."eval_items" to service_role;
 
-create table if not exists "app_private"."eval_runs" (
+create table "app_private"."eval_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "app_private"."eval_datasets" ("id") on delete cascade,
   "organization_id" uuid,
@@ -1068,12 +1000,12 @@ create table if not exists "app_private"."eval_runs" (
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
 );
-create index if not exists "eval_runs_dataset_idx" on "app_private"."eval_runs" ("dataset_id", "created_at" desc);
+create index "eval_runs_dataset_idx" on "app_private"."eval_runs" ("dataset_id", "created_at" desc);
 alter table "app_private"."eval_runs" enable row level security;
 revoke all on "app_private"."eval_runs" from public, anon, authenticated;
 grant all on "app_private"."eval_runs" to service_role;
 
-create table if not exists "app_private"."eval_results" (
+create table "app_private"."eval_results" (
   "run_id" uuid not null references "app_private"."eval_runs" ("id") on delete cascade,
   "item_id" uuid not null references "app_private"."eval_items" ("id") on delete cascade,
   "output" text,
@@ -1084,7 +1016,7 @@ create table if not exists "app_private"."eval_results" (
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "item_id")
 );
-create index if not exists "eval_results_item_idx" on "app_private"."eval_results" ("item_id");
+create index "eval_results_item_idx" on "app_private"."eval_results" ("item_id");
 alter table "app_private"."eval_results" enable row level security;
 revoke all on "app_private"."eval_results" from public, anon, authenticated;
 grant all on "app_private"."eval_results" to service_role;
@@ -1468,52 +1400,29 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:6c7cd15e6e390bab987964d27bf877997b4382c9fe2433f7d651dea5c71cca31
+-- @bsb-hash sha256:5434ef94e498acaa65a48805d378ee1409ba0a0fc4aef8130226ff9af8ba15c3
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_datasets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Evaluation datasets and runs. A dataset holds items (an input and, when
 -- known, the expected output); a run replays the items against one prompt
 -- version and model and keeps a score per scorer for each item. Inputs and
 -- outputs can hold user content, so only the service role reads and writes
 -- them.
-create table if not exists "better_supabase"."eval_datasets" (
+create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "description" text check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
+create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
 alter table "better_supabase"."eval_datasets" enable row level security;
 revoke all on "better_supabase"."eval_datasets" from public, anon, authenticated;
 grant all on "better_supabase"."eval_datasets" to service_role;
 
-create table if not exists "better_supabase"."eval_items" (
+create table "better_supabase"."eval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "input" jsonb not null,
@@ -1523,13 +1432,13 @@ create table if not exists "better_supabase"."eval_items" (
   "source_message_id" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "eval_items_dataset_idx" on "better_supabase"."eval_items" ("dataset_id", "id");
-create unique index if not exists "bsb_eval_items_source_key" on "better_supabase"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
+create index "eval_items_dataset_idx" on "better_supabase"."eval_items" ("dataset_id", "id");
+create unique index "bsb_eval_items_source_key" on "better_supabase"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
 alter table "better_supabase"."eval_items" enable row level security;
 revoke all on "better_supabase"."eval_items" from public, anon, authenticated;
 grant all on "better_supabase"."eval_items" to service_role;
 
-create table if not exists "better_supabase"."eval_runs" (
+create table "better_supabase"."eval_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "organization_id" uuid,
@@ -1542,12 +1451,12 @@ create table if not exists "better_supabase"."eval_runs" (
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
 );
-create index if not exists "eval_runs_dataset_idx" on "better_supabase"."eval_runs" ("dataset_id", "created_at" desc);
+create index "eval_runs_dataset_idx" on "better_supabase"."eval_runs" ("dataset_id", "created_at" desc);
 alter table "better_supabase"."eval_runs" enable row level security;
 revoke all on "better_supabase"."eval_runs" from public, anon, authenticated;
 grant all on "better_supabase"."eval_runs" to service_role;
 
-create table if not exists "better_supabase"."eval_results" (
+create table "better_supabase"."eval_results" (
   "run_id" uuid not null references "better_supabase"."eval_runs" ("id") on delete cascade,
   "item_id" uuid not null references "better_supabase"."eval_items" ("id") on delete cascade,
   "output" text,
@@ -1558,7 +1467,7 @@ create table if not exists "better_supabase"."eval_results" (
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "item_id")
 );
-create index if not exists "eval_results_item_idx" on "better_supabase"."eval_results" ("item_id");
+create index "eval_results_item_idx" on "better_supabase"."eval_results" ("item_id");
 alter table "better_supabase"."eval_results" enable row level security;
 revoke all on "better_supabase"."eval_results" from public, anon, authenticated;
 grant all on "better_supabase"."eval_results" to service_role;
@@ -2060,33 +1969,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:b5a8db8d838f1429f7ebd44066ea81bda654e9fc45854e2b816f7f1a5657b0c6
+-- @bsb-hash sha256:0f494bc1122b1f8476aaa783ed1796ef5549119e99eb1eee1f394a8bb17b070b
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_datasets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Evaluation datasets and runs. A dataset holds items (an input and, when
 -- known, the expected output); a run replays the items against one prompt
@@ -2525,52 +2411,29 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:9b26c2c6e6ec7a083f0d1016818095aa062bf1501c7faeb3c802ca0c0b17cd9a
+-- @bsb-hash sha256:f760d1c95ce1e00db8659d539462f869a5c8a03dd381f8146d1c43a61094b678
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_datasets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Evaluation datasets and runs. A dataset holds items (an input and, when
 -- known, the expected output); a run replays the items against one prompt
 -- version and model and keeps a score per scorer for each item. Inputs and
 -- outputs can hold user content, so only the service role reads and writes
 -- them.
-create table if not exists "better_supabase"."eval_datasets" (
+create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
   "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "description" text check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("org_id"::text, '')), "name");
+create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("org_id"::text, '')), "name");
 alter table "better_supabase"."eval_datasets" enable row level security;
 revoke all on "better_supabase"."eval_datasets" from public, anon, authenticated;
 grant all on "better_supabase"."eval_datasets" to service_role;
 
-create table if not exists "better_supabase"."eval_items" (
+create table "better_supabase"."eval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "input" jsonb not null,
@@ -2580,13 +2443,13 @@ create table if not exists "better_supabase"."eval_items" (
   "source_message_id" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "eval_items_dataset_idx" on "better_supabase"."eval_items" ("dataset_id", "id");
-create unique index if not exists "bsb_eval_items_source_key" on "better_supabase"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
+create index "eval_items_dataset_idx" on "better_supabase"."eval_items" ("dataset_id", "id");
+create unique index "bsb_eval_items_source_key" on "better_supabase"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
 alter table "better_supabase"."eval_items" enable row level security;
 revoke all on "better_supabase"."eval_items" from public, anon, authenticated;
 grant all on "better_supabase"."eval_items" to service_role;
 
-create table if not exists "better_supabase"."eval_runs" (
+create table "better_supabase"."eval_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "org_id" uuid,
@@ -2599,12 +2462,12 @@ create table if not exists "better_supabase"."eval_runs" (
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
 );
-create index if not exists "eval_runs_dataset_idx" on "better_supabase"."eval_runs" ("dataset_id", "created_at" desc);
+create index "eval_runs_dataset_idx" on "better_supabase"."eval_runs" ("dataset_id", "created_at" desc);
 alter table "better_supabase"."eval_runs" enable row level security;
 revoke all on "better_supabase"."eval_runs" from public, anon, authenticated;
 grant all on "better_supabase"."eval_runs" to service_role;
 
-create table if not exists "better_supabase"."eval_results" (
+create table "better_supabase"."eval_results" (
   "run_id" uuid not null references "better_supabase"."eval_runs" ("id") on delete cascade,
   "item_id" uuid not null references "better_supabase"."eval_items" ("id") on delete cascade,
   "output" text,
@@ -2615,7 +2478,7 @@ create table if not exists "better_supabase"."eval_results" (
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "item_id")
 );
-create index if not exists "eval_results_item_idx" on "better_supabase"."eval_results" ("item_id");
+create index "eval_results_item_idx" on "better_supabase"."eval_results" ("item_id");
 alter table "better_supabase"."eval_results" enable row level security;
 revoke all on "better_supabase"."eval_results" from public, anon, authenticated;
 grant all on "better_supabase"."eval_results" to service_role;

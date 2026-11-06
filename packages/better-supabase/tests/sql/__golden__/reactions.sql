@@ -1,43 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:aca8aa89d236f6d373f6e7b4cb825dfc9646b75bae3820b2a4d74a25b7cfea67
+-- @bsb-hash sha256:4c300e746e25af62208afe07877527daaa5d047b9f3cb94d796a8bb19cd2460e
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reactions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reaction_scores";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."custom_emoji";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."reactions" (
+create table "better_supabase"."reactions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -51,9 +20,9 @@ create table if not exists "better_supabase"."reactions" (
   "created_at" timestamptz not null default now(),
   check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
 );
-create unique index if not exists "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
-create index if not exists "reactions_tenant_idx" on "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "reactions_user_idx" on "better_supabase"."reactions" ("user_id");
+create unique index "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
+create index "reactions_tenant_idx" on "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id");
+create index "reactions_user_idx" on "better_supabase"."reactions" ("user_id");
 alter table "better_supabase"."reactions" enable row level security;
 revoke all on "better_supabase"."reactions" from anon;
 grant select, insert, delete on "better_supabase"."reactions" to authenticated;
@@ -61,7 +30,7 @@ grant all on "better_supabase"."reactions" to service_role;
 
 -- Each subject's vote score (up minus down), kept by reactions_tally so lists
 -- can sort by it.
-create table if not exists "better_supabase"."reaction_scores" (
+create table "better_supabase"."reaction_scores" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -71,13 +40,13 @@ create table if not exists "better_supabase"."reaction_scores" (
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "subject_type", "subject_id")
 );
-create index if not exists "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
+create index "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
 alter table "better_supabase"."reaction_scores" enable row level security;
 revoke all on "better_supabase"."reaction_scores" from public, anon, authenticated;
 grant select on "better_supabase"."reaction_scores" to authenticated;
 grant all on "better_supabase"."reaction_scores" to service_role;
 
-create table if not exists "better_supabase"."custom_emoji" (
+create table "better_supabase"."custom_emoji" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shortcode" text not null check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
@@ -92,7 +61,6 @@ alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
-drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
 create policy custom_emoji_read on "better_supabase"."custom_emoji"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
@@ -114,30 +82,22 @@ $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists reactions_read on "better_supabase"."reactions";
 create policy reactions_read on "better_supabase"."reactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-drop policy if exists reactions_insert on "better_supabase"."reactions";
 create policy reactions_insert on "better_supabase"."reactions"
   for insert to authenticated
   with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
-drop policy if exists reactions_delete on "better_supabase"."reactions";
 create policy reactions_delete on "better_supabase"."reactions"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-drop policy if exists reaction_scores_read on "better_supabase"."reaction_scores";
 create policy reaction_scores_read on "better_supabase"."reaction_scores"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-
-drop trigger if exists "bsb_reactions_check" on "better_supabase"."reactions";
-drop trigger if exists "bsb_reactions_tally" on "better_supabase"."reactions";
-drop trigger if exists "bsb_reactions_changed" on "better_supabase"."reactions";
 
 -- A custom emoji's :shortcode: must exist in the reaction's tenant.
 create or replace function "better_supabase"."reactions_check"()
@@ -500,8 +460,7 @@ grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authent
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_reactions_receive on realtime.messages;
-create policy bsb_reactions_receive on realtime.messages
+        create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
@@ -513,15 +472,12 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reactions";
 create policy bsb_tenant_scope_select on "better_supabase"."reactions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reactions";
 create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restrictive
   for insert to public
   with check (
@@ -531,57 +487,45 @@ create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restri
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reactions";
 create policy bsb_tenant_scope_update on "better_supabase"."reactions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reactions";
 create policy bsb_tenant_scope_delete on "better_supabase"."reactions" as restrictive
   for delete to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_select on "better_supabase"."reaction_scores" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_insert on "better_supabase"."reaction_scores" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_update on "better_supabase"."reaction_scores" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_delete on "better_supabase"."reaction_scores" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_select on "better_supabase"."custom_emoji" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_insert on "better_supabase"."custom_emoji" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_update on "better_supabase"."custom_emoji" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_delete on "better_supabase"."custom_emoji" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -603,43 +547,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:4ea702a7d876f338db79f7688e56138703232065f179a2d50546b4bc0641f3ca
+-- @bsb-hash sha256:af13be769386c242d4dfdeb367131094c22507651dcee3edb062ac51064d451f
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reactions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reaction_scores";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."custom_emoji";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."reactions" (
+create table "better_supabase"."reactions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -653,9 +566,9 @@ create table if not exists "better_supabase"."reactions" (
   "created_at" timestamptz not null default now(),
   check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
 );
-create unique index if not exists "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
-create index if not exists "reactions_tenant_idx" on "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "reactions_user_idx" on "better_supabase"."reactions" ("user_id");
+create unique index "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
+create index "reactions_tenant_idx" on "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id");
+create index "reactions_user_idx" on "better_supabase"."reactions" ("user_id");
 alter table "better_supabase"."reactions" enable row level security;
 revoke all on "better_supabase"."reactions" from anon;
 grant select, insert, delete on "better_supabase"."reactions" to authenticated;
@@ -663,7 +576,7 @@ grant all on "better_supabase"."reactions" to service_role;
 
 -- Each subject's vote score (up minus down), kept by reactions_tally so lists
 -- can sort by it.
-create table if not exists "better_supabase"."reaction_scores" (
+create table "better_supabase"."reaction_scores" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -673,13 +586,13 @@ create table if not exists "better_supabase"."reaction_scores" (
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "subject_type", "subject_id")
 );
-create index if not exists "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
+create index "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
 alter table "better_supabase"."reaction_scores" enable row level security;
 revoke all on "better_supabase"."reaction_scores" from public, anon, authenticated;
 grant select on "better_supabase"."reaction_scores" to authenticated;
 grant all on "better_supabase"."reaction_scores" to service_role;
 
-create table if not exists "better_supabase"."custom_emoji" (
+create table "better_supabase"."custom_emoji" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shortcode" text not null check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
@@ -694,7 +607,6 @@ alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
-drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
 create policy custom_emoji_read on "better_supabase"."custom_emoji"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
@@ -716,30 +628,22 @@ $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists reactions_read on "better_supabase"."reactions";
 create policy reactions_read on "better_supabase"."reactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-drop policy if exists reactions_insert on "better_supabase"."reactions";
 create policy reactions_insert on "better_supabase"."reactions"
   for insert to authenticated
   with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
-drop policy if exists reactions_delete on "better_supabase"."reactions";
 create policy reactions_delete on "better_supabase"."reactions"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-drop policy if exists reaction_scores_read on "better_supabase"."reaction_scores";
 create policy reaction_scores_read on "better_supabase"."reaction_scores"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-
-drop trigger if exists "bsb_reactions_check" on "better_supabase"."reactions";
-drop trigger if exists "bsb_reactions_tally" on "better_supabase"."reactions";
-drop trigger if exists "bsb_reactions_changed" on "better_supabase"."reactions";
 
 -- A custom emoji's :shortcode: must exist in the reaction's tenant.
 create or replace function "better_supabase"."reactions_check"()
@@ -1102,8 +1006,7 @@ grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authent
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_reactions_receive on realtime.messages;
-create policy bsb_reactions_receive on realtime.messages
+        create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
@@ -1115,15 +1018,12 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reactions";
 create policy bsb_tenant_scope_select on "better_supabase"."reactions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reactions";
 create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restrictive
   for insert to public
   with check (
@@ -1133,57 +1033,45 @@ create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restri
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reactions";
 create policy bsb_tenant_scope_update on "better_supabase"."reactions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reactions";
 create policy bsb_tenant_scope_delete on "better_supabase"."reactions" as restrictive
   for delete to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_select on "better_supabase"."reaction_scores" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_insert on "better_supabase"."reaction_scores" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_update on "better_supabase"."reaction_scores" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_delete on "better_supabase"."reaction_scores" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_select on "better_supabase"."custom_emoji" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_insert on "better_supabase"."custom_emoji" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_update on "better_supabase"."custom_emoji" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_delete on "better_supabase"."custom_emoji" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1212,47 +1100,17 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:b3452ae75652f8c6cad2830a3912377688c8cbbc912d88201aad9ff057b0b6f6
+-- @bsb-hash sha256:40214968d1c96d7c28ff9f0190747f34f53f3a04c1f8227dccf878fcf428ce8b
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."reactions";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."reactions";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."reactions";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."reactions";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."reactions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."reaction_scores";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."custom_emoji";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."reactions" (
+create table "app_private"."reactions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1266,9 +1124,9 @@ create table if not exists "app_private"."reactions" (
   "created_at" timestamptz not null default now(),
   check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
 );
-create unique index if not exists "reactions_actor_idx" on "app_private"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
-create index if not exists "reactions_tenant_idx" on "app_private"."reactions" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "reactions_user_idx" on "app_private"."reactions" ("user_id");
+create unique index "reactions_actor_idx" on "app_private"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
+create index "reactions_tenant_idx" on "app_private"."reactions" ("tenant_id", "subject_type", "subject_id");
+create index "reactions_user_idx" on "app_private"."reactions" ("user_id");
 alter table "app_private"."reactions" enable row level security;
 revoke all on "app_private"."reactions" from anon;
 grant select, insert, delete on "app_private"."reactions" to authenticated;
@@ -1276,7 +1134,7 @@ grant all on "app_private"."reactions" to service_role;
 
 -- Each subject's vote score (up minus down), kept by reactions_tally so lists
 -- can sort by it.
-create table if not exists "app_private"."reaction_scores" (
+create table "app_private"."reaction_scores" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -1286,13 +1144,13 @@ create table if not exists "app_private"."reaction_scores" (
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "subject_type", "subject_id")
 );
-create index if not exists "reaction_scores_rank_idx" on "app_private"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
+create index "reaction_scores_rank_idx" on "app_private"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
 alter table "app_private"."reaction_scores" enable row level security;
 revoke all on "app_private"."reaction_scores" from public, anon, authenticated;
 grant select on "app_private"."reaction_scores" to authenticated;
 grant all on "app_private"."reaction_scores" to service_role;
 
-create table if not exists "app_private"."custom_emoji" (
+create table "app_private"."custom_emoji" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shortcode" text not null check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
@@ -1307,7 +1165,6 @@ alter table "app_private"."custom_emoji" enable row level security;
 revoke all on "app_private"."custom_emoji" from public, anon, authenticated;
 grant select on "app_private"."custom_emoji" to authenticated;
 grant all on "app_private"."custom_emoji" to service_role;
-drop policy if exists custom_emoji_read on "app_private"."custom_emoji";
 create policy custom_emoji_read on "app_private"."custom_emoji"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
@@ -1329,30 +1186,22 @@ $$;
 revoke execute on function "app_private"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "app_private"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists reactions_read on "app_private"."reactions";
 create policy reactions_read on "app_private"."reactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-drop policy if exists reactions_insert on "app_private"."reactions";
 create policy reactions_insert on "app_private"."reactions"
   for insert to authenticated
   with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
-drop policy if exists reactions_delete on "app_private"."reactions";
 create policy reactions_delete on "app_private"."reactions"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-drop policy if exists reaction_scores_read on "app_private"."reaction_scores";
 create policy reaction_scores_read on "app_private"."reaction_scores"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-
-drop trigger if exists "bsb_reactions_check" on "app_private"."reactions";
-drop trigger if exists "bsb_reactions_tally" on "app_private"."reactions";
-drop trigger if exists "bsb_reactions_changed" on "app_private"."reactions";
 
 -- A custom emoji's :shortcode: must exist in the reaction's tenant.
 create or replace function "app_private"."reactions_check"()
@@ -1715,8 +1564,7 @@ grant execute on function "app_private"."list_custom_emoji"(uuid) to authenticat
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_reactions_receive on realtime.messages;
-create policy bsb_reactions_receive on realtime.messages
+        create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
@@ -1728,15 +1576,12 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."reactions";
-drop policy if exists bsb_tenant_scope_select on "app_private"."reactions";
 create policy bsb_tenant_scope_select on "app_private"."reactions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."reactions";
 create policy bsb_tenant_scope_insert on "app_private"."reactions" as restrictive
   for insert to public
   with check (
@@ -1746,57 +1591,45 @@ create policy bsb_tenant_scope_insert on "app_private"."reactions" as restrictiv
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_update on "app_private"."reactions";
 create policy bsb_tenant_scope_update on "app_private"."reactions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."reactions";
 create policy bsb_tenant_scope_delete on "app_private"."reactions" as restrictive
   for delete to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope on "app_private"."reaction_scores";
-drop policy if exists bsb_tenant_scope_select on "app_private"."reaction_scores";
 create policy bsb_tenant_scope_select on "app_private"."reaction_scores" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."reaction_scores";
 create policy bsb_tenant_scope_insert on "app_private"."reaction_scores" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."reaction_scores";
 create policy bsb_tenant_scope_update on "app_private"."reaction_scores" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."reaction_scores";
 create policy bsb_tenant_scope_delete on "app_private"."reaction_scores" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."custom_emoji";
-drop policy if exists bsb_tenant_scope_select on "app_private"."custom_emoji";
 create policy bsb_tenant_scope_select on "app_private"."custom_emoji" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."custom_emoji";
 create policy bsb_tenant_scope_insert on "app_private"."custom_emoji" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."custom_emoji";
 create policy bsb_tenant_scope_update on "app_private"."custom_emoji" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."custom_emoji";
 create policy bsb_tenant_scope_delete on "app_private"."custom_emoji" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1818,43 +1651,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:cfec1a90156facc34bbd71b68969c01adce65a1d5dbd265197b613b3220e6189
+-- @bsb-hash sha256:72d8caf81efaf3b681710ec3fbb7ae534db7877a3a272f08ad81aec03574f6fa
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reactions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reaction_scores";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."custom_emoji";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."reactions" (
+create table "better_supabase"."reactions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1868,9 +1670,9 @@ create table if not exists "better_supabase"."reactions" (
   "created_at" timestamptz not null default now(),
   check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
 );
-create unique index if not exists "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
-create index if not exists "reactions_tenant_idx" on "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "reactions_user_idx" on "better_supabase"."reactions" ("user_id");
+create unique index "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
+create index "reactions_tenant_idx" on "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id");
+create index "reactions_user_idx" on "better_supabase"."reactions" ("user_id");
 alter table "better_supabase"."reactions" enable row level security;
 revoke all on "better_supabase"."reactions" from anon;
 grant select, insert, delete on "better_supabase"."reactions" to authenticated;
@@ -1878,7 +1680,7 @@ grant all on "better_supabase"."reactions" to service_role;
 
 -- Each subject's vote score (up minus down), kept by reactions_tally so lists
 -- can sort by it.
-create table if not exists "better_supabase"."reaction_scores" (
+create table "better_supabase"."reaction_scores" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -1888,13 +1690,13 @@ create table if not exists "better_supabase"."reaction_scores" (
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "subject_type", "subject_id")
 );
-create index if not exists "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
+create index "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
 alter table "better_supabase"."reaction_scores" enable row level security;
 revoke all on "better_supabase"."reaction_scores" from public, anon, authenticated;
 grant select on "better_supabase"."reaction_scores" to authenticated;
 grant all on "better_supabase"."reaction_scores" to service_role;
 
-create table if not exists "better_supabase"."custom_emoji" (
+create table "better_supabase"."custom_emoji" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shortcode" text not null check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
@@ -1909,7 +1711,6 @@ alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
-drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
 create policy custom_emoji_read on "better_supabase"."custom_emoji"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
@@ -1931,30 +1732,22 @@ $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists reactions_read on "better_supabase"."reactions";
 create policy reactions_read on "better_supabase"."reactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-drop policy if exists reactions_insert on "better_supabase"."reactions";
 create policy reactions_insert on "better_supabase"."reactions"
   for insert to authenticated
   with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
-drop policy if exists reactions_delete on "better_supabase"."reactions";
 create policy reactions_delete on "better_supabase"."reactions"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-drop policy if exists reaction_scores_read on "better_supabase"."reaction_scores";
 create policy reaction_scores_read on "better_supabase"."reaction_scores"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-
-drop trigger if exists "bsb_reactions_check" on "better_supabase"."reactions";
-drop trigger if exists "bsb_reactions_tally" on "better_supabase"."reactions";
-drop trigger if exists "bsb_reactions_changed" on "better_supabase"."reactions";
 
 -- A custom emoji's :shortcode: must exist in the reaction's tenant.
 create or replace function "better_supabase"."reactions_check"()
@@ -2317,8 +2110,7 @@ grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authent
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_reactions_receive on realtime.messages;
-create policy bsb_reactions_receive on realtime.messages
+        create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
@@ -2330,15 +2122,12 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reactions";
 create policy bsb_tenant_scope_select on "better_supabase"."reactions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reactions";
 create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restrictive
   for insert to public
   with check (
@@ -2348,57 +2137,45 @@ create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restri
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reactions";
 create policy bsb_tenant_scope_update on "better_supabase"."reactions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reactions";
 create policy bsb_tenant_scope_delete on "better_supabase"."reactions" as restrictive
   for delete to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_select on "better_supabase"."reaction_scores" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_insert on "better_supabase"."reaction_scores" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_update on "better_supabase"."reaction_scores" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_delete on "better_supabase"."reaction_scores" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_select on "better_supabase"."custom_emoji" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_insert on "better_supabase"."custom_emoji" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_update on "better_supabase"."custom_emoji" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_delete on "better_supabase"."custom_emoji" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2408,7 +2185,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."reaction_subject_visible"(text, text, uuid);
+
 
 create or replace function "api"."reaction_list"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
@@ -2513,41 +2290,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:3e46e6b18aac064dbaba9c2abd5fc89df7f7fc7e0e1ad667b460edbb89ef4d3e
+-- @bsb-hash sha256:7cb5953bea4be66f9019755475535d9fb093135771937b3359d0cdd9dc8a189f
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reactions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reaction_scores";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."custom_emoji";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- better_supabase.reactions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."reactions" add column if not exists "id" uuid default gen_random_uuid();
@@ -2595,7 +2341,6 @@ create unique index if not exists "bsb_custom_emoji_shortcode_key" on "better_su
 alter table "better_supabase"."custom_emoji" enable row level security;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
-drop policy if exists bsb_custom_emoji_select on "better_supabase"."custom_emoji";
 create policy bsb_custom_emoji_select on "better_supabase"."custom_emoji"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
@@ -2617,30 +2362,22 @@ $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists bsb_reactions_select on "better_supabase"."reactions";
 create policy bsb_reactions_select on "better_supabase"."reactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-drop policy if exists bsb_reactions_insert on "better_supabase"."reactions";
 create policy bsb_reactions_insert on "better_supabase"."reactions"
   for insert to authenticated
   with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_reactions_delete on "better_supabase"."reactions";
 create policy bsb_reactions_delete on "better_supabase"."reactions"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-drop policy if exists bsb_reaction_scores_select on "better_supabase"."reaction_scores";
 create policy bsb_reaction_scores_select on "better_supabase"."reaction_scores"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
-
-drop trigger if exists "bsb_reactions_check" on "better_supabase"."reactions";
-drop trigger if exists "bsb_reactions_tally" on "better_supabase"."reactions";
-drop trigger if exists "bsb_reactions_changed" on "better_supabase"."reactions";
 
 -- A custom emoji's :shortcode: must exist in the reaction's tenant.
 create or replace function "better_supabase"."reactions_check"()
@@ -3003,8 +2740,7 @@ grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authent
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_reactions_receive on realtime.messages;
-create policy bsb_reactions_receive on realtime.messages
+        create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
@@ -3016,15 +2752,12 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reactions";
 create policy bsb_tenant_scope_select on "better_supabase"."reactions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reactions";
 create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restrictive
   for insert to public
   with check (
@@ -3034,57 +2767,45 @@ create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restri
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reactions";
 create policy bsb_tenant_scope_update on "better_supabase"."reactions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reactions";
 create policy bsb_tenant_scope_delete on "better_supabase"."reactions" as restrictive
   for delete to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_select on "better_supabase"."reaction_scores" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_insert on "better_supabase"."reaction_scores" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_update on "better_supabase"."reaction_scores" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_delete on "better_supabase"."reaction_scores" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_select on "better_supabase"."custom_emoji" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_insert on "better_supabase"."custom_emoji" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_update on "better_supabase"."custom_emoji" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_delete on "better_supabase"."custom_emoji" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3106,43 +2827,12 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:c4aca4c26d0955631832788602ee7c3dc5c8c25d3a22a2b255df80576bba7c2e
+-- @bsb-hash sha256:2da94c5a00c7a677c2db51c168c12b2b86a6f5c613627179c05fa3d875f332f5
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reactions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reactions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reaction_scores";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reaction_scores";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."custom_emoji";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."custom_emoji";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."reactions" (
+create table "better_supabase"."reactions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -3156,9 +2846,9 @@ create table if not exists "better_supabase"."reactions" (
   "created_at" timestamptz not null default now(),
   check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
 );
-create unique index if not exists "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
-create index if not exists "reactions_tenant_idx" on "better_supabase"."reactions" ("org_id", "subject_type", "subject_id");
-create index if not exists "reactions_user_idx" on "better_supabase"."reactions" ("user_id");
+create unique index "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
+create index "reactions_tenant_idx" on "better_supabase"."reactions" ("org_id", "subject_type", "subject_id");
+create index "reactions_user_idx" on "better_supabase"."reactions" ("user_id");
 alter table "better_supabase"."reactions" enable row level security;
 revoke all on "better_supabase"."reactions" from anon;
 grant select, insert, delete on "better_supabase"."reactions" to authenticated;
@@ -3166,7 +2856,7 @@ grant all on "better_supabase"."reactions" to service_role;
 
 -- Each subject's vote score (up minus down), kept by reactions_tally so lists
 -- can sort by it.
-create table if not exists "better_supabase"."reaction_scores" (
+create table "better_supabase"."reaction_scores" (
   "org_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -3176,13 +2866,13 @@ create table if not exists "better_supabase"."reaction_scores" (
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "subject_type", "subject_id")
 );
-create index if not exists "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("org_id", "subject_type", "score" desc);
+create index "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("org_id", "subject_type", "score" desc);
 alter table "better_supabase"."reaction_scores" enable row level security;
 revoke all on "better_supabase"."reaction_scores" from public, anon, authenticated;
 grant select on "better_supabase"."reaction_scores" to authenticated;
 grant all on "better_supabase"."reaction_scores" to service_role;
 
-create table if not exists "better_supabase"."custom_emoji" (
+create table "better_supabase"."custom_emoji" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "shortcode" text not null check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
@@ -3197,7 +2887,6 @@ alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
 grant select on "better_supabase"."custom_emoji" to authenticated;
 grant all on "better_supabase"."custom_emoji" to service_role;
-drop policy if exists custom_emoji_read on "better_supabase"."custom_emoji";
 create policy custom_emoji_read on "better_supabase"."custom_emoji"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('reactions.read')));
@@ -3219,30 +2908,22 @@ $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists reactions_read on "better_supabase"."reactions";
 create policy reactions_read on "better_supabase"."reactions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "org_id"));
-drop policy if exists reactions_insert on "better_supabase"."reactions";
 create policy reactions_insert on "better_supabase"."reactions"
   for insert to authenticated
   with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "org_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "org_id")) and (select better_supabase.actor_may_write()));
-drop policy if exists reactions_delete on "better_supabase"."reactions";
 create policy reactions_delete on "better_supabase"."reactions"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-drop policy if exists reaction_scores_read on "better_supabase"."reaction_scores";
 create policy reaction_scores_read on "better_supabase"."reaction_scores"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "org_id"));
-
-drop trigger if exists "bsb_reactions_check" on "better_supabase"."reactions";
-drop trigger if exists "bsb_reactions_tally" on "better_supabase"."reactions";
-drop trigger if exists "bsb_reactions_changed" on "better_supabase"."reactions";
 
 -- A custom emoji's :shortcode: must exist in the reaction's tenant.
 create or replace function "better_supabase"."reactions_check"()
@@ -3605,8 +3286,7 @@ grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authent
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_reactions_receive on realtime.messages;
-create policy bsb_reactions_receive on realtime.messages
+        create policy bsb_reactions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
@@ -3618,15 +3298,12 @@ $do$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reactions";
 create policy bsb_tenant_scope_select on "better_supabase"."reactions" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "org_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reactions";
 create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restrictive
   for insert to public
   with check (
@@ -3636,57 +3313,45 @@ create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restri
     and "org_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "org_id"))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reactions";
 create policy bsb_tenant_scope_update on "better_supabase"."reactions" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reactions";
 create policy bsb_tenant_scope_delete on "better_supabase"."reactions" as restrictive
   for delete to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_select on "better_supabase"."reaction_scores" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "org_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_insert on "better_supabase"."reaction_scores" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_update on "better_supabase"."reaction_scores" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reaction_scores";
 create policy bsb_tenant_scope_delete on "better_supabase"."reaction_scores" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_select on "better_supabase"."custom_emoji" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('reactions.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_insert on "better_supabase"."custom_emoji" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_update on "better_supabase"."custom_emoji" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."custom_emoji";
 create policy bsb_tenant_scope_delete on "better_supabase"."custom_emoji" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

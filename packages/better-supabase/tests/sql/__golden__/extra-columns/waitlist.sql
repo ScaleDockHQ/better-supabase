@@ -1,31 +1,16 @@
 -- ==== schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:d84055c5c17b4481a62c315a24798bc69007c428e5ce9ec3fde44caef15b7090
+-- @bsb-hash sha256:0db922558d239f5ed1add74762634ccaaa290b01f74a08e7947f1f02a8b67707
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."invite_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."invite_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."invite_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."invite_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."invite_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create extension if not exists pgcrypto with schema extensions;
 
 -- People waiting for access. join_waitlist() adds them; staff approve or
 -- reject; the before-user-created hook lets approved addresses sign up.
-create table if not exists "better_supabase"."waitlist_entries" (
+create table "better_supabase"."waitlist_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "email" text not null unique check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "status" text not null default 'waiting' check ("status" in ('waiting', 'approved', 'rejected', 'joined')),
@@ -37,17 +22,17 @@ create table if not exists "better_supabase"."waitlist_entries" (
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."waitlist_entries" add column if not exists "app_note" text;
-create index if not exists waitlist_entries_status_idx on "better_supabase"."waitlist_entries" ("status", "position");
-create index if not exists waitlist_entries_user_idx on "better_supabase"."waitlist_entries" ("user_id");
-create index if not exists waitlist_entries_decided_by_idx on "better_supabase"."waitlist_entries" ("decided_by");
+alter table "better_supabase"."waitlist_entries" add column "app_note" text;
+create index waitlist_entries_status_idx on "better_supabase"."waitlist_entries" ("status", "position");
+create index waitlist_entries_user_idx on "better_supabase"."waitlist_entries" ("user_id");
+create index waitlist_entries_decided_by_idx on "better_supabase"."waitlist_entries" ("decided_by");
 alter table "better_supabase"."waitlist_entries" enable row level security;
 revoke all on "better_supabase"."waitlist_entries" from public, anon, authenticated;
 grant all on "better_supabase"."waitlist_entries" to service_role;
 
 -- Invite codes, stored as the SHA-256 of the upper-cased code. One with an
 -- organization also adds the user to it with role (or defaultRole).
-create table if not exists "better_supabase"."invite_codes" (
+create table "better_supabase"."invite_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "code_hash" text not null unique,
   "prefix" text not null,
@@ -60,19 +45,19 @@ create table if not exists "better_supabase"."invite_codes" (
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index if not exists invite_codes_tenant_idx on "better_supabase"."invite_codes" ("organization_id");
-create index if not exists invite_codes_created_by_idx on "better_supabase"."invite_codes" ("created_by");
+create index invite_codes_tenant_idx on "better_supabase"."invite_codes" ("organization_id");
+create index invite_codes_created_by_idx on "better_supabase"."invite_codes" ("created_by");
 alter table "better_supabase"."invite_codes" enable row level security;
 revoke all on "better_supabase"."invite_codes" from public, anon, authenticated;
 grant all on "better_supabase"."invite_codes" to service_role;
 
-create table if not exists "better_supabase"."invite_code_redemptions" (
+create table "better_supabase"."invite_code_redemptions" (
   "code_id" uuid not null references "better_supabase"."invite_codes" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "redeemed_at" timestamptz not null default now(),
   primary key ("code_id", "user_id")
 );
-create index if not exists invite_code_redemptions_user_idx on "better_supabase"."invite_code_redemptions" ("user_id");
+create index invite_code_redemptions_user_idx on "better_supabase"."invite_code_redemptions" ("user_id");
 alter table "better_supabase"."invite_code_redemptions" enable row level security;
 revoke all on "better_supabase"."invite_code_redemptions" from public, anon, authenticated;
 grant all on "better_supabase"."invite_code_redemptions" to service_role;
@@ -83,7 +68,7 @@ grant all on "better_supabase"."invite_code_redemptions" to service_role;
 -- left the line gets the place a new address would, so the answer never tells
 -- whether someone was approved or signed up. fields: the extra columns
 -- (blocks.waitlist.options.extraColumns), written only on a new entry.
-drop function if exists "better_supabase"."join_waitlist"(text, text, jsonb);
+
 create or replace function "better_supabase"."join_waitlist"(email text, referrer text default null, metadata jsonb default '{}'::jsonb, fields jsonb default null)
 returns jsonb
 language plpgsql
@@ -395,7 +380,6 @@ exception when others then
 end;
 $$;
 revoke execute on function "better_supabase"."waitlist_on_auth_user"() from public, anon, authenticated;
-drop trigger if exists "bsb_waitlist_auth_user" on auth.users;
 create trigger "bsb_waitlist_auth_user" after insert on auth.users
   for each row execute function "better_supabase"."waitlist_on_auth_user"();
 

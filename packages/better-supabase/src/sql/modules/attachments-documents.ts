@@ -130,7 +130,7 @@ create table if not exists ${types} (
   unique (${d("tenant")}, ${d("key")})
 );${ctx.owns("documentTypes") ? "" : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("documentTypes").name}_key`)} on ${types} (${d("tenant")}, ${d("key")});`}
 ${lockTable(types, { read: true })}
-${renderPolicy(makePolicy({ table: types, name: sqlIdent(`${ctx.tableName("documentTypes").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(d("tenant"), parts.read) }), { drop: true, target: types })}
+${renderPolicy(makePolicy({ table: types, name: sqlIdent(`${ctx.tableName("documentTypes").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(d("tenant"), parts.read) }), { target: types })}
 
 -- The reason a document type's field schema is invalid, or null.
 create or replace function ${ctx.fn("attachment_schema_error")}(fields jsonb)

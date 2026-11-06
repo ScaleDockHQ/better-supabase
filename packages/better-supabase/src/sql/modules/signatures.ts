@@ -325,7 +325,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_subject
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_version_idx`)} on ${requests} (${r("version")});
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_signers_idx`)} on ${requests} using gin (${r("signers")});
 ${lockTable(requests, { read: true })}
-${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("signature_requests_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(r("tenant"), read)} or (select auth.uid()) = any (${r("signers")})` }), { drop: true, target: requests })}
+${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("signature_requests_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(r("tenant"), read)} or (select auth.uid()) = any (${r("signers")})` }), { target: requests })}
 
 create table if not exists ${signatures} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -344,7 +344,7 @@ create table if not exists ${signatures} (
   unique (${s("request")}, ${s("signer")})
 );
 ${lockTable(signatures, { read: true })}
-${renderPolicy(makePolicy({ table: signatures, name: ctx.naming.rename("signatures_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), read)} or ${s("signer")} = (select auth.uid())` }), { drop: true, target: signatures })}
+${renderPolicy(makePolicy({ table: signatures, name: ctx.naming.rename("signatures_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), read)} or ${s("signer")} = (select auth.uid())` }), { target: signatures })}
 `
     : "";
 

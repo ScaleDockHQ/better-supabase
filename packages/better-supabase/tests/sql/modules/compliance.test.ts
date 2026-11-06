@@ -153,16 +153,10 @@ describe("compliance module", () => {
       `"kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'))`,
     );
     expect(sql).toContain(
-      `alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") >= 1 and length("source") <= 200);`,
+      `"source" text check ("source" is null or length("source") >= 1 and length("source") <= 200)`,
     );
     expect(sql).toContain(
-      `add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") >= 1 and length("jurisdiction") <= 200);`,
-    );
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."save_control_framework"(uuid, text, text, text, text);`,
-    );
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid);`,
+      `"jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") >= 1 and length("jurisdiction") <= 200),`,
     );
     expect(sql).toContain(
       "kind must be one of standard, legal, internal, contract",

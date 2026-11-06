@@ -145,7 +145,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block mfa@1 managed
--- @bsb-hash sha256:9330c40c96fe68f51ca7ceffa282114fc44e228e0efe7edf752ea9322d3a522b
+-- @bsb-hash sha256:521b887109eba4f4b0ce9ed57c698ba856699512841cea307f4a80f4762db0e2
 -- mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -181,7 +181,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."mfa_satisfied"();
+
 
 
 

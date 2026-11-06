@@ -464,7 +464,7 @@ grant all on ${m} to service_role;
 
   const policy = ctx.manages
     ? `
-${renderPolicy(makePolicy({ table: m, name: "bsb_memberships_read", command: "select", roles: ["authenticated"], using: `${user} = (select auth.uid()) or ${tenant} in (select ${ctx.scope.members()})` }), { drop: true, target: m })}
+${renderPolicy(makePolicy({ table: m, name: "bsb_memberships_read", command: "select", roles: ["authenticated"], using: `${user} = (select auth.uid()) or ${tenant} in (select ${ctx.scope.members()})` }), { target: m })}
 `
     : "";
 

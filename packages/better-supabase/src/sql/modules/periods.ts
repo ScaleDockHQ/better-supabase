@@ -185,7 +185,7 @@ function build(ctx: BlockSqlContext): string {
       roles: ["authenticated"],
       using: ctx.scope.check(t("tenant"), read),
     }),
-    { drop: true, target: periods },
+    { target: periods },
   );
 
   const appKey = ctx.owns("periods")

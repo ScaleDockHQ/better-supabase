@@ -1,39 +1,16 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:e4680bd9efc50e32abc34179ced78ae35a019f1d55ca0304677247ec3cdaa246
+-- @bsb-hash sha256:553de12056757a097d6e004e0b1947b639820f3731e3fcbd9ad3c8c1def8363c
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Files for AI chats: uploads, generated images and audio, and what a
 -- provider's file API returned for them. Objects live in the private
 -- ai-files bucket at {organization_id}/{owner_id}/{id}/{filename}; the record is
 -- reserved first, so the storage policies only accept the upload it expects.
-create table if not exists "better_supabase"."ai_files" (
+create table "better_supabase"."ai_files" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -51,23 +28,22 @@ create table if not exists "better_supabase"."ai_files" (
   "uploaded_at" timestamptz,
   "expires_at" timestamptz
 );
-create unique index if not exists ai_files_object_idx on "better_supabase"."ai_files" ("bucket", "path");
-create index if not exists ai_files_owner_idx on "better_supabase"."ai_files" ("owner_id");
-create index if not exists ai_files_tenant_idx on "better_supabase"."ai_files" ("organization_id");
-create index if not exists ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
-create index if not exists ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
+create unique index ai_files_object_idx on "better_supabase"."ai_files" ("bucket", "path");
+create index ai_files_owner_idx on "better_supabase"."ai_files" ("owner_id");
+create index ai_files_tenant_idx on "better_supabase"."ai_files" ("organization_id");
+create index ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
+create index ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."ai_files" enable row level security;
 revoke all on "better_supabase"."ai_files" from public, anon, authenticated;
 grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
-drop policy if exists ai_files_read on "better_supabase"."ai_files";
 create policy ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
-create table if not exists "better_supabase"."ai_provider_files" (
+create table "better_supabase"."ai_provider_files" (
   "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
   "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" text not null check (length("reference") >= 1 and length("reference") <= 2000),
@@ -75,7 +51,7 @@ create table if not exists "better_supabase"."ai_provider_files" (
   "created_at" timestamptz not null default now(),
   primary key ("file_id", "provider")
 );
-create index if not exists ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
+create index ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."ai_provider_files" enable row level security;
 revoke all on "better_supabase"."ai_provider_files" from public, anon, authenticated;
 grant all on "better_supabase"."ai_provider_files" to service_role;
@@ -83,7 +59,7 @@ grant all on "better_supabase"."ai_provider_files" to service_role;
 -- Documents an assistant writes and the user edits beside the chat (text,
 -- code, sheets, images). Their versions live in the versions block, which
 -- keeps the newest ones by its keep option.
-create table if not exists "better_supabase"."ai_documents" (
+create table "better_supabase"."ai_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -94,14 +70,13 @@ create table if not exists "better_supabase"."ai_documents" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_documents_owner_idx on "better_supabase"."ai_documents" ("owner_id");
-create index if not exists ai_documents_tenant_idx on "better_supabase"."ai_documents" ("organization_id");
-create index if not exists ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
+create index ai_documents_owner_idx on "better_supabase"."ai_documents" ("owner_id");
+create index ai_documents_tenant_idx on "better_supabase"."ai_documents" ("organization_id");
+create index ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
 alter table "better_supabase"."ai_documents" enable row level security;
 revoke all on "better_supabase"."ai_documents" from public, anon, authenticated;
 grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
-drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
 create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
@@ -120,12 +95,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ai_document_purge_versions"() from public, anon, authenticated;
-drop trigger if exists "bsb_ai_document_purge_versions" on "better_supabase"."ai_documents";
 create trigger "bsb_ai_document_purge_versions"
   after delete on "better_supabase"."ai_documents"
   for each row execute function "better_supabase"."ai_document_purge_versions"();
 
-create table if not exists "better_supabase"."ai_suggestions" (
+create table "better_supabase"."ai_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
   "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
   "version" integer not null,
@@ -137,13 +111,12 @@ create table if not exists "better_supabase"."ai_suggestions" (
   "resolved_at" timestamptz,
   "accepted" boolean
 );
-create index if not exists ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
-create index if not exists ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
+create index ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
+create index ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_suggestions" enable row level security;
 revoke all on "better_supabase"."ai_suggestions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_suggestions" to authenticated;
 grant all on "better_supabase"."ai_suggestions" to service_role;
-drop policy if exists ai_suggestions_read on "better_supabase"."ai_suggestions";
 create policy ai_suggestions_read on "better_supabase"."ai_suggestions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_documents" doc where doc."id" = "document_id"));
@@ -173,10 +146,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) to authenticated, service_role;
-
-drop policy if exists bsb_ai_files_insert on storage.objects;
-drop policy if exists bsb_ai_files_select on storage.objects;
-drop policy if exists bsb_ai_files_delete on storage.objects;
 create policy bsb_ai_files_insert on storage.objects
   for insert to authenticated
   with check ((bucket_id = 'ai-files' and "better_supabase"."ai_file_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
@@ -190,7 +159,7 @@ create policy bsb_ai_files_delete on storage.objects
 -- Reserves a file for the caller, who then uploads to its path (a signed
 -- upload URL, or TUS for large files). The size and type are checked here
 -- and again by the bucket.
-drop function if exists "better_supabase"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid, jsonb);
+
 create or replace function "better_supabase"."reserve_ai_file"(
   tenant uuid,
   filename text,
@@ -331,7 +300,7 @@ grant execute on function "better_supabase"."delete_ai_file"(uuid) to authentica
 
 -- A ready file the server writes itself (a generated image, speech, a file
 -- a provider returned), owned by owner; the caller uploads to its path.
-drop function if exists "better_supabase"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text, jsonb);
+
 create or replace function "better_supabase"."store_ai_file"(
   tenant uuid,
   owner uuid,
@@ -702,45 +671,35 @@ grant execute on function "better_supabase"."delete_ai_document"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_files" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_files" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_documents" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_documents" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -766,39 +725,16 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:8b578580b69c1d776df1c56775b11a33b5c215e0cb7e4eb391d013f407262951
+-- @bsb-hash sha256:75811a6823de24381f34f508e4f97faa1501dc20fba4fee2d03abc88d9e368a1
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Files for AI chats: uploads, generated images and audio, and what a
 -- provider's file API returned for them. Objects live in the private
 -- ai-files bucket at {organization_id}/{owner_id}/{id}/{filename}; the record is
 -- reserved first, so the storage policies only accept the upload it expects.
-create table if not exists "better_supabase"."ai_files" (
+create table "better_supabase"."ai_files" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -816,23 +752,22 @@ create table if not exists "better_supabase"."ai_files" (
   "uploaded_at" timestamptz,
   "expires_at" timestamptz
 );
-create unique index if not exists ai_files_object_idx on "better_supabase"."ai_files" ("bucket", "path");
-create index if not exists ai_files_owner_idx on "better_supabase"."ai_files" ("owner_id");
-create index if not exists ai_files_tenant_idx on "better_supabase"."ai_files" ("organization_id");
-create index if not exists ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
-create index if not exists ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
+create unique index ai_files_object_idx on "better_supabase"."ai_files" ("bucket", "path");
+create index ai_files_owner_idx on "better_supabase"."ai_files" ("owner_id");
+create index ai_files_tenant_idx on "better_supabase"."ai_files" ("organization_id");
+create index ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
+create index ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."ai_files" enable row level security;
 revoke all on "better_supabase"."ai_files" from public, anon, authenticated;
 grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
-drop policy if exists ai_files_read on "better_supabase"."ai_files";
 create policy ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
-create table if not exists "better_supabase"."ai_provider_files" (
+create table "better_supabase"."ai_provider_files" (
   "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
   "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" text not null check (length("reference") >= 1 and length("reference") <= 2000),
@@ -840,7 +775,7 @@ create table if not exists "better_supabase"."ai_provider_files" (
   "created_at" timestamptz not null default now(),
   primary key ("file_id", "provider")
 );
-create index if not exists ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
+create index ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."ai_provider_files" enable row level security;
 revoke all on "better_supabase"."ai_provider_files" from public, anon, authenticated;
 grant all on "better_supabase"."ai_provider_files" to service_role;
@@ -848,7 +783,7 @@ grant all on "better_supabase"."ai_provider_files" to service_role;
 -- Documents an assistant writes and the user edits beside the chat (text,
 -- code, sheets, images). Their versions live in the versions block, which
 -- keeps the newest ones by its keep option.
-create table if not exists "better_supabase"."ai_documents" (
+create table "better_supabase"."ai_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -859,14 +794,13 @@ create table if not exists "better_supabase"."ai_documents" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_documents_owner_idx on "better_supabase"."ai_documents" ("owner_id");
-create index if not exists ai_documents_tenant_idx on "better_supabase"."ai_documents" ("organization_id");
-create index if not exists ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
+create index ai_documents_owner_idx on "better_supabase"."ai_documents" ("owner_id");
+create index ai_documents_tenant_idx on "better_supabase"."ai_documents" ("organization_id");
+create index ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
 alter table "better_supabase"."ai_documents" enable row level security;
 revoke all on "better_supabase"."ai_documents" from public, anon, authenticated;
 grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
-drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
 create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
@@ -885,12 +819,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ai_document_purge_versions"() from public, anon, authenticated;
-drop trigger if exists "bsb_ai_document_purge_versions" on "better_supabase"."ai_documents";
 create trigger "bsb_ai_document_purge_versions"
   after delete on "better_supabase"."ai_documents"
   for each row execute function "better_supabase"."ai_document_purge_versions"();
 
-create table if not exists "better_supabase"."ai_suggestions" (
+create table "better_supabase"."ai_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
   "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
   "version" integer not null,
@@ -902,13 +835,12 @@ create table if not exists "better_supabase"."ai_suggestions" (
   "resolved_at" timestamptz,
   "accepted" boolean
 );
-create index if not exists ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
-create index if not exists ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
+create index ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
+create index ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_suggestions" enable row level security;
 revoke all on "better_supabase"."ai_suggestions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_suggestions" to authenticated;
 grant all on "better_supabase"."ai_suggestions" to service_role;
-drop policy if exists ai_suggestions_read on "better_supabase"."ai_suggestions";
 create policy ai_suggestions_read on "better_supabase"."ai_suggestions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_documents" doc where doc."id" = "document_id"));
@@ -938,10 +870,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) to authenticated, service_role;
-
-drop policy if exists bsb_ai_files_insert on storage.objects;
-drop policy if exists bsb_ai_files_select on storage.objects;
-drop policy if exists bsb_ai_files_delete on storage.objects;
 create policy bsb_ai_files_insert on storage.objects
   for insert to authenticated
   with check ((bucket_id = 'ai-files' and "better_supabase"."ai_file_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
@@ -955,7 +883,7 @@ create policy bsb_ai_files_delete on storage.objects
 -- Reserves a file for the caller, who then uploads to its path (a signed
 -- upload URL, or TUS for large files). The size and type are checked here
 -- and again by the bucket.
-drop function if exists "better_supabase"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid, jsonb);
+
 create or replace function "better_supabase"."reserve_ai_file"(
   tenant uuid,
   filename text,
@@ -1096,7 +1024,7 @@ grant execute on function "better_supabase"."delete_ai_file"(uuid) to authentica
 
 -- A ready file the server writes itself (a generated image, speech, a file
 -- a provider returned), owned by owner; the caller uploads to its path.
-drop function if exists "better_supabase"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text, jsonb);
+
 create or replace function "better_supabase"."store_ai_file"(
   tenant uuid,
   owner uuid,
@@ -1468,45 +1396,35 @@ grant execute on function "better_supabase"."delete_ai_document"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_files" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_files" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_documents" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_documents" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -1539,32 +1457,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:7a64641e46c39e5da5ba600854a81f208a401cc96b060ea081f7bb62d2a17ead
+-- @bsb-hash sha256:37076e47f0b16594118ea60c7b0fa2def007de500e00abbb9cd714748c7e8ae1
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."ai_files";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."ai_files";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_files";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."ai_files";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_files";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."ai_documents";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."ai_documents";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_documents";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."ai_documents";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -1575,7 +1471,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- provider's file API returned for them. Objects live in the private
 -- ai-files bucket at {organization_id}/{owner_id}/{id}/{filename}; the record is
 -- reserved first, so the storage policies only accept the upload it expects.
-create table if not exists "app_private"."ai_files" (
+create table "app_private"."ai_files" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -1593,23 +1489,22 @@ create table if not exists "app_private"."ai_files" (
   "uploaded_at" timestamptz,
   "expires_at" timestamptz
 );
-create unique index if not exists ai_files_object_idx on "app_private"."ai_files" ("bucket", "path");
-create index if not exists ai_files_owner_idx on "app_private"."ai_files" ("owner_id");
-create index if not exists ai_files_tenant_idx on "app_private"."ai_files" ("organization_id");
-create index if not exists ai_files_chat_idx on "app_private"."ai_files" ("chat_id") where "chat_id" is not null;
-create index if not exists ai_files_pending_idx on "app_private"."ai_files" ("created_at") where "status" = 'pending';
+create unique index ai_files_object_idx on "app_private"."ai_files" ("bucket", "path");
+create index ai_files_owner_idx on "app_private"."ai_files" ("owner_id");
+create index ai_files_tenant_idx on "app_private"."ai_files" ("organization_id");
+create index ai_files_chat_idx on "app_private"."ai_files" ("chat_id") where "chat_id" is not null;
+create index ai_files_pending_idx on "app_private"."ai_files" ("created_at") where "status" = 'pending';
 alter table "app_private"."ai_files" enable row level security;
 revoke all on "app_private"."ai_files" from public, anon, authenticated;
 grant select on "app_private"."ai_files" to authenticated;
 grant all on "app_private"."ai_files" to service_role;
-drop policy if exists ai_files_read on "app_private"."ai_files";
 create policy ai_files_read on "app_private"."ai_files"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
-create table if not exists "app_private"."ai_provider_files" (
+create table "app_private"."ai_provider_files" (
   "file_id" uuid not null references "app_private"."ai_files" ("id") on delete cascade,
   "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" text not null check (length("reference") >= 1 and length("reference") <= 2000),
@@ -1617,7 +1512,7 @@ create table if not exists "app_private"."ai_provider_files" (
   "created_at" timestamptz not null default now(),
   primary key ("file_id", "provider")
 );
-create index if not exists ai_provider_files_expires_idx on "app_private"."ai_provider_files" ("expires_at") where "expires_at" is not null;
+create index ai_provider_files_expires_idx on "app_private"."ai_provider_files" ("expires_at") where "expires_at" is not null;
 alter table "app_private"."ai_provider_files" enable row level security;
 revoke all on "app_private"."ai_provider_files" from public, anon, authenticated;
 grant all on "app_private"."ai_provider_files" to service_role;
@@ -1625,7 +1520,7 @@ grant all on "app_private"."ai_provider_files" to service_role;
 -- Documents an assistant writes and the user edits beside the chat (text,
 -- code, sheets, images). Their versions live in the versions block, which
 -- keeps the newest ones by its keep option.
-create table if not exists "app_private"."ai_documents" (
+create table "app_private"."ai_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -1636,14 +1531,13 @@ create table if not exists "app_private"."ai_documents" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_documents_owner_idx on "app_private"."ai_documents" ("owner_id");
-create index if not exists ai_documents_tenant_idx on "app_private"."ai_documents" ("organization_id");
-create index if not exists ai_documents_chat_idx on "app_private"."ai_documents" ("chat_id") where "chat_id" is not null;
+create index ai_documents_owner_idx on "app_private"."ai_documents" ("owner_id");
+create index ai_documents_tenant_idx on "app_private"."ai_documents" ("organization_id");
+create index ai_documents_chat_idx on "app_private"."ai_documents" ("chat_id") where "chat_id" is not null;
 alter table "app_private"."ai_documents" enable row level security;
 revoke all on "app_private"."ai_documents" from public, anon, authenticated;
 grant select on "app_private"."ai_documents" to authenticated;
 grant all on "app_private"."ai_documents" to service_role;
-drop policy if exists ai_documents_read on "app_private"."ai_documents";
 create policy ai_documents_read on "app_private"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
@@ -1662,12 +1556,11 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."ai_document_purge_versions"() from public, anon, authenticated;
-drop trigger if exists "bsb_ai_document_purge_versions" on "app_private"."ai_documents";
 create trigger "bsb_ai_document_purge_versions"
   after delete on "app_private"."ai_documents"
   for each row execute function "app_private"."ai_document_purge_versions"();
 
-create table if not exists "app_private"."ai_suggestions" (
+create table "app_private"."ai_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
   "document_id" uuid not null references "app_private"."ai_documents" ("id") on delete cascade,
   "version" integer not null,
@@ -1679,13 +1572,12 @@ create table if not exists "app_private"."ai_suggestions" (
   "resolved_at" timestamptz,
   "accepted" boolean
 );
-create index if not exists ai_suggestions_document_idx on "app_private"."ai_suggestions" ("document_id");
-create index if not exists ai_suggestions_created_by_idx on "app_private"."ai_suggestions" ("created_by") where "created_by" is not null;
+create index ai_suggestions_document_idx on "app_private"."ai_suggestions" ("document_id");
+create index ai_suggestions_created_by_idx on "app_private"."ai_suggestions" ("created_by") where "created_by" is not null;
 alter table "app_private"."ai_suggestions" enable row level security;
 revoke all on "app_private"."ai_suggestions" from public, anon, authenticated;
 grant select on "app_private"."ai_suggestions" to authenticated;
 grant all on "app_private"."ai_suggestions" to service_role;
-drop policy if exists ai_suggestions_read on "app_private"."ai_suggestions";
 create policy ai_suggestions_read on "app_private"."ai_suggestions"
   for select to authenticated
   using (exists (select 1 from "app_private"."ai_documents" doc where doc."id" = "document_id"));
@@ -1715,10 +1607,6 @@ as $$
 $$;
 revoke execute on function "app_private"."ai_file_object_allowed"(text, text, text) from public, anon;
 grant execute on function "app_private"."ai_file_object_allowed"(text, text, text) to authenticated, service_role;
-
-drop policy if exists bsb_ai_files_insert on storage.objects;
-drop policy if exists bsb_ai_files_select on storage.objects;
-drop policy if exists bsb_ai_files_delete on storage.objects;
 create policy bsb_ai_files_insert on storage.objects
   for insert to authenticated
   with check ((bucket_id = 'ai-files' and "app_private"."ai_file_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
@@ -1732,7 +1620,7 @@ create policy bsb_ai_files_delete on storage.objects
 -- Reserves a file for the caller, who then uploads to its path (a signed
 -- upload URL, or TUS for large files). The size and type are checked here
 -- and again by the bucket.
-drop function if exists "app_private"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid, jsonb);
+
 create or replace function "app_private"."reserve_ai_file"(
   tenant uuid,
   filename text,
@@ -1873,7 +1761,7 @@ grant execute on function "app_private"."delete_ai_file"(uuid) to authenticated,
 
 -- A ready file the server writes itself (a generated image, speech, a file
 -- a provider returned), owned by owner; the caller uploads to its path.
-drop function if exists "app_private"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text, jsonb);
+
 create or replace function "app_private"."store_ai_file"(
   tenant uuid,
   owner uuid,
@@ -2244,45 +2132,35 @@ grant execute on function "app_private"."delete_ai_document"(uuid) to authentica
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."ai_files";
-drop policy if exists bsb_tenant_scope_select on "app_private"."ai_files";
 create policy bsb_tenant_scope_select on "app_private"."ai_files" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_files";
 create policy bsb_tenant_scope_insert on "app_private"."ai_files" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."ai_files";
 create policy bsb_tenant_scope_update on "app_private"."ai_files" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_files";
 create policy bsb_tenant_scope_delete on "app_private"."ai_files" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."ai_documents";
-drop policy if exists bsb_tenant_scope_select on "app_private"."ai_documents";
 create policy bsb_tenant_scope_select on "app_private"."ai_documents" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_documents";
 create policy bsb_tenant_scope_insert on "app_private"."ai_documents" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."ai_documents";
 create policy bsb_tenant_scope_update on "app_private"."ai_documents" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_documents";
 create policy bsb_tenant_scope_delete on "app_private"."ai_documents" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -2308,39 +2186,16 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:e8e4f9bc54a420e8cdf7200881c376b08530d7ae26dea850b57a936981b617fa
+-- @bsb-hash sha256:388e8ae5463882ef1b22e3eb78207fe6b7a6aa0d780fb6a7dd9ae6375c8948c0
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Files for AI chats: uploads, generated images and audio, and what a
 -- provider's file API returned for them. Objects live in the private
 -- ai-files bucket at {organization_id}/{owner_id}/{id}/{filename}; the record is
 -- reserved first, so the storage policies only accept the upload it expects.
-create table if not exists "better_supabase"."ai_files" (
+create table "better_supabase"."ai_files" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -2358,23 +2213,22 @@ create table if not exists "better_supabase"."ai_files" (
   "uploaded_at" timestamptz,
   "expires_at" timestamptz
 );
-create unique index if not exists ai_files_object_idx on "better_supabase"."ai_files" ("bucket", "path");
-create index if not exists ai_files_owner_idx on "better_supabase"."ai_files" ("owner_id");
-create index if not exists ai_files_tenant_idx on "better_supabase"."ai_files" ("organization_id");
-create index if not exists ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
-create index if not exists ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
+create unique index ai_files_object_idx on "better_supabase"."ai_files" ("bucket", "path");
+create index ai_files_owner_idx on "better_supabase"."ai_files" ("owner_id");
+create index ai_files_tenant_idx on "better_supabase"."ai_files" ("organization_id");
+create index ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
+create index ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."ai_files" enable row level security;
 revoke all on "better_supabase"."ai_files" from public, anon, authenticated;
 grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
-drop policy if exists ai_files_read on "better_supabase"."ai_files";
 create policy ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
-create table if not exists "better_supabase"."ai_provider_files" (
+create table "better_supabase"."ai_provider_files" (
   "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
   "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" text not null check (length("reference") >= 1 and length("reference") <= 2000),
@@ -2382,7 +2236,7 @@ create table if not exists "better_supabase"."ai_provider_files" (
   "created_at" timestamptz not null default now(),
   primary key ("file_id", "provider")
 );
-create index if not exists ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
+create index ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."ai_provider_files" enable row level security;
 revoke all on "better_supabase"."ai_provider_files" from public, anon, authenticated;
 grant all on "better_supabase"."ai_provider_files" to service_role;
@@ -2390,7 +2244,7 @@ grant all on "better_supabase"."ai_provider_files" to service_role;
 -- Documents an assistant writes and the user edits beside the chat (text,
 -- code, sheets, images). Their versions live in the versions block, which
 -- keeps the newest ones by its keep option.
-create table if not exists "better_supabase"."ai_documents" (
+create table "better_supabase"."ai_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -2401,14 +2255,13 @@ create table if not exists "better_supabase"."ai_documents" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_documents_owner_idx on "better_supabase"."ai_documents" ("owner_id");
-create index if not exists ai_documents_tenant_idx on "better_supabase"."ai_documents" ("organization_id");
-create index if not exists ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
+create index ai_documents_owner_idx on "better_supabase"."ai_documents" ("owner_id");
+create index ai_documents_tenant_idx on "better_supabase"."ai_documents" ("organization_id");
+create index ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
 alter table "better_supabase"."ai_documents" enable row level security;
 revoke all on "better_supabase"."ai_documents" from public, anon, authenticated;
 grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
-drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
 create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
@@ -2427,12 +2280,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ai_document_purge_versions"() from public, anon, authenticated;
-drop trigger if exists "bsb_ai_document_purge_versions" on "better_supabase"."ai_documents";
 create trigger "bsb_ai_document_purge_versions"
   after delete on "better_supabase"."ai_documents"
   for each row execute function "better_supabase"."ai_document_purge_versions"();
 
-create table if not exists "better_supabase"."ai_suggestions" (
+create table "better_supabase"."ai_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
   "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
   "version" integer not null,
@@ -2444,13 +2296,12 @@ create table if not exists "better_supabase"."ai_suggestions" (
   "resolved_at" timestamptz,
   "accepted" boolean
 );
-create index if not exists ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
-create index if not exists ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
+create index ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
+create index ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_suggestions" enable row level security;
 revoke all on "better_supabase"."ai_suggestions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_suggestions" to authenticated;
 grant all on "better_supabase"."ai_suggestions" to service_role;
-drop policy if exists ai_suggestions_read on "better_supabase"."ai_suggestions";
 create policy ai_suggestions_read on "better_supabase"."ai_suggestions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_documents" doc where doc."id" = "document_id"));
@@ -2480,10 +2331,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) to authenticated, service_role;
-
-drop policy if exists bsb_ai_files_insert on storage.objects;
-drop policy if exists bsb_ai_files_select on storage.objects;
-drop policy if exists bsb_ai_files_delete on storage.objects;
 create policy bsb_ai_files_insert on storage.objects
   for insert to authenticated
   with check ((bucket_id = 'ai-files' and "better_supabase"."ai_file_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
@@ -2497,7 +2344,7 @@ create policy bsb_ai_files_delete on storage.objects
 -- Reserves a file for the caller, who then uploads to its path (a signed
 -- upload URL, or TUS for large files). The size and type are checked here
 -- and again by the bucket.
-drop function if exists "better_supabase"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid, jsonb);
+
 create or replace function "better_supabase"."reserve_ai_file"(
   tenant uuid,
   filename text,
@@ -2638,7 +2485,7 @@ grant execute on function "better_supabase"."delete_ai_file"(uuid) to authentica
 
 -- A ready file the server writes itself (a generated image, speech, a file
 -- a provider returned), owned by owner; the caller uploads to its path.
-drop function if exists "better_supabase"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text, jsonb);
+
 create or replace function "better_supabase"."store_ai_file"(
   tenant uuid,
   owner uuid,
@@ -3009,45 +2856,35 @@ grant execute on function "better_supabase"."delete_ai_document"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_files" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_files" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_documents" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_documents" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -3057,10 +2894,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."ai_file_object_allowed"(text, text, text);
 
-drop function if exists "api"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid, jsonb);
-drop function if exists "api"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text, jsonb);
 
 create or replace function "api"."reserve_ai_file"(tenant uuid, filename text, media_type text, byte_size bigint, chat_id uuid default null, project_id uuid default null)
 returns jsonb
@@ -3271,33 +3105,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:7f53ec0e52b87c2ea780a350b1674eb8db33031a2290a60b7f1c80971cdc6974
+-- @bsb-hash sha256:ee284d1d5b1c69631f043618d85a464c44bfbf08b4b04cbeaf5fd46ab8449b65
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Files for AI chats: uploads, generated images and audio, and what a
 -- provider's file API returned for them. Objects live in the private
@@ -3328,7 +3139,6 @@ create index if not exists ai_files_pending_idx on "better_supabase"."ai_files" 
 alter table "better_supabase"."ai_files" enable row level security;
 grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
-drop policy if exists bsb_ai_files_read on "better_supabase"."ai_files";
 create policy bsb_ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
@@ -3365,7 +3175,6 @@ create index if not exists ai_documents_chat_idx on "better_supabase"."ai_docume
 alter table "better_supabase"."ai_documents" enable row level security;
 grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
-drop policy if exists bsb_ai_documents_read on "better_supabase"."ai_documents";
 create policy bsb_ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
@@ -3384,7 +3193,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ai_document_purge_versions"() from public, anon, authenticated;
-drop trigger if exists "bsb_ai_document_purge_versions" on "better_supabase"."ai_documents";
 create trigger "bsb_ai_document_purge_versions"
   after delete on "better_supabase"."ai_documents"
   for each row execute function "better_supabase"."ai_document_purge_versions"();
@@ -3405,7 +3213,6 @@ create index if not exists ai_suggestions_created_by_idx on "better_supabase"."a
 alter table "better_supabase"."ai_suggestions" enable row level security;
 grant select on "better_supabase"."ai_suggestions" to authenticated;
 grant all on "better_supabase"."ai_suggestions" to service_role;
-drop policy if exists bsb_ai_suggestions_read on "better_supabase"."ai_suggestions";
 create policy bsb_ai_suggestions_read on "better_supabase"."ai_suggestions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_documents" doc where doc."id" = "document_id"));
@@ -3435,10 +3242,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) to authenticated, service_role;
-
-drop policy if exists bsb_ai_files_insert on storage.objects;
-drop policy if exists bsb_ai_files_select on storage.objects;
-drop policy if exists bsb_ai_files_delete on storage.objects;
 create policy bsb_ai_files_insert on storage.objects
   for insert to authenticated
   with check ((bucket_id = 'ai-files' and "better_supabase"."ai_file_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
@@ -3452,7 +3255,7 @@ create policy bsb_ai_files_delete on storage.objects
 -- Reserves a file for the caller, who then uploads to its path (a signed
 -- upload URL, or TUS for large files). The size and type are checked here
 -- and again by the bucket.
-drop function if exists "better_supabase"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid, jsonb);
+
 create or replace function "better_supabase"."reserve_ai_file"(
   tenant uuid,
   filename text,
@@ -3593,7 +3396,7 @@ grant execute on function "better_supabase"."delete_ai_file"(uuid) to authentica
 
 -- A ready file the server writes itself (a generated image, speech, a file
 -- a provider returned), owned by owner; the caller uploads to its path.
-drop function if exists "better_supabase"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text, jsonb);
+
 create or replace function "better_supabase"."store_ai_file"(
   tenant uuid,
   owner uuid,
@@ -3964,45 +3767,35 @@ grant execute on function "better_supabase"."delete_ai_document"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_files" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_files" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_documents" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_documents" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -4028,39 +3821,16 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:33606eb58bd537d64d1ede9e94ad4e88c0e454b7f61f0cdc12b89fd861d73e18
+-- @bsb-hash sha256:3affce9aded6902b5b7b56fbdb431c2e41e8b91b6a91688abec31d3014b3230c
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Files for AI chats: uploads, generated images and audio, and what a
 -- provider's file API returned for them. Objects live in the private
 -- ai-files bucket at {organization_id}/{owner_id}/{id}/{filename}; the record is
 -- reserved first, so the storage policies only accept the upload it expects.
-create table if not exists "better_supabase"."ai_files" (
+create table "better_supabase"."ai_files" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -4078,23 +3848,22 @@ create table if not exists "better_supabase"."ai_files" (
   "uploaded_at" timestamptz,
   "expires_at" timestamptz
 );
-create unique index if not exists ai_files_object_idx on "better_supabase"."ai_files" ("bucket", "path");
-create index if not exists ai_files_owner_idx on "better_supabase"."ai_files" ("owner_id");
-create index if not exists ai_files_tenant_idx on "better_supabase"."ai_files" ("org_id");
-create index if not exists ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
-create index if not exists ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
+create unique index ai_files_object_idx on "better_supabase"."ai_files" ("bucket", "path");
+create index ai_files_owner_idx on "better_supabase"."ai_files" ("owner_id");
+create index ai_files_tenant_idx on "better_supabase"."ai_files" ("org_id");
+create index ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
+create index ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."ai_files" enable row level security;
 revoke all on "better_supabase"."ai_files" from public, anon, authenticated;
 grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
-drop policy if exists ai_files_read on "better_supabase"."ai_files";
 create policy ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
-create table if not exists "better_supabase"."ai_provider_files" (
+create table "better_supabase"."ai_provider_files" (
   "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
   "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
   "reference" text not null check (length("reference") >= 1 and length("reference") <= 2000),
@@ -4102,7 +3871,7 @@ create table if not exists "better_supabase"."ai_provider_files" (
   "created_at" timestamptz not null default now(),
   primary key ("file_id", "provider")
 );
-create index if not exists ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
+create index ai_provider_files_expires_idx on "better_supabase"."ai_provider_files" ("expires_at") where "expires_at" is not null;
 alter table "better_supabase"."ai_provider_files" enable row level security;
 revoke all on "better_supabase"."ai_provider_files" from public, anon, authenticated;
 grant all on "better_supabase"."ai_provider_files" to service_role;
@@ -4110,7 +3879,7 @@ grant all on "better_supabase"."ai_provider_files" to service_role;
 -- Documents an assistant writes and the user edits beside the chat (text,
 -- code, sheets, images). Their versions live in the versions block, which
 -- keeps the newest ones by its keep option.
-create table if not exists "better_supabase"."ai_documents" (
+create table "better_supabase"."ai_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
@@ -4121,14 +3890,13 @@ create table if not exists "better_supabase"."ai_documents" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_documents_owner_idx on "better_supabase"."ai_documents" ("owner_id");
-create index if not exists ai_documents_tenant_idx on "better_supabase"."ai_documents" ("org_id");
-create index if not exists ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
+create index ai_documents_owner_idx on "better_supabase"."ai_documents" ("owner_id");
+create index ai_documents_tenant_idx on "better_supabase"."ai_documents" ("org_id");
+create index ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
 alter table "better_supabase"."ai_documents" enable row level security;
 revoke all on "better_supabase"."ai_documents" from public, anon, authenticated;
 grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
-drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
 create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
@@ -4147,12 +3915,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ai_document_purge_versions"() from public, anon, authenticated;
-drop trigger if exists "bsb_ai_document_purge_versions" on "better_supabase"."ai_documents";
 create trigger "bsb_ai_document_purge_versions"
   after delete on "better_supabase"."ai_documents"
   for each row execute function "better_supabase"."ai_document_purge_versions"();
 
-create table if not exists "better_supabase"."ai_suggestions" (
+create table "better_supabase"."ai_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
   "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
   "version" integer not null,
@@ -4164,13 +3931,12 @@ create table if not exists "better_supabase"."ai_suggestions" (
   "resolved_at" timestamptz,
   "accepted" boolean
 );
-create index if not exists ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
-create index if not exists ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
+create index ai_suggestions_document_idx on "better_supabase"."ai_suggestions" ("document_id");
+create index ai_suggestions_created_by_idx on "better_supabase"."ai_suggestions" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."ai_suggestions" enable row level security;
 revoke all on "better_supabase"."ai_suggestions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_suggestions" to authenticated;
 grant all on "better_supabase"."ai_suggestions" to service_role;
-drop policy if exists ai_suggestions_read on "better_supabase"."ai_suggestions";
 create policy ai_suggestions_read on "better_supabase"."ai_suggestions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_documents" doc where doc."id" = "document_id"));
@@ -4200,10 +3966,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) to authenticated, service_role;
-
-drop policy if exists bsb_ai_files_insert on storage.objects;
-drop policy if exists bsb_ai_files_select on storage.objects;
-drop policy if exists bsb_ai_files_delete on storage.objects;
 create policy bsb_ai_files_insert on storage.objects
   for insert to authenticated
   with check ((bucket_id = 'ai-files' and "better_supabase"."ai_file_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
@@ -4217,7 +3979,7 @@ create policy bsb_ai_files_delete on storage.objects
 -- Reserves a file for the caller, who then uploads to its path (a signed
 -- upload URL, or TUS for large files). The size and type are checked here
 -- and again by the bucket.
-drop function if exists "better_supabase"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid, jsonb);
+
 create or replace function "better_supabase"."reserve_ai_file"(
   tenant uuid,
   filename text,
@@ -4358,7 +4120,7 @@ grant execute on function "better_supabase"."delete_ai_file"(uuid) to authentica
 
 -- A ready file the server writes itself (a generated image, speech, a file
 -- a provider returned), owned by owner; the caller uploads to its path.
-drop function if exists "better_supabase"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text, jsonb);
+
 create or replace function "better_supabase"."store_ai_file"(
   tenant uuid,
   owner uuid,
@@ -4729,45 +4491,35 @@ grant execute on function "better_supabase"."delete_ai_document"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_files";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_files" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_files" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_documents" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_documents" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

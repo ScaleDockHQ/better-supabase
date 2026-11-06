@@ -1,33 +1,10 @@
 -- ==== schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:f0b57bbadc3ecb09babb61555796caa1176079331b29b3564710c9c5eba9ba97
+-- @bsb-hash sha256:624ad082fceceafdc225fd6dd326ac96b8ebc1b78a23326eb0561695b14c635f
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."legal_entities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."legal_entities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."legal_entities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."legal_entities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."legal_entities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."legal_entity_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."legal_entity_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."legal_entity_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."legal_entity_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."legal_entity_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Legal entities inside one organization (ADR 0142): their details, the
 -- default entity, per-entity settings, and the optional legal_entity_id
@@ -35,7 +12,7 @@ end $$;
 
 -- The legal entities of an organization: the companies that issue documents,
 -- keep books and pay tax. Contacts, products and members stay shared.
-create table if not exists "better_supabase"."legal_entities" (
+create table "better_supabase"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
@@ -58,20 +35,19 @@ create table if not exists "better_supabase"."legal_entities" (
   check (not ("is_default" and "archived_at" is not null))
 );
 -- One default entity per organization.
-create unique index if not exists "legal_entities_default_idx" on "better_supabase"."legal_entities" ("tenant_id") where "is_default";
-create index if not exists "legal_entities_logo_idx" on "better_supabase"."legal_entities" ("logo_attachment_id") where "logo_attachment_id" is not null;
+create unique index "legal_entities_default_idx" on "better_supabase"."legal_entities" ("tenant_id") where "is_default";
+create index "legal_entities_logo_idx" on "better_supabase"."legal_entities" ("logo_attachment_id") where "logo_attachment_id" is not null;
 alter table "better_supabase"."legal_entities" enable row level security;
 revoke all on "better_supabase"."legal_entities" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entities" to authenticated;
 grant all on "better_supabase"."legal_entities" to service_role;
-drop policy if exists legal_entities_read on "better_supabase"."legal_entities";
 create policy legal_entities_read on "better_supabase"."legal_entities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
 -- Settings that differ per legal entity; resolve_setting falls back to the
 -- organization's setting, then to the code default.
-create table if not exists "better_supabase"."legal_entity_settings" (
+create table "better_supabase"."legal_entity_settings" (
   "tenant_id" uuid not null,
   "legal_entity_id" uuid not null,
   "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
@@ -81,13 +57,12 @@ create table if not exists "better_supabase"."legal_entity_settings" (
   primary key ("legal_entity_id", "key"),
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "legal_entity_settings_tenant_idx" on "better_supabase"."legal_entity_settings" ("tenant_id", "legal_entity_id");
-create index if not exists "legal_entity_settings_updated_by_idx" on "better_supabase"."legal_entity_settings" ("updated_by") where "updated_by" is not null;
+create index "legal_entity_settings_tenant_idx" on "better_supabase"."legal_entity_settings" ("tenant_id", "legal_entity_id");
+create index "legal_entity_settings_updated_by_idx" on "better_supabase"."legal_entity_settings" ("updated_by") where "updated_by" is not null;
 alter table "better_supabase"."legal_entity_settings" enable row level security;
 revoke all on "better_supabase"."legal_entity_settings" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entity_settings" to authenticated;
 grant all on "better_supabase"."legal_entity_settings" to service_role;
-drop policy if exists legal_entity_settings_read on "better_supabase"."legal_entity_settings";
 create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
@@ -517,45 +492,35 @@ grant execute on function "better_supabase"."resolve_setting"(uuid, text, uuid) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."legal_entities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."legal_entities";
 create policy bsb_tenant_scope_select on "better_supabase"."legal_entities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."legal_entities";
 create policy bsb_tenant_scope_insert on "better_supabase"."legal_entities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."legal_entities";
 create policy bsb_tenant_scope_update on "better_supabase"."legal_entities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."legal_entities";
 create policy bsb_tenant_scope_delete on "better_supabase"."legal_entities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."legal_entity_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."legal_entity_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."legal_entity_settings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."legal_entity_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."legal_entity_settings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."legal_entity_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."legal_entity_settings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."legal_entity_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."legal_entity_settings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

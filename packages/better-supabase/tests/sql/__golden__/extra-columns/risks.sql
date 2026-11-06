@@ -1,46 +1,15 @@
 -- ==== schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:7cf99a9656761b653e45972421320d3b25896d9e26e817aecc5aef7c00d58d59
+-- @bsb-hash sha256:6842ab8b2870d9bb0fe353f9d333fcf57814b9da764d61dec0cde1a84fae596e
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."risk_matrices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."risk_matrices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risk_matrices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."risk_matrices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risk_matrices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."risks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."risks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."risks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."risk_assessments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."risk_assessments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risk_assessments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."risk_assessments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risk_assessments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- A risk register per organization: risks scored on a likelihood by impact
 -- matrix, assessed before and after controls, treated, reviewed and closed.
 
-create table if not exists "better_supabase"."risk_matrices" (
+create table "better_supabase"."risk_matrices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -57,17 +26,16 @@ create table if not exists "better_supabase"."risk_matrices" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "risk_matrices_default_key" on "better_supabase"."risk_matrices" ("tenant_id") where "is_default";
+create unique index "risk_matrices_default_key" on "better_supabase"."risk_matrices" ("tenant_id") where "is_default";
 alter table "better_supabase"."risk_matrices" enable row level security;
 revoke all on "better_supabase"."risk_matrices" from public, anon, authenticated;
 grant select on "better_supabase"."risk_matrices" to authenticated;
 grant all on "better_supabase"."risk_matrices" to service_role;
-drop policy if exists risk_matrices_read on "better_supabase"."risk_matrices";
 create policy risk_matrices_read on "better_supabase"."risk_matrices"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
-create table if not exists "better_supabase"."risks" (
+create table "better_supabase"."risks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- RSK-0001, from the numbering block when it numbers risks.
@@ -108,21 +76,20 @@ create table if not exists "better_supabase"."risks" (
   check ("status" <> 'closed' or "closed_at" is not null),
   foreign key ("tenant_id", "matrix_id") references "better_supabase"."risk_matrices" ("tenant_id", "id") on delete restrict
 );
-alter table "better_supabase"."risks" add column if not exists "app_note" text;
-create index if not exists "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
-create index if not exists "risks_matrix_idx" on "better_supabase"."risks" ("tenant_id", "matrix_id");
-create index if not exists "risks_owner_idx" on "better_supabase"."risks" ("tenant_id", "owner_id") where "owner_id" is not null;
-create index if not exists "risks_review_idx" on "better_supabase"."risks" ("next_review_on") where "status" <> 'closed';
+alter table "better_supabase"."risks" add column "app_note" text;
+create index "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
+create index "risks_matrix_idx" on "better_supabase"."risks" ("tenant_id", "matrix_id");
+create index "risks_owner_idx" on "better_supabase"."risks" ("tenant_id", "owner_id") where "owner_id" is not null;
+create index "risks_review_idx" on "better_supabase"."risks" ("next_review_on") where "status" <> 'closed';
 alter table "better_supabase"."risks" enable row level security;
 revoke all on "better_supabase"."risks" from public, anon, authenticated;
 grant select on "better_supabase"."risks" to authenticated;
 grant all on "better_supabase"."risks" to service_role;
-drop policy if exists risks_read on "better_supabase"."risks";
 create policy risks_read on "better_supabase"."risks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
-create table if not exists "better_supabase"."risk_assessments" (
+create table "better_supabase"."risk_assessments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "risk_id" uuid not null,
@@ -140,13 +107,12 @@ create table if not exists "better_supabase"."risk_assessments" (
   "assessed_at" timestamptz not null default now(),
   foreign key ("tenant_id", "risk_id") references "better_supabase"."risks" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "risk_assessments_history_idx" on "better_supabase"."risk_assessments" ("tenant_id", "risk_id", "assessed_at" desc);
-create index if not exists "risk_assessments_version_idx" on "better_supabase"."risk_assessments" ("version_id") where "version_id" is not null;
+create index "risk_assessments_history_idx" on "better_supabase"."risk_assessments" ("tenant_id", "risk_id", "assessed_at" desc);
+create index "risk_assessments_version_idx" on "better_supabase"."risk_assessments" ("version_id") where "version_id" is not null;
 alter table "better_supabase"."risk_assessments" enable row level security;
 revoke all on "better_supabase"."risk_assessments" from public, anon, authenticated;
 grant select on "better_supabase"."risk_assessments" to authenticated;
 grant all on "better_supabase"."risk_assessments" to service_role;
-drop policy if exists risk_assessments_read on "better_supabase"."risk_assessments";
 create policy risk_assessments_read on "better_supabase"."risk_assessments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
@@ -970,66 +936,51 @@ grant execute on function "better_supabase"."seed_risks_defaults"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."risk_matrices";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."risk_matrices";
 create policy bsb_tenant_scope_select on "better_supabase"."risk_matrices" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risk_matrices";
 create policy bsb_tenant_scope_insert on "better_supabase"."risk_matrices" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."risk_matrices";
 create policy bsb_tenant_scope_update on "better_supabase"."risk_matrices" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risk_matrices";
 create policy bsb_tenant_scope_delete on "better_supabase"."risk_matrices" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."risks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."risks";
 create policy bsb_tenant_scope_select on "better_supabase"."risks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risks";
 create policy bsb_tenant_scope_insert on "better_supabase"."risks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."risks";
 create policy bsb_tenant_scope_update on "better_supabase"."risks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risks";
 create policy bsb_tenant_scope_delete on "better_supabase"."risks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."risk_assessments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."risk_assessments";
 create policy bsb_tenant_scope_select on "better_supabase"."risk_assessments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risk_assessments";
 create policy bsb_tenant_scope_insert on "better_supabase"."risk_assessments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."risk_assessments";
 create policy bsb_tenant_scope_update on "better_supabase"."risk_assessments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risk_assessments";
 create policy bsb_tenant_scope_delete on "better_supabase"."risk_assessments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

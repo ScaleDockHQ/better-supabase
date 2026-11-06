@@ -1,35 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:f04c9ff2527d30304f6d0560bda9002b84059a3ea2e423a240d4368e9255c0b2
+-- @bsb-hash sha256:c84d26431c050215582c2a770e539ce5c5c4dc102e10f2e26279705f06aa7e7f
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."signature_requests" (
+create table "better_supabase"."signature_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -47,20 +24,19 @@ create table if not exists "better_supabase"."signature_requests" (
   "completed_at" timestamptz
 );
 -- What signing means (blocks.signatures.options.meanings), such as approved.
-alter table "better_supabase"."signature_requests" add column if not exists "meaning" text;
-create index if not exists "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
-create index if not exists "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
+
+create index "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id");
+create index "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
+create index "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
 alter table "better_supabase"."signature_requests" enable row level security;
 revoke all on "better_supabase"."signature_requests" from public, anon, authenticated;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
-drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
 create policy signature_requests_read on "better_supabase"."signature_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
-create table if not exists "better_supabase"."signatures" (
+create table "better_supabase"."signatures" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."signature_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -80,7 +56,6 @@ alter table "better_supabase"."signatures" enable row level security;
 revoke all on "better_supabase"."signatures" from public, anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
-drop policy if exists signatures_read on "better_supabase"."signatures";
 create policy signatures_read on "better_supabase"."signatures"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
@@ -90,9 +65,7 @@ create policy signatures_read on "better_supabase"."signatures"
 -- are snapshotted first. meaning says what signing means, one of
 -- blocks.signatures.options.meanings. fields: the extra columns
 -- (blocks.signatures.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text);
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, text, jsonb);
+
 create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null, meaning text default null)
 returns jsonb
 language plpgsql
@@ -440,45 +413,35 @@ grant execute on function "better_supabase"."list_signature_requests"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."signature_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."signature_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."signature_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."signature_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
 create policy bsb_tenant_scope_select on "better_supabase"."signatures" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
 create policy bsb_tenant_scope_insert on "better_supabase"."signatures" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
 create policy bsb_tenant_scope_update on "better_supabase"."signatures" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
 create policy bsb_tenant_scope_delete on "better_supabase"."signatures" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -500,35 +463,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:9711bc2ecb029dfae5476ed19d13e512a0320e0d905ea7fffc911e72a0674843
+-- @bsb-hash sha256:32c5abb3f01b0c483aab07f61c27b62247fefb0b8e6bbfa9346d1ba1b9bc9d49
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."signature_requests" (
+create table "better_supabase"."signature_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -546,20 +486,19 @@ create table if not exists "better_supabase"."signature_requests" (
   "completed_at" timestamptz
 );
 -- What signing means (blocks.signatures.options.meanings), such as approved.
-alter table "better_supabase"."signature_requests" add column if not exists "meaning" text;
-create index if not exists "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
-create index if not exists "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
+
+create index "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id");
+create index "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
+create index "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
 alter table "better_supabase"."signature_requests" enable row level security;
 revoke all on "better_supabase"."signature_requests" from public, anon, authenticated;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
-drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
 create policy signature_requests_read on "better_supabase"."signature_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
-create table if not exists "better_supabase"."signatures" (
+create table "better_supabase"."signatures" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."signature_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -579,7 +518,6 @@ alter table "better_supabase"."signatures" enable row level security;
 revoke all on "better_supabase"."signatures" from public, anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
-drop policy if exists signatures_read on "better_supabase"."signatures";
 create policy signatures_read on "better_supabase"."signatures"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
@@ -589,9 +527,7 @@ create policy signatures_read on "better_supabase"."signatures"
 -- are snapshotted first. meaning says what signing means, one of
 -- blocks.signatures.options.meanings. fields: the extra columns
 -- (blocks.signatures.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text);
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, text, jsonb);
+
 create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null, meaning text default null)
 returns jsonb
 language plpgsql
@@ -989,45 +925,35 @@ grant execute on function "better_supabase"."list_signature_requests"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."signature_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."signature_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."signature_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."signature_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
 create policy bsb_tenant_scope_select on "better_supabase"."signatures" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
 create policy bsb_tenant_scope_insert on "better_supabase"."signatures" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
 create policy bsb_tenant_scope_update on "better_supabase"."signatures" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
 create policy bsb_tenant_scope_delete on "better_supabase"."signatures" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1056,39 +982,17 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:d51945f90d56b0988003939e07daa40620693d5643ebfcec7489e08b6daadb07
+-- @bsb-hash sha256:6588b3b01d1af704b347517589aa6d93a2fe8af01d6421612f53ae61f34e6a9a
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."signature_requests";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."signature_requests";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."signature_requests";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."signature_requests";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."signature_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."signatures";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."signatures";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."signatures";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."signatures";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."signatures";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."signature_requests" (
+create table "app_private"."signature_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1106,20 +1010,19 @@ create table if not exists "app_private"."signature_requests" (
   "completed_at" timestamptz
 );
 -- What signing means (blocks.signatures.options.meanings), such as approved.
-alter table "app_private"."signature_requests" add column if not exists "meaning" text;
-create index if not exists "signature_requests_subject_idx" on "app_private"."signature_requests" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "signature_requests_version_idx" on "app_private"."signature_requests" ("version_id");
-create index if not exists "signature_requests_signers_idx" on "app_private"."signature_requests" using gin ("signers");
+
+create index "signature_requests_subject_idx" on "app_private"."signature_requests" ("tenant_id", "subject_type", "subject_id");
+create index "signature_requests_version_idx" on "app_private"."signature_requests" ("version_id");
+create index "signature_requests_signers_idx" on "app_private"."signature_requests" using gin ("signers");
 alter table "app_private"."signature_requests" enable row level security;
 revoke all on "app_private"."signature_requests" from public, anon, authenticated;
 grant select on "app_private"."signature_requests" to authenticated;
 grant all on "app_private"."signature_requests" to service_role;
-drop policy if exists signature_requests_read on "app_private"."signature_requests";
 create policy signature_requests_read on "app_private"."signature_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
-create table if not exists "app_private"."signatures" (
+create table "app_private"."signatures" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "app_private"."signature_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -1139,7 +1042,6 @@ alter table "app_private"."signatures" enable row level security;
 revoke all on "app_private"."signatures" from public, anon, authenticated;
 grant select on "app_private"."signatures" to authenticated;
 grant all on "app_private"."signatures" to service_role;
-drop policy if exists signatures_read on "app_private"."signatures";
 create policy signatures_read on "app_private"."signatures"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
@@ -1149,9 +1051,7 @@ create policy signatures_read on "app_private"."signatures"
 -- are snapshotted first. meaning says what signing means, one of
 -- blocks.signatures.options.meanings. fields: the extra columns
 -- (blocks.signatures.options.extraColumns) to set.
-drop function if exists "app_private"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text);
-drop function if exists "app_private"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
-drop function if exists "app_private"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, text, jsonb);
+
 create or replace function "app_private"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null, meaning text default null)
 returns jsonb
 language plpgsql
@@ -1499,45 +1399,35 @@ grant execute on function "app_private"."list_signature_requests"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."signature_requests";
-drop policy if exists bsb_tenant_scope_select on "app_private"."signature_requests";
 create policy bsb_tenant_scope_select on "app_private"."signature_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."signature_requests";
 create policy bsb_tenant_scope_insert on "app_private"."signature_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."signature_requests";
 create policy bsb_tenant_scope_update on "app_private"."signature_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."signature_requests";
 create policy bsb_tenant_scope_delete on "app_private"."signature_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."signatures";
-drop policy if exists bsb_tenant_scope_select on "app_private"."signatures";
 create policy bsb_tenant_scope_select on "app_private"."signatures" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."signatures";
 create policy bsb_tenant_scope_insert on "app_private"."signatures" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."signatures";
 create policy bsb_tenant_scope_update on "app_private"."signatures" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."signatures";
 create policy bsb_tenant_scope_delete on "app_private"."signatures" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1559,35 +1449,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:6a175882affce8a26093907267370eb2a0f4f5bb638ae5fa8a11d7e1412355b1
+-- @bsb-hash sha256:22f58e0d52f5fddbc3288f72e0b0e000b1e9e95afeb4c9419d9c293644c1b2cf
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."signature_requests" (
+create table "better_supabase"."signature_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1605,20 +1472,19 @@ create table if not exists "better_supabase"."signature_requests" (
   "completed_at" timestamptz
 );
 -- What signing means (blocks.signatures.options.meanings), such as approved.
-alter table "better_supabase"."signature_requests" add column if not exists "meaning" text;
-create index if not exists "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
-create index if not exists "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
+
+create index "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id");
+create index "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
+create index "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
 alter table "better_supabase"."signature_requests" enable row level security;
 revoke all on "better_supabase"."signature_requests" from public, anon, authenticated;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
-drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
 create policy signature_requests_read on "better_supabase"."signature_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
-create table if not exists "better_supabase"."signatures" (
+create table "better_supabase"."signatures" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."signature_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -1638,7 +1504,6 @@ alter table "better_supabase"."signatures" enable row level security;
 revoke all on "better_supabase"."signatures" from public, anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
-drop policy if exists signatures_read on "better_supabase"."signatures";
 create policy signatures_read on "better_supabase"."signatures"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
@@ -1648,9 +1513,7 @@ create policy signatures_read on "better_supabase"."signatures"
 -- are snapshotted first. meaning says what signing means, one of
 -- blocks.signatures.options.meanings. fields: the extra columns
 -- (blocks.signatures.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text);
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, text, jsonb);
+
 create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null, meaning text default null)
 returns jsonb
 language plpgsql
@@ -1998,45 +1861,35 @@ grant execute on function "better_supabase"."list_signature_requests"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."signature_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."signature_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."signature_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."signature_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
 create policy bsb_tenant_scope_select on "better_supabase"."signatures" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
 create policy bsb_tenant_scope_insert on "better_supabase"."signatures" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
 create policy bsb_tenant_scope_update on "better_supabase"."signatures" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
 create policy bsb_tenant_scope_delete on "better_supabase"."signatures" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2044,10 +1897,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."signatures" as restr
 -- blocks.signatures.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text);
-drop function if exists "api"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
-drop function if exists "api"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, text, jsonb);
 
 create or replace function "api"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null, meaning text default null)
 returns jsonb
@@ -2122,33 +1971,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:43a9dda3e5f2cbe9bfc92ff179e90a37ab5c496e387cc9bf445ab7c2d430772a
+-- @bsb-hash sha256:eb97fc389d3e50fe5306a62a13e859128144539a4fb62ed932f8c1567aab6ade
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- better_supabase.signature_requests is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."signature_requests" add column if not exists "id" uuid default gen_random_uuid();
@@ -2174,7 +2000,6 @@ create index if not exists "signature_requests_signers_idx" on "better_supabase"
 alter table "better_supabase"."signature_requests" enable row level security;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
-drop policy if exists bsb_signature_requests_select on "better_supabase"."signature_requests";
 create policy bsb_signature_requests_select on "better_supabase"."signature_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
@@ -2194,7 +2019,6 @@ alter table "better_supabase"."signatures" add column if not exists "signed_at" 
 alter table "better_supabase"."signatures" enable row level security;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
-drop policy if exists bsb_signatures_select on "better_supabase"."signatures";
 create policy bsb_signatures_select on "better_supabase"."signatures"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
@@ -2204,9 +2028,7 @@ create policy bsb_signatures_select on "better_supabase"."signatures"
 -- are snapshotted first. meaning says what signing means, one of
 -- blocks.signatures.options.meanings. fields: the extra columns
 -- (blocks.signatures.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text);
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, text, jsonb);
+
 create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null, meaning text default null)
 returns jsonb
 language plpgsql
@@ -2554,45 +2376,35 @@ grant execute on function "better_supabase"."list_signature_requests"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."signature_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."signature_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."signature_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."signature_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
 create policy bsb_tenant_scope_select on "better_supabase"."signatures" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
 create policy bsb_tenant_scope_insert on "better_supabase"."signatures" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
 create policy bsb_tenant_scope_update on "better_supabase"."signatures" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
 create policy bsb_tenant_scope_delete on "better_supabase"."signatures" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2614,35 +2426,12 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:c481f1330a1f2a9710224a501552df33342c3a270cd9bda596a2d7051b54b50c
+-- @bsb-hash sha256:a79132d4f7bf3dffc303bba336ed68c571310bb753595b4dcdb7e4039d1a346d
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."signature_requests" (
+create table "better_supabase"."signature_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -2660,20 +2449,19 @@ create table if not exists "better_supabase"."signature_requests" (
   "completed_at" timestamptz
 );
 -- What signing means (blocks.signatures.options.meanings), such as approved.
-alter table "better_supabase"."signature_requests" add column if not exists "meaning" text;
-create index if not exists "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("org_id", "subject_type", "subject_id");
-create index if not exists "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
-create index if not exists "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
+
+create index "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("org_id", "subject_type", "subject_id");
+create index "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
+create index "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
 alter table "better_supabase"."signature_requests" enable row level security;
 revoke all on "better_supabase"."signature_requests" from public, anon, authenticated;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
-drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
 create policy signature_requests_read on "better_supabase"."signature_requests"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
-create table if not exists "better_supabase"."signatures" (
+create table "better_supabase"."signatures" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."signature_requests" ("id") on delete cascade,
   "org_id" uuid not null,
@@ -2693,7 +2481,6 @@ alter table "better_supabase"."signatures" enable row level security;
 revoke all on "better_supabase"."signatures" from public, anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
-drop policy if exists signatures_read on "better_supabase"."signatures";
 create policy signatures_read on "better_supabase"."signatures"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
@@ -2703,9 +2490,7 @@ create policy signatures_read on "better_supabase"."signatures"
 -- are snapshotted first. meaning says what signing means, one of
 -- blocks.signatures.options.meanings. fields: the extra columns
 -- (blocks.signatures.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text);
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
-drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, text, jsonb);
+
 create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null, meaning text default null)
 returns jsonb
 language plpgsql
@@ -3053,45 +2838,35 @@ grant execute on function "better_supabase"."list_signature_requests"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."signature_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."signature_requests" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."signature_requests" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."signature_requests" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signature_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."signature_requests" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."signatures";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."signatures";
 create policy bsb_tenant_scope_select on "better_supabase"."signatures" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."signatures";
 create policy bsb_tenant_scope_insert on "better_supabase"."signatures" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."signatures";
 create policy bsb_tenant_scope_update on "better_supabase"."signatures" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."signatures";
 create policy bsb_tenant_scope_delete on "better_supabase"."signatures" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

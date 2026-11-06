@@ -21,14 +21,10 @@ const withOptions = (options: Record<string, unknown>): Layout => ({
 describe("documents module", () => {
   it("keeps an update log and a snapshot per document", () => {
     const sql = sqlOf(["documents"], "documents");
+    expect(sql).toContain(`create table "better_supabase"."documents"`);
+    expect(sql).toContain(`create table "better_supabase"."document_updates"`);
     expect(sql).toContain(
-      `create table if not exists "better_supabase"."documents"`,
-    );
-    expect(sql).toContain(
-      `create table if not exists "better_supabase"."document_updates"`,
-    );
-    expect(sql).toContain(
-      `create table if not exists "better_supabase"."document_snapshots"`,
+      `create table "better_supabase"."document_snapshots"`,
     );
     expect(sql).toContain("DOCUMENT_UPDATE_TOO_LARGE");
     expect(sql).toContain("if length(v_bytes) > 1048576 then");

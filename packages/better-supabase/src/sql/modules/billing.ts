@@ -320,7 +320,7 @@ alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select on ${t} to authenticated;
 grant all on ${t} to service_role;
-${tenantKey}${renderPolicy(makePolicy({ table: t, name: "billing_customers_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), ctx.permission("read", permissions.read)) }), { drop: true, target: t })}
+${tenantKey}${renderPolicy(makePolicy({ table: t, name: "billing_customers_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), ctx.permission("read", permissions.read)) }), { target: t })}
 
 create or replace function ${fn("billing_customer")}(tenant ${id})
 returns text

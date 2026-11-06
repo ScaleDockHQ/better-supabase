@@ -1,35 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:c9fae2cd05716be045faa89a0a64696d2f4631e7377e35b3d75b3d50f6a60b24
+-- @bsb-hash sha256:d56021171ae022d5bae2d84e9aa0e44572f0273843e97d9e07884815d2ff84c0
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."recurrence_rules" (
+create table "better_supabase"."recurrence_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -43,8 +20,8 @@ alter table "better_supabase"."recurrence_rules" enable row level security;
 revoke all on "better_supabase"."recurrence_rules" from public, anon, authenticated;
 grant select on "better_supabase"."recurrence_rules" to authenticated;
 grant all on "better_supabase"."recurrence_rules" to service_role;
-create index if not exists "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
-create table if not exists "better_supabase"."reminders" (
+create index "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
+create table "better_supabase"."reminders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -53,32 +30,17 @@ create table if not exists "better_supabase"."reminders" (
   "method" text not null default 'notification',
   "offset_minutes" integer not null default 0
 );
-alter table "better_supabase"."reminders" add column if not exists "remind_at" timestamptz;
+alter table "better_supabase"."reminders" add column "remind_at" timestamptz;
 alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from public, anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
 grant all on "better_supabase"."reminders" to service_role;
-create index if not exists "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
-create index if not exists "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
+create index "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
+create index "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
-  ) then
-    alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
-      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
-    begin
-      alter table "better_supabase"."reminders" validate constraint "reminders_offset_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."reminders"', 'reminders_offset_check', '"better_supabase"."reminders"', 'reminders_offset_check';
-    end;
-  end if;
-end;
-$$;
-create table if not exists "better_supabase"."reminder_deliveries" (
+alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
+  check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
+create table "better_supabase"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "reminder_id" uuid not null references "better_supabase"."reminders" ("id") on delete cascade,
   "occurrence_at" timestamptz not null,
@@ -89,10 +51,6 @@ alter table "better_supabase"."reminder_deliveries" enable row level security;
 revoke all on "better_supabase"."reminder_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
-
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
@@ -212,7 +170,7 @@ grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamp
 
 -- Every reminder's schedule: its subject's rule, its own time, or the
 -- subject's `at` column. Delivery dedupes on (reminder, occurrence).
-drop function if exists "better_supabase"."list_reminder_schedule"();
+
 create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
@@ -258,39 +216,29 @@ grant execute on function "better_supabase"."list_reminder_schedule"() to servic
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."recurrence_rules" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."recurrence_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."recurrence_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."recurrence_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
 create policy bsb_tenant_scope_select on "better_supabase"."reminders" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
 create policy bsb_tenant_scope_insert on "better_supabase"."reminders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
 create policy bsb_tenant_scope_update on "better_supabase"."reminders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
 create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -312,35 +260,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:ea14f9884d77d72f1da2b5143c599b6b43e3f9f0cba693064f95eeb738090d20
+-- @bsb-hash sha256:ef4640aa80538f9164a219e5bff5c8b27f8259d0158cc09542ae3a0169253163
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."recurrence_rules" (
+create table "better_supabase"."recurrence_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -354,8 +279,8 @@ alter table "better_supabase"."recurrence_rules" enable row level security;
 revoke all on "better_supabase"."recurrence_rules" from public, anon, authenticated;
 grant select on "better_supabase"."recurrence_rules" to authenticated;
 grant all on "better_supabase"."recurrence_rules" to service_role;
-create index if not exists "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
-create table if not exists "better_supabase"."reminders" (
+create index "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
+create table "better_supabase"."reminders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -364,32 +289,17 @@ create table if not exists "better_supabase"."reminders" (
   "method" text not null default 'notification',
   "offset_minutes" integer not null default 0
 );
-alter table "better_supabase"."reminders" add column if not exists "remind_at" timestamptz;
+alter table "better_supabase"."reminders" add column "remind_at" timestamptz;
 alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from public, anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
 grant all on "better_supabase"."reminders" to service_role;
-create index if not exists "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
-create index if not exists "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
+create index "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
+create index "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
-  ) then
-    alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
-      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
-    begin
-      alter table "better_supabase"."reminders" validate constraint "reminders_offset_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."reminders"', 'reminders_offset_check', '"better_supabase"."reminders"', 'reminders_offset_check';
-    end;
-  end if;
-end;
-$$;
-create table if not exists "better_supabase"."reminder_deliveries" (
+alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
+  check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
+create table "better_supabase"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "reminder_id" uuid not null references "better_supabase"."reminders" ("id") on delete cascade,
   "occurrence_at" timestamptz not null,
@@ -400,10 +310,6 @@ alter table "better_supabase"."reminder_deliveries" enable row level security;
 revoke all on "better_supabase"."reminder_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
-
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
@@ -523,7 +429,7 @@ grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamp
 
 -- Every reminder's schedule: its subject's rule, its own time, or the
 -- subject's `at` column. Delivery dedupes on (reminder, occurrence).
-drop function if exists "better_supabase"."list_reminder_schedule"();
+
 create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
@@ -569,39 +475,29 @@ grant execute on function "better_supabase"."list_reminder_schedule"() to servic
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."recurrence_rules" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."recurrence_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."recurrence_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."recurrence_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
 create policy bsb_tenant_scope_select on "better_supabase"."reminders" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
 create policy bsb_tenant_scope_insert on "better_supabase"."reminders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
 create policy bsb_tenant_scope_update on "better_supabase"."reminders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
 create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -630,39 +526,17 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:1088f0c7c93c3954d94b8f4e7caad4d4096c41cf24137a276677a09b71c37c36
+-- @bsb-hash sha256:1993df9f520eca235d59c0441cfd8ac946b7ca2fbf61ee89ab91e1422fb0872d
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."recurrence_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."reminders";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."reminders";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."reminders";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."reminders";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."reminders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."recurrence_rules" (
+create table "app_private"."recurrence_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -676,8 +550,8 @@ alter table "app_private"."recurrence_rules" enable row level security;
 revoke all on "app_private"."recurrence_rules" from public, anon, authenticated;
 grant select on "app_private"."recurrence_rules" to authenticated;
 grant all on "app_private"."recurrence_rules" to service_role;
-create index if not exists "recurrence_rules_subject_idx" on "app_private"."recurrence_rules" ("subject_type", "subject_id");
-create table if not exists "app_private"."reminders" (
+create index "recurrence_rules_subject_idx" on "app_private"."recurrence_rules" ("subject_type", "subject_id");
+create table "app_private"."reminders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -686,32 +560,17 @@ create table if not exists "app_private"."reminders" (
   "method" text not null default 'notification',
   "offset_minutes" integer not null default 0
 );
-alter table "app_private"."reminders" add column if not exists "remind_at" timestamptz;
+alter table "app_private"."reminders" add column "remind_at" timestamptz;
 alter table "app_private"."reminders" enable row level security;
 revoke all on "app_private"."reminders" from public, anon, authenticated;
 grant select on "app_private"."reminders" to authenticated;
 grant all on "app_private"."reminders" to service_role;
-create index if not exists "reminders_subject_idx" on "app_private"."reminders" ("subject_type", "subject_id");
-create index if not exists "reminders_tenant_idx" on "app_private"."reminders" ("tenant_id");
+create index "reminders_subject_idx" on "app_private"."reminders" ("subject_type", "subject_id");
+create index "reminders_tenant_idx" on "app_private"."reminders" ("tenant_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"app_private"."reminders"'::regclass and conname = 'reminders_offset_check'
-  ) then
-    alter table "app_private"."reminders" add constraint "reminders_offset_check"
-      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
-    begin
-      alter table "app_private"."reminders" validate constraint "reminders_offset_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"app_private"."reminders"', 'reminders_offset_check', '"app_private"."reminders"', 'reminders_offset_check';
-    end;
-  end if;
-end;
-$$;
-create table if not exists "app_private"."reminder_deliveries" (
+alter table "app_private"."reminders" add constraint "reminders_offset_check"
+  check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
+create table "app_private"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "reminder_id" uuid not null references "app_private"."reminders" ("id") on delete cascade,
   "occurrence_at" timestamptz not null,
@@ -722,10 +581,6 @@ alter table "app_private"."reminder_deliveries" enable row level security;
 revoke all on "app_private"."reminder_deliveries" from public, anon, authenticated;
 grant select on "app_private"."reminder_deliveries" to authenticated;
 grant all on "app_private"."reminder_deliveries" to service_role;
-
-drop function if exists "app_private"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
-drop function if exists "app_private"."save_reminder"(uuid, text, text, integer);
-drop function if exists "app_private"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "app_private"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
@@ -845,7 +700,7 @@ grant execute on function "app_private"."mark_reminder_sent"(uuid, timestamptz) 
 
 -- Every reminder's schedule: its subject's rule, its own time, or the
 -- subject's `at` column. Delivery dedupes on (reminder, occurrence).
-drop function if exists "app_private"."list_reminder_schedule"();
+
 create function "app_private"."list_reminder_schedule"()
 returns table (
   reminder uuid,
@@ -891,39 +746,29 @@ grant execute on function "app_private"."list_reminder_schedule"() to service_ro
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."recurrence_rules";
-drop policy if exists bsb_tenant_scope_select on "app_private"."recurrence_rules";
 create policy bsb_tenant_scope_select on "app_private"."recurrence_rules" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "app_private"."recurrence_rules";
 create policy bsb_tenant_scope_insert on "app_private"."recurrence_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."recurrence_rules";
 create policy bsb_tenant_scope_update on "app_private"."recurrence_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."recurrence_rules";
 create policy bsb_tenant_scope_delete on "app_private"."recurrence_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."reminders";
-drop policy if exists bsb_tenant_scope_select on "app_private"."reminders";
 create policy bsb_tenant_scope_select on "app_private"."reminders" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "app_private"."reminders";
 create policy bsb_tenant_scope_insert on "app_private"."reminders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."reminders";
 create policy bsb_tenant_scope_update on "app_private"."reminders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."reminders";
 create policy bsb_tenant_scope_delete on "app_private"."reminders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -945,35 +790,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:81bdfd4f5a05c2b90b06be3b7a12f35bdb2a639f9386728445e3b9742976d786
+-- @bsb-hash sha256:e713e572a7e3f5ea81262a7078e0ddcf93fed47f8f8fdb7e3b0893684d8aca03
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."recurrence_rules" (
+create table "better_supabase"."recurrence_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -987,8 +809,8 @@ alter table "better_supabase"."recurrence_rules" enable row level security;
 revoke all on "better_supabase"."recurrence_rules" from public, anon, authenticated;
 grant select on "better_supabase"."recurrence_rules" to authenticated;
 grant all on "better_supabase"."recurrence_rules" to service_role;
-create index if not exists "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
-create table if not exists "better_supabase"."reminders" (
+create index "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
+create table "better_supabase"."reminders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -997,32 +819,17 @@ create table if not exists "better_supabase"."reminders" (
   "method" text not null default 'notification',
   "offset_minutes" integer not null default 0
 );
-alter table "better_supabase"."reminders" add column if not exists "remind_at" timestamptz;
+alter table "better_supabase"."reminders" add column "remind_at" timestamptz;
 alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from public, anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
 grant all on "better_supabase"."reminders" to service_role;
-create index if not exists "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
-create index if not exists "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
+create index "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
+create index "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
-  ) then
-    alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
-      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
-    begin
-      alter table "better_supabase"."reminders" validate constraint "reminders_offset_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."reminders"', 'reminders_offset_check', '"better_supabase"."reminders"', 'reminders_offset_check';
-    end;
-  end if;
-end;
-$$;
-create table if not exists "better_supabase"."reminder_deliveries" (
+alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
+  check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
+create table "better_supabase"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "reminder_id" uuid not null references "better_supabase"."reminders" ("id") on delete cascade,
   "occurrence_at" timestamptz not null,
@@ -1033,10 +840,6 @@ alter table "better_supabase"."reminder_deliveries" enable row level security;
 revoke all on "better_supabase"."reminder_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
-
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
@@ -1156,7 +959,7 @@ grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamp
 
 -- Every reminder's schedule: its subject's rule, its own time, or the
 -- subject's `at` column. Delivery dedupes on (reminder, occurrence).
-drop function if exists "better_supabase"."list_reminder_schedule"();
+
 create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
@@ -1202,39 +1005,29 @@ grant execute on function "better_supabase"."list_reminder_schedule"() to servic
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."recurrence_rules" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."recurrence_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."recurrence_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."recurrence_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
 create policy bsb_tenant_scope_select on "better_supabase"."reminders" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
 create policy bsb_tenant_scope_insert on "better_supabase"."reminders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
 create policy bsb_tenant_scope_update on "better_supabase"."reminders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
 create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1242,11 +1035,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restri
 -- blocks.reminders.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
-drop function if exists "api"."save_reminder"(uuid, text, text, integer);
-drop function if exists "api"."save_reminder"(uuid, text, text, integer, jsonb);
-drop function if exists "api"."list_reminder_schedule"();
 
 create or replace function "api"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
@@ -1322,33 +1110,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:020e4228571ad9a24079e6b2c2e467c90921c1e0d0a35170d3df5d146150b593
+-- @bsb-hash sha256:4b5d8e086df838884dfdffe300331592f1257608b577b400317c993ab463f1c0
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- better_supabase.recurrence_rules is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."recurrence_rules" add column if not exists "id" uuid default gen_random_uuid();
@@ -1377,20 +1142,6 @@ grant all on "better_supabase"."reminders" to service_role;
 create index if not exists "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
 create index if not exists "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
-  ) then
-    begin
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."reminders"', 'reminders_offset_check', '"better_supabase"."reminders"', 'reminders_offset_check';
-    end;
-  end if;
-end;
-$$;
 -- better_supabase.reminder_deliveries is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."reminder_deliveries" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."reminder_deliveries" add column if not exists "reminder_id" uuid references "better_supabase"."reminders" ("id") on delete cascade;
@@ -1399,10 +1150,6 @@ alter table "better_supabase"."reminder_deliveries" add column if not exists "se
 alter table "better_supabase"."reminder_deliveries" enable row level security;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
-
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
@@ -1522,7 +1269,7 @@ grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamp
 
 -- Every reminder's schedule: its subject's rule, its own time, or the
 -- subject's `at` column. Delivery dedupes on (reminder, occurrence).
-drop function if exists "better_supabase"."list_reminder_schedule"();
+
 create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
@@ -1568,39 +1315,29 @@ grant execute on function "better_supabase"."list_reminder_schedule"() to servic
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."recurrence_rules" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."recurrence_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."recurrence_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."recurrence_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
 create policy bsb_tenant_scope_select on "better_supabase"."reminders" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
 create policy bsb_tenant_scope_insert on "better_supabase"."reminders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
 create policy bsb_tenant_scope_update on "better_supabase"."reminders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
 create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1622,35 +1359,12 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:edcccfa210e038cd3ca31e5d84288dd8e171f0acbdced2b6b830d1b8fee9be2c
+-- @bsb-hash sha256:9e84dedc575b2938ec443d998025af0cf5df2d95b95dab264c169a6551011fba
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."recurrence_rules" (
+create table "better_supabase"."recurrence_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -1664,8 +1378,8 @@ alter table "better_supabase"."recurrence_rules" enable row level security;
 revoke all on "better_supabase"."recurrence_rules" from public, anon, authenticated;
 grant select on "better_supabase"."recurrence_rules" to authenticated;
 grant all on "better_supabase"."recurrence_rules" to service_role;
-create index if not exists "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
-create table if not exists "better_supabase"."reminders" (
+create index "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
+create table "better_supabase"."reminders" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -1674,32 +1388,17 @@ create table if not exists "better_supabase"."reminders" (
   "method" text not null default 'notification',
   "offset_minutes" integer not null default 0
 );
-alter table "better_supabase"."reminders" add column if not exists "remind_at" timestamptz;
+alter table "better_supabase"."reminders" add column "remind_at" timestamptz;
 alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from public, anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
 grant all on "better_supabase"."reminders" to service_role;
-create index if not exists "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
-create index if not exists "reminders_tenant_idx" on "better_supabase"."reminders" ("org_id");
+create index "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
+create index "reminders_tenant_idx" on "better_supabase"."reminders" ("org_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
-  ) then
-    alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
-      check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600) not valid;
-    begin
-      alter table "better_supabase"."reminders" validate constraint "reminders_offset_check";
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        '"better_supabase"."reminders"', 'reminders_offset_check', '"better_supabase"."reminders"', 'reminders_offset_check';
-    end;
-  end if;
-end;
-$$;
-create table if not exists "better_supabase"."reminder_deliveries" (
+alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
+  check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
+create table "better_supabase"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "reminder_id" uuid not null references "better_supabase"."reminders" ("id") on delete cascade,
   "occurrence_at" timestamptz not null,
@@ -1710,10 +1409,6 @@ alter table "better_supabase"."reminder_deliveries" enable row level security;
 revoke all on "better_supabase"."reminder_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
-
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);
-drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer, jsonb);
 create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
@@ -1833,7 +1528,7 @@ grant execute on function "better_supabase"."mark_reminder_sent"(uuid, timestamp
 
 -- Every reminder's schedule: its subject's rule, its own time, or the
 -- subject's `at` column. Delivery dedupes on (reminder, occurrence).
-drop function if exists "better_supabase"."list_reminder_schedule"();
+
 create function "better_supabase"."list_reminder_schedule"()
 returns table (
   reminder uuid,
@@ -1879,39 +1574,29 @@ grant execute on function "better_supabase"."list_reminder_schedule"() to servic
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."recurrence_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."recurrence_rules" as restrictive
   for select to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."recurrence_rules" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."recurrence_rules" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."recurrence_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."recurrence_rules" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."reminders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."reminders";
 create policy bsb_tenant_scope_select on "better_supabase"."reminders" as restrictive
   for select to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reminders";
 create policy bsb_tenant_scope_insert on "better_supabase"."reminders" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."reminders";
 create policy bsb_tenant_scope_update on "better_supabase"."reminders" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reminders";
 create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

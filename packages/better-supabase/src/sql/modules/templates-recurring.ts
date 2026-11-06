@@ -159,7 +159,7 @@ ${creator ? `  ${cs("createdBy")} uuid references auth.users (id) on delete set 
 create index if not exists ${ctx.naming.rename("template_schedules_tenant_idx")} on ${s} (${cs("tenant")}, ${cs("template")});
 create index if not exists ${ctx.naming.rename("template_schedules_template_idx")} on ${s} (${cs("template")});
 ${creator ? `create index if not exists ${ctx.naming.rename("template_schedules_created_by_idx")} on ${s} (${cs("createdBy")});\n` : ""}${lockModuleTable(ctx, "schedules", { read: true })}
-${renderPolicy(makePolicy({ table: s, name: ctx.naming.rename("template_schedules_read"), command: "select", roles: ["authenticated"], using: `${cs("tenant")} in (select ${ctx.scope.ids(shared.read)})` }), { drop: true, target: s })}
+${renderPolicy(makePolicy({ table: s, name: ctx.naming.rename("template_schedules_read"), command: "select", roles: ["authenticated"], using: `${cs("tenant")} in (select ${ctx.scope.ids(shared.read)})` }), { target: s })}
 
 -- One row per occurrence a schedule claimed, and the application it made.
 create table if not exists ${r} (
@@ -173,7 +173,7 @@ create table if not exists ${r} (
 create index if not exists ${ctx.naming.rename("template_schedule_runs_tenant_idx")} on ${r} (${cr("tenant")}, ${cr("occurrence")} desc);
 create index if not exists ${ctx.naming.rename("template_schedule_runs_application_idx")} on ${r} (${cr("application")});
 ${lockModuleTable(ctx, "runs", { read: true })}
-${renderPolicy(makePolicy({ table: r, name: ctx.naming.rename("template_schedule_runs_read"), command: "select", roles: ["authenticated"], using: `${cr("tenant")} in (select ${ctx.scope.ids(shared.read)})` }), { drop: true, target: r })}
+${renderPolicy(makePolicy({ table: r, name: ctx.naming.rename("template_schedule_runs_read"), command: "select", roles: ["authenticated"], using: `${cr("tenant")} in (select ${ctx.scope.ids(shared.read)})` }), { target: r })}
 
 -- A removed schedule (or one its template took with it) drops its rule.
 create or replace function ${removeRule}()

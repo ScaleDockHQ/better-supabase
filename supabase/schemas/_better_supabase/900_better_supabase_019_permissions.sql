@@ -1,24 +1,9 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:329fa14262fe312a328333e601bee33f007130299646dd0dee9066612ecf1cd5
+-- @bsb-hash sha256:680c329cba2042abf4a7e7c24274ec0a1c9af47f2cdb262f46624f8941ca8763
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."permission_overrides";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."permission_overrides";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."permission_overrides";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."permission_overrides";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."permission_overrides";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 grant usage on schema better_supabase to supabase_auth_admin;
 
@@ -516,49 +501,39 @@ as $$
   end
 $$;
 
-create table if not exists "better_supabase"."roles" (
+create table "better_supabase"."roles" (
   "id" uuid primary key default gen_random_uuid(),
   "key" text not null unique
 );
 -- A tenant role goes in memberships, a platform role in platform assignments.
-alter table "better_supabase"."roles" add column if not exists "scope" text not null default 'tenant';
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."roles"'::regclass and c.conname = 'roles_scope_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check fb19a0bd' then
-    alter table "better_supabase"."roles" drop constraint if exists "roles_scope_check";
-    alter table "better_supabase"."roles" add constraint "roles_scope_check" check ("scope" in ('tenant', 'platform'));
-    comment on constraint "roles_scope_check" on "better_supabase"."roles" is 'better-supabase check fb19a0bd';
-  end if;
-end;
-$$;
-create table if not exists "better_supabase"."permissions" (
+alter table "better_supabase"."roles" add column "scope" text not null default 'tenant';
+alter table "better_supabase"."roles" add constraint "roles_scope_check"
+  check ("scope" in ('tenant', 'platform'));
+create table "better_supabase"."permissions" (
   "id" uuid primary key default gen_random_uuid(),
   "key" text not null unique
 );
-create table if not exists "better_supabase"."role_permissions" (
+create table "better_supabase"."role_permissions" (
   "role_id" uuid not null references "better_supabase"."roles" on delete cascade,
   "permission_id" uuid not null references "better_supabase"."permissions" on delete cascade,
   primary key ("role_id", "permission_id")
 );
-create index if not exists role_permissions_permission_idx on "better_supabase"."role_permissions" ("permission_id");
-create table if not exists "better_supabase"."permission_overrides" (
+create index role_permissions_permission_idx on "better_supabase"."role_permissions" ("permission_id");
+create table "better_supabase"."permission_overrides" (
   "organization_id" uuid not null,
   "role_id" uuid not null references "better_supabase"."roles" on delete cascade,
   "permission_id" uuid not null references "better_supabase"."permissions" on delete cascade,
   "granted" boolean not null,
   primary key ("organization_id", "role_id", "permission_id")
 );
-create index if not exists permission_overrides_role_idx on "better_supabase"."permission_overrides" ("role_id");
-create index if not exists permission_overrides_permission_idx on "better_supabase"."permission_overrides" ("permission_id");
-create table if not exists "better_supabase"."platform_roles" (
+create index permission_overrides_role_idx on "better_supabase"."permission_overrides" ("role_id");
+create index permission_overrides_permission_idx on "better_supabase"."permission_overrides" ("permission_id");
+create table "better_supabase"."platform_roles" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "role_id" uuid not null references "better_supabase"."roles" on delete cascade,
   primary key ("user_id", "role_id")
 );
-create index if not exists platform_roles_role_idx on "better_supabase"."platform_roles" ("role_id");
+create index platform_roles_role_idx on "better_supabase"."platform_roles" ("role_id");
 do $$
 declare
   t text;

@@ -725,10 +725,10 @@ describe("generated and module files (BS303, BS304)", () => {
       ),
     );
 
-    const files = renderBlocks(
-      ["memberships", "mfa"],
-      moduleLayout(ctx.config),
-    );
+    const files = renderBlocks(["memberships", "mfa"], {
+      ...moduleLayout(ctx.config),
+      rerunnable: true,
+    });
 
     const name =
       "supabase/migrations/20200101000000_better_supabase_modules.sql";

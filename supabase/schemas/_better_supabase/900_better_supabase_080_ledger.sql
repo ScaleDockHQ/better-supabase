@@ -1,58 +1,11 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:4dd391ba41ba028e0afa26061c5f70d69aa76ad3eb11246c9af3a26989553c19
+-- @bsb-hash sha256:f59889b9a4903ce44b65de1e2856a704b51867aeda923e1bbacfa48794e05322
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_accounts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ledger_accounts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ledger_accounts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ledger_accounts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ledger_accounts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_transactions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ledger_transactions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ledger_transactions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ledger_transactions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ledger_transactions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ledger_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ledger_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ledger_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ledger_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_balances";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ledger_balances";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ledger_balances";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ledger_balances";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ledger_balances";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_holds";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ledger_holds";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ledger_holds";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ledger_holds";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ledger_holds";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."ledger_accounts" (
+create table "better_supabase"."ledger_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
@@ -78,11 +31,11 @@ create table if not exists "better_supabase"."ledger_accounts" (
   unique ("tenant_id", "code"),
   check (("holder_type" is null) = ("holder_id" is null))
 );
-create index if not exists "ledger_accounts_holder_idx" on "better_supabase"."ledger_accounts" ("tenant_id", "holder_type", "holder_id") where "holder_type" is not null;
-create index if not exists "ledger_accounts_kind_idx" on "better_supabase"."ledger_accounts" ("tenant_id", "kind");
-create index if not exists "ledger_accounts_owner_idx" on "better_supabase"."ledger_accounts" ("owner_id") where "owner_id" is not null;
+create index "ledger_accounts_holder_idx" on "better_supabase"."ledger_accounts" ("tenant_id", "holder_type", "holder_id") where "holder_type" is not null;
+create index "ledger_accounts_kind_idx" on "better_supabase"."ledger_accounts" ("tenant_id", "kind");
+create index "ledger_accounts_owner_idx" on "better_supabase"."ledger_accounts" ("owner_id") where "owner_id" is not null;
 
-create table if not exists "better_supabase"."ledger_transactions" (
+create table "better_supabase"."ledger_transactions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$'),
@@ -96,12 +49,12 @@ create table if not exists "better_supabase"."ledger_transactions" (
   "actor_id" uuid,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "ledger_transactions_key_idx" on "better_supabase"."ledger_transactions" ("tenant_id", "idempotency_key") where "idempotency_key" is not null;
-create unique index if not exists "ledger_transactions_reverses_idx" on "better_supabase"."ledger_transactions" ("reverses") where "reverses" is not null;
-create index if not exists "ledger_transactions_reference_idx" on "better_supabase"."ledger_transactions" ("tenant_id", "reference_type", "reference_id") where "reference_type" is not null;
-create index if not exists "ledger_transactions_tenant_idx" on "better_supabase"."ledger_transactions" ("tenant_id", "effective_at" desc);
+create unique index "ledger_transactions_key_idx" on "better_supabase"."ledger_transactions" ("tenant_id", "idempotency_key") where "idempotency_key" is not null;
+create unique index "ledger_transactions_reverses_idx" on "better_supabase"."ledger_transactions" ("reverses") where "reverses" is not null;
+create index "ledger_transactions_reference_idx" on "better_supabase"."ledger_transactions" ("tenant_id", "reference_type", "reference_id") where "reference_type" is not null;
+create index "ledger_transactions_tenant_idx" on "better_supabase"."ledger_transactions" ("tenant_id", "effective_at" desc);
 
-create table if not exists "better_supabase"."ledger_entries" (
+create table "better_supabase"."ledger_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "transaction_id" uuid not null references "better_supabase"."ledger_transactions" ("id") on delete restrict,
@@ -111,10 +64,10 @@ create table if not exists "better_supabase"."ledger_entries" (
   "unit" text not null,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "ledger_entries_account_idx" on "better_supabase"."ledger_entries" ("account_id", "created_at" desc);
-create index if not exists "ledger_entries_transaction_idx" on "better_supabase"."ledger_entries" ("transaction_id");
+create index "ledger_entries_account_idx" on "better_supabase"."ledger_entries" ("account_id", "created_at" desc);
+create index "ledger_entries_transaction_idx" on "better_supabase"."ledger_entries" ("transaction_id");
 
-create table if not exists "better_supabase"."ledger_balances" (
+create table "better_supabase"."ledger_balances" (
   "account_id" uuid primary key references "better_supabase"."ledger_accounts" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "balance" bigint not null default 0,
@@ -123,9 +76,9 @@ create table if not exists "better_supabase"."ledger_balances" (
   "available" bigint generated always as ("balance" - "held") stored,
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "ledger_balances_tenant_idx" on "better_supabase"."ledger_balances" ("tenant_id");
+create index "ledger_balances_tenant_idx" on "better_supabase"."ledger_balances" ("tenant_id");
 
-create table if not exists "better_supabase"."ledger_holds" (
+create table "better_supabase"."ledger_holds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "account_id" uuid not null references "better_supabase"."ledger_accounts" ("id") on delete restrict,
@@ -139,15 +92,15 @@ create table if not exists "better_supabase"."ledger_holds" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "ledger_holds_account_idx" on "better_supabase"."ledger_holds" ("account_id", "status");
-create index if not exists "ledger_holds_transaction_idx" on "better_supabase"."ledger_holds" ("transaction_id") where "transaction_id" is not null;
-create index if not exists "ledger_holds_expiry_idx" on "better_supabase"."ledger_holds" ("expires_at") where "status" = 'active' and "expires_at" is not null;
+create index "ledger_holds_account_idx" on "better_supabase"."ledger_holds" ("account_id", "status");
+create index "ledger_holds_transaction_idx" on "better_supabase"."ledger_holds" ("transaction_id") where "transaction_id" is not null;
+create index "ledger_holds_expiry_idx" on "better_supabase"."ledger_holds" ("expires_at") where "status" = 'active' and "expires_at" is not null;
 
 alter table "better_supabase"."ledger_accounts" enable row level security;
 revoke all on "better_supabase"."ledger_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_accounts" to authenticated;
 grant all on "better_supabase"."ledger_accounts" to service_role;
-create index if not exists "ledger_accounts_read_permission_idx" on "better_supabase"."ledger_accounts" ("tenant_id", "read_permission") where "read_permission" is not null;
+create index "ledger_accounts_read_permission_idx" on "better_supabase"."ledger_accounts" ("tenant_id", "read_permission") where "read_permission" is not null;
 -- The (tenant, permission) pairs of account read permissions the caller
 -- holds, so the policy checks each pair once per statement, not per row.
 create or replace function "better_supabase"."ledger_read_grants"()
@@ -169,7 +122,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."ledger_read_grants"() from public, anon;
 grant execute on function "better_supabase"."ledger_read_grants"() to authenticated, service_role;
-drop policy if exists ledger_accounts_read on "better_supabase"."ledger_accounts";
 create policy ledger_accounts_read on "better_supabase"."ledger_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
@@ -179,7 +131,6 @@ alter table "better_supabase"."ledger_transactions" enable row level security;
 revoke all on "better_supabase"."ledger_transactions" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_transactions" to authenticated;
 grant all on "better_supabase"."ledger_transactions" to service_role;
-drop policy if exists ledger_transactions_read on "better_supabase"."ledger_transactions";
 create policy ledger_transactions_read on "better_supabase"."ledger_transactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
@@ -188,7 +139,6 @@ alter table "better_supabase"."ledger_entries" enable row level security;
 revoke all on "better_supabase"."ledger_entries" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_entries" to authenticated;
 grant all on "better_supabase"."ledger_entries" to service_role;
-drop policy if exists ledger_entries_read on "better_supabase"."ledger_entries";
 create policy ledger_entries_read on "better_supabase"."ledger_entries"
   for select to authenticated
   using ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y));
@@ -196,7 +146,6 @@ alter table "better_supabase"."ledger_balances" enable row level security;
 revoke all on "better_supabase"."ledger_balances" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_balances" to authenticated;
 grant all on "better_supabase"."ledger_balances" to service_role;
-drop policy if exists ledger_balances_read on "better_supabase"."ledger_balances";
 create policy ledger_balances_read on "better_supabase"."ledger_balances"
   for select to authenticated
   using ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y));
@@ -204,7 +153,6 @@ alter table "better_supabase"."ledger_holds" enable row level security;
 revoke all on "better_supabase"."ledger_holds" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_holds" to authenticated;
 grant all on "better_supabase"."ledger_holds" to service_role;
-drop policy if exists ledger_holds_read on "better_supabase"."ledger_holds";
 create policy ledger_holds_read on "better_supabase"."ledger_holds"
   for select to authenticated
   using ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y));
@@ -229,10 +177,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_append_only"() from public, anon, authenticated;
-drop trigger if exists "bsb_ledger_entries_append_only" on "better_supabase"."ledger_entries";
 create trigger "bsb_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
   for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
-drop trigger if exists "bsb_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
 create trigger "bsb_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
   for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 
@@ -260,7 +206,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_apply_entry"() from public, anon, authenticated;
-drop trigger if exists "bsb_ledger_entries_apply" on "better_supabase"."ledger_entries";
 create trigger "bsb_ledger_entries_apply" after insert on "better_supabase"."ledger_entries"
   for each row execute function "better_supabase"."ledger_apply_entry"();
 
@@ -282,7 +227,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_check_balanced"() from public, anon, authenticated;
-drop trigger if exists "bsb_ledger_entries_balanced" on "better_supabase"."ledger_entries";
 create constraint trigger "bsb_ledger_entries_balanced" after insert on "better_supabase"."ledger_entries"
   deferrable initially deferred
   for each row execute function "better_supabase"."ledger_check_balanced"();
@@ -909,8 +853,6 @@ grant execute on function "better_supabase"."get_ledger_transaction"(uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_accounts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ledger_accounts";
 create policy bsb_tenant_scope_select on "better_supabase"."ledger_accounts" as restrictive
   for select to public
   using (
@@ -919,21 +861,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."ledger_accounts" as 
     or "owner_id" = (select auth.uid())
     or ("tenant_id", "read_permission") in (select g.tenant, g.permission from "better_supabase"."ledger_read_grants"() g))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ledger_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."ledger_accounts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ledger_accounts";
 create policy bsb_tenant_scope_update on "better_supabase"."ledger_accounts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ledger_accounts";
 create policy bsb_tenant_scope_delete on "better_supabase"."ledger_accounts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_transactions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ledger_transactions";
 create policy bsb_tenant_scope_select on "better_supabase"."ledger_transactions" as restrictive
   for select to public
   using (
@@ -941,79 +878,61 @@ create policy bsb_tenant_scope_select on "better_supabase"."ledger_transactions"
     or ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
     or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ledger_transactions";
 create policy bsb_tenant_scope_insert on "better_supabase"."ledger_transactions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ledger_transactions";
 create policy bsb_tenant_scope_update on "better_supabase"."ledger_transactions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ledger_transactions";
 create policy bsb_tenant_scope_delete on "better_supabase"."ledger_transactions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ledger_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."ledger_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ledger_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."ledger_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ledger_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."ledger_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ledger_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."ledger_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_balances";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ledger_balances";
 create policy bsb_tenant_scope_select on "better_supabase"."ledger_balances" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ledger_balances";
 create policy bsb_tenant_scope_insert on "better_supabase"."ledger_balances" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ledger_balances";
 create policy bsb_tenant_scope_update on "better_supabase"."ledger_balances" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ledger_balances";
 create policy bsb_tenant_scope_delete on "better_supabase"."ledger_balances" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ledger_holds";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ledger_holds";
 create policy bsb_tenant_scope_select on "better_supabase"."ledger_holds" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ledger_holds";
 create policy bsb_tenant_scope_insert on "better_supabase"."ledger_holds" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ledger_holds";
 create policy bsb_tenant_scope_update on "better_supabase"."ledger_holds" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ledger_holds";
 create policy bsb_tenant_scope_delete on "better_supabase"."ledger_holds" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

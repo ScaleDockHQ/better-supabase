@@ -303,7 +303,7 @@ ${renderPolicy(
     using: `tenant in (select ${ctx.fn("incoming_webhook_tenant_ids")}())
     and ${ctx.fn("incoming_webhook_subject_readable")}(subject_type, subject_id, tenant)`,
   }),
-  { drop: true, target: t },
+  { target: t },
 )}
 `
     : "\n";

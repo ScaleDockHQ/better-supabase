@@ -1,27 +1,12 @@
 -- ==== schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:d6b7b82ae491809c59f09c40b9d0c09038e0c5a498ac188f2567815bfbbc7113
+-- @bsb-hash sha256:c8916395cbe4b8975a501b8244efa1748eac31f1ec0a67c10d2bcad9e9db32a0
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."share_links";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."share_links";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."share_links";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."share_links";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."share_links" (
+create table "better_supabase"."share_links" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -35,17 +20,17 @@ create table if not exists "better_supabase"."share_links" (
   "created_by" uuid,
   "leaf_id" text
 );
-alter table "better_supabase"."share_links" add column if not exists "version_id" uuid;
-alter table "better_supabase"."share_links" add column if not exists "use_count" integer not null default 0;
-alter table "better_supabase"."share_links" add column if not exists "last_used_at" timestamptz;
-alter table "better_supabase"."share_links" add column if not exists "password_hash" text;
-alter table "better_supabase"."share_links" add column if not exists "download_allowed" boolean not null default true;
+alter table "better_supabase"."share_links" add column "version_id" uuid;
+alter table "better_supabase"."share_links" add column "use_count" integer not null default 0;
+alter table "better_supabase"."share_links" add column "last_used_at" timestamptz;
+alter table "better_supabase"."share_links" add column "password_hash" text;
+alter table "better_supabase"."share_links" add column "download_allowed" boolean not null default true;
 alter table "better_supabase"."share_links" enable row level security;
 revoke all on "better_supabase"."share_links" from public, anon, authenticated;
 grant select on "better_supabase"."share_links" to authenticated;
 grant all on "better_supabase"."share_links" to service_role;
-create index if not exists "share_links_subject_idx" on "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id");
-create table if not exists "better_supabase"."subject_views" (
+create index "share_links_subject_idx" on "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id");
+create table "better_supabase"."subject_views" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -63,7 +48,7 @@ revoke all on "better_supabase"."subject_views" from public, anon, authenticated
 grant select on "better_supabase"."subject_views" to authenticated;
 grant all on "better_supabase"."subject_views" to service_role;
 
-create table if not exists "better_supabase"."subject_user_state" (
+create table "better_supabase"."subject_user_state" (
   "subject_type" text not null,
   "subject_id" text not null,
   "user_id" uuid not null,
@@ -75,20 +60,8 @@ alter table "better_supabase"."subject_user_state" enable row level security;
 revoke all on "better_supabase"."subject_user_state" from public, anon, authenticated;
 grant select on "better_supabase"."subject_user_state" to authenticated;
 grant all on "better_supabase"."subject_user_state" to service_role;
-
-
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, jsonb);
 -- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, jsonb);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, jsonb);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, boolean, jsonb);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, text, boolean);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, text, boolean, jsonb);
+
 -- password: at least 8 characters; resolve_share_link then needs it.
 -- download_allowed: false tells the block that serves the subject not to offer
 -- a download.
@@ -180,7 +153,7 @@ grant execute on function "better_supabase"."revoke_share_link"(uuid) to authent
 -- the last use. A link with a password returns only
 -- { "passwordRequired": true } until the call passes the password, and
 -- counts no use for it.
-drop function if exists "better_supabase"."resolve_share_link"(text);
+
 create or replace function "better_supabase"."resolve_share_link"(token text, password text default null)
 returns jsonb
 language plpgsql
@@ -288,21 +261,16 @@ grant execute on function "better_supabase"."set_user_state"(text, text, boolean
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."share_links";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."share_links";
 create policy bsb_tenant_scope_select on "better_supabase"."share_links" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."share_links";
 create policy bsb_tenant_scope_insert on "better_supabase"."share_links" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."share_links";
 create policy bsb_tenant_scope_update on "better_supabase"."share_links" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."share_links";
 create policy bsb_tenant_scope_delete on "better_supabase"."share_links" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));

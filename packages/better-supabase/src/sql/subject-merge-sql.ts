@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "./context.ts";
 import type { Subject } from "./subjects.ts";
 
 import { sqlString } from "../core/template.ts";
+import { commentOn } from "./emit/comment.ts";
 import { fail, userGrant } from "./shared.ts";
 
 /**
@@ -134,7 +135,7 @@ begin
 end;
 $$;
 revoke execute on function ${fn}(text, text, text) from public, anon, authenticated;
-comment on function ${fn}(text, text, text) is ${sqlString(SUBJECT_MERGE_MARKER)};
+${commentOn("function", `${fn}(text, text, text)`, SUBJECT_MERGE_MARKER)}
 `;
 }
 

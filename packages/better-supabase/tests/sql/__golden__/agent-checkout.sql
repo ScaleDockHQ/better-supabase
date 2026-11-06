@@ -1,38 +1,15 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:bafbd77a0c43a5b6d458bdf74864baa6916510df84238e2504bf70c841f7b8b0
+-- @bsb-hash sha256:658fa8e0af20de2061a6ed2464d9df20544aab0caacdcb771354998dc63fa983
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."checkout_sessions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_mandates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Agent checkout: ACP and UCP checkout sessions over an orders cart, and AP2
 -- mandates stored beside them. The session keeps the protocol state; the cart
 -- and the order keep the money (bigint minor units).
-create table if not exists "better_supabase"."checkout_sessions" (
+create table "better_supabase"."checkout_sessions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cart_id" uuid not null,
@@ -49,12 +26,11 @@ create table if not exists "better_supabase"."checkout_sessions" (
   unique ("tenant_id", "idempotency_key"),
   check (("status" = 'completed') = ("order_id" is not null))
 );
-create index if not exists "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
+create index "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
 alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."checkout_sessions" to authenticated;
 grant all on "better_supabase"."checkout_sessions" to service_role;
-drop policy if exists checkout_sessions_read on "better_supabase"."checkout_sessions";
 create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -62,7 +38,7 @@ create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
 -- A mandate an agent presents: the compact credential, its hash and the key
 -- that signed it. The TypeScript side verifies the signature with the
 -- signing-keys block before it stores the row; closed mandates are used once.
-create table if not exists "better_supabase"."agent_mandates" (
+create table "better_supabase"."agent_mandates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "session_id" uuid references "better_supabase"."checkout_sessions" ("id") on delete set null,
@@ -79,12 +55,11 @@ create table if not exists "better_supabase"."agent_mandates" (
   unique ("tenant_id", "credential_hash"),
   check (("status" = 'consumed') = ("consumed_at" is not null))
 );
-create index if not exists "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
+create index "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
 alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
 grant select on "better_supabase"."agent_mandates" to authenticated;
 grant all on "better_supabase"."agent_mandates" to service_role;
-drop policy if exists agent_mandates_read on "better_supabase"."agent_mandates";
 create policy agent_mandates_read on "better_supabase"."agent_mandates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -480,45 +455,35 @@ grant execute on function "better_supabase"."list_agent_mandates"(uuid, jsonb) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."checkout_sessions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_select on "better_supabase"."checkout_sessions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."checkout_sessions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_update on "better_supabase"."checkout_sessions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_delete on "better_supabase"."checkout_sessions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."agent_mandates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_select on "better_supabase"."agent_mandates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_insert on "better_supabase"."agent_mandates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_update on "better_supabase"."agent_mandates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -540,38 +505,15 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:1b945cb1574d5bd007abc40e35463ec94fd47f2cfb09eaaedeec722773521250
+-- @bsb-hash sha256:0b7c8637ec29318124162db7123acda8f3f92fcd516d9fd511194347e2698b02
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."checkout_sessions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_mandates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Agent checkout: ACP and UCP checkout sessions over an orders cart, and AP2
 -- mandates stored beside them. The session keeps the protocol state; the cart
 -- and the order keep the money (bigint minor units).
-create table if not exists "better_supabase"."checkout_sessions" (
+create table "better_supabase"."checkout_sessions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cart_id" uuid not null,
@@ -588,12 +530,11 @@ create table if not exists "better_supabase"."checkout_sessions" (
   unique ("tenant_id", "idempotency_key"),
   check (("status" = 'completed') = ("order_id" is not null))
 );
-create index if not exists "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
+create index "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
 alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."checkout_sessions" to authenticated;
 grant all on "better_supabase"."checkout_sessions" to service_role;
-drop policy if exists checkout_sessions_read on "better_supabase"."checkout_sessions";
 create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -601,7 +542,7 @@ create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
 -- A mandate an agent presents: the compact credential, its hash and the key
 -- that signed it. The TypeScript side verifies the signature with the
 -- signing-keys block before it stores the row; closed mandates are used once.
-create table if not exists "better_supabase"."agent_mandates" (
+create table "better_supabase"."agent_mandates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "session_id" uuid references "better_supabase"."checkout_sessions" ("id") on delete set null,
@@ -618,12 +559,11 @@ create table if not exists "better_supabase"."agent_mandates" (
   unique ("tenant_id", "credential_hash"),
   check (("status" = 'consumed') = ("consumed_at" is not null))
 );
-create index if not exists "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
+create index "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
 alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
 grant select on "better_supabase"."agent_mandates" to authenticated;
 grant all on "better_supabase"."agent_mandates" to service_role;
-drop policy if exists agent_mandates_read on "better_supabase"."agent_mandates";
 create policy agent_mandates_read on "better_supabase"."agent_mandates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -1092,45 +1032,35 @@ grant execute on function "better_supabase"."list_agent_mandates"(uuid, jsonb) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."checkout_sessions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_select on "better_supabase"."checkout_sessions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."checkout_sessions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_update on "better_supabase"."checkout_sessions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_delete on "better_supabase"."checkout_sessions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."agent_mandates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_select on "better_supabase"."agent_mandates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_insert on "better_supabase"."agent_mandates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_update on "better_supabase"."agent_mandates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1160,32 +1090,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:7c0b439fc16c406f279f192428f5a156daf4286dc839c9b21987385ce82e341d
+-- @bsb-hash sha256:f5c051b457ebc9fb188ac7cd31fc8f3db436753fdd5530fae5500dca3a6600dd
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."checkout_sessions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."agent_mandates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -1195,7 +1103,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Agent checkout: ACP and UCP checkout sessions over an orders cart, and AP2
 -- mandates stored beside them. The session keeps the protocol state; the cart
 -- and the order keep the money (bigint minor units).
-create table if not exists "app_private"."checkout_sessions" (
+create table "app_private"."checkout_sessions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cart_id" uuid not null,
@@ -1212,12 +1120,11 @@ create table if not exists "app_private"."checkout_sessions" (
   unique ("tenant_id", "idempotency_key"),
   check (("status" = 'completed') = ("order_id" is not null))
 );
-create index if not exists "checkout_sessions_cart_idx" on "app_private"."checkout_sessions" ("cart_id");
+create index "checkout_sessions_cart_idx" on "app_private"."checkout_sessions" ("cart_id");
 alter table "app_private"."checkout_sessions" enable row level security;
 revoke all on "app_private"."checkout_sessions" from public, anon, authenticated;
 grant select on "app_private"."checkout_sessions" to authenticated;
 grant all on "app_private"."checkout_sessions" to service_role;
-drop policy if exists checkout_sessions_read on "app_private"."checkout_sessions";
 create policy checkout_sessions_read on "app_private"."checkout_sessions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -1225,7 +1132,7 @@ create policy checkout_sessions_read on "app_private"."checkout_sessions"
 -- A mandate an agent presents: the compact credential, its hash and the key
 -- that signed it. The TypeScript side verifies the signature with the
 -- signing-keys block before it stores the row; closed mandates are used once.
-create table if not exists "app_private"."agent_mandates" (
+create table "app_private"."agent_mandates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "session_id" uuid references "app_private"."checkout_sessions" ("id") on delete set null,
@@ -1242,12 +1149,11 @@ create table if not exists "app_private"."agent_mandates" (
   unique ("tenant_id", "credential_hash"),
   check (("status" = 'consumed') = ("consumed_at" is not null))
 );
-create index if not exists "agent_mandates_session_idx" on "app_private"."agent_mandates" ("session_id");
+create index "agent_mandates_session_idx" on "app_private"."agent_mandates" ("session_id");
 alter table "app_private"."agent_mandates" enable row level security;
 revoke all on "app_private"."agent_mandates" from public, anon, authenticated;
 grant select on "app_private"."agent_mandates" to authenticated;
 grant all on "app_private"."agent_mandates" to service_role;
-drop policy if exists agent_mandates_read on "app_private"."agent_mandates";
 create policy agent_mandates_read on "app_private"."agent_mandates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -1643,45 +1549,35 @@ grant execute on function "app_private"."list_agent_mandates"(uuid, jsonb) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."checkout_sessions";
-drop policy if exists bsb_tenant_scope_select on "app_private"."checkout_sessions";
 create policy bsb_tenant_scope_select on "app_private"."checkout_sessions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."checkout_sessions";
 create policy bsb_tenant_scope_insert on "app_private"."checkout_sessions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."checkout_sessions";
 create policy bsb_tenant_scope_update on "app_private"."checkout_sessions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."checkout_sessions";
 create policy bsb_tenant_scope_delete on "app_private"."checkout_sessions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."agent_mandates";
-drop policy if exists bsb_tenant_scope_select on "app_private"."agent_mandates";
 create policy bsb_tenant_scope_select on "app_private"."agent_mandates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."agent_mandates";
 create policy bsb_tenant_scope_insert on "app_private"."agent_mandates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."agent_mandates";
 create policy bsb_tenant_scope_update on "app_private"."agent_mandates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."agent_mandates";
 create policy bsb_tenant_scope_delete on "app_private"."agent_mandates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1703,38 +1599,15 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:5e6efbbd2e176779af9fd04b4c6d398021131476e9f60e35c1f11423376c4339
+-- @bsb-hash sha256:09499437e8396ec9c57551146d3f1da6af2083fdb9063eccd28adbf10ce3f56b
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."checkout_sessions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_mandates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Agent checkout: ACP and UCP checkout sessions over an orders cart, and AP2
 -- mandates stored beside them. The session keeps the protocol state; the cart
 -- and the order keep the money (bigint minor units).
-create table if not exists "better_supabase"."checkout_sessions" (
+create table "better_supabase"."checkout_sessions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cart_id" uuid not null,
@@ -1751,12 +1624,11 @@ create table if not exists "better_supabase"."checkout_sessions" (
   unique ("tenant_id", "idempotency_key"),
   check (("status" = 'completed') = ("order_id" is not null))
 );
-create index if not exists "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
+create index "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
 alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."checkout_sessions" to authenticated;
 grant all on "better_supabase"."checkout_sessions" to service_role;
-drop policy if exists checkout_sessions_read on "better_supabase"."checkout_sessions";
 create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -1764,7 +1636,7 @@ create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
 -- A mandate an agent presents: the compact credential, its hash and the key
 -- that signed it. The TypeScript side verifies the signature with the
 -- signing-keys block before it stores the row; closed mandates are used once.
-create table if not exists "better_supabase"."agent_mandates" (
+create table "better_supabase"."agent_mandates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "session_id" uuid references "better_supabase"."checkout_sessions" ("id") on delete set null,
@@ -1781,12 +1653,11 @@ create table if not exists "better_supabase"."agent_mandates" (
   unique ("tenant_id", "credential_hash"),
   check (("status" = 'consumed') = ("consumed_at" is not null))
 );
-create index if not exists "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
+create index "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
 alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
 grant select on "better_supabase"."agent_mandates" to authenticated;
 grant all on "better_supabase"."agent_mandates" to service_role;
-drop policy if exists agent_mandates_read on "better_supabase"."agent_mandates";
 create policy agent_mandates_read on "better_supabase"."agent_mandates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -2182,45 +2053,35 @@ grant execute on function "better_supabase"."list_agent_mandates"(uuid, jsonb) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."checkout_sessions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_select on "better_supabase"."checkout_sessions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."checkout_sessions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_update on "better_supabase"."checkout_sessions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_delete on "better_supabase"."checkout_sessions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."agent_mandates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_select on "better_supabase"."agent_mandates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_insert on "better_supabase"."agent_mandates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_update on "better_supabase"."agent_mandates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2340,33 +2201,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:a78cb12f411273f9f7e2c518499202861e1ddc79609b834a6349d97cd0041505
+-- @bsb-hash sha256:ba5f715471ff29c043af56313a6c5560d7bdf0a7892a58336b1447070947ebfe
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."checkout_sessions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_mandates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Agent checkout: ACP and UCP checkout sessions over an orders cart, and AP2
 -- mandates stored beside them. The session keeps the protocol state; the cart
@@ -2390,7 +2228,6 @@ create index if not exists "checkout_sessions_cart_idx" on "better_supabase"."ch
 alter table "better_supabase"."checkout_sessions" enable row level security;
 grant select on "better_supabase"."checkout_sessions" to authenticated;
 grant all on "better_supabase"."checkout_sessions" to service_role;
-drop policy if exists bsb_checkout_sessions_read on "better_supabase"."checkout_sessions";
 create policy bsb_checkout_sessions_read on "better_supabase"."checkout_sessions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -2418,7 +2255,6 @@ create index if not exists "agent_mandates_session_idx" on "better_supabase"."ag
 alter table "better_supabase"."agent_mandates" enable row level security;
 grant select on "better_supabase"."agent_mandates" to authenticated;
 grant all on "better_supabase"."agent_mandates" to service_role;
-drop policy if exists bsb_agent_mandates_read on "better_supabase"."agent_mandates";
 create policy bsb_agent_mandates_read on "better_supabase"."agent_mandates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -2814,45 +2650,35 @@ grant execute on function "better_supabase"."list_agent_mandates"(uuid, jsonb) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."checkout_sessions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_select on "better_supabase"."checkout_sessions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."checkout_sessions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_update on "better_supabase"."checkout_sessions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_delete on "better_supabase"."checkout_sessions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."agent_mandates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_select on "better_supabase"."agent_mandates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_insert on "better_supabase"."agent_mandates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_update on "better_supabase"."agent_mandates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2874,38 +2700,15 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:dea8692079fbf418b4058eed6d68023959843114f77d986ac46e7bf88e6a5ae5
+-- @bsb-hash sha256:35b0a02ae862c2d2671f4d914f2d037ac9a54c8b98f214b6833f584832e058d1
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."checkout_sessions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."checkout_sessions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_mandates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_mandates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Agent checkout: ACP and UCP checkout sessions over an orders cart, and AP2
 -- mandates stored beside them. The session keeps the protocol state; the cart
 -- and the order keep the money (bigint minor units).
-create table if not exists "better_supabase"."checkout_sessions" (
+create table "better_supabase"."checkout_sessions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "cart_id" uuid not null,
@@ -2922,12 +2725,11 @@ create table if not exists "better_supabase"."checkout_sessions" (
   unique ("org_id", "idempotency_key"),
   check (("status" = 'completed') = ("order_id" is not null))
 );
-create index if not exists "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
+create index "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
 alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."checkout_sessions" to authenticated;
 grant all on "better_supabase"."checkout_sessions" to service_role;
-drop policy if exists checkout_sessions_read on "better_supabase"."checkout_sessions";
 create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -2935,7 +2737,7 @@ create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
 -- A mandate an agent presents: the compact credential, its hash and the key
 -- that signed it. The TypeScript side verifies the signature with the
 -- signing-keys block before it stores the row; closed mandates are used once.
-create table if not exists "better_supabase"."agent_mandates" (
+create table "better_supabase"."agent_mandates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "session_id" uuid references "better_supabase"."checkout_sessions" ("id") on delete set null,
@@ -2952,12 +2754,11 @@ create table if not exists "better_supabase"."agent_mandates" (
   unique ("org_id", "credential_hash"),
   check (("status" = 'consumed') = ("consumed_at" is not null))
 );
-create index if not exists "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
+create index "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
 alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
 grant select on "better_supabase"."agent_mandates" to authenticated;
 grant all on "better_supabase"."agent_mandates" to service_role;
-drop policy if exists agent_mandates_read on "better_supabase"."agent_mandates";
 create policy agent_mandates_read on "better_supabase"."agent_mandates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
@@ -3353,45 +3154,35 @@ grant execute on function "better_supabase"."list_agent_mandates"(uuid, jsonb) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."checkout_sessions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_select on "better_supabase"."checkout_sessions" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."checkout_sessions" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_update on "better_supabase"."checkout_sessions" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."checkout_sessions";
 create policy bsb_tenant_scope_delete on "better_supabase"."checkout_sessions" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."agent_mandates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_select on "better_supabase"."agent_mandates" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_insert on "better_supabase"."agent_mandates" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_update on "better_supabase"."agent_mandates" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."agent_mandates";
 create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

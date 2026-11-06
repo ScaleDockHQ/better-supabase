@@ -26,8 +26,10 @@ const BOOT = { timeout: 90_000 };
 
 const MODULES = ["invoices", "legal-entities"] as const;
 
+// The restore tests replay one file over the other, as the migrations workflow does.
 const options = (on: readonly string[]) => ({
   modules: { "legal-entities": { options: { on } } },
+  rerunnable: true,
 });
 
 /** The legal-entities schema file with legal entities off for every kind. */

@@ -17,9 +17,7 @@ const withOutbox = (): string =>
 describe("push module", () => {
   it("creates the devices table with RLS for the owner", () => {
     const sql = body();
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."push_devices"',
-    );
+    expect(sql).toContain('create table "better_supabase"."push_devices"');
     expect(sql).toContain(
       '"user_id" uuid not null references auth.users (id) on delete cascade',
     );
@@ -68,9 +66,7 @@ describe("push module", () => {
       .map((file) => file.contents)
       .join("\n");
 
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."push_tickets"',
-    );
+    expect(sql).toContain('create table "better_supabase"."push_tickets"');
     expect(sql).toContain(
       'references "better_supabase"."notification_deliveries" ("id") on delete cascade',
     );

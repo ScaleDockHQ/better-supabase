@@ -189,7 +189,7 @@ function build(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: table },
+      { target: table },
     );
 
   const readPolicy = renderPolicy(
@@ -200,7 +200,7 @@ function build(ctx: BlockSqlContext): string {
       roles: ["authenticated"],
       using: ctx.scope.check(d("tenant"), read),
     }),
-    { drop: true, target: deadlines },
+    { target: deadlines },
   );
 
   const appKey = ctx.owns("deadlines")

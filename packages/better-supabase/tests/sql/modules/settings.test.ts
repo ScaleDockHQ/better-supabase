@@ -17,8 +17,8 @@ const sqlOf = (
 describe("settings module", () => {
   it("writes both tables with their policies and functions", () => {
     const sql = sqlOf(["settings"]);
-    expect(sql).toMatch(/create table if not exists \S+user_settings/);
-    expect(sql).toMatch(/create table if not exists \S+organization_settings/);
+    expect(sql).toMatch(/create table \S+user_settings/);
+    expect(sql).toMatch(/create table \S+organization_settings/);
     expect(sql).toContain("'settings.read'");
     expect(sql).toContain("'settings.update'");
     expect(sql).toContain("set_organization_setting");
@@ -81,7 +81,7 @@ describe("settings module", () => {
       },
     });
 
-    expect(sql).toMatch(/create table if not exists \S+platform_settings/);
+    expect(sql).toMatch(/create table \S+platform_settings/);
     expect(sql).toContain(
       "better_supabase.is_platform(case \"key\" when 'fee' then 'billing.platform' when 'banner' then 'platform.settings' else 'platform.settings' end)",
     );

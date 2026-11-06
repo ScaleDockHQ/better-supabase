@@ -31,11 +31,9 @@ const overApp = (
 describe("invitations module", () => {
   it("keeps the 0.4 table and create_invitation signature", () => {
     const sql = body({});
+    expect(sql).toContain('create table "better_supabase"."invitations" (');
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."invitations" (',
-    );
-    expect(sql).toContain(
-      'alter table "better_supabase"."invitations" add column if not exists "declined_at" timestamptz;',
+      'alter table "better_supabase"."invitations" add column "declined_at" timestamptz;',
     );
     expect(sql).toContain(
       'alter table "better_supabase"."invitations" alter column "organization_id" set not null;',
@@ -43,9 +41,6 @@ describe("invitations module", () => {
     expect(sql).not.toContain('"prefill" jsonb');
     expect(sql).not.toContain("platform_invitations");
     expect(sql).toContain("valid_for > '30 days'::interval");
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."create_invitation"(uuid, text, text, interval);',
-    );
     expect(sql).toContain(
       `select "better_supabase"."invite_member"($1, $2, $3, $4) ->> 'token'`,
     );
@@ -133,13 +128,13 @@ describe("invitations module", () => {
       ["invitations"],
     );
 
-    expect(sql).toContain(
+    expect(sql).not.toContain(
       `drop index if exists "public".platform_invitations_open_email_idx;
-create unique index if not exists invitations_platform_open_email_idx
+create unique index invitations_platform_open_email_idx
   on "public"."organization_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null and "organization_id" is null;`,
     );
     expect(sql).not.toContain(
-      "create unique index if not exists platform_invitations_open_email_idx",
+      "create unique index platform_invitations_open_email_idx",
     );
     expect(sql).toContain(
       'on "public"."organization_invitations" ("organization_id", lower("email"))',
@@ -148,7 +143,7 @@ create unique index if not exists invitations_platform_open_email_idx
     const separate = body({ permissions: { model: "catalog" } });
 
     expect(separate).toContain(
-      `create unique index if not exists platform_invitations_open_email_idx
+      `create unique index platform_invitations_open_email_idx
   on "better_supabase"."platform_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;`,
     );
     expect(separate).not.toContain("invitations_platform_open_email_idx");
@@ -161,7 +156,7 @@ create unique index if not exists invitations_platform_open_email_idx
     });
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."platform_invitations" (',
+      'create table "better_supabase"."platform_invitations" (',
     );
     expect(sql).toContain(
       "better_supabase.platform_can_assign(auth.uid(), ((select r.",
@@ -265,7 +260,7 @@ describe("platform invitations under the provider model", () => {
     });
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."platform_invitations"',
+      'create table "better_supabase"."platform_invitations"',
     );
     expect(sql).toContain(
       'insert into "public"."user_roles" ("user_id", "role_id")',
@@ -472,14 +467,8 @@ describe("platform invitations under the provider model", () => {
       `create trigger "bsb_role_scope" before insert or update of "role_id" on "public"."user_roles"`,
     );
     const unscoped = memberships(modules(false));
-    expect(unscoped).toContain(
-      `drop trigger if exists "bsb_role_scope" on "public"."team_members";`,
-    );
     expect(unscoped).not.toContain('create trigger "bsb_role_scope"');
     const unscopedPlatform = overApp(modules(false), ["memberships"]);
-    expect(unscopedPlatform).toContain(
-      `drop trigger if exists "bsb_role_scope" on "public"."user_roles";`,
-    );
     expect(unscopedPlatform).not.toContain("PLATFORM_ROLE_SCOPE");
     expect(moduleBody("memberships", { modules: {} })).not.toContain(
       "bsb_role_scope",

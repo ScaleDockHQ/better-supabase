@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:b340dc9ff48fc565769f7ca1ba83f15ecf02cec08da7f35f43bbb6688a456ae8
+-- @bsb-hash sha256:584549fc57a3bb18e472ffcdb9d1437593263b5b889b5cdfb4940e716ebb7138
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8,13 +8,10 @@
 -- public.organizations is the app's table, and it has every column this block needs.
 create unique index if not exists organizations_slug_idx on "public"."organizations" (lower("slug"::text));
 alter table "public"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "public"."organizations";
 -- public.organizations keeps updated_at current with its own trigger organizations_set_updated_at.
 alter table "public"."organizations" enable row level security;
 grant select on "public"."organizations" to authenticated;
 grant all on "public"."organizations" to service_role;
-drop policy if exists bsb_organizations_read on "public"."organizations";
-drop policy if exists bsb_organizations_select on "public"."organizations";
 -- public.organizations: the app's policy organizations_member_select already allows what bsb_organizations_select would, so the block adds none.
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
@@ -221,7 +218,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bsb_organization_owner" on "public"."memberships";
 create constraint trigger "bsb_organization_owner" after update of "role", "organization_id" or delete on "public"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
@@ -274,7 +270,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_organization_role_guard" on "public"."memberships";
 create trigger "bsb_organization_role_guard" before insert or update on "public"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
@@ -495,10 +490,6 @@ begin
 end;
 $$;
 
-
-drop function if exists "better_supabase"."add_member_role"(uuid, uuid, text);
-drop function if exists "better_supabase"."remove_member_role"(uuid, uuid, text);
-
 -- Records that the caller opened the organization (the last_used_at column of
 -- memberships, when it has one), for "recent organizations" lists.
 create or replace function "better_supabase"."mark_used"(organization uuid)
@@ -517,9 +508,6 @@ begin
   return found;
 end;
 $$;
-
-drop function if exists "better_supabase"."suspend_member"(uuid, uuid);
-drop function if exists "better_supabase"."resume_member"(uuid, uuid);
 
 -- Makes organization the caller's active organization (blocks.permissions.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
@@ -549,8 +537,6 @@ begin
   return jsonb_build_object('organization_id', organization, 'refresh', true);
 end;
 $$;
-
-drop function if exists "better_supabase"."list_my_organizations"();
 create or replace function "better_supabase"."list_my_organizations"()
 returns table (
   id uuid,
@@ -570,8 +556,6 @@ as $$
     and not better_supabase.tenant_disabled(o."id")
   order by o."name"
 $$;
-
-drop function if exists "better_supabase"."list_members"(uuid);
 create or replace function "better_supabase"."list_members"(organization uuid)
 returns table (user_id uuid, role text)
 language plpgsql
@@ -693,10 +677,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."guard_membership_role"(uuid, uuid, text, uuid, text);
 
-drop function if exists "api"."list_my_organizations"();
-drop function if exists "api"."list_members"(uuid);
 
 create or replace function "api"."organization_slug_problem"(value text, except_organization uuid default null)
 returns text

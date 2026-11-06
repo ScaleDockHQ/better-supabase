@@ -1,54 +1,15 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:592d9fd23906dd56ec8e3947ba64fbb8f70e60b6e665e9ed06e4109c135bc414
+-- @bsb-hash sha256:97d494d0c63e647d55ee68b025dbb09d65104d93f2a34379d2ac33516ddbe3cf
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Pipelines (ADR 0028): tenant-editable stages per subject type, each with
 -- a category that maps to a fixed outcome, a stage history and board totals.
 
-create table if not exists "better_supabase"."pipelines" (
+create table "better_supabase"."pipelines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -62,18 +23,17 @@ create table if not exists "better_supabase"."pipelines" (
   "updated_at" timestamptz not null default now(),
   unique nulls not distinct ("tenant_id", "subject_type", "scope_id", "key")
 );
-create unique index if not exists pipelines_default_idx on "better_supabase"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
+create unique index pipelines_default_idx on "better_supabase"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "better_supabase"."pipelines" enable row level security;
 revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
-drop policy if exists pipelines_read on "better_supabase"."pipelines";
 create policy pipelines_read on "better_supabase"."pipelines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_stages" (
+create table "better_supabase"."pipeline_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
@@ -93,35 +53,33 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "updated_at" timestamptz not null default now(),
   unique ("pipeline_id", "key")
 );
-create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
+create index pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
 alter table "better_supabase"."pipeline_stages" enable row level security;
 revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
-drop policy if exists pipeline_stages_read on "better_supabase"."pipeline_stages";
 create policy pipeline_stages_read on "better_supabase"."pipeline_stages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_transitions" (
+create table "better_supabase"."pipeline_transitions" (
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
   "from_stage_id" uuid not null references "better_supabase"."pipeline_stages" ("id") on delete cascade,
   "to_stage_id" uuid not null references "better_supabase"."pipeline_stages" ("id") on delete cascade,
   primary key ("from_stage_id", "to_stage_id")
 );
-create index if not exists pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
-create index if not exists pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
+create index pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
+create index pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
 alter table "better_supabase"."pipeline_transitions" enable row level security;
 revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
-drop policy if exists pipeline_transitions_read on "better_supabase"."pipeline_transitions";
 create policy pipeline_transitions_read on "better_supabase"."pipeline_transitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_stage_history" (
+create table "better_supabase"."pipeline_stage_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -138,15 +96,14 @@ create table if not exists "better_supabase"."pipeline_stage_history" (
   "entered_at" timestamptz not null default now(),
   "exited_at" timestamptz
 );
-create index if not exists pipeline_stage_history_subject_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id", "entered_at");
-create index if not exists pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
-create unique index if not exists pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
+create index pipeline_stage_history_subject_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id", "entered_at");
+create index pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
+create unique index pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
 alter table "better_supabase"."pipeline_stage_history" enable row level security;
 revoke all on "better_supabase"."pipeline_stage_history" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
-drop policy if exists pipeline_stage_history_read on "better_supabase"."pipeline_stage_history";
 create policy pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
@@ -183,7 +140,7 @@ grant execute on function "better_supabase"."default_pipeline"(uuid, text, text)
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
-drop function if exists "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
+
 create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
@@ -300,7 +257,7 @@ grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenti
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-drop function if exists "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+
 create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
@@ -418,7 +375,7 @@ grant execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) to
 -- Archives a stage. Records in it move to move_to, a stage of the same
 -- pipeline; without move_to a stage that holds records is refused. The last
 -- open stage of a pipeline stays.
-drop function if exists "better_supabase"."archive_pipeline_stage"(uuid);
+
 create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
@@ -629,87 +586,67 @@ grant execute on function "better_supabase"."list_pipelines"(uuid, text) to auth
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_select on "better_supabase"."pipelines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipelines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_update on "better_supabase"."pipelines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipelines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_transitions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_transitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -731,54 +668,15 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:c8f1ff3e1fd06847e8912ccd29f68a345d1e6f2e656fafa85d1a53ae1426059f
+-- @bsb-hash sha256:c70fffb0bff710886322b3a068f868925fa6a9b136ad6d270db0cf0c6b88f620
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Pipelines (ADR 0028): tenant-editable stages per subject type, each with
 -- a category that maps to a fixed outcome, a stage history and board totals.
 
-create table if not exists "better_supabase"."pipelines" (
+create table "better_supabase"."pipelines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -792,18 +690,17 @@ create table if not exists "better_supabase"."pipelines" (
   "updated_at" timestamptz not null default now(),
   unique nulls not distinct ("tenant_id", "subject_type", "scope_id", "key")
 );
-create unique index if not exists pipelines_default_idx on "better_supabase"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
+create unique index pipelines_default_idx on "better_supabase"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "better_supabase"."pipelines" enable row level security;
 revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
-drop policy if exists pipelines_read on "better_supabase"."pipelines";
 create policy pipelines_read on "better_supabase"."pipelines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_stages" (
+create table "better_supabase"."pipeline_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
@@ -823,35 +720,33 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "updated_at" timestamptz not null default now(),
   unique ("pipeline_id", "key")
 );
-create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
+create index pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
 alter table "better_supabase"."pipeline_stages" enable row level security;
 revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
-drop policy if exists pipeline_stages_read on "better_supabase"."pipeline_stages";
 create policy pipeline_stages_read on "better_supabase"."pipeline_stages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_transitions" (
+create table "better_supabase"."pipeline_transitions" (
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
   "from_stage_id" uuid not null references "better_supabase"."pipeline_stages" ("id") on delete cascade,
   "to_stage_id" uuid not null references "better_supabase"."pipeline_stages" ("id") on delete cascade,
   primary key ("from_stage_id", "to_stage_id")
 );
-create index if not exists pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
-create index if not exists pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
+create index pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
+create index pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
 alter table "better_supabase"."pipeline_transitions" enable row level security;
 revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
-drop policy if exists pipeline_transitions_read on "better_supabase"."pipeline_transitions";
 create policy pipeline_transitions_read on "better_supabase"."pipeline_transitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_stage_history" (
+create table "better_supabase"."pipeline_stage_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -868,15 +763,14 @@ create table if not exists "better_supabase"."pipeline_stage_history" (
   "entered_at" timestamptz not null default now(),
   "exited_at" timestamptz
 );
-create index if not exists pipeline_stage_history_subject_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id", "entered_at");
-create index if not exists pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
-create unique index if not exists pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
+create index pipeline_stage_history_subject_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id", "entered_at");
+create index pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
+create unique index pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
 alter table "better_supabase"."pipeline_stage_history" enable row level security;
 revoke all on "better_supabase"."pipeline_stage_history" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
-drop policy if exists pipeline_stage_history_read on "better_supabase"."pipeline_stage_history";
 create policy pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
@@ -1091,7 +985,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bsb_pipeline_deal on "better_supabase"."deals";
 create trigger bsb_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."deals"
 for each row execute function better_supabase.bsb_pipeline_deal();
 
@@ -1113,7 +1006,6 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists bsb_pipeline_status_deal on "better_supabase"."deals";
 create trigger bsb_pipeline_status_deal after insert or update of "stage_id" on "better_supabase"."deals"
 for each row execute function better_supabase.bsb_pipeline_status_deal();
 
@@ -1214,7 +1106,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bsb_pipeline_task on "better_supabase"."tasks";
 create trigger bsb_pipeline_task before insert or update of "stage_id", "pipeline_id" on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_pipeline_task();
 
@@ -1236,7 +1127,6 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists bsb_pipeline_status_task on "better_supabase"."tasks";
 create trigger bsb_pipeline_status_task after insert or update of "stage_id" on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_pipeline_status_task();
 
@@ -1349,7 +1239,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bsb_pipeline_application on "better_supabase"."applications";
 create trigger bsb_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."applications"
 for each row execute function better_supabase.bsb_pipeline_application();
 
@@ -1371,7 +1260,6 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists bsb_pipeline_status_application on "better_supabase"."applications";
 create trigger bsb_pipeline_status_application after insert or update of "stage_id" on "better_supabase"."applications"
 for each row execute function better_supabase.bsb_pipeline_status_application();
 
@@ -1472,15 +1360,12 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bsb_pipeline_case on "better_supabase"."cases";
 create trigger bsb_pipeline_case before insert or update of "stage_id", "pipeline_id" on "better_supabase"."cases"
 for each row execute function better_supabase.bsb_pipeline_case();
-drop trigger if exists bsb_pipeline_status_case on "better_supabase"."cases";
-drop function if exists better_supabase.bsb_pipeline_status_case();
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
-drop function if exists "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
+
 create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
@@ -1639,7 +1524,7 @@ grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenti
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-drop function if exists "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+
 create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
@@ -1821,7 +1706,7 @@ grant execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) to
 -- Archives a stage. Records in it move to move_to, a stage of the same
 -- pipeline; without move_to a stage that holds records is refused. The last
 -- open stage of a pipeline stays.
-drop function if exists "better_supabase"."archive_pipeline_stage"(uuid);
+
 create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
@@ -2214,87 +2099,67 @@ grant execute on function "better_supabase"."seed_pipelines_defaults"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_select on "better_supabase"."pipelines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipelines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_update on "better_supabase"."pipelines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipelines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_transitions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_transitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2323,48 +2188,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:2d48a4557c0e5b0b5583fc2c5f2a04f11902d2911f6917d6df1f3c119e269682
+-- @bsb-hash sha256:1413869619c829520392171e59cececa8f12dc3c547296536f0fc2783dd5cc9c
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."pipelines";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."pipelines";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."pipelines";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."pipelines";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."pipelines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_transitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_stage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -2374,7 +2201,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Pipelines (ADR 0028): tenant-editable stages per subject type, each with
 -- a category that maps to a fixed outcome, a stage history and board totals.
 
-create table if not exists "app_private"."pipelines" (
+create table "app_private"."pipelines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -2388,18 +2215,17 @@ create table if not exists "app_private"."pipelines" (
   "updated_at" timestamptz not null default now(),
   unique nulls not distinct ("tenant_id", "subject_type", "scope_id", "key")
 );
-create unique index if not exists pipelines_default_idx on "app_private"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
+create unique index pipelines_default_idx on "app_private"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "app_private"."pipelines" enable row level security;
 revoke all on "app_private"."pipelines" from public, anon, authenticated;
 grant select on "app_private"."pipelines" to authenticated;
 grant all on "app_private"."pipelines" to service_role;
-drop policy if exists pipelines_read on "app_private"."pipelines";
 create policy pipelines_read on "app_private"."pipelines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "app_private"."pipeline_stages" (
+create table "app_private"."pipeline_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "app_private"."pipelines" ("id") on delete cascade,
@@ -2419,35 +2245,33 @@ create table if not exists "app_private"."pipeline_stages" (
   "updated_at" timestamptz not null default now(),
   unique ("pipeline_id", "key")
 );
-create index if not exists pipeline_stages_pipeline_idx on "app_private"."pipeline_stages" ("pipeline_id", "rank");
+create index pipeline_stages_pipeline_idx on "app_private"."pipeline_stages" ("pipeline_id", "rank");
 alter table "app_private"."pipeline_stages" enable row level security;
 revoke all on "app_private"."pipeline_stages" from public, anon, authenticated;
 grant select on "app_private"."pipeline_stages" to authenticated;
 grant all on "app_private"."pipeline_stages" to service_role;
-drop policy if exists pipeline_stages_read on "app_private"."pipeline_stages";
 create policy pipeline_stages_read on "app_private"."pipeline_stages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "app_private"."pipeline_transitions" (
+create table "app_private"."pipeline_transitions" (
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "app_private"."pipelines" ("id") on delete cascade,
   "from_stage_id" uuid not null references "app_private"."pipeline_stages" ("id") on delete cascade,
   "to_stage_id" uuid not null references "app_private"."pipeline_stages" ("id") on delete cascade,
   primary key ("from_stage_id", "to_stage_id")
 );
-create index if not exists pipeline_transitions_pipeline_idx on "app_private"."pipeline_transitions" ("pipeline_id");
-create index if not exists pipeline_transitions_to_idx on "app_private"."pipeline_transitions" ("to_stage_id");
+create index pipeline_transitions_pipeline_idx on "app_private"."pipeline_transitions" ("pipeline_id");
+create index pipeline_transitions_to_idx on "app_private"."pipeline_transitions" ("to_stage_id");
 alter table "app_private"."pipeline_transitions" enable row level security;
 revoke all on "app_private"."pipeline_transitions" from public, anon, authenticated;
 grant select on "app_private"."pipeline_transitions" to authenticated;
 grant all on "app_private"."pipeline_transitions" to service_role;
-drop policy if exists pipeline_transitions_read on "app_private"."pipeline_transitions";
 create policy pipeline_transitions_read on "app_private"."pipeline_transitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "app_private"."pipeline_stage_history" (
+create table "app_private"."pipeline_stage_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -2464,15 +2288,14 @@ create table if not exists "app_private"."pipeline_stage_history" (
   "entered_at" timestamptz not null default now(),
   "exited_at" timestamptz
 );
-create index if not exists pipeline_stage_history_subject_idx on "app_private"."pipeline_stage_history" ("subject_type", "subject_id", "entered_at");
-create index if not exists pipeline_stage_history_pipeline_idx on "app_private"."pipeline_stage_history" ("pipeline_id", "entered_at");
-create unique index if not exists pipeline_stage_history_open_idx on "app_private"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
+create index pipeline_stage_history_subject_idx on "app_private"."pipeline_stage_history" ("subject_type", "subject_id", "entered_at");
+create index pipeline_stage_history_pipeline_idx on "app_private"."pipeline_stage_history" ("pipeline_id", "entered_at");
+create unique index pipeline_stage_history_open_idx on "app_private"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
 alter table "app_private"."pipeline_stage_history" enable row level security;
 revoke all on "app_private"."pipeline_stage_history" from public, anon, authenticated;
 grant select on "app_private"."pipeline_stage_history" to authenticated;
 grant all on "app_private"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
-drop policy if exists pipeline_stage_history_read on "app_private"."pipeline_stage_history";
 create policy pipeline_stage_history_read on "app_private"."pipeline_stage_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
@@ -2509,7 +2332,7 @@ grant execute on function "app_private"."default_pipeline"(uuid, text, text) to 
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
-drop function if exists "app_private"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
+
 create or replace function "app_private"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
@@ -2626,7 +2449,7 @@ grant execute on function "app_private"."archive_pipeline"(uuid) to authenticate
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-drop function if exists "app_private"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+
 create or replace function "app_private"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
@@ -2744,7 +2567,7 @@ grant execute on function "app_private"."rank_pipeline_stage"(uuid, text) to aut
 -- Archives a stage. Records in it move to move_to, a stage of the same
 -- pipeline; without move_to a stage that holds records is refused. The last
 -- open stage of a pipeline stays.
-drop function if exists "app_private"."archive_pipeline_stage"(uuid);
+
 create or replace function "app_private"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
@@ -2955,87 +2778,67 @@ grant execute on function "app_private"."list_pipelines"(uuid, text) to authenti
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."pipelines";
-drop policy if exists bsb_tenant_scope_select on "app_private"."pipelines";
 create policy bsb_tenant_scope_select on "app_private"."pipelines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."pipelines";
 create policy bsb_tenant_scope_insert on "app_private"."pipelines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."pipelines";
 create policy bsb_tenant_scope_update on "app_private"."pipelines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."pipelines";
 create policy bsb_tenant_scope_delete on "app_private"."pipelines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."pipeline_stages";
-drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_stages";
 create policy bsb_tenant_scope_select on "app_private"."pipeline_stages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_stages";
 create policy bsb_tenant_scope_insert on "app_private"."pipeline_stages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_stages";
 create policy bsb_tenant_scope_update on "app_private"."pipeline_stages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_stages";
 create policy bsb_tenant_scope_delete on "app_private"."pipeline_stages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."pipeline_transitions";
-drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_transitions";
 create policy bsb_tenant_scope_select on "app_private"."pipeline_transitions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_transitions";
 create policy bsb_tenant_scope_insert on "app_private"."pipeline_transitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_transitions";
 create policy bsb_tenant_scope_update on "app_private"."pipeline_transitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_transitions";
 create policy bsb_tenant_scope_delete on "app_private"."pipeline_transitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."pipeline_stage_history";
-drop policy if exists bsb_tenant_scope_select on "app_private"."pipeline_stage_history";
 create policy bsb_tenant_scope_select on "app_private"."pipeline_stage_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."pipeline_stage_history";
 create policy bsb_tenant_scope_insert on "app_private"."pipeline_stage_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."pipeline_stage_history";
 create policy bsb_tenant_scope_update on "app_private"."pipeline_stage_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."pipeline_stage_history";
 create policy bsb_tenant_scope_delete on "app_private"."pipeline_stage_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3057,54 +2860,15 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:cd14ea902fcead2762a3e7a3adc183ef408d8e6890db6d65b2c5dc85c9485cee
+-- @bsb-hash sha256:b18c4ba0392363374123fa7cc823ceee32b3bb01f1d820e967941aa9b92c3d45
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Pipelines (ADR 0028): tenant-editable stages per subject type, each with
 -- a category that maps to a fixed outcome, a stage history and board totals.
 
-create table if not exists "better_supabase"."pipelines" (
+create table "better_supabase"."pipelines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -3118,18 +2882,17 @@ create table if not exists "better_supabase"."pipelines" (
   "updated_at" timestamptz not null default now(),
   unique nulls not distinct ("tenant_id", "subject_type", "scope_id", "key")
 );
-create unique index if not exists pipelines_default_idx on "better_supabase"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
+create unique index pipelines_default_idx on "better_supabase"."pipelines" ("tenant_id", "subject_type", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "better_supabase"."pipelines" enable row level security;
 revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
-drop policy if exists pipelines_read on "better_supabase"."pipelines";
 create policy pipelines_read on "better_supabase"."pipelines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_stages" (
+create table "better_supabase"."pipeline_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
@@ -3149,35 +2912,33 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "updated_at" timestamptz not null default now(),
   unique ("pipeline_id", "key")
 );
-create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
+create index pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
 alter table "better_supabase"."pipeline_stages" enable row level security;
 revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
-drop policy if exists pipeline_stages_read on "better_supabase"."pipeline_stages";
 create policy pipeline_stages_read on "better_supabase"."pipeline_stages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_transitions" (
+create table "better_supabase"."pipeline_transitions" (
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
   "from_stage_id" uuid not null references "better_supabase"."pipeline_stages" ("id") on delete cascade,
   "to_stage_id" uuid not null references "better_supabase"."pipeline_stages" ("id") on delete cascade,
   primary key ("from_stage_id", "to_stage_id")
 );
-create index if not exists pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
-create index if not exists pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
+create index pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
+create index pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
 alter table "better_supabase"."pipeline_transitions" enable row level security;
 revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
-drop policy if exists pipeline_transitions_read on "better_supabase"."pipeline_transitions";
 create policy pipeline_transitions_read on "better_supabase"."pipeline_transitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_stage_history" (
+create table "better_supabase"."pipeline_stage_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -3194,15 +2955,14 @@ create table if not exists "better_supabase"."pipeline_stage_history" (
   "entered_at" timestamptz not null default now(),
   "exited_at" timestamptz
 );
-create index if not exists pipeline_stage_history_subject_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id", "entered_at");
-create index if not exists pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
-create unique index if not exists pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
+create index pipeline_stage_history_subject_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id", "entered_at");
+create index pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
+create unique index pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
 alter table "better_supabase"."pipeline_stage_history" enable row level security;
 revoke all on "better_supabase"."pipeline_stage_history" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
-drop policy if exists pipeline_stage_history_read on "better_supabase"."pipeline_stage_history";
 create policy pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
@@ -3239,7 +2999,7 @@ grant execute on function "better_supabase"."default_pipeline"(uuid, text, text)
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
-drop function if exists "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
+
 create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
@@ -3356,7 +3116,7 @@ grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenti
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-drop function if exists "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+
 create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
@@ -3474,7 +3234,7 @@ grant execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) to
 -- Archives a stage. Records in it move to move_to, a stage of the same
 -- pipeline; without move_to a stage that holds records is refused. The last
 -- open stage of a pipeline stays.
-drop function if exists "better_supabase"."archive_pipeline_stage"(uuid);
+
 create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
@@ -3685,87 +3445,67 @@ grant execute on function "better_supabase"."list_pipelines"(uuid, text) to auth
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_select on "better_supabase"."pipelines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipelines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_update on "better_supabase"."pipelines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipelines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_transitions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_transitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3773,10 +3513,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_histo
 -- blocks.pipelines.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
-drop function if exists "api"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
-drop function if exists "api"."archive_pipeline_stage"(uuid);
 
 create or replace function "api"."default_pipeline"(tenant uuid, subject_type text, scope_id text)
 returns uuid
@@ -3898,49 +3634,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:96d2d996f999255b4fa2672b73331d114aa67d435dc6113816d854cb00dda65c
+-- @bsb-hash sha256:614f66da98f1386b24b4b598b5002b892d8fddbe9e79b548662e527e0bd596c5
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Pipelines (ADR 0028): tenant-editable stages per subject type, each with
 -- a category that maps to a fixed outcome, a stage history and board totals.
@@ -3963,7 +3660,6 @@ create unique index if not exists pipelines_default_idx on "better_supabase"."pi
 alter table "better_supabase"."pipelines" enable row level security;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
-drop policy if exists bsb_pipelines_select on "better_supabase"."pipelines";
 create policy bsb_pipelines_select on "better_supabase"."pipelines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
@@ -3992,7 +3688,6 @@ create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pi
 alter table "better_supabase"."pipeline_stages" enable row level security;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
-drop policy if exists bsb_pipeline_stages_select on "better_supabase"."pipeline_stages";
 create policy bsb_pipeline_stages_select on "better_supabase"."pipeline_stages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
@@ -4008,7 +3703,6 @@ create index if not exists pipeline_transitions_to_idx on "better_supabase"."pip
 alter table "better_supabase"."pipeline_transitions" enable row level security;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
-drop policy if exists bsb_pipeline_transitions_select on "better_supabase"."pipeline_transitions";
 create policy bsb_pipeline_transitions_select on "better_supabase"."pipeline_transitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
@@ -4036,7 +3730,6 @@ alter table "better_supabase"."pipeline_stage_history" enable row level security
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
-drop policy if exists bsb_pipeline_stage_history_select on "better_supabase"."pipeline_stage_history";
 create policy bsb_pipeline_stage_history_select on "better_supabase"."pipeline_stage_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
@@ -4073,7 +3766,7 @@ grant execute on function "better_supabase"."default_pipeline"(uuid, text, text)
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
-drop function if exists "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
+
 create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
@@ -4190,7 +3883,7 @@ grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenti
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-drop function if exists "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+
 create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
@@ -4308,7 +4001,7 @@ grant execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) to
 -- Archives a stage. Records in it move to move_to, a stage of the same
 -- pipeline; without move_to a stage that holds records is refused. The last
 -- open stage of a pipeline stays.
-drop function if exists "better_supabase"."archive_pipeline_stage"(uuid);
+
 create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
@@ -4519,87 +4212,67 @@ grant execute on function "better_supabase"."list_pipelines"(uuid, text) to auth
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_select on "better_supabase"."pipelines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipelines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_update on "better_supabase"."pipelines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipelines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_transitions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_transitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4621,54 +4294,15 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:d09781901ef1376e2fbc87454e9eb32cb5852df0827ef198509a49ea35ea8f49
+-- @bsb-hash sha256:adf63e1dd5700ba0537693e6c65a70ad2b0205d53efd41003365d3b697ab0856
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Pipelines (ADR 0028): tenant-editable stages per subject type, each with
 -- a category that maps to a fixed outcome, a stage history and board totals.
 
-create table if not exists "better_supabase"."pipelines" (
+create table "better_supabase"."pipelines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -4682,18 +4316,17 @@ create table if not exists "better_supabase"."pipelines" (
   "updated_at" timestamptz not null default now(),
   unique nulls not distinct ("org_id", "subject_type", "scope_id", "key")
 );
-create unique index if not exists pipelines_default_idx on "better_supabase"."pipelines" ("org_id", "subject_type", coalesce("scope_id", ''))
+create unique index pipelines_default_idx on "better_supabase"."pipelines" ("org_id", "subject_type", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "better_supabase"."pipelines" enable row level security;
 revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
-drop policy if exists pipelines_read on "better_supabase"."pipelines";
 create policy pipelines_read on "better_supabase"."pipelines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_stages" (
+create table "better_supabase"."pipeline_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
@@ -4713,35 +4346,33 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "updated_at" timestamptz not null default now(),
   unique ("pipeline_id", "key")
 );
-create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
+create index pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
 alter table "better_supabase"."pipeline_stages" enable row level security;
 revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
-drop policy if exists pipeline_stages_read on "better_supabase"."pipeline_stages";
 create policy pipeline_stages_read on "better_supabase"."pipeline_stages"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_transitions" (
+create table "better_supabase"."pipeline_transitions" (
   "org_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
   "from_stage_id" uuid not null references "better_supabase"."pipeline_stages" ("id") on delete cascade,
   "to_stage_id" uuid not null references "better_supabase"."pipeline_stages" ("id") on delete cascade,
   primary key ("from_stage_id", "to_stage_id")
 );
-create index if not exists pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
-create index if not exists pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
+create index pipeline_transitions_pipeline_idx on "better_supabase"."pipeline_transitions" ("pipeline_id");
+create index pipeline_transitions_to_idx on "better_supabase"."pipeline_transitions" ("to_stage_id");
 alter table "better_supabase"."pipeline_transitions" enable row level security;
 revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
-drop policy if exists pipeline_transitions_read on "better_supabase"."pipeline_transitions";
 create policy pipeline_transitions_read on "better_supabase"."pipeline_transitions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
-create table if not exists "better_supabase"."pipeline_stage_history" (
+create table "better_supabase"."pipeline_stage_history" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -4758,15 +4389,14 @@ create table if not exists "better_supabase"."pipeline_stage_history" (
   "entered_at" timestamptz not null default now(),
   "exited_at" timestamptz
 );
-create index if not exists pipeline_stage_history_subject_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id", "entered_at");
-create index if not exists pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
-create unique index if not exists pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
+create index pipeline_stage_history_subject_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id", "entered_at");
+create index pipeline_stage_history_pipeline_idx on "better_supabase"."pipeline_stage_history" ("pipeline_id", "entered_at");
+create unique index pipeline_stage_history_open_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id") where "exited_at" is null;
 alter table "better_supabase"."pipeline_stage_history" enable row level security;
 revoke all on "better_supabase"."pipeline_stage_history" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
-drop policy if exists pipeline_stage_history_read on "better_supabase"."pipeline_stage_history";
 create policy pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
@@ -4803,7 +4433,7 @@ grant execute on function "better_supabase"."default_pipeline"(uuid, text, text)
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
-drop function if exists "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
+
 create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
@@ -4920,7 +4550,7 @@ grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenti
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-drop function if exists "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+
 create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
@@ -5038,7 +4668,7 @@ grant execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) to
 -- Archives a stage. Records in it move to move_to, a stage of the same
 -- pipeline; without move_to a stage that holds records is refused. The last
 -- open stage of a pipeline stays.
-drop function if exists "better_supabase"."archive_pipeline_stage"(uuid);
+
 create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
@@ -5249,87 +4879,67 @@ grant execute on function "better_supabase"."list_pipelines"(uuid, text) to auth
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipelines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_select on "better_supabase"."pipelines" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipelines" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_update on "better_supabase"."pipelines" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipelines";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipelines" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stages" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stages" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stages" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stages";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stages" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_transitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_transitions" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_transitions" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_transitions" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_transitions" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pipeline_stage_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_history" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_update on "better_supabase"."pipeline_stage_history" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_history" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

@@ -1,32 +1,9 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:a15aa3c904e54efa75970bc49f674df933bebe891e01e5ea2d218f89e19d61ef
+-- @bsb-hash sha256:3b51cb3c216d487517da63e934a8ea07725ff40e57c11349092d553834804907
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."field_definitions";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."field_definitions";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."field_definitions";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."field_definitions";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."field_definitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."field_values";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."field_values";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."field_values";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."field_values";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."field_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 create or replace function "better_supabase"."bsb_valid_bsn"(value text)
 returns boolean
@@ -116,8 +93,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-
-drop function if exists "better_supabase"."read_field_values"(uuid, text, text, uuid);
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -143,8 +118,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."set_field_value"(uuid, text, text, uuid, text, uuid);
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -429,39 +402,29 @@ grant execute on function "better_supabase"."import_field_value"(uuid, jsonb, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "centrakit"."field_definitions";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."field_definitions";
 create policy bsb_tenant_scope_select on "centrakit"."field_definitions" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."field_definitions";
 create policy bsb_tenant_scope_insert on "centrakit"."field_definitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."field_definitions";
 create policy bsb_tenant_scope_update on "centrakit"."field_definitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."field_definitions";
 create policy bsb_tenant_scope_delete on "centrakit"."field_definitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "centrakit"."field_values";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."field_values";
 create policy bsb_tenant_scope_select on "centrakit"."field_values" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."field_values";
 create policy bsb_tenant_scope_insert on "centrakit"."field_values" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."field_values";
 create policy bsb_tenant_scope_update on "centrakit"."field_values" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."field_values";
 create policy bsb_tenant_scope_delete on "centrakit"."field_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

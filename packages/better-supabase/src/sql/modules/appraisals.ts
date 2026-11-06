@@ -243,7 +243,7 @@ function tables(ctx: BlockSqlContext): string {
             ? ctx.scope.check(tenant, q.read)
             : `${ctx.scope.check(tenant, q.read)} and ${extra}`,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   return `

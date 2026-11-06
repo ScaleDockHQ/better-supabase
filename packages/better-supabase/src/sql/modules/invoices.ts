@@ -428,7 +428,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: `exists (select 1 from ${t("invoices")} x where x.${i("id")} = ${ch("invoice")})`,
   }),
-  { drop: true, target: t("charges") },
+  { target: t("charges") },
 )}
 `
     : "";
@@ -516,7 +516,7 @@ ${renderPolicy(
           ]),
     ]),
   }),
-  { drop: true, target: t("invoices") },
+  { target: t("invoices") },
 )}
 ${charges}${dunningTableSql(ctx, n.read)}${dunningRunTablesSql(ctx, t("invoices"), i("id"), n.read)}${allocationTableSql(ctx, t("invoices"), i("id"), n.read)}${lineSourcesTableSql(ctx, t("invoices"), i("id"), n.read)}${approvalTablesSql(ctx, t("invoices"), i("id"), n.read)}${eDeliveryTablesSql(ctx, t("invoices"), i("id"), n.read)}
 `;

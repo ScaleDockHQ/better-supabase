@@ -18,13 +18,10 @@ describe("reminders on subjects", () => {
 
     expect(sql).toContain("remind_at timestamptz default null");
     expect(sql).toContain(
-      `alter table "better_supabase"."reminders" add column if not exists "remind_at" timestamptz;`,
+      `alter table "better_supabase"."reminders" add column "remind_at" timestamptz;`,
     );
     expect(sql).toContain(
       `select r."id", r."remind_at", 'UTC'::text, 'FREQ=DAILY;COUNT=1'::text, 0,`,
-    );
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."save_reminder"(uuid, text, text, integer);`,
     );
     expect(sql).not.toContain("REMINDER_SUBJECT_UNSUPPORTED");
   });

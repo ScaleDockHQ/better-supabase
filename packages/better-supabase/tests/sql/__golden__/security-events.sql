@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:87f5a304b63b3ad59ea3b37eb7a806b11c005977b917a45144095a0add716406
+-- @bsb-hash sha256:94323ca87991a6a8e97d034dcd0fca61eb977015470715defd2dbe209f12c974
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,7 @@
 -- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
-create table if not exists "better_supabase"."ssf_streams" (
+create table "better_supabase"."ssf_streams" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant" text check (length("tenant") >= 1 and length("tenant") <= 200),
   "receiver" text not null check (length("receiver") >= 1 and length("receiver") <= 200),
@@ -26,37 +26,36 @@ create table if not exists "better_supabase"."ssf_streams" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ssf_streams_receiver_idx on "better_supabase"."ssf_streams" ("receiver");
-create index if not exists ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
-create index if not exists ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
-alter table "better_supabase"."ssf_streams" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."ssf_streams";
+create index ssf_streams_receiver_idx on "better_supabase"."ssf_streams" ("receiver");
+create index ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
+create index ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
 create trigger bsb_updated_at before update on "better_supabase"."ssf_streams"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."ssf_streams" enable row level security;
 revoke all on "better_supabase"."ssf_streams" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_streams" to service_role;
 
-create table if not exists "better_supabase"."ssf_events" (
+create table "better_supabase"."ssf_events" (
   "stream_id" uuid not null references "better_supabase"."ssf_streams" ("id") on delete cascade,
   "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
   "token" text not null,
   "created_at" timestamptz not null default now(),
   primary key ("stream_id", "jti")
 );
-create index if not exists ssf_events_order_idx on "better_supabase"."ssf_events" ("stream_id", "created_at");
-create index if not exists ssf_events_created_idx on "better_supabase"."ssf_events" ("created_at");
+create index ssf_events_order_idx on "better_supabase"."ssf_events" ("stream_id", "created_at");
+create index ssf_events_created_idx on "better_supabase"."ssf_events" ("created_at");
 alter table "better_supabase"."ssf_events" enable row level security;
 revoke all on "better_supabase"."ssf_events" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_events" to service_role;
 
-create table if not exists "better_supabase"."ssf_received" (
+create table "better_supabase"."ssf_received" (
   "issuer" text not null,
   "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
   "received_at" timestamptz not null default now(),
   primary key ("issuer", "jti")
 );
-create index if not exists ssf_received_at_idx on "better_supabase"."ssf_received" ("received_at");
+create index ssf_received_at_idx on "better_supabase"."ssf_received" ("received_at");
 alter table "better_supabase"."ssf_received" enable row level security;
 revoke all on "better_supabase"."ssf_received" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_received" to service_role;
@@ -502,7 +501,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:cdbae5c9422cabb2c53328e6cc1df19b589ee8846b1b40d389457e883d4cd021
+-- @bsb-hash sha256:107a65f771cbba684ecbc009c46b7cf04159b394bb99a608b25ca50295c96c35
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -511,7 +510,7 @@ on conflict (name) do update
 -- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
-create table if not exists "better_supabase"."ssf_streams" (
+create table "better_supabase"."ssf_streams" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant" text check (length("tenant") >= 1 and length("tenant") <= 200),
   "receiver" text not null check (length("receiver") >= 1 and length("receiver") <= 200),
@@ -527,37 +526,36 @@ create table if not exists "better_supabase"."ssf_streams" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ssf_streams_receiver_idx on "better_supabase"."ssf_streams" ("receiver");
-create index if not exists ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
-create index if not exists ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
-alter table "better_supabase"."ssf_streams" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."ssf_streams";
+create index ssf_streams_receiver_idx on "better_supabase"."ssf_streams" ("receiver");
+create index ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
+create index ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
 create trigger bsb_updated_at before update on "better_supabase"."ssf_streams"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."ssf_streams" enable row level security;
 revoke all on "better_supabase"."ssf_streams" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_streams" to service_role;
 
-create table if not exists "better_supabase"."ssf_events" (
+create table "better_supabase"."ssf_events" (
   "stream_id" uuid not null references "better_supabase"."ssf_streams" ("id") on delete cascade,
   "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
   "token" text not null,
   "created_at" timestamptz not null default now(),
   primary key ("stream_id", "jti")
 );
-create index if not exists ssf_events_order_idx on "better_supabase"."ssf_events" ("stream_id", "created_at");
-create index if not exists ssf_events_created_idx on "better_supabase"."ssf_events" ("created_at");
+create index ssf_events_order_idx on "better_supabase"."ssf_events" ("stream_id", "created_at");
+create index ssf_events_created_idx on "better_supabase"."ssf_events" ("created_at");
 alter table "better_supabase"."ssf_events" enable row level security;
 revoke all on "better_supabase"."ssf_events" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_events" to service_role;
 
-create table if not exists "better_supabase"."ssf_received" (
+create table "better_supabase"."ssf_received" (
   "issuer" text not null,
   "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
   "received_at" timestamptz not null default now(),
   primary key ("issuer", "jti")
 );
-create index if not exists ssf_received_at_idx on "better_supabase"."ssf_received" ("received_at");
+create index ssf_received_at_idx on "better_supabase"."ssf_received" ("received_at");
 alter table "better_supabase"."ssf_received" enable row level security;
 revoke all on "better_supabase"."ssf_received" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_received" to service_role;
@@ -1041,7 +1039,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:7bc52e6d7a211814385652d23f9a391b357961f5f9e5d96363554ff7a31e37e7
+-- @bsb-hash sha256:ada94c39f635972909c7b425cef8ce67dcac39d16994bde3e8c58f944fc8cfd1
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1055,7 +1053,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
-create table if not exists "app_private"."ssf_streams" (
+create table "app_private"."ssf_streams" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant" text check (length("tenant") >= 1 and length("tenant") <= 200),
   "receiver" text not null check (length("receiver") >= 1 and length("receiver") <= 200),
@@ -1071,37 +1069,36 @@ create table if not exists "app_private"."ssf_streams" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ssf_streams_receiver_idx on "app_private"."ssf_streams" ("receiver");
-create index if not exists ssf_streams_events_idx on "app_private"."ssf_streams" using gin ("events_delivered");
-create index if not exists ssf_streams_endpoint_idx on "app_private"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
-alter table "app_private"."ssf_streams" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "app_private"."ssf_streams";
+create index ssf_streams_receiver_idx on "app_private"."ssf_streams" ("receiver");
+create index ssf_streams_events_idx on "app_private"."ssf_streams" using gin ("events_delivered");
+create index ssf_streams_endpoint_idx on "app_private"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
 create trigger bsb_updated_at before update on "app_private"."ssf_streams"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."ssf_streams" enable row level security;
 revoke all on "app_private"."ssf_streams" from public, anon, authenticated;
 grant all on "app_private"."ssf_streams" to service_role;
 
-create table if not exists "app_private"."ssf_events" (
+create table "app_private"."ssf_events" (
   "stream_id" uuid not null references "app_private"."ssf_streams" ("id") on delete cascade,
   "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
   "token" text not null,
   "created_at" timestamptz not null default now(),
   primary key ("stream_id", "jti")
 );
-create index if not exists ssf_events_order_idx on "app_private"."ssf_events" ("stream_id", "created_at");
-create index if not exists ssf_events_created_idx on "app_private"."ssf_events" ("created_at");
+create index ssf_events_order_idx on "app_private"."ssf_events" ("stream_id", "created_at");
+create index ssf_events_created_idx on "app_private"."ssf_events" ("created_at");
 alter table "app_private"."ssf_events" enable row level security;
 revoke all on "app_private"."ssf_events" from public, anon, authenticated;
 grant all on "app_private"."ssf_events" to service_role;
 
-create table if not exists "app_private"."ssf_received" (
+create table "app_private"."ssf_received" (
   "issuer" text not null,
   "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
   "received_at" timestamptz not null default now(),
   primary key ("issuer", "jti")
 );
-create index if not exists ssf_received_at_idx on "app_private"."ssf_received" ("received_at");
+create index ssf_received_at_idx on "app_private"."ssf_received" ("received_at");
 alter table "app_private"."ssf_received" enable row level security;
 revoke all on "app_private"."ssf_received" from public, anon, authenticated;
 grant all on "app_private"."ssf_received" to service_role;
@@ -1547,7 +1544,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:4d55d4e802052998ba46ce3a1867480b1531757d165adedbe8573318284ce13a
+-- @bsb-hash sha256:dde6341a6b922c41e503ca98e58a2862f42bb6a692e33fa930a5642d3efd0585
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1556,7 +1553,7 @@ on conflict (name) do update
 -- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
-create table if not exists "better_supabase"."ssf_streams" (
+create table "better_supabase"."ssf_streams" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant" text check (length("tenant") >= 1 and length("tenant") <= 200),
   "receiver" text not null check (length("receiver") >= 1 and length("receiver") <= 200),
@@ -1572,37 +1569,36 @@ create table if not exists "better_supabase"."ssf_streams" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ssf_streams_receiver_idx on "better_supabase"."ssf_streams" ("receiver");
-create index if not exists ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
-create index if not exists ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
-alter table "better_supabase"."ssf_streams" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."ssf_streams";
+create index ssf_streams_receiver_idx on "better_supabase"."ssf_streams" ("receiver");
+create index ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
+create index ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
 create trigger bsb_updated_at before update on "better_supabase"."ssf_streams"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."ssf_streams" enable row level security;
 revoke all on "better_supabase"."ssf_streams" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_streams" to service_role;
 
-create table if not exists "better_supabase"."ssf_events" (
+create table "better_supabase"."ssf_events" (
   "stream_id" uuid not null references "better_supabase"."ssf_streams" ("id") on delete cascade,
   "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
   "token" text not null,
   "created_at" timestamptz not null default now(),
   primary key ("stream_id", "jti")
 );
-create index if not exists ssf_events_order_idx on "better_supabase"."ssf_events" ("stream_id", "created_at");
-create index if not exists ssf_events_created_idx on "better_supabase"."ssf_events" ("created_at");
+create index ssf_events_order_idx on "better_supabase"."ssf_events" ("stream_id", "created_at");
+create index ssf_events_created_idx on "better_supabase"."ssf_events" ("created_at");
 alter table "better_supabase"."ssf_events" enable row level security;
 revoke all on "better_supabase"."ssf_events" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_events" to service_role;
 
-create table if not exists "better_supabase"."ssf_received" (
+create table "better_supabase"."ssf_received" (
   "issuer" text not null,
   "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
   "received_at" timestamptz not null default now(),
   primary key ("issuer", "jti")
 );
-create index if not exists ssf_received_at_idx on "better_supabase"."ssf_received" ("received_at");
+create index ssf_received_at_idx on "better_supabase"."ssf_received" ("received_at");
 alter table "better_supabase"."ssf_received" enable row level security;
 revoke all on "better_supabase"."ssf_received" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_received" to service_role;
@@ -2172,7 +2168,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:92db260ba67daee4c64b32d5340670a322240737676dd18635d00b6be38fb993
+-- @bsb-hash sha256:61792aebddc69d9eefa32446e513da866d388a7b57f5f76144ff4bcae7632d0b
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2200,9 +2196,9 @@ create index if not exists ssf_streams_receiver_idx on "better_supabase"."ssf_st
 create index if not exists ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
 create index if not exists ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
 alter table "better_supabase"."ssf_streams" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."ssf_streams";
 create trigger bsb_updated_at before update on "better_supabase"."ssf_streams"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."ssf_streams" enable row level security;
 grant all on "better_supabase"."ssf_streams" to service_role;
 
@@ -2667,7 +2663,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:b19ccd45e7b827c1b29d3c843c7aef2b6bef95eee505e7b6a7fe795e5172fdfe
+-- @bsb-hash sha256:2e03eb39a6396942657364f151dd7582270a04f055df84f18e2d22d45d29cd27
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2676,7 +2672,7 @@ on conflict (name) do update
 -- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
-create table if not exists "better_supabase"."ssf_streams" (
+create table "better_supabase"."ssf_streams" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" text check (length("org_id") >= 1 and length("org_id") <= 200),
   "receiver" text not null check (length("receiver") >= 1 and length("receiver") <= 200),
@@ -2692,37 +2688,36 @@ create table if not exists "better_supabase"."ssf_streams" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ssf_streams_receiver_idx on "better_supabase"."ssf_streams" ("receiver");
-create index if not exists ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
-create index if not exists ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
-alter table "better_supabase"."ssf_streams" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."ssf_streams";
+create index ssf_streams_receiver_idx on "better_supabase"."ssf_streams" ("receiver");
+create index ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
+create index ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
 create trigger bsb_updated_at before update on "better_supabase"."ssf_streams"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."ssf_streams" enable row level security;
 revoke all on "better_supabase"."ssf_streams" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_streams" to service_role;
 
-create table if not exists "better_supabase"."ssf_events" (
+create table "better_supabase"."ssf_events" (
   "stream_id" uuid not null references "better_supabase"."ssf_streams" ("id") on delete cascade,
   "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
   "token" text not null,
   "created_at" timestamptz not null default now(),
   primary key ("stream_id", "jti")
 );
-create index if not exists ssf_events_order_idx on "better_supabase"."ssf_events" ("stream_id", "created_at");
-create index if not exists ssf_events_created_idx on "better_supabase"."ssf_events" ("created_at");
+create index ssf_events_order_idx on "better_supabase"."ssf_events" ("stream_id", "created_at");
+create index ssf_events_created_idx on "better_supabase"."ssf_events" ("created_at");
 alter table "better_supabase"."ssf_events" enable row level security;
 revoke all on "better_supabase"."ssf_events" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_events" to service_role;
 
-create table if not exists "better_supabase"."ssf_received" (
+create table "better_supabase"."ssf_received" (
   "issuer" text not null,
   "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
   "received_at" timestamptz not null default now(),
   primary key ("issuer", "jti")
 );
-create index if not exists ssf_received_at_idx on "better_supabase"."ssf_received" ("received_at");
+create index ssf_received_at_idx on "better_supabase"."ssf_received" ("received_at");
 alter table "better_supabase"."ssf_received" enable row level security;
 revoke all on "better_supabase"."ssf_received" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_received" to service_role;

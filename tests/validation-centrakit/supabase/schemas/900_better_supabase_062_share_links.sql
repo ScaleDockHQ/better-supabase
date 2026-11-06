@@ -1,24 +1,9 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:c6dd1ef0877424697c0025969d38df30d95c8cbde8563486d1a01c556af967f5
+-- @bsb-hash sha256:8012f805d8778cc1b3ff0a9bc0bf900916cf53612861ee93645136a681e6be71
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."share_links";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."share_links";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."share_links";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."share_links";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."share_links";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- centrakit.share_links is the app's table, and it has every column this block needs.
 alter table "centrakit"."share_links" add column if not exists "use_count" integer not null default 0;
@@ -38,20 +23,8 @@ grant all on "centrakit"."subject_views" to service_role;
 alter table "centrakit"."subject_user_state" enable row level security;
 grant select on "centrakit"."subject_user_state" to authenticated;
 grant all on "centrakit"."subject_user_state" to service_role;
-
-
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, jsonb);
 -- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, jsonb);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, jsonb);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, boolean, jsonb);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, text, boolean);
-drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, text, boolean, jsonb);
+
 -- password: at least 8 characters; resolve_share_link then needs it.
 -- download_allowed: false tells the block that serves the subject not to offer
 -- a download.
@@ -166,7 +139,7 @@ grant execute on function "better_supabase"."revoke_share_link"(uuid) to authent
 -- the last use. A link with a password returns only
 -- { "passwordRequired": true } until the call passes the password, and
 -- counts no use for it.
-drop function if exists "better_supabase"."resolve_share_link"(text);
+
 create or replace function "better_supabase"."resolve_share_link"(token text, password text default null)
 returns jsonb
 language plpgsql
@@ -274,21 +247,16 @@ grant execute on function "better_supabase"."set_user_state"(text, text, boolean
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "centrakit"."share_links";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."share_links";
 create policy bsb_tenant_scope_select on "centrakit"."share_links" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."share_links";
 create policy bsb_tenant_scope_insert on "centrakit"."share_links" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."share_links";
 create policy bsb_tenant_scope_update on "centrakit"."share_links" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."share_links";
 create policy bsb_tenant_scope_delete on "centrakit"."share_links" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

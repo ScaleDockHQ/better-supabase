@@ -375,7 +375,7 @@ ${renderPolicy(
     using: `${cr("actor")} = (select auth.uid())
     or ${ctx.scope.check(cr("tenant"), ctx.permission("read", permissions.read))}`,
   }),
-  { drop: true, target: r },
+  { target: r },
 )}
 
 ${
@@ -411,7 +411,7 @@ create unique index if not exists ${sqlIdent(`${ctx.tableName("schedules").name}
 create index if not exists workflow_schedules_due_idx on ${s} (${cs("nextRunAt")}) where not ${cs("paused")};
 create index if not exists workflow_schedules_created_by_idx on ${s} (${cs("createdBy")});
 ${lockModuleTable(ctx, "schedules", { read: true })}
-${renderPolicy(makePolicy({ table: s, name: "workflow_schedules_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(cs("tenant"), ctx.permission("read", permissions.read)) }), { drop: true, target: s })}
+${renderPolicy(makePolicy({ table: s, name: "workflow_schedules_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(cs("tenant"), ctx.permission("read", permissions.read)) }), { target: s })}
 `
     : ""
 }
@@ -939,7 +939,7 @@ begin
           )
         )`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
   end if;
 end;

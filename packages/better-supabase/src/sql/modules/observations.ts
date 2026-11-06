@@ -197,7 +197,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const appKey = (logical: string, what: string, unique: string): string =>

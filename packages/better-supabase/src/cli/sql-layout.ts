@@ -203,8 +203,12 @@ export async function moduleLayoutFor(
 
   const apiUsed = await apiUsedNames(config);
 
+  const rerunnable =
+    sqlWorkflow(config, await readSupabaseToml(config.root)) === "migrations";
+
   return {
     ...base,
+    ...(rerunnable ? { rerunnable } : {}),
     ...(grants === undefined ? {} : { grants }),
     ...(apiUsed === undefined ? {} : { apiUsed }),
     schemasDir: await schemasDirOf(config),

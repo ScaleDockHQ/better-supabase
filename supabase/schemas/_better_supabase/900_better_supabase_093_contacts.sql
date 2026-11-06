@@ -1,68 +1,13 @@
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:e65a38f9e19242466e922ff052b83ebb1a571aa62a887e2d64169b8d382679f5
+-- @bsb-hash sha256:cde0d816e91829c789b9926f0d8c43166f1e77de2583b96cda2d08aabfa745d5
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Companies and people an organization works with, and who works where.
 
-create table if not exists "better_supabase"."payment_terms" (
+create table "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null check (length("code") >= 1 and length("code") <= 50),
@@ -79,12 +24,11 @@ alter table "better_supabase"."payment_terms" enable row level security;
 revoke all on "better_supabase"."payment_terms" from public, anon, authenticated;
 grant select on "better_supabase"."payment_terms" to authenticated;
 grant all on "better_supabase"."payment_terms" to service_role;
-drop policy if exists payment_terms_read on "better_supabase"."payment_terms";
 create policy payment_terms_read on "better_supabase"."payment_terms"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."companies" (
+create table "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 300),
@@ -108,25 +52,24 @@ create table if not exists "better_supabase"."companies" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
-create unique index if not exists companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
+create index companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
+create unique index companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index if not exists companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
-create index if not exists companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
-create index if not exists companies_roles_idx on "better_supabase"."companies" using gin ("roles");
-create index if not exists companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
+create index companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
+create index companies_roles_idx on "better_supabase"."companies" using gin ("roles");
+create index companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
+create index companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."companies" enable row level security;
 revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
-drop policy if exists companies_read on "better_supabase"."companies";
 create policy companies_read on "better_supabase"."companies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."people" (
+create table "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 300),
@@ -152,26 +95,25 @@ create table if not exists "better_supabase"."people" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
-create unique index if not exists people_email_idx on "better_supabase"."people" ("tenant_id", "email")
+create index people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
+create unique index people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
-create index if not exists people_owner_idx on "better_supabase"."people" ("owner_user_id");
-create index if not exists people_user_idx on "better_supabase"."people" ("user_id");
-create index if not exists people_merged_into_idx on "better_supabase"."people" ("merged_into");
-create index if not exists people_roles_idx on "better_supabase"."people" using gin ("roles");
-create index if not exists people_supplier_status_idx on "better_supabase"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists people_customer_terms_id_idx on "better_supabase"."people" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists people_supplier_terms_id_idx on "better_supabase"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index people_owner_idx on "better_supabase"."people" ("owner_user_id");
+create index people_user_idx on "better_supabase"."people" ("user_id");
+create index people_merged_into_idx on "better_supabase"."people" ("merged_into");
+create index people_roles_idx on "better_supabase"."people" using gin ("roles");
+create index people_supplier_status_idx on "better_supabase"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index people_customer_terms_id_idx on "better_supabase"."people" ("customer_terms_id") where "customer_terms_id" is not null;
+create index people_supplier_terms_id_idx on "better_supabase"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."people" enable row level security;
 revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
-drop policy if exists people_read on "better_supabase"."people";
 create policy people_read on "better_supabase"."people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."company_people" (
+create table "better_supabase"."company_people" (
   "tenant_id" uuid not null,
   "company_id" uuid not null references "better_supabase"."companies" ("id") on delete cascade,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
@@ -180,18 +122,17 @@ create table if not exists "better_supabase"."company_people" (
   "created_at" timestamptz not null default now(),
   primary key ("company_id", "person_id")
 );
-create index if not exists company_people_person_idx on "better_supabase"."company_people" ("person_id");
-create unique index if not exists company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
+create index company_people_person_idx on "better_supabase"."company_people" ("person_id");
+create unique index company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
 alter table "better_supabase"."company_people" enable row level security;
 revoke all on "better_supabase"."company_people" from public, anon, authenticated;
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
-drop policy if exists company_people_read on "better_supabase"."company_people";
 create policy company_people_read on "better_supabase"."company_people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."document_delivery_preferences" (
+create table "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
@@ -203,17 +144,16 @@ create table if not exists "better_supabase"."document_delivery_preferences" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "party_id", "document_type", "channel")
 );
-create index if not exists document_delivery_preferences_party_idx on "better_supabase"."document_delivery_preferences" ("party_id");
+create index document_delivery_preferences_party_idx on "better_supabase"."document_delivery_preferences" ("party_id");
 alter table "better_supabase"."document_delivery_preferences" enable row level security;
 revoke all on "better_supabase"."document_delivery_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."document_delivery_preferences" to authenticated;
 grant all on "better_supabase"."document_delivery_preferences" to service_role;
-drop policy if exists document_delivery_preferences_read on "better_supabase"."document_delivery_preferences";
 create policy document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."person_identities" (
+create table "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
@@ -223,12 +163,11 @@ create table if not exists "better_supabase"."person_identities" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
 );
-create index if not exists person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
+create index person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
 alter table "better_supabase"."person_identities" enable row level security;
 revoke all on "better_supabase"."person_identities" from public, anon, authenticated;
 grant select on "better_supabase"."person_identities" to authenticated;
 grant all on "better_supabase"."person_identities" to service_role;
-drop policy if exists person_identities_read on "better_supabase"."person_identities";
 create policy person_identities_read on "better_supabase"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
@@ -729,7 +668,7 @@ grant execute on function "better_supabase"."merge_people"(uuid, uuid) to authen
 -- the name and domain; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -765,7 +704,7 @@ grant execute on function "better_supabase"."list_companies"(uuid, text, text, u
 -- the name and email; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -1475,7 +1414,7 @@ revoke execute on function "better_supabase"."find_person_by_identity"(uuid, tex
 grant execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
 
 -- A conversation's contact and an identity link's contact are people.
-alter table "better_supabase"."inbox_conversations" drop constraint if exists "inbox_conversations_contact_id_fkey";
+
 alter table "better_supabase"."inbox_conversations" add constraint "inbox_conversations_contact_id_fkey"
   foreign key ("contact_id") references "better_supabase"."people" ("id") on delete cascade;
 
@@ -1548,139 +1487,105 @@ grant execute on function "better_supabase"."represented_by_me"(uuid) to authent
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
 create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
 create policy bsb_tenant_scope_insert on "better_supabase"."companies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
 create policy bsb_tenant_scope_update on "better_supabase"."companies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
 create policy bsb_tenant_scope_delete on "better_supabase"."companies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
 create policy bsb_tenant_scope_select on "better_supabase"."people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
 create policy bsb_tenant_scope_insert on "better_supabase"."people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
 create policy bsb_tenant_scope_update on "better_supabase"."people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
 create policy bsb_tenant_scope_delete on "better_supabase"."people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
 create policy bsb_tenant_scope_select on "better_supabase"."company_people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
 create policy bsb_tenant_scope_insert on "better_supabase"."company_people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
 create policy bsb_tenant_scope_update on "better_supabase"."company_people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_select on "better_supabase"."payment_terms" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_insert on "better_supabase"."payment_terms" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_update on "better_supabase"."payment_terms" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_delete on "better_supabase"."payment_terms" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_insert on "better_supabase"."person_identities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_update on "better_supabase"."person_identities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-drop trigger if exists "bsb_search_company_index" on "better_supabase"."companies";
 create trigger "bsb_search_company_index"
   after insert or delete or update of "id", "tenant_id", "name", "domain" on "better_supabase"."companies"
   for each row execute function "better_supabase"."search_index_row"('company', 'id');
-
-drop trigger if exists "bsb_search_person_index" on "better_supabase"."people";
 create trigger "bsb_search_person_index"
   after insert or delete or update of "id", "tenant_id", "name", "email", "title" on "better_supabase"."people"
   for each row execute function "better_supabase"."search_index_row"('person', 'id');
@@ -1698,10 +1603,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."resolve_person"(uuid, jsonb);
 
-drop function if exists "api"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
-drop function if exists "api"."list_people"(uuid, text, text, uuid, text, uuid, integer);
 
 create or replace function "api"."save_company"(tenant uuid, company uuid, attrs jsonb)
 returns jsonb

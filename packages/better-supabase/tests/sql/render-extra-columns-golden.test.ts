@@ -30,9 +30,7 @@ describe("SQL module output with extra columns", () => {
   });
 
   it.each(MODULES)("%s adds the column to its managed table", (module) => {
-    expect(render(module)).toContain(
-      'add column if not exists "app_note" text;',
-    );
+    expect(render(module)).toContain('add column "app_note" text;');
   });
 
   it.each(MODULES)("%s renders the golden SQL", async (module) => {

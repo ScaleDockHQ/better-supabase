@@ -1,12 +1,12 @@
 -- ==== schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:993d71a3ffe24afee892fac8ae4e9067b28b0bd40263c365f159733f41cf4719
+-- @bsb-hash sha256:3dfdfb61c990c168fdc835552d2095fbdfe976d54cafd51801abf40647730bbe
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create table if not exists "better_supabase"."tags" (
+create table "better_supabase"."tags" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid default auth.uid(),
   "kind" text not null,
@@ -23,7 +23,7 @@ alter table "better_supabase"."tags" enable row level security;
 revoke all on "better_supabase"."tags" from public, anon, authenticated;
 grant select on "better_supabase"."tags" to authenticated;
 grant all on "better_supabase"."tags" to service_role;
-create table if not exists "better_supabase"."taggings" (
+create table "better_supabase"."taggings" (
   "tenant_id" uuid default auth.uid(),
   "tag_id" uuid not null references "better_supabase"."tags" ("id") on delete cascade,
   "subject_type" text not null,
@@ -31,14 +31,14 @@ create table if not exists "better_supabase"."taggings" (
   "created_at" timestamptz not null default now(),
   primary key ("tag_id", "subject_type", "subject_id")
 );
-create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
+create index "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
 revoke all on "better_supabase"."taggings" from public, anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text)
 returns jsonb
 language plpgsql
@@ -137,8 +137,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_tag"(uuid, text, jsonb);
 create or replace function "better_supabase"."update_tag"(tag_id uuid, name text)
 returns boolean
 language plpgsql

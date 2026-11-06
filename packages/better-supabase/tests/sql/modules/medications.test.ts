@@ -118,10 +118,10 @@ describe("medications module", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."medications" add column if not exists "shelf" text;`,
+      `alter table "better_supabase"."medications" add column "shelf" text;`,
     );
     expect(sql).toContain(
-      `alter table "better_supabase"."medication_administrations" add column if not exists "site" text;`,
+      `alter table "better_supabase"."medication_administrations" add column "site" text;`,
     );
     expect(sql).toContain("save_medication.fields");
     expect(sql).toContain("record_medication_administration.fields");
@@ -173,7 +173,7 @@ describe("medications module", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."medication_orders" add column if not exists "ward" text;`,
+      `alter table "better_supabase"."medication_orders" add column "ward" text;`,
     );
     expect(sql).toContain("coalesce(v_attrs -> 'fields', '{}'::jsonb)");
     expect(sql).toContain("coalesce(v_item -> 'fields', '{}'::jsonb)");

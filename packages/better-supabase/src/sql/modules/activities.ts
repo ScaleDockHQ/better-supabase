@@ -426,7 +426,7 @@ ${renderPolicy(
       ],
     ),
   }),
-  { drop: true, target: t("links") },
+  { target: t("links") },
 )}
 ${renderPolicy(
   makePolicy({
@@ -436,7 +436,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: guestOr(readable(""), [notes.guestRead("")]),
   }),
-  { drop: true, target: t("engagements") },
+  { target: t("engagements") },
 )}
 `
     : ""

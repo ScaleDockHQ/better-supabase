@@ -1965,9 +1965,12 @@ renderPolicy(
     roles: ["authenticated"],
     using: "better_supabase.is_member(tenant_id)",
   }),
-  { drop: true },
 );
 ```
+
+`renderPolicy` writes the `create policy` statement only. A schema diff drops a
+policy the files no longer declare, so the statement needs no `drop policy if
+exists` before it.
 
 ### The rule DSL
 

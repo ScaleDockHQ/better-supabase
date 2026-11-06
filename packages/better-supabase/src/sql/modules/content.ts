@@ -126,7 +126,7 @@ create index if not exists ${name("updated_idx")} on ${entries} (${e("tenant")},
 create index if not exists ${name("author_idx")} on ${entries} (${e("author")});
 ${has("cover") ? `create index if not exists ${name("cover_idx")} on ${entries} (${e("cover")});\n` : ""}
 ${lockTable(entries, { read: true })}
-${renderPolicy(makePolicy({ table: entries, name: name("read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(e("tenant"), q.read) }), { drop: true, target: entries })}
+${renderPolicy(makePolicy({ table: entries, name: name("read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(e("tenant"), q.read) }), { target: entries })}
 `;
 }
 

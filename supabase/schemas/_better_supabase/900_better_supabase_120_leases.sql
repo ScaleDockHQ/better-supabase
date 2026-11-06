@@ -1,37 +1,14 @@
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:e504219639aa937b9c7782379f085192c5ffceb84852e71c0ed929f492e09e97
+-- @bsb-hash sha256:86f4f09644b683bf7856a6b3bc2eb580dfc5f658ad252ec01939b45b5ab628f5
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_charges";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_charges";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_charges";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_charges";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
 -- period, and deposits held through ledger holds.
 
-create table if not exists "better_supabase"."leases" (
+create table "better_supabase"."leases" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "unit_id" uuid not null references "better_supabase"."assets" ("id") on delete restrict,
@@ -59,21 +36,20 @@ create table if not exists "better_supabase"."leases" (
   "updated_at" timestamptz not null default now(),
   check ("ends_on" is null or "ends_on" > "starts_on")
 );
-create index if not exists "leases_tenant_idx" on "better_supabase"."leases" ("tenant_id", "status", "starts_on" desc);
-create index if not exists "leases_unit_idx" on "better_supabase"."leases" ("unit_id");
-create index if not exists "leases_party_idx" on "better_supabase"."leases" ("tenant_id", "party_type", "party_id");
-create index if not exists "leases_deposit_hold_idx" on "better_supabase"."leases" ("deposit_hold_id") where "deposit_hold_id" is not null;
+create index "leases_tenant_idx" on "better_supabase"."leases" ("tenant_id", "status", "starts_on" desc);
+create index "leases_unit_idx" on "better_supabase"."leases" ("unit_id");
+create index "leases_party_idx" on "better_supabase"."leases" ("tenant_id", "party_type", "party_id");
+create index "leases_deposit_hold_idx" on "better_supabase"."leases" ("deposit_hold_id") where "deposit_hold_id" is not null;
 alter table "better_supabase"."leases" enable row level security;
 revoke all on "better_supabase"."leases" from public, anon, authenticated;
 grant select on "better_supabase"."leases" to authenticated;
 grant all on "better_supabase"."leases" to service_role;
-drop policy if exists "leases_read" on "better_supabase"."leases";
 create policy leases_read on "better_supabase"."leases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- One row per rent period posted to the ledger, so each period posts once.
-create table if not exists "better_supabase"."lease_charges" (
+create table "better_supabase"."lease_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "lease_id" uuid not null references "better_supabase"."leases" ("id") on delete restrict,
@@ -86,13 +62,12 @@ create table if not exists "better_supabase"."lease_charges" (
   unique ("lease_id", "period_start"),
   check ("period_end" > "period_start")
 );
-create index if not exists "lease_charges_tenant_idx" on "better_supabase"."lease_charges" ("tenant_id", "period_start" desc);
-create index if not exists "lease_charges_transaction_idx" on "better_supabase"."lease_charges" ("transaction_id");
+create index "lease_charges_tenant_idx" on "better_supabase"."lease_charges" ("tenant_id", "period_start" desc);
+create index "lease_charges_transaction_idx" on "better_supabase"."lease_charges" ("transaction_id");
 alter table "better_supabase"."lease_charges" enable row level security;
 revoke all on "better_supabase"."lease_charges" from public, anon, authenticated;
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
-drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
 create policy lease_charges_read on "better_supabase"."lease_charges"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
@@ -101,7 +76,7 @@ create policy lease_charges_read on "better_supabase"."lease_charges"
 -- Creates a draft lease of a unit (an asset) to a party (a registered
 -- subject). Rent is minor units of currency per period of frequency.
 -- fields: the extra columns to set.
-drop function if exists "better_supabase"."create_lease"(uuid, uuid, text, text, date, bigint, text, text, date, bigint, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."create_lease"(tenant uuid, unit_id uuid, party_type text, party_id text, starts_on date, rent bigint, currency text, frequency text default 'monthly', ends_on date default null, deposit bigint default 0, title text default null, metadata jsonb default null)
 returns jsonb
 language plpgsql
@@ -731,45 +706,35 @@ revoke execute on function "better_supabase"."accounting_lease_payment_lines"(te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
 create policy bsb_tenant_scope_select on "better_supabase"."leases" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
 create policy bsb_tenant_scope_insert on "better_supabase"."leases" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
 create policy bsb_tenant_scope_update on "better_supabase"."leases" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
 create policy bsb_tenant_scope_delete on "better_supabase"."leases" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_charges";
 create policy bsb_tenant_scope_select on "better_supabase"."lease_charges" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_charges";
 create policy bsb_tenant_scope_insert on "better_supabase"."lease_charges" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_charges";
 create policy bsb_tenant_scope_update on "better_supabase"."lease_charges" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_charges";
 create policy bsb_tenant_scope_delete on "better_supabase"."lease_charges" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -784,8 +749,6 @@ $$;
 -- blocks.leases.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."create_lease"(uuid, uuid, text, text, date, bigint, text, text, date, bigint, text, jsonb, jsonb);
 
 create or replace function "api"."create_lease"(tenant uuid, unit_id uuid, party_type text, party_id text, starts_on date, rent bigint, currency text, frequency text default 'monthly', ends_on date default null, deposit bigint default 0, title text default null, metadata jsonb default null)
 returns jsonb

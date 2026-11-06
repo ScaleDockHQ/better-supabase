@@ -15,13 +15,9 @@ const sqlOf = (
 describe("parties module", () => {
   it("renders the tables, dedupe indexes and functions", () => {
     const sql = sqlOf();
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."companies"',
-    );
-    expect(sql).toContain("create unique index if not exists people_email_idx");
-    expect(sql).toContain(
-      "create unique index if not exists company_people_primary_idx",
-    );
+    expect(sql).toContain('create table "better_supabase"."companies"');
+    expect(sql).toContain("create unique index people_email_idx");
+    expect(sql).toContain("create unique index company_people_primary_idx");
     expect(sql).toContain("'{lead,prospect,customer,churned}'::text[]");
     expect(sql).not.toContain("notification_subscriptions");
   });
@@ -29,9 +25,9 @@ describe("parties module", () => {
   it("adds extra columns to companies only and writes them on save", () => {
     const sql = sqlOf({ extraColumns: { segment: "text" } });
     expect(sql).toContain(
-      'alter table "better_supabase"."companies" add column if not exists "segment" text;',
+      'alter table "better_supabase"."companies" add column "segment" text;',
     );
-    expect(sql).not.toContain('"people" add column if not exists "segment"');
+    expect(sql).not.toContain('"people" add column "segment"');
     expect(sql).toContain(
       '(jsonb_populate_record(null::"better_supabase"."companies", save_company.attrs))."segment"',
     );
@@ -70,13 +66,9 @@ describe("parties module, custom mode", () => {
 describe("parties module identities", () => {
   it("keeps one person per address on a channel", () => {
     const sql = sqlOf();
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."person_identities"',
-    );
+    expect(sql).toContain('create table "better_supabase"."person_identities"');
     expect(sql).toContain('unique ("tenant_id", "channel", "address")');
-    expect(sql).toContain(
-      "create index if not exists person_identities_person_idx",
-    );
+    expect(sql).toContain("create index person_identities_person_idx");
     expect(sql).toContain('"avatar_url" text,');
   });
 
@@ -127,11 +119,9 @@ describe("parties module roles and suppliers", () => {
         `alter table "better_supabase"."${table}" add column if not exists "roles"`,
       );
       expect(sql).toContain(
-        `create index if not exists ${table}_roles_idx on "better_supabase"."${table}" using gin ("roles");`,
+        `create index ${table}_roles_idx on "better_supabase"."${table}" using gin ("roles");`,
       );
-      expect(sql).toContain(
-        `create index if not exists ${table}_supplier_status_idx`,
-      );
+      expect(sql).toContain(`create index ${table}_supplier_status_idx`);
     }
 
     expect(sql).toContain(
@@ -152,9 +142,6 @@ describe("parties module roles and suppliers", () => {
     expect(sql).toContain("v_roles <@ '{supplier,carrier}'::text[]");
     expect(sql).toContain("'contacts.approve_supplier'");
     expect(sql).toContain("hint = 'PARTY_SUPPLIER_STATUS_INVALID'");
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer);',
-    );
     expect(sql).toContain('list_people.role = any (x."roles")');
   });
 

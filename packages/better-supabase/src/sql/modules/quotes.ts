@@ -367,7 +367,7 @@ create table if not exists ${t("quotes")} (
 ${added}create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);${ctx.has("quotes", "variantOf") ? `\ncreate index if not exists ${ctx.naming.rename("quotes_variant_idx")} on ${t("quotes")} (${q("variantOf")}) where ${q("variantOf")} is not null;` : ""}${origin ? `\ncreate index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});` : ""}
 ${addExtraColumns(t("quotes"), n.extras)}${appUniqueIndex(ctx, "quotes", ["tokenHash"])}
 ${lockModuleTable(ctx, "quotes", { read: true })}${quoteTemplatesOn(ctx) ? `\n${templateGuardSql({ fn: ctx.fn("quote_template_guard"), trigger: ctx.trigger("quote_template"), table: t("quotes"), column: ctx.colName("quotes", "template"), hint: "QUOTE_TEMPLATE_IMMUTABLE" })}\n${triggerGrant(`${ctx.fn("quote_template_guard")}()`)}` : ""}
-${renderPolicy(makePolicy({ table: t("quotes"), name: ctx.naming.rename("quotes_read"), command: "select", roles: ["authenticated"], using: guestOr(ctx.scope.check(q("tenant"), n.read), [quoteGuest(ctx, n, "")]) }), { drop: true, target: t("quotes") })}
+${renderPolicy(makePolicy({ table: t("quotes"), name: ctx.naming.rename("quotes_read"), command: "select", roles: ["authenticated"], using: guestOr(ctx.scope.check(q("tenant"), n.read), [quoteGuest(ctx, n, "")]) }), { target: t("quotes") })}
 ${childTables(ctx, n)}`;
 }
 
@@ -387,7 +387,7 @@ function childTables(ctx: BlockSqlContext, n: QuoteNames): string {
         roles: ["authenticated"],
         using: `exists (select 1 from ${t("quotes")} q where q.${c("quotes", "id")} = ${parent})`,
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   const frozen = ctx.trigger("quote_versions_frozen");
@@ -418,7 +418,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: `exists (select 1 from ${t("versions")} v where v.${v("id")} = ${vl("version")})`,
   }),
-  { drop: true, target: t("versionLines") },
+  { target: t("versionLines") },
 )}
 drop trigger if exists ${frozen} on ${t("versionLines")};
 create trigger ${frozen} before update on ${t("versionLines")}

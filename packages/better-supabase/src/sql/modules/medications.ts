@@ -217,7 +217,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   // A guest with a read grant on the record reads its orders, doses and the

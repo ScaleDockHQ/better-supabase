@@ -23,9 +23,7 @@ describe("blocks.<name>.entities in the SQL", () => {
   it("renames tables, functions, events, permission keys and hooks", () => {
     const sql = body("tasks", TASKS);
 
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."tickets"',
-    );
+    expect(sql).toContain('create table "better_supabase"."tickets"');
     expect(sql).toContain('"better_supabase"."initiatives"');
     expect(sql).toContain('"better_supabase"."create_ticket"(');
     expect(sql).toContain("'ticket.created'");

@@ -449,7 +449,7 @@ create table if not exists ${t} (
 );
 ${has("effect") ? `alter table ${t} add column if not exists ${p("effect")} text;\n` : ""}${platform ? `alter table ${t} alter column ${p("tenant")} drop not null;\n` : ""}create index if not exists ${sqlIdent(`${ctx.tableName("policies").name}_lookup_idx`)} on ${t} (${p("tenant")}, ${p("subjectType")}, ${p("action")});${addExtraColumns(t, extras)}
 ${lockModuleTable(ctx, "policies", { read: true })}
-${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("approval_policies_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(p("tenant"), read) }), { drop: true, target: t })}`
+${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("approval_policies_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(p("tenant"), read) }), { target: t })}`
     : "";
 
   const conditionCheck = has("conditions")

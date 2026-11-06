@@ -68,9 +68,7 @@ describe("record access requests", () => {
     const sql = sqlOf({}, BLOCKS, "subjects");
 
     expect(sql).toContain(`"ends_at" timestamptz,`);
-    expect(sql).toContain(
-      `alter table "better_supabase"."subject_members" add column if not exists "ends_at" timestamptz;`,
-    );
+    expect(sql).toContain(`"ends_at" timestamptz`);
     expect(sql).toContain(`and (m."ends_at" is null or m."ends_at" > now())`);
     expect(sql).toContain(`'endsAt', m."ends_at"`);
     expect(sql).toContain(

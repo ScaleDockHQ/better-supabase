@@ -214,7 +214,7 @@ end;
 $$;
 revoke execute on function ${ctx.fn("invitation_tenant_ids")}() from public, anon;
 grant execute on function ${ctx.fn("invitation_tenant_ids")}() to authenticated, service_role;
-${renderPolicy(makePolicy({ table: t.table, name: "bsb_invitations_read", command: "select", roles: ["authenticated"], using: `${c("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}())` }), { drop: true, target: t.table })}
+${renderPolicy(makePolicy({ table: t.table, name: "bsb_invitations_read", command: "select", roles: ["authenticated"], using: `${c("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}())` }), { target: t.table })}
 `;
 }
 
@@ -284,13 +284,13 @@ function platformReadPolicy(ctx: BlockSqlContext, p: InviteTable): string {
   const readable = `(select ${ctx.fn("platform_invitations_readable")}())`;
 
   if (!sharesTable(ctx)) {
-    return `${renderPolicy(makePolicy({ table: p.table, name: "bsb_platform_invitations_read", command: "select", roles: ["authenticated"], using: readable }), { drop: true, target: p.table })}
+    return `${renderPolicy(makePolicy({ table: p.table, name: "bsb_platform_invitations_read", command: "select", roles: ["authenticated"], using: readable }), { target: p.table })}
 `;
   }
 
   return `-- Tenant and platform invitations share ${p.table}, so one policy reads both.
 drop policy if exists bsb_platform_invitations_read on ${p.table};
-${renderPolicy(makePolicy({ table: p.table, name: "bsb_invitations_read", command: "select", roles: ["authenticated"], using: `${tenantTable(ctx).col("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}()) or ${readable}` }), { drop: true, target: p.table })}
+${renderPolicy(makePolicy({ table: p.table, name: "bsb_invitations_read", command: "select", roles: ["authenticated"], using: `${tenantTable(ctx).col("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}()) or ${readable}` }), { target: p.table })}
 `;
 }
 

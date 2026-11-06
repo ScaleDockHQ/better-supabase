@@ -1,28 +1,13 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:9bdc1fbcd69b1c0378c1643ac4dc2767ab33752005f7090220365714e3217208
+-- @bsb-hash sha256:af271f9cbe03a9c5eb8eb20b20cd7585afa1fabd0527420d030bef010392598b
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- Record teams (subjects.<type>.team, ADR 0134): the users and teams on one
 -- record, each with a role and the days the membership counts.
-create table if not exists "better_supabase"."subject_members" (
+create table "better_supabase"."subject_members" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -40,11 +25,10 @@ create table if not exists "better_supabase"."subject_members" (
   constraint subject_members_one_member check (("user_id" is null) <> ("team_id" is null)),
   constraint subject_members_dates check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
 );
-create unique index if not exists subject_members_user_key on "better_supabase"."subject_members" ("subject_type", "subject_id", "user_id", "role") where "user_id" is not null;
-create unique index if not exists subject_members_team_key on "better_supabase"."subject_members" ("subject_type", "subject_id", "team_id", "role") where "team_id" is not null;
-create index if not exists subject_members_user_idx on "better_supabase"."subject_members" ("user_id", "tenant_id");
-create index if not exists subject_members_team_idx on "better_supabase"."subject_members" ("team_id");
-alter table "better_supabase"."subject_members" add column if not exists "ends_at" timestamptz;
+create unique index subject_members_user_key on "better_supabase"."subject_members" ("subject_type", "subject_id", "user_id", "role") where "user_id" is not null;
+create unique index subject_members_team_key on "better_supabase"."subject_members" ("subject_type", "subject_id", "team_id", "role") where "team_id" is not null;
+create index subject_members_user_idx on "better_supabase"."subject_members" ("user_id", "tenant_id");
+create index subject_members_team_idx on "better_supabase"."subject_members" ("team_id");
 alter table "better_supabase"."subject_members" enable row level security;
 revoke all on "better_supabase"."subject_members" from public, anon, authenticated;
 grant select on "better_supabase"."subject_members" to authenticated;
@@ -447,7 +431,6 @@ grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, 
 -- A caller reads their own record team rows, those of their teams, every row
 -- of a tenant where they hold subjects.manage, and the team of a record they
 -- can read.
-drop policy if exists subject_members_read on "better_supabase"."subject_members";
 create policy subject_members_read on "better_supabase"."subject_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or ("team_id" is not null and "team_id" in (select "better_supabase"."team_ids_of"((select auth.uid()))))
@@ -916,14 +899,12 @@ grant execute on function "better_supabase"."subject_presence_allowed"(text) to 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_subject_presence_receive on realtime.messages;
-create policy bsb_subject_presence_receive on realtime.messages
+        create policy bsb_subject_presence_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
         and "better_supabase"."subject_presence_allowed"((select realtime.topic())));
-        drop policy if exists bsb_subject_presence_send on realtime.messages;
-create policy bsb_subject_presence_send on realtime.messages
+        create policy bsb_subject_presence_send on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
@@ -935,8 +916,6 @@ $$;
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."subject_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_members";
 create policy bsb_tenant_scope_select on "better_supabase"."subject_members" as restrictive
   for select to public
   using (
@@ -945,16 +924,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."subject_members" as 
     or "tenant_id" in (select better_supabase.tenant_ids_with('people.manage'))
     or coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."subject_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_members";
 create policy bsb_tenant_scope_update on "better_supabase"."subject_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

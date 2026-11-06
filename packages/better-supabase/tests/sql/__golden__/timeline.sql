@@ -1,28 +1,13 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:490edb44e6098aa283cdbf6a812d045c6fb8b5d5b3e3954233f431f3fbcfddb4
+-- @bsb-hash sha256:da209f3874fa592c9c4524f30450654eaab212fff926221515adbecf0c089262
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- The activity feed: one row per outbox event, written by activitySink().
-create table if not exists "better_supabase"."timeline_entries" (
+create table "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "event_id" text not null unique,
@@ -34,19 +19,16 @@ create table if not exists "better_supabase"."timeline_entries" (
   "data" jsonb not null default '{}'::jsonb,
   "occurred_at" timestamptz not null default now()
 );
-create index if not exists "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
-create index if not exists "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("organization_id", "subject_type", "subject_id");
-create index if not exists "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
+create index "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
+create index "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("organization_id", "subject_type", "subject_id");
+create index "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
 alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
 grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
-drop policy if exists timeline_entries_read on "better_supabase"."timeline_entries";
 create policy timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')));
-drop function if exists "better_supabase"."activity_subject_readable"(text, text);
-drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -127,24 +109,19 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."timeline_entries" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."timeline_entries" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."timeline_entries" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -166,28 +143,13 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:e7968511391692f5de51f478b9d554672122c19d7179bb38f664185621a42d3e
+-- @bsb-hash sha256:9dea9c890615206fdace81029690287f6d809873d36ba9da3c7a03bf62a09739
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- The activity feed: one row per outbox event, written by activitySink().
-create table if not exists "better_supabase"."timeline_entries" (
+create table "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "event_id" text not null unique,
@@ -199,19 +161,16 @@ create table if not exists "better_supabase"."timeline_entries" (
   "data" jsonb not null default '{}'::jsonb,
   "occurred_at" timestamptz not null default now()
 );
-create index if not exists "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
-create index if not exists "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("organization_id", "subject_type", "subject_id");
-create index if not exists "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
+create index "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
+create index "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("organization_id", "subject_type", "subject_id");
+create index "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
 alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
 grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
-drop policy if exists timeline_entries_read on "better_supabase"."timeline_entries";
 create policy timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')));
-drop function if exists "better_supabase"."activity_subject_readable"(text, text);
-drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -292,24 +251,19 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."timeline_entries" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."timeline_entries" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."timeline_entries" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -338,24 +292,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:3d8ee935179ec1399e76fe91ccdf0fe8ef1bac6f763c2b7937c28d0cc941e059
+-- @bsb-hash sha256:17a4b9a38d0fa1060d378a68bcbd73507f9c791a62e2d24c327f0bb46d9d56fe
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."timeline_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
@@ -363,7 +303,7 @@ alter default privileges in schema "app_private" revoke all on tables from publi
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- The activity feed: one row per outbox event, written by activitySink().
-create table if not exists "app_private"."timeline_entries" (
+create table "app_private"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "event_id" text not null unique,
@@ -375,19 +315,16 @@ create table if not exists "app_private"."timeline_entries" (
   "data" jsonb not null default '{}'::jsonb,
   "occurred_at" timestamptz not null default now()
 );
-create index if not exists "timeline_entries_feed_idx" on "app_private"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
-create index if not exists "timeline_entries_subject_idx" on "app_private"."timeline_entries" ("organization_id", "subject_type", "subject_id");
-create index if not exists "timeline_entries_actor_idx" on "app_private"."timeline_entries" ("actor_id");
+create index "timeline_entries_feed_idx" on "app_private"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
+create index "timeline_entries_subject_idx" on "app_private"."timeline_entries" ("organization_id", "subject_type", "subject_id");
+create index "timeline_entries_actor_idx" on "app_private"."timeline_entries" ("actor_id");
 alter table "app_private"."timeline_entries" enable row level security;
 revoke all on "app_private"."timeline_entries" from public, anon, authenticated;
 grant select on "app_private"."timeline_entries" to authenticated;
 grant all on "app_private"."timeline_entries" to service_role;
-drop policy if exists timeline_entries_read on "app_private"."timeline_entries";
 create policy timeline_entries_read on "app_private"."timeline_entries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')));
-drop function if exists "app_private"."activity_subject_readable"(text, text);
-drop function if exists "app_private"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -468,24 +405,19 @@ grant execute on function "app_private"."record_activity"(jsonb) to service_role
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."timeline_entries";
-drop policy if exists bsb_tenant_scope_select on "app_private"."timeline_entries";
 create policy bsb_tenant_scope_select on "app_private"."timeline_entries" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."timeline_entries";
 create policy bsb_tenant_scope_insert on "app_private"."timeline_entries" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."timeline_entries";
 create policy bsb_tenant_scope_update on "app_private"."timeline_entries" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."timeline_entries";
 create policy bsb_tenant_scope_delete on "app_private"."timeline_entries" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -507,28 +439,13 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:06a3d447c9e45d7ba1691842425ec6e723bc82b7c6f722dcbd86f8de4e3d8d72
+-- @bsb-hash sha256:c2c21161efe8fddb43e648e4a6f06d0d415617d4ef727736db0aed07815d2d4c
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- The activity feed: one row per outbox event, written by activitySink().
-create table if not exists "better_supabase"."timeline_entries" (
+create table "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "event_id" text not null unique,
@@ -540,19 +457,16 @@ create table if not exists "better_supabase"."timeline_entries" (
   "data" jsonb not null default '{}'::jsonb,
   "occurred_at" timestamptz not null default now()
 );
-create index if not exists "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
-create index if not exists "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("organization_id", "subject_type", "subject_id");
-create index if not exists "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
+create index "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
+create index "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("organization_id", "subject_type", "subject_id");
+create index "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
 alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
 grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
-drop policy if exists timeline_entries_read on "better_supabase"."timeline_entries";
 create policy timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')));
-drop function if exists "better_supabase"."activity_subject_readable"(text, text);
-drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -633,24 +547,19 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."timeline_entries" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."timeline_entries" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."timeline_entries" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -695,25 +604,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:390e218e2aadec49439440c8ba4d1b9f25f1c66e312c5c148aa1e3b30a6fd578
+-- @bsb-hash sha256:1d871272dd0fd9bd5d1f9ab826cca6b4b99e825d4314429b53300db2a2b84aef
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- The activity feed: one row per outbox event, written by activitySink().
 -- better_supabase.timeline_entries is the app's table: this block adds only the columns it needs.
@@ -734,12 +628,9 @@ create index if not exists "timeline_entries_actor_idx" on "better_supabase"."ti
 alter table "better_supabase"."timeline_entries" enable row level security;
 grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
-drop policy if exists bsb_timeline_entries_select on "better_supabase"."timeline_entries";
 create policy bsb_timeline_entries_select on "better_supabase"."timeline_entries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')));
-drop function if exists "better_supabase"."activity_subject_readable"(text, text);
-drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -820,24 +711,19 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."timeline_entries" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."timeline_entries" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."timeline_entries" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
@@ -859,28 +745,13 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:d264d157c6a65337404eaf190eed0613cd607a11e44e7758f04de10d00ffa08f
+-- @bsb-hash sha256:85e5d5c38a266edec4ad44b6dcd22ef4257cfd6b8f363a4beb3e0f9a37c5b1c9
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
 -- The activity feed: one row per outbox event, written by activitySink().
-create table if not exists "better_supabase"."timeline_entries" (
+create table "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "event_id" text not null unique,
@@ -892,19 +763,16 @@ create table if not exists "better_supabase"."timeline_entries" (
   "data" jsonb not null default '{}'::jsonb,
   "occurred_at" timestamptz not null default now()
 );
-create index if not exists "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("org_id", "occurred_at" desc, "id" desc);
-create index if not exists "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("org_id", "subject_type", "subject_id");
-create index if not exists "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
+create index "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("org_id", "occurred_at" desc, "id" desc);
+create index "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("org_id", "subject_type", "subject_id");
+create index "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
 alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
 grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
-drop policy if exists timeline_entries_read on "better_supabase"."timeline_entries";
 create policy timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('timeline.read')));
-drop function if exists "better_supabase"."activity_subject_readable"(text, text);
-drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -985,24 +853,19 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('timeline.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."timeline_entries" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."timeline_entries" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."timeline_entries" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

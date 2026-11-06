@@ -494,9 +494,7 @@ describe("sameBlockFile", () => {
     expect(file!.contents).toContain(
       `alter table "public"."customers" add constraint "bsb_json_metadata"\n  check (extensions.jsonb_matches_schema('{"type":"object"}'::json, "metadata")) not valid;\nalter table "public"."customers" validate constraint "bsb_json_metadata";`,
     );
-    expect(file!.contents).toContain(
-      'alter table "billing"."invoices" drop constraint if exists "bsb_json_lines";',
-    );
+    expect(file!.contents).not.toContain("drop constraint if exists");
   });
 
   it("writes the complete Data API grants from the expose config", () => {
@@ -601,7 +599,6 @@ describe("sameBlockFile", () => {
     const [file] = renderBlocks(["sessions"], layout);
     expect(file!.contents).toContain(
       [
-        'drop policy if exists bsb_session_active on "public"."invoices";',
         'create policy bsb_session_active on "public"."invoices" as restrictive',
         "  for all to authenticated",
         "  using ((select better_supabase.session_active()))",
@@ -864,9 +861,6 @@ describe("vector search options", () => {
       'select t."id" as id, t."embedding" operator(extensions.<=>) query as distance',
     );
     expect(sql).toContain("1 - v.distance as score");
-    expect(sql).toContain(
-      'drop function if exists "public"."search_chunks"(extensions.vector, integer, jsonb, text);',
-    );
   });
 
   it("ranks halfvec columns with hybrid RRF, a boost and prefilters", () => {
@@ -897,9 +891,6 @@ describe("vector search options", () => {
     );
     expect(sql).toContain("least(greatest(k, 1) * 4, 1000)");
     expect(sql).toContain('join "public"."chunks" t on t."chunk_id" = r.id');
-    expect(sql).toContain(
-      'drop function if exists "public"."search_chunks"(extensions.halfvec, integer);',
-    );
   });
 
   it("filters with a predicate, adds the boost, breaks ties and allows text alone", () => {
@@ -1072,7 +1063,7 @@ describe("entitlements with provider memberships", () => {
       'select t."stripe_customer_id" from "better_supabase"."organizations" t where t."id" = tenant',
     );
     expect(sql("organizations")).toContain(
-      "add column if not exists stripe_customer_id text unique;",
+      "add column stripe_customer_id text unique;",
     );
     expect(sql("entitlements")).toContain("returns text\nlanguage plpgsql");
     expect(

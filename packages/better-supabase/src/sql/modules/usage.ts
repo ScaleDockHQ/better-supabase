@@ -316,7 +316,7 @@ alter table ${counters} enable row level security;
 ${revokeTable(counters)}
 grant select on ${counters} to authenticated;
 grant all on ${counters} to service_role;
-${renderPolicy(makePolicy({ table: counters, name: "usage_counters_read", command: "select", roles: ["authenticated"], using: readPolicy(cc("tenant")) }), { drop: true, target: counters })}
+${renderPolicy(makePolicy({ table: counters, name: "usage_counters_read", command: "select", roles: ["authenticated"], using: readPolicy(cc("tenant")) }), { target: counters })}
 
 -- One row per idempotency key, so a retried increment counts once.
 create table if not exists ${events} (
@@ -372,7 +372,7 @@ alter table ${history} enable row level security;
 ${revokeTable(history)}
 grant select on ${history} to authenticated;
 grant all on ${history} to service_role;
-${renderPolicy(makePolicy({ table: history, name: "usage_history_read", command: "select", roles: ["authenticated"], using: readPolicy(hc("tenant")) }), { drop: true, target: history })}${
+${renderPolicy(makePolicy({ table: history, name: "usage_history_read", command: "select", roles: ["authenticated"], using: readPolicy(hc("tenant")) }), { target: history })}${
         partitioned
           ? `
 
@@ -414,7 +414,7 @@ alter table ${quotas} enable row level security;
 ${revokeTable(quotas)}
 grant select on ${quotas} to authenticated;
 grant all on ${quotas} to service_role;
-${renderPolicy(makePolicy({ table: quotas, name: "usage_quotas_read", command: "select", roles: ["authenticated"], using: `${qc("tenant")} is null or ${readPolicy(qc("tenant"))}` }), { drop: true, target: quotas })}
+${renderPolicy(makePolicy({ table: quotas, name: "usage_quotas_read", command: "select", roles: ["authenticated"], using: `${qc("tenant")} is null or ${readPolicy(qc("tenant"))}` }), { target: quotas })}
 
 -- The bigint signatures and return types before quantities were numeric.
 drop function if exists ${fn("usage_quota")}(${id}, text);

@@ -27,9 +27,7 @@ describe("ai-evals module", () => {
       "eval_runs",
       "eval_results",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}" (`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}" (`);
     }
 
     expect(sql).not.toMatch(/to authenticated/);

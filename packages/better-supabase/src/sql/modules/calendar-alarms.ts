@@ -130,7 +130,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: `${using}${own}`,
   }),
-  { drop: true, target: alarms },
+  { target: alarms },
 )}
 `;
 }

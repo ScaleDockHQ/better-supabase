@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:c0ae38856c1bb263dee3570e4386b68d48069d0304464c5878e65ab28911823f
+-- @bsb-hash sha256:b64c7b0d9c0ae1d10894c9fe7cf8ffb0b2c3cafdf2e0a266eb262b06965d2bea
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,7 @@
 -- RPC path ('/rpc/send_invite'). key_claim is the JWT claim each caller is
 -- counted by; callers without it are counted by the right-most x-forwarded-for
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
-create table if not exists "better_supabase"."rate_limit_rules" (
+create table "better_supabase"."rate_limit_rules" (
   "scope" text not null,
   "max_requests" integer not null check ("max_requests" > 0),
   "period" interval not null check ("period" > interval '0'),
@@ -18,11 +18,11 @@ create table if not exists "better_supabase"."rate_limit_rules" (
   "organization_id" uuid
 );
 -- Rules from before organization_id are global rules.
-alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
-create unique index if not exists "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index if not exists "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
-create unlogged table if not exists "better_supabase"."rate_limits" (
+create unique index "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+
+create unlogged table "better_supabase"."rate_limits" (
   "scope" text not null,
   "key" text not null,
   "window_start" timestamptz not null,
@@ -31,7 +31,7 @@ create unlogged table if not exists "better_supabase"."rate_limits" (
 );
 -- The window length the counter was last hit with, so purge_rate_limits keeps
 -- a counter for its whole window when no rule names its period.
-alter table "better_supabase"."rate_limits" add column if not exists "period" interval;
+alter table "better_supabase"."rate_limits" add column "period" interval;
 
 alter table "better_supabase"."rate_limit_rules" enable row level security;
 alter table "better_supabase"."rate_limits" enable row level security;
@@ -177,8 +177,7 @@ grant execute on function better_supabase.check_request() to anon, authenticated
 -- the seconds until it ends. The limit is scope's rule in rate_limit_rules,
 -- or max_requests per period when given.
 -- The signatures before organization_id.
-drop function if exists better_supabase.check_rate_limit(text, text, integer, interval);
-drop function if exists better_supabase.hit_rate_limit(text, text, integer, interval);
+
 
 create or replace function better_supabase.hit_rate_limit(
   scope text,
@@ -442,7 +441,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:c0ae38856c1bb263dee3570e4386b68d48069d0304464c5878e65ab28911823f
+-- @bsb-hash sha256:b64c7b0d9c0ae1d10894c9fe7cf8ffb0b2c3cafdf2e0a266eb262b06965d2bea
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -451,7 +450,7 @@ on conflict (name) do update
 -- RPC path ('/rpc/send_invite'). key_claim is the JWT claim each caller is
 -- counted by; callers without it are counted by the right-most x-forwarded-for
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
-create table if not exists "better_supabase"."rate_limit_rules" (
+create table "better_supabase"."rate_limit_rules" (
   "scope" text not null,
   "max_requests" integer not null check ("max_requests" > 0),
   "period" interval not null check ("period" > interval '0'),
@@ -459,11 +458,11 @@ create table if not exists "better_supabase"."rate_limit_rules" (
   "organization_id" uuid
 );
 -- Rules from before organization_id are global rules.
-alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
-create unique index if not exists "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index if not exists "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
-create unlogged table if not exists "better_supabase"."rate_limits" (
+create unique index "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+
+create unlogged table "better_supabase"."rate_limits" (
   "scope" text not null,
   "key" text not null,
   "window_start" timestamptz not null,
@@ -472,7 +471,7 @@ create unlogged table if not exists "better_supabase"."rate_limits" (
 );
 -- The window length the counter was last hit with, so purge_rate_limits keeps
 -- a counter for its whole window when no rule names its period.
-alter table "better_supabase"."rate_limits" add column if not exists "period" interval;
+alter table "better_supabase"."rate_limits" add column "period" interval;
 
 alter table "better_supabase"."rate_limit_rules" enable row level security;
 alter table "better_supabase"."rate_limits" enable row level security;
@@ -618,8 +617,7 @@ grant execute on function better_supabase.check_request() to anon, authenticated
 -- the seconds until it ends. The limit is scope's rule in rate_limit_rules,
 -- or max_requests per period when given.
 -- The signatures before organization_id.
-drop function if exists better_supabase.check_rate_limit(text, text, integer, interval);
-drop function if exists better_supabase.hit_rate_limit(text, text, integer, interval);
+
 
 create or replace function better_supabase.hit_rate_limit(
   scope text,
@@ -883,7 +881,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:59287bbd1da1c1bca523cf50cc860a5dbb65c2ec3761d10f82f56e67d2c6d7ff
+-- @bsb-hash sha256:2ba55a19bca2129bbfe53dee8816f7a680af736866e45cc0c4895450022b4784
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -898,7 +896,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- RPC path ('/rpc/send_invite'). key_claim is the JWT claim each caller is
 -- counted by; callers without it are counted by the right-most x-forwarded-for
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
-create table if not exists "app_private"."rate_limit_rules" (
+create table "app_private"."rate_limit_rules" (
   "scope" text not null,
   "max_requests" integer not null check ("max_requests" > 0),
   "period" interval not null check ("period" > interval '0'),
@@ -906,11 +904,11 @@ create table if not exists "app_private"."rate_limit_rules" (
   "organization_id" uuid
 );
 -- Rules from before organization_id are global rules.
-alter table "app_private"."rate_limit_rules" add column if not exists "organization_id" uuid;
-create unique index if not exists "bsb_rate_limit_rules_scope_global" on "app_private"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index if not exists "bsb_rate_limit_rules_scope_org" on "app_private"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
-create unlogged table if not exists "app_private"."rate_limits" (
+create unique index "bsb_rate_limit_rules_scope_global" on "app_private"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org" on "app_private"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+
+create unlogged table "app_private"."rate_limits" (
   "scope" text not null,
   "key" text not null,
   "window_start" timestamptz not null,
@@ -919,7 +917,7 @@ create unlogged table if not exists "app_private"."rate_limits" (
 );
 -- The window length the counter was last hit with, so purge_rate_limits keeps
 -- a counter for its whole window when no rule names its period.
-alter table "app_private"."rate_limits" add column if not exists "period" interval;
+alter table "app_private"."rate_limits" add column "period" interval;
 
 alter table "app_private"."rate_limit_rules" enable row level security;
 alter table "app_private"."rate_limits" enable row level security;
@@ -1065,8 +1063,7 @@ grant execute on function better_supabase.check_request() to anon, authenticated
 -- the seconds until it ends. The limit is scope's rule in rate_limit_rules,
 -- or max_requests per period when given.
 -- The signatures before organization_id.
-drop function if exists better_supabase.check_rate_limit(text, text, integer, interval);
-drop function if exists better_supabase.hit_rate_limit(text, text, integer, interval);
+
 
 create or replace function better_supabase.hit_rate_limit(
   scope text,
@@ -1330,7 +1327,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:19c570d7820272e51b52ad09dd000bd9d65c79fc25d8c90a8bca3350287ebf56
+-- @bsb-hash sha256:d272dc905fc51f2c7a3ca6e7f63b99c7b6caa04a1cb962296dd9d822c5752fcf
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1339,7 +1336,7 @@ on conflict (name) do update
 -- RPC path ('/rpc/send_invite'). key_claim is the JWT claim each caller is
 -- counted by; callers without it are counted by the right-most x-forwarded-for
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
-create table if not exists "better_supabase"."rate_limit_rules" (
+create table "better_supabase"."rate_limit_rules" (
   "scope" text not null,
   "max_requests" integer not null check ("max_requests" > 0),
   "period" interval not null check ("period" > interval '0'),
@@ -1347,11 +1344,11 @@ create table if not exists "better_supabase"."rate_limit_rules" (
   "organization_id" uuid
 );
 -- Rules from before organization_id are global rules.
-alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
-create unique index if not exists "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index if not exists "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
-create unlogged table if not exists "better_supabase"."rate_limits" (
+create unique index "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+
+create unlogged table "better_supabase"."rate_limits" (
   "scope" text not null,
   "key" text not null,
   "window_start" timestamptz not null,
@@ -1360,7 +1357,7 @@ create unlogged table if not exists "better_supabase"."rate_limits" (
 );
 -- The window length the counter was last hit with, so purge_rate_limits keeps
 -- a counter for its whole window when no rule names its period.
-alter table "better_supabase"."rate_limits" add column if not exists "period" interval;
+alter table "better_supabase"."rate_limits" add column "period" interval;
 
 alter table "better_supabase"."rate_limit_rules" enable row level security;
 alter table "better_supabase"."rate_limits" enable row level security;
@@ -1506,8 +1503,7 @@ grant execute on function better_supabase.check_request() to anon, authenticated
 -- the seconds until it ends. The limit is scope's rule in rate_limit_rules,
 -- or max_requests per period when given.
 -- The signatures before organization_id.
-drop function if exists better_supabase.check_rate_limit(text, text, integer, interval);
-drop function if exists better_supabase.hit_rate_limit(text, text, integer, interval);
+
 
 create or replace function better_supabase.hit_rate_limit(
   scope text,
@@ -1738,9 +1734,6 @@ grant execute on function better_supabase.purge_rate_limits(integer) to service_
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-drop function if exists "api"."check_rate_limit"(text, text, integer, interval);
-drop function if exists "api"."hit_rate_limit"(text, text, integer, interval);
-
 create or replace function "api"."set_rate_limit"(scope text, max_requests integer, period interval default interval '1 minute', key_claim text default 'sub')
 returns void
 language sql
@@ -1841,7 +1834,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:700a00bda93250b8b01c177eaa8645596df12e94e33ad722640b2569ef50f5a4
+-- @bsb-hash sha256:66cce46aff03b558ec55e36af6f8919e3d707d018310af127b64da93588384f9
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2013,8 +2006,7 @@ grant execute on function better_supabase.check_request() to anon, authenticated
 -- the seconds until it ends. The limit is scope's rule in rate_limit_rules,
 -- or max_requests per period when given.
 -- The signatures before organization_id.
-drop function if exists better_supabase.check_rate_limit(text, text, integer, interval);
-drop function if exists better_supabase.hit_rate_limit(text, text, integer, interval);
+
 
 create or replace function better_supabase.hit_rate_limit(
   scope text,

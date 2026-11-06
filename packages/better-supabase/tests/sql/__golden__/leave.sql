@@ -1,35 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:a92e642c3baa02b158343deb902706344a5caf435044c9ced6ebe4b375f9962f
+-- @bsb-hash sha256:3c585c2028db654bf51da32c7c715ce3c3fb965b79988fe0d15e1d02b01295c1
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."leave_types" (
+create table "better_supabase"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -50,17 +27,15 @@ create table if not exists "better_supabase"."leave_types" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-alter table "better_supabase"."leave_types" add column if not exists "auto_approve" boolean not null default false;
 alter table "better_supabase"."leave_types" enable row level security;
 revoke all on "better_supabase"."leave_types" from public, anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
-drop policy if exists leave_types_read on "better_supabase"."leave_types";
 create policy leave_types_read on "better_supabase"."leave_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
-create table if not exists "better_supabase"."leave_requests" (
+create table "better_supabase"."leave_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -80,15 +55,14 @@ create table if not exists "better_supabase"."leave_requests" (
   check ("ends_on" >= "starts_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."leave_types" ("tenant_id", "id") on delete restrict
 );
-create index if not exists "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
-create index if not exists "leave_requests_dates_idx" on "better_supabase"."leave_requests" ("tenant_id", "starts_on", "ends_on");
-create index if not exists "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
-create index if not exists "leave_requests_type_idx" on "better_supabase"."leave_requests" ("tenant_id", "type_id");
+create index "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
+create index "leave_requests_dates_idx" on "better_supabase"."leave_requests" ("tenant_id", "starts_on", "ends_on");
+create index "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
+create index "leave_requests_type_idx" on "better_supabase"."leave_requests" ("tenant_id", "type_id");
 alter table "better_supabase"."leave_requests" enable row level security;
 revoke all on "better_supabase"."leave_requests" from public, anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
-drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
 create policy leave_requests_read on "better_supabase"."leave_requests"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
@@ -414,7 +388,7 @@ grant execute on function "better_supabase"."leave_working_days"(date, date) to 
 -- Creates or updates a leave type by key. Without a key column, key is the
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
-drop function if exists "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text);
+
 create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
@@ -493,7 +467,7 @@ grant execute on function "better_supabase"."list_leave_types"(uuid, boolean) to
 -- (half a day for a morning or afternoon); an hours type books hours.
 -- Without options.allowNegative the request can't exceed the balance of
 -- the period it starts in. fields: the extra columns to set.
-drop function if exists "better_supabase"."request_leave"(uuid, uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "better_supabase"."request_leave"(tenant uuid, type_id uuid, starts_on date, ends_on date, partial text default 'full', hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -682,7 +656,7 @@ grant execute on function "better_supabase"."cancel_leave_request"(uuid) to auth
 -- empty note clears it. The requester changes a pending request, which goes
 -- back to approval; a manager also changes approved leave, which is booked
 -- again for the new amount, so leave can be shortened.
-drop function if exists "better_supabase"."update_leave_request"(uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "better_supabase"."update_leave_request"(request_id uuid, starts_on date default null, ends_on date default null, partial text default null, hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -990,45 +964,35 @@ grant execute on function "better_supabase"."seed_leave_defaults"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_select on "better_supabase"."leave_types" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_insert on "better_supabase"."leave_types" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_update on "better_supabase"."leave_types" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_delete on "better_supabase"."leave_types" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."leave_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."leave_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."leave_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."leave_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1050,35 +1014,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:a765653fff2944cd5afd37b6a653a539d9a8482f537d9878275090216e578ae2
+-- @bsb-hash sha256:c4736ace74c54784f6d7cb8abd80a36e7ef022af571fdd3a10c2503ad0cca81f
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."leave_types" (
+create table "better_supabase"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -1099,17 +1040,15 @@ create table if not exists "better_supabase"."leave_types" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-alter table "better_supabase"."leave_types" add column if not exists "auto_approve" boolean not null default false;
 alter table "better_supabase"."leave_types" enable row level security;
 revoke all on "better_supabase"."leave_types" from public, anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
-drop policy if exists leave_types_read on "better_supabase"."leave_types";
 create policy leave_types_read on "better_supabase"."leave_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
-create table if not exists "better_supabase"."leave_requests" (
+create table "better_supabase"."leave_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -1129,15 +1068,14 @@ create table if not exists "better_supabase"."leave_requests" (
   check ("ends_on" >= "starts_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."leave_types" ("tenant_id", "id") on delete restrict
 );
-create index if not exists "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
-create index if not exists "leave_requests_dates_idx" on "better_supabase"."leave_requests" ("tenant_id", "starts_on", "ends_on");
-create index if not exists "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
-create index if not exists "leave_requests_type_idx" on "better_supabase"."leave_requests" ("tenant_id", "type_id");
+create index "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
+create index "leave_requests_dates_idx" on "better_supabase"."leave_requests" ("tenant_id", "starts_on", "ends_on");
+create index "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
+create index "leave_requests_type_idx" on "better_supabase"."leave_requests" ("tenant_id", "type_id");
 alter table "better_supabase"."leave_requests" enable row level security;
 revoke all on "better_supabase"."leave_requests" from public, anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
-drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
 create policy leave_requests_read on "better_supabase"."leave_requests"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
@@ -1145,8 +1083,8 @@ create policy leave_requests_read on "better_supabase"."leave_requests"
 
 -- leave_requests.employee_id: the employee behind the row's user, kept in step with
 -- employees by the two triggers below.
-alter table "better_supabase"."leave_requests" add column if not exists employee_id uuid references "better_supabase"."employees" ("id") on delete set null;
-create index if not exists "leave_requests_employee_idx" on "better_supabase"."leave_requests" (employee_id) where employee_id is not null;
+alter table "better_supabase"."leave_requests" add column employee_id uuid references "better_supabase"."employees" ("id") on delete set null;
+create index "leave_requests_employee_idx" on "better_supabase"."leave_requests" (employee_id) where employee_id is not null;
 
 create or replace function better_supabase.bsb_leave_requests_employee()
 returns trigger
@@ -1163,7 +1101,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_leave_requests_employee() from public, anon, authenticated;
-drop trigger if exists bsb_leave_requests_employee on "better_supabase"."leave_requests";
 create trigger bsb_leave_requests_employee before insert or update of "user_id" on "better_supabase"."leave_requests"
 for each row execute function better_supabase.bsb_leave_requests_employee();
 
@@ -1187,7 +1124,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_leave_requests_employee_sync() from public, anon, authenticated;
-drop trigger if exists bsb_leave_requests_employee_sync on "better_supabase"."employees";
 create trigger bsb_leave_requests_employee_sync after insert or update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_leave_requests_employee_sync();
 
@@ -1520,7 +1456,7 @@ grant execute on function "better_supabase"."leave_working_days"(date, date) to 
 -- Creates or updates a leave type by key. Without a key column, key is the
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
-drop function if exists "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text);
+
 create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
@@ -1599,7 +1535,7 @@ grant execute on function "better_supabase"."list_leave_types"(uuid, boolean) to
 -- (half a day for a morning or afternoon); an hours type books hours.
 -- Without options.allowNegative the request can't exceed the balance of
 -- the period it starts in. fields: the extra columns to set.
-drop function if exists "better_supabase"."request_leave"(uuid, uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "better_supabase"."request_leave"(tenant uuid, type_id uuid, starts_on date, ends_on date, partial text default 'full', hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -1816,7 +1752,7 @@ grant execute on function "better_supabase"."cancel_leave_request"(uuid) to auth
 -- empty note clears it. The requester changes a pending request, which goes
 -- back to approval; a manager also changes approved leave, which is booked
 -- again for the new amount, so leave can be shortened.
-drop function if exists "better_supabase"."update_leave_request"(uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "better_supabase"."update_leave_request"(request_id uuid, starts_on date default null, ends_on date default null, partial text default null, hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -2203,45 +2139,35 @@ grant execute on function "better_supabase"."seed_leave_defaults"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_select on "better_supabase"."leave_types" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_insert on "better_supabase"."leave_types" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_update on "better_supabase"."leave_types" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_delete on "better_supabase"."leave_types" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."leave_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."leave_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."leave_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."leave_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2271,39 +2197,17 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:4a8385b3a8044705d7d32459b49243925146e7ad5771e31de3f1d80a57023349
+-- @bsb-hash sha256:58a7642f3324479a8b1e27f54b2cca6cedd7a3f3151a031fcedd2be4bc9ac0bb
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."leave_types";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."leave_types";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."leave_types";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."leave_types";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."leave_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."leave_requests";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."leave_requests";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."leave_requests";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."leave_requests";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."leave_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."leave_types" (
+create table "app_private"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -2324,17 +2228,15 @@ create table if not exists "app_private"."leave_types" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-alter table "app_private"."leave_types" add column if not exists "auto_approve" boolean not null default false;
 alter table "app_private"."leave_types" enable row level security;
 revoke all on "app_private"."leave_types" from public, anon, authenticated;
 grant select on "app_private"."leave_types" to authenticated;
 grant all on "app_private"."leave_types" to service_role;
-drop policy if exists leave_types_read on "app_private"."leave_types";
 create policy leave_types_read on "app_private"."leave_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
-create table if not exists "app_private"."leave_requests" (
+create table "app_private"."leave_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -2354,15 +2256,14 @@ create table if not exists "app_private"."leave_requests" (
   check ("ends_on" >= "starts_on"),
   foreign key ("tenant_id", "type_id") references "app_private"."leave_types" ("tenant_id", "id") on delete restrict
 );
-create index if not exists "leave_requests_user_idx" on "app_private"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
-create index if not exists "leave_requests_dates_idx" on "app_private"."leave_requests" ("tenant_id", "starts_on", "ends_on");
-create index if not exists "leave_requests_approval_idx" on "app_private"."leave_requests" ("approval_id") where "approval_id" is not null;
-create index if not exists "leave_requests_type_idx" on "app_private"."leave_requests" ("tenant_id", "type_id");
+create index "leave_requests_user_idx" on "app_private"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
+create index "leave_requests_dates_idx" on "app_private"."leave_requests" ("tenant_id", "starts_on", "ends_on");
+create index "leave_requests_approval_idx" on "app_private"."leave_requests" ("approval_id") where "approval_id" is not null;
+create index "leave_requests_type_idx" on "app_private"."leave_requests" ("tenant_id", "type_id");
 alter table "app_private"."leave_requests" enable row level security;
 revoke all on "app_private"."leave_requests" from public, anon, authenticated;
 grant select on "app_private"."leave_requests" to authenticated;
 grant all on "app_private"."leave_requests" to service_role;
-drop policy if exists leave_requests_read on "app_private"."leave_requests";
 create policy leave_requests_read on "app_private"."leave_requests"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
@@ -2688,7 +2589,7 @@ grant execute on function "app_private"."leave_working_days"(date, date) to auth
 -- Creates or updates a leave type by key. Without a key column, key is the
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
-drop function if exists "app_private"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text);
+
 create or replace function "app_private"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
@@ -2767,7 +2668,7 @@ grant execute on function "app_private"."list_leave_types"(uuid, boolean) to aut
 -- (half a day for a morning or afternoon); an hours type books hours.
 -- Without options.allowNegative the request can't exceed the balance of
 -- the period it starts in. fields: the extra columns to set.
-drop function if exists "app_private"."request_leave"(uuid, uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "app_private"."request_leave"(tenant uuid, type_id uuid, starts_on date, ends_on date, partial text default 'full', hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -2956,7 +2857,7 @@ grant execute on function "app_private"."cancel_leave_request"(uuid) to authenti
 -- empty note clears it. The requester changes a pending request, which goes
 -- back to approval; a manager also changes approved leave, which is booked
 -- again for the new amount, so leave can be shortened.
-drop function if exists "app_private"."update_leave_request"(uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "app_private"."update_leave_request"(request_id uuid, starts_on date default null, ends_on date default null, partial text default null, hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -3264,45 +3165,35 @@ grant execute on function "app_private"."seed_leave_defaults"(uuid, text, text) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "app_private"."leave_types";
-drop policy if exists bsb_tenant_scope_select on "app_private"."leave_types";
 create policy bsb_tenant_scope_select on "app_private"."leave_types" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."leave_types";
 create policy bsb_tenant_scope_insert on "app_private"."leave_types" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."leave_types";
 create policy bsb_tenant_scope_update on "app_private"."leave_types" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."leave_types";
 create policy bsb_tenant_scope_delete on "app_private"."leave_types" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."leave_requests";
-drop policy if exists bsb_tenant_scope_select on "app_private"."leave_requests";
 create policy bsb_tenant_scope_select on "app_private"."leave_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."leave_requests";
 create policy bsb_tenant_scope_insert on "app_private"."leave_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."leave_requests";
 create policy bsb_tenant_scope_update on "app_private"."leave_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."leave_requests";
 create policy bsb_tenant_scope_delete on "app_private"."leave_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3324,35 +3215,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:b41357fc0cfd3c48336e308c0afe075830b69ecfa6f6f80f71bd1a185d0998bf
+-- @bsb-hash sha256:7cd582d017631ffc27f98a712e11d0b7d7039928576ad7775756e848a468e1ce
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."leave_types" (
+create table "better_supabase"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -3373,17 +3241,15 @@ create table if not exists "better_supabase"."leave_types" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-alter table "better_supabase"."leave_types" add column if not exists "auto_approve" boolean not null default false;
 alter table "better_supabase"."leave_types" enable row level security;
 revoke all on "better_supabase"."leave_types" from public, anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
-drop policy if exists leave_types_read on "better_supabase"."leave_types";
 create policy leave_types_read on "better_supabase"."leave_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
-create table if not exists "better_supabase"."leave_requests" (
+create table "better_supabase"."leave_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
@@ -3403,15 +3269,14 @@ create table if not exists "better_supabase"."leave_requests" (
   check ("ends_on" >= "starts_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."leave_types" ("tenant_id", "id") on delete restrict
 );
-create index if not exists "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
-create index if not exists "leave_requests_dates_idx" on "better_supabase"."leave_requests" ("tenant_id", "starts_on", "ends_on");
-create index if not exists "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
-create index if not exists "leave_requests_type_idx" on "better_supabase"."leave_requests" ("tenant_id", "type_id");
+create index "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
+create index "leave_requests_dates_idx" on "better_supabase"."leave_requests" ("tenant_id", "starts_on", "ends_on");
+create index "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
+create index "leave_requests_type_idx" on "better_supabase"."leave_requests" ("tenant_id", "type_id");
 alter table "better_supabase"."leave_requests" enable row level security;
 revoke all on "better_supabase"."leave_requests" from public, anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
-drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
 create policy leave_requests_read on "better_supabase"."leave_requests"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
@@ -3737,7 +3602,7 @@ grant execute on function "better_supabase"."leave_working_days"(date, date) to 
 -- Creates or updates a leave type by key. Without a key column, key is the
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
-drop function if exists "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text);
+
 create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
@@ -3816,7 +3681,7 @@ grant execute on function "better_supabase"."list_leave_types"(uuid, boolean) to
 -- (half a day for a morning or afternoon); an hours type books hours.
 -- Without options.allowNegative the request can't exceed the balance of
 -- the period it starts in. fields: the extra columns to set.
-drop function if exists "better_supabase"."request_leave"(uuid, uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "better_supabase"."request_leave"(tenant uuid, type_id uuid, starts_on date, ends_on date, partial text default 'full', hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -4005,7 +3870,7 @@ grant execute on function "better_supabase"."cancel_leave_request"(uuid) to auth
 -- empty note clears it. The requester changes a pending request, which goes
 -- back to approval; a manager also changes approved leave, which is booked
 -- again for the new amount, so leave can be shortened.
-drop function if exists "better_supabase"."update_leave_request"(uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "better_supabase"."update_leave_request"(request_id uuid, starts_on date default null, ends_on date default null, partial text default null, hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -4313,45 +4178,35 @@ grant execute on function "better_supabase"."seed_leave_defaults"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_select on "better_supabase"."leave_types" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_insert on "better_supabase"."leave_types" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_update on "better_supabase"."leave_types" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_delete on "better_supabase"."leave_types" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."leave_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."leave_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."leave_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."leave_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4361,12 +4216,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."leave_range_close_blockers"(uuid, date, date);
-drop function if exists "api"."leave_close_range"(uuid, date, date);
 
-drop function if exists "api"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text);
-drop function if exists "api"."request_leave"(uuid, uuid, date, date, text, numeric, text, jsonb);
-drop function if exists "api"."update_leave_request"(uuid, date, date, text, numeric, text, jsonb);
 
 create or replace function "api"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
 returns jsonb
@@ -4525,33 +4375,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:02b0ad9d43ab55c0481372bf0b43383225488a737d96977f62b64eae7dff8411
+-- @bsb-hash sha256:717af03edb03def7c40e622a354b4ffcaa825990ecfe3cc2d1505a99808a51d3
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- better_supabase.leave_types is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."leave_types" add column if not exists "id" uuid default gen_random_uuid();
@@ -4572,7 +4399,6 @@ create unique index if not exists "leave_types_tenant_id_id_key" on "better_supa
 alter table "better_supabase"."leave_types" enable row level security;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
-drop policy if exists bsb_leave_types_select on "better_supabase"."leave_types";
 create policy bsb_leave_types_select on "better_supabase"."leave_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
@@ -4600,7 +4426,6 @@ create index if not exists "leave_requests_type_idx" on "better_supabase"."leave
 alter table "better_supabase"."leave_requests" enable row level security;
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
-drop policy if exists bsb_leave_requests_select on "better_supabase"."leave_requests";
 create policy bsb_leave_requests_select on "better_supabase"."leave_requests"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
@@ -4926,7 +4751,7 @@ grant execute on function "better_supabase"."leave_working_days"(date, date) to 
 -- Creates or updates a leave type by key. Without a key column, key is the
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
-drop function if exists "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text);
+
 create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
@@ -5008,7 +4833,7 @@ grant execute on function "better_supabase"."list_leave_types"(uuid, boolean) to
 -- (half a day for a morning or afternoon); an hours type books hours.
 -- Without options.allowNegative the request can't exceed the balance of
 -- the period it starts in. fields: the extra columns to set.
-drop function if exists "better_supabase"."request_leave"(uuid, uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "better_supabase"."request_leave"(tenant uuid, type_id uuid, starts_on date, ends_on date, partial text default 'full', hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -5191,7 +5016,7 @@ grant execute on function "better_supabase"."cancel_leave_request"(uuid) to auth
 -- empty note clears it. The requester changes a pending request, which goes
 -- back to approval; a manager also changes approved leave, which is booked
 -- again for the new amount, so leave can be shortened.
-drop function if exists "better_supabase"."update_leave_request"(uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "better_supabase"."update_leave_request"(request_id uuid, starts_on date default null, ends_on date default null, partial text default null, hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -5493,45 +5318,35 @@ grant execute on function "better_supabase"."seed_leave_defaults"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_select on "better_supabase"."leave_types" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_insert on "better_supabase"."leave_types" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_update on "better_supabase"."leave_types" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_delete on "better_supabase"."leave_types" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."leave_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."leave_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."leave_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."leave_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -5553,35 +5368,12 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:02db72c993551996eb017162c4d9440a6042f5da4443f3eccb9d638f2895a847
+-- @bsb-hash sha256:03bf05d60f15803438ec8249d3f4bd4de94ebe447e91aecc48e45127aadd90e4
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-
-create table if not exists "better_supabase"."leave_types" (
+create table "better_supabase"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -5602,17 +5394,15 @@ create table if not exists "better_supabase"."leave_types" (
   unique ("org_id", "key"),
   unique ("org_id", "id")
 );
-alter table "better_supabase"."leave_types" add column if not exists "auto_approve" boolean not null default false;
 alter table "better_supabase"."leave_types" enable row level security;
 revoke all on "better_supabase"."leave_types" from public, anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
-drop policy if exists leave_types_read on "better_supabase"."leave_types";
 create policy leave_types_read on "better_supabase"."leave_types"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('leave.request')) or "org_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
-create table if not exists "better_supabase"."leave_requests" (
+create table "better_supabase"."leave_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid not null,
@@ -5632,15 +5422,14 @@ create table if not exists "better_supabase"."leave_requests" (
   check ("ends_on" >= "starts_on"),
   foreign key ("org_id", "type_id") references "better_supabase"."leave_types" ("org_id", "id") on delete restrict
 );
-create index if not exists "leave_requests_user_idx" on "better_supabase"."leave_requests" ("org_id", "user_id", "starts_on" desc);
-create index if not exists "leave_requests_dates_idx" on "better_supabase"."leave_requests" ("org_id", "starts_on", "ends_on");
-create index if not exists "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
-create index if not exists "leave_requests_type_idx" on "better_supabase"."leave_requests" ("org_id", "type_id");
+create index "leave_requests_user_idx" on "better_supabase"."leave_requests" ("org_id", "user_id", "starts_on" desc);
+create index "leave_requests_dates_idx" on "better_supabase"."leave_requests" ("org_id", "starts_on", "ends_on");
+create index "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
+create index "leave_requests_type_idx" on "better_supabase"."leave_requests" ("org_id", "type_id");
 alter table "better_supabase"."leave_requests" enable row level security;
 revoke all on "better_supabase"."leave_requests" from public, anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
-drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
 create policy leave_requests_read on "better_supabase"."leave_requests"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('leave.read')));
@@ -5966,7 +5755,7 @@ grant execute on function "better_supabase"."leave_working_days"(date, date) to 
 -- Creates or updates a leave type by key. Without a key column, key is the
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
-drop function if exists "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text);
+
 create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
@@ -6045,7 +5834,7 @@ grant execute on function "better_supabase"."list_leave_types"(uuid, boolean) to
 -- (half a day for a morning or afternoon); an hours type books hours.
 -- Without options.allowNegative the request can't exceed the balance of
 -- the period it starts in. fields: the extra columns to set.
-drop function if exists "better_supabase"."request_leave"(uuid, uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "better_supabase"."request_leave"(tenant uuid, type_id uuid, starts_on date, ends_on date, partial text default 'full', hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -6234,7 +6023,7 @@ grant execute on function "better_supabase"."cancel_leave_request"(uuid) to auth
 -- empty note clears it. The requester changes a pending request, which goes
 -- back to approval; a manager also changes approved leave, which is booked
 -- again for the new amount, so leave can be shortened.
-drop function if exists "better_supabase"."update_leave_request"(uuid, date, date, text, numeric, text, jsonb);
+
 create or replace function "better_supabase"."update_leave_request"(request_id uuid, starts_on date default null, ends_on date default null, partial text default null, hours numeric default null, note text default null)
 returns jsonb
 language plpgsql
@@ -6542,45 +6331,35 @@ grant execute on function "better_supabase"."seed_leave_defaults"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."leave_types";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_select on "better_supabase"."leave_types" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('leave.request')) or "org_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_insert on "better_supabase"."leave_types" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_update on "better_supabase"."leave_types" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_types";
 create policy bsb_tenant_scope_delete on "better_supabase"."leave_types" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."leave_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."leave_requests" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('leave.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."leave_requests" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."leave_requests" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leave_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."leave_requests" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));

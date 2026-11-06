@@ -1,72 +1,9 @@
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:c1c5942cb14a709f59dcd699c73fd6a6d9efe8eda84ddd1f8d42ad063d4c663a
+-- @bsb-hash sha256:302fe86149effc5761c55eb6030994b0474e9aa5ce809a976dbaeac4ba34a475
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_cycles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_cycles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_cycles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_cycles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_cycles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."appraisals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_reviews";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_reviews";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_reviews";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_reviews";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_reviews";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_calibrations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_calibrations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_calibrations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_calibrations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_calibrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_competencies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_competencies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_competencies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_competencies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_competencies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_review_ratings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_review_ratings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_review_ratings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_review_ratings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_review_ratings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_goals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_goals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_goals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_goals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_goals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
 
 -- Performance appraisals per organization: review cycles, one appraisal per
 -- person with self, peer and manager reviews (rated per weighted competency
@@ -110,7 +47,7 @@ $$;
 revoke execute on function "better_supabase"."appraisal_review_hidden"(uuid) from public, anon;
 grant execute on function "better_supabase"."appraisal_review_hidden"(uuid) to authenticated, service_role;
 
-create table if not exists "better_supabase"."appraisal_cycles" (
+create table "better_supabase"."appraisal_cycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") >= 1 and length("name") <= 200),
@@ -132,17 +69,16 @@ create table if not exists "better_supabase"."appraisal_cycles" (
   unique ("tenant_id", "id"),
   check ("ends_on" >= "starts_on")
 );
-create index if not exists "appraisal_cycles_tenant_idx" on "better_supabase"."appraisal_cycles" ("tenant_id", "starts_on" desc);
+create index "appraisal_cycles_tenant_idx" on "better_supabase"."appraisal_cycles" ("tenant_id", "starts_on" desc);
 alter table "better_supabase"."appraisal_cycles" enable row level security;
 revoke all on "better_supabase"."appraisal_cycles" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_cycles" to authenticated;
 grant all on "better_supabase"."appraisal_cycles" to service_role;
-drop policy if exists appraisal_cycles_read on "better_supabase"."appraisal_cycles";
 create policy appraisal_cycles_read on "better_supabase"."appraisal_cycles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')));
 
-create table if not exists "better_supabase"."appraisals" (
+create table "better_supabase"."appraisals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cycle_id" uuid not null,
@@ -166,19 +102,18 @@ create table if not exists "better_supabase"."appraisals" (
   foreign key ("tenant_id", "cycle_id") references "better_supabase"."appraisal_cycles" ("tenant_id", "id") on delete cascade,
   check (("status" = 'signed_off') = ("signed_off_at" is not null))
 );
-create index if not exists "appraisals_cycle_idx" on "better_supabase"."appraisals" ("tenant_id", "cycle_id", "status");
-create index if not exists "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "subject_user_id");
-create index if not exists "appraisals_approval_idx" on "better_supabase"."appraisals" ("approval_id") where "approval_id" is not null;
+create index "appraisals_cycle_idx" on "better_supabase"."appraisals" ("tenant_id", "cycle_id", "status");
+create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "subject_user_id");
+create index "appraisals_approval_idx" on "better_supabase"."appraisals" ("approval_id") where "approval_id" is not null;
 alter table "better_supabase"."appraisals" enable row level security;
 revoke all on "better_supabase"."appraisals" from public, anon, authenticated;
 grant select on "better_supabase"."appraisals" to authenticated;
 grant all on "better_supabase"."appraisals" to service_role;
-drop policy if exists appraisals_read on "better_supabase"."appraisals";
 create policy appraisals_read on "better_supabase"."appraisals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')));
 
-create table if not exists "better_supabase"."appraisal_reviews" (
+create table "better_supabase"."appraisal_reviews" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "appraisal_id" uuid not null,
@@ -194,18 +129,17 @@ create table if not exists "better_supabase"."appraisal_reviews" (
   foreign key ("tenant_id", "appraisal_id") references "better_supabase"."appraisals" ("tenant_id", "id") on delete cascade,
   check (("submitted_at" is not null) = ("rating" is not null))
 );
-create index if not exists "appraisal_reviews_parent_idx" on "better_supabase"."appraisal_reviews" ("tenant_id", "appraisal_id");
-create index if not exists "appraisal_reviews_reviewer_idx" on "better_supabase"."appraisal_reviews" ("tenant_id", "reviewer_id") where "submitted_at" is null;
+create index "appraisal_reviews_parent_idx" on "better_supabase"."appraisal_reviews" ("tenant_id", "appraisal_id");
+create index "appraisal_reviews_reviewer_idx" on "better_supabase"."appraisal_reviews" ("tenant_id", "reviewer_id") where "submitted_at" is null;
 alter table "better_supabase"."appraisal_reviews" enable row level security;
 revoke all on "better_supabase"."appraisal_reviews" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_reviews" to authenticated;
 grant all on "better_supabase"."appraisal_reviews" to service_role;
-drop policy if exists appraisal_reviews_read on "better_supabase"."appraisal_reviews";
 create policy appraisal_reviews_read on "better_supabase"."appraisal_reviews"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')) and not "better_supabase"."appraisal_review_hidden"("id"));
 
-create table if not exists "better_supabase"."appraisal_calibrations" (
+create table "better_supabase"."appraisal_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "appraisal_id" uuid not null,
@@ -218,12 +152,11 @@ create table if not exists "better_supabase"."appraisal_calibrations" (
   "calibrated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "appraisal_id") references "better_supabase"."appraisals" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "appraisal_calibrations_parent_idx" on "better_supabase"."appraisal_calibrations" ("tenant_id", "appraisal_id", "calibrated_at");
+create index "appraisal_calibrations_parent_idx" on "better_supabase"."appraisal_calibrations" ("tenant_id", "appraisal_id", "calibrated_at");
 alter table "better_supabase"."appraisal_calibrations" enable row level security;
 revoke all on "better_supabase"."appraisal_calibrations" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_calibrations" to authenticated;
 grant all on "better_supabase"."appraisal_calibrations" to service_role;
-drop policy if exists appraisal_calibrations_read on "better_supabase"."appraisal_calibrations";
 create policy appraisal_calibrations_read on "better_supabase"."appraisal_calibrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')));
@@ -231,7 +164,7 @@ create policy appraisal_calibrations_read on "better_supabase"."appraisal_calibr
 -- The competencies of a cycle's rubric. Their weights weigh the ratings when
 -- the appraisal's rating is computed, and they don't change once the cycle is
 -- open.
-create table if not exists "better_supabase"."appraisal_competencies" (
+create table "better_supabase"."appraisal_competencies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cycle_id" uuid not null,
@@ -243,18 +176,17 @@ create table if not exists "better_supabase"."appraisal_competencies" (
   unique ("cycle_id", "key"),
   foreign key ("tenant_id", "cycle_id") references "better_supabase"."appraisal_cycles" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "appraisal_competencies_parent_idx" on "better_supabase"."appraisal_competencies" ("tenant_id", "cycle_id", "position");
+create index "appraisal_competencies_parent_idx" on "better_supabase"."appraisal_competencies" ("tenant_id", "cycle_id", "position");
 alter table "better_supabase"."appraisal_competencies" enable row level security;
 revoke all on "better_supabase"."appraisal_competencies" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_competencies" to authenticated;
 grant all on "better_supabase"."appraisal_competencies" to service_role;
-drop policy if exists appraisal_competencies_read on "better_supabase"."appraisal_competencies";
 create policy appraisal_competencies_read on "better_supabase"."appraisal_competencies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')));
 
 -- One review's rating of one competency. A row is as hidden as its review.
-create table if not exists "better_supabase"."appraisal_review_ratings" (
+create table "better_supabase"."appraisal_review_ratings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "review_id" uuid not null,
@@ -265,20 +197,19 @@ create table if not exists "better_supabase"."appraisal_review_ratings" (
   foreign key ("tenant_id", "review_id") references "better_supabase"."appraisal_reviews" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "competency_id") references "better_supabase"."appraisal_competencies" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "appraisal_review_ratings_parent_idx" on "better_supabase"."appraisal_review_ratings" ("tenant_id", "review_id");
-create index if not exists "appraisal_review_ratings_competency_idx" on "better_supabase"."appraisal_review_ratings" ("tenant_id", "competency_id");
+create index "appraisal_review_ratings_parent_idx" on "better_supabase"."appraisal_review_ratings" ("tenant_id", "review_id");
+create index "appraisal_review_ratings_competency_idx" on "better_supabase"."appraisal_review_ratings" ("tenant_id", "competency_id");
 alter table "better_supabase"."appraisal_review_ratings" enable row level security;
 revoke all on "better_supabase"."appraisal_review_ratings" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_review_ratings" to authenticated;
 grant all on "better_supabase"."appraisal_review_ratings" to service_role;
-drop policy if exists appraisal_review_ratings_read on "better_supabase"."appraisal_review_ratings";
 create policy appraisal_review_ratings_read on "better_supabase"."appraisal_review_ratings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')) and not "better_supabase"."appraisal_review_hidden"("review_id"));
 
 -- The goals an appraisal looks back on. goal_id points at the goals block's
 -- goals or at a table of your own, so there is no foreign key.
-create table if not exists "better_supabase"."appraisal_goals" (
+create table "better_supabase"."appraisal_goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "appraisal_id" uuid not null,
@@ -286,12 +217,11 @@ create table if not exists "better_supabase"."appraisal_goals" (
   unique ("appraisal_id", "goal_id"),
   foreign key ("tenant_id", "appraisal_id") references "better_supabase"."appraisals" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "appraisal_goals_parent_idx" on "better_supabase"."appraisal_goals" ("tenant_id", "appraisal_id");
+create index "appraisal_goals_parent_idx" on "better_supabase"."appraisal_goals" ("tenant_id", "appraisal_id");
 alter table "better_supabase"."appraisal_goals" enable row level security;
 revoke all on "better_supabase"."appraisal_goals" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_goals" to authenticated;
 grant all on "better_supabase"."appraisal_goals" to service_role;
-drop policy if exists appraisal_goals_read on "better_supabase"."appraisal_goals";
 create policy appraisal_goals_read on "better_supabase"."appraisal_goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')));
@@ -1275,150 +1205,115 @@ grant execute on function "better_supabase"."sign_off_appraisal"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_cycles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_cycles";
 create policy bsb_tenant_scope_select on "better_supabase"."appraisal_cycles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_cycles";
 create policy bsb_tenant_scope_insert on "better_supabase"."appraisal_cycles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_cycles";
 create policy bsb_tenant_scope_update on "better_supabase"."appraisal_cycles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_cycles";
 create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_cycles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."appraisals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisals";
 create policy bsb_tenant_scope_select on "better_supabase"."appraisals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisals";
 create policy bsb_tenant_scope_insert on "better_supabase"."appraisals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisals";
 create policy bsb_tenant_scope_update on "better_supabase"."appraisals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisals";
 create policy bsb_tenant_scope_delete on "better_supabase"."appraisals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_reviews";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_reviews";
 create policy bsb_tenant_scope_select on "better_supabase"."appraisal_reviews" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')) and not "better_supabase"."appraisal_review_hidden"("id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_reviews";
 create policy bsb_tenant_scope_insert on "better_supabase"."appraisal_reviews" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_reviews";
 create policy bsb_tenant_scope_update on "better_supabase"."appraisal_reviews" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_reviews";
 create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_reviews" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_calibrations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_calibrations";
 create policy bsb_tenant_scope_select on "better_supabase"."appraisal_calibrations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_calibrations";
 create policy bsb_tenant_scope_insert on "better_supabase"."appraisal_calibrations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_calibrations";
 create policy bsb_tenant_scope_update on "better_supabase"."appraisal_calibrations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_calibrations";
 create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_calibrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_competencies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_competencies";
 create policy bsb_tenant_scope_select on "better_supabase"."appraisal_competencies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_competencies";
 create policy bsb_tenant_scope_insert on "better_supabase"."appraisal_competencies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_competencies";
 create policy bsb_tenant_scope_update on "better_supabase"."appraisal_competencies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_competencies";
 create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_competencies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_review_ratings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_review_ratings";
 create policy bsb_tenant_scope_select on "better_supabase"."appraisal_review_ratings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')) and not "better_supabase"."appraisal_review_hidden"("review_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_review_ratings";
 create policy bsb_tenant_scope_insert on "better_supabase"."appraisal_review_ratings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_review_ratings";
 create policy bsb_tenant_scope_update on "better_supabase"."appraisal_review_ratings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_review_ratings";
 create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_review_ratings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."appraisal_goals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."appraisal_goals";
 create policy bsb_tenant_scope_select on "better_supabase"."appraisal_goals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."appraisal_goals";
 create policy bsb_tenant_scope_insert on "better_supabase"."appraisal_goals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."appraisal_goals";
 create policy bsb_tenant_scope_update on "better_supabase"."appraisal_goals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."appraisal_goals";
 create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_goals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));

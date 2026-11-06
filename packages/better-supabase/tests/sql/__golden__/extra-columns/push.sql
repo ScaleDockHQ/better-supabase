@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:127ba1b0e3c9822a61b47171ff206b22cdd7f14f673d50c7b4c72cbc061b3571
+-- @bsb-hash sha256:91649da6550ce315233ff409f19fc2efacc3bb6dd3eddb1ee0aee4d748a34cc8
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,7 +11,7 @@
 -- through register_push_device and unregister_push_device; the sender reads
 -- tokens with push_tokens_for and drops the ones the provider rejects with
 -- prune_push_tokens, both service role only.
-create table if not exists "better_supabase"."push_devices" (
+create table "better_supabase"."push_devices" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "token" text not null unique check (length("token") >= 1 and length("token") <= 4096),
@@ -22,23 +22,21 @@ create table if not exists "better_supabase"."push_devices" (
   "created_at" timestamptz not null default now(),
   "last_seen_at" timestamptz not null default now()
 );
-create index if not exists push_devices_user_idx on "better_supabase"."push_devices" ("user_id");
-alter table "better_supabase"."push_devices" add column if not exists "app_note" text;
+create index push_devices_user_idx on "better_supabase"."push_devices" ("user_id");
+alter table "better_supabase"."push_devices" add column "app_note" text;
 alter table "better_supabase"."push_devices" enable row level security;
 revoke all on "better_supabase"."push_devices" from public, anon, authenticated;
 grant select, delete on "better_supabase"."push_devices" to authenticated;
 grant all on "better_supabase"."push_devices" to service_role;
-drop policy if exists push_devices_own_read on "better_supabase"."push_devices";
 create policy push_devices_own_read on "better_supabase"."push_devices"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists push_devices_own_delete on "better_supabase"."push_devices";
 create policy push_devices_own_delete on "better_supabase"."push_devices"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- Registers the caller's device, or refreshes it; returns the device id.
-drop function if exists "better_supabase"."register_push_device"(text, text, text, text, text);
+
 create or replace function "better_supabase"."register_push_device"(
   token text,
   platform text,
