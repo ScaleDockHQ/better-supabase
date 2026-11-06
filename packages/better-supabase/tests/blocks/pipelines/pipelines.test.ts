@@ -139,6 +139,7 @@ describe("pipelines block", () => {
           rotting_after_days: null,
           wip_limit: null,
           color: null,
+          icon: null,
         },
       ],
     ]);
@@ -265,7 +266,9 @@ describe("pipelines block", () => {
         .orThrow(),
     ).toBe(1);
     expect(await pipelines.archive("p1").orThrow()).toBe(true);
-    expect(await pipelines.archiveStage("s1").orThrow()).toBe(false);
+    expect(
+      await pipelines.archiveStage({ stageId: "s1", moveTo: "s2" }).orThrow(),
+    ).toBe(false);
     expect(t.calls.map(([fn]) => fn)).toEqual([
       "rank_pipeline_stage",
       "set_pipeline_transitions",

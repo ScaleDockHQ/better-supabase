@@ -2578,6 +2578,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "attachments",
         "reminders",
         "accounting",
+        "option-sets",
         "pipelines",
         "subjects"
       ],
@@ -5294,6 +5295,35 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "docs": "/docs/blocks/ai-guardrails"
     },
     {
+      "name": "option-sets",
+      "title": "Option sets",
+      "category": "Work management",
+      "description": "Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level the record keeps in its own column, replacement when an item is removed, and starter items per brand.",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "modes": [
+        "managed",
+        "custom"
+      ],
+      "events": [
+        "option_set.created",
+        "option_set.updated",
+        "option_set_item.archived",
+        "option_set_item.created",
+        "option_set_item.updated"
+      ],
+      "subpath": "better-supabase/blocks/option-sets",
+      "react": null,
+      "docs": "/docs/blocks/option-sets"
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "Database primitives",
@@ -7542,6 +7572,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "prompts",
         "ai-evals",
         "ai-guardrails",
+        "option-sets",
         "rls-guard"
       ]
     }

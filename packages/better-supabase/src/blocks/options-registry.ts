@@ -83,6 +83,7 @@ import type { NumberingSqlOptions } from "./numbering/options.ts";
 import type { OauthServerSqlOptions } from "./oauth-server/options.ts";
 import type { ObservationsSqlOptions } from "./observations/options.ts";
 import type { OnboardingSqlOptions } from "./onboarding/options.ts";
+import type { OptionSetsSqlOptions } from "./option-sets/options.ts";
 import type { BlockOptionsSchema } from "./options.ts";
 import type { OrdersSqlOptions } from "./orders/options.ts";
 import type {
@@ -237,6 +238,7 @@ import { numberingSqlOptions } from "./numbering/options.ts";
 import { oauthServerSqlOptions } from "./oauth-server/options.ts";
 import { observationsSqlOptions } from "./observations/options.ts";
 import { onboardingSqlOptions } from "./onboarding/options.ts";
+import { optionSetsSqlOptions } from "./option-sets/options.ts";
 import { NO_OPTIONS } from "./options.ts";
 import { ordersSqlOptions } from "./orders/options.ts";
 import {
@@ -434,6 +436,7 @@ export interface BlockOptionsRegistry {
   readonly passes: PassesSqlOptions;
   readonly permissions: PermissionsSqlOptions;
   readonly pgtap: None;
+  readonly "option-sets": OptionSetsSqlOptions;
   readonly pipelines: PipelinesSqlOptions;
   readonly posts: PostsSqlOptions;
   readonly content: ContentSqlOptions;
@@ -625,6 +628,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   outbox: outboxSqlOptions,
   permissions: permissionsSqlOptions,
   pgtap: NO_OPTIONS,
+  "option-sets": optionSetsSqlOptions,
   pipelines: pipelinesSqlOptions,
   posts: postsSqlOptions,
   content: contentSqlOptions,

@@ -162,6 +162,7 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   "service-accounts": { read: "tenant", manage: "tenant" },
   pipelines: { read: "tenant", manage: "tenant" },
+  "option-sets": { read: "tenant", manage: "tenant" },
   contacts: {
     read: "tenant",
     write: "tenant",

@@ -1492,7 +1492,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:99be53cc709f002e8b49f21bbfc59af364c1ddda504e8e791f6293c953862fd0
+-- @bsb-hash sha256:5d84025a04475bca0319a9bfed34e10444c251586e3cf4de26b4c7ac612054ac
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3049,7 +3049,9 @@ as $$
     ('organization', 'better_supabase.eval_datasets', '"better_supabase"."eval_datasets"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.eval_runs', '"better_supabase"."eval_runs"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.guardrail_policies', '"better_supabase"."guardrail_policies"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.guardrail_decisions', '"better_supabase"."guardrail_decisions"', 'organization_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.guardrail_decisions', '"better_supabase"."guardrail_decisions"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.option_sets', '"better_supabase"."option_sets"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.option_set_items', '"better_supabase"."option_set_items"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 

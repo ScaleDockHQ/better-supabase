@@ -5,6 +5,8 @@ description: Issues and tasks on pipelines, with identifiers, parents without cy
 
 `tasks` is the task and issue record of Linear, Jira, GitHub issues and monday items: a title, a body, a parent, assignees, a priority, an estimate, start, end and due dates, and a stage on a [pipeline](/docs/blocks/pipelines). Items can belong to a team, a project and an iteration (a cycle or a sprint). Their identifier is `TASK-12`, or the format of a `work_item` entity in [numbering](/docs/blocks/numbering).
 
+When [option-sets](/docs/blocks/option-sets) is installed, the priority is a field of its own: each organization can rename the five levels, add more items and give them colors and icons. The task keeps the level in `priority` and the chosen item in `priority_option_id`, so sorting and filters on `priority` do not change.
+
 Reading needs `tasks.read`, creating, editing and assigning needs `tasks.write`, and projects, iterations and deleting someone else's item need `tasks.manage`. Admins get every permission, and members get `tasks.read` and `tasks.write`.
 
 Two actions take their own key when you set one. `permissions.create` gates creating an item and falls back to the `write` key, and `permissions.delete` gates deleting one and falls back to the `manage` key. The author of an item can always delete it; set `options.authorCanDelete: false` to make the author need the delete key too:

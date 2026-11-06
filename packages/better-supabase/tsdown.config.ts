@@ -190,6 +190,7 @@ const entries = [
   "blocks/forms/index",
   "blocks/time-tracking/index",
   "blocks/templates/index",
+  "blocks/option-sets/index",
   "blocks/pipelines/index",
   "blocks/contacts/index",
   "blocks/collections/index",

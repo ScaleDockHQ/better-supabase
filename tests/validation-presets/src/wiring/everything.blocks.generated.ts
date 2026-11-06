@@ -105,6 +105,7 @@ import type { OauthServerEvents } from "better-supabase/blocks/oauth-server";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { ContactsEvents } from "better-supabase/blocks/contacts";
+import type { OptionSetsEvents } from "better-supabase/blocks/option-sets";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { PromotionsEvents } from "better-supabase/blocks/promotions";
 import type { PushEvents } from "better-supabase/blocks/push";
@@ -278,6 +279,7 @@ import { ordersBlock as ordersBlockInstance } from "better-supabase/blocks/order
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
 import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
 import { contactsBlock as contactsBlockInstance } from "better-supabase/blocks/contacts";
+import { optionSetsBlock as optionSetsBlockInstance } from "better-supabase/blocks/option-sets";
 import { pipelinesBlock as pipelinesBlockInstance } from "better-supabase/blocks/pipelines";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { promotionsBlock as promotionsBlockInstance } from "better-supabase/blocks/promotions";
@@ -470,6 +472,7 @@ export const blocks = {
   organizations: organizationsBlockInstance,
   outbox: outboxBlockInstance,
   contacts: contactsBlockInstance,
+  "option-sets": optionSetsBlockInstance,
   pipelines: pipelinesBlockInstance,
   profiles: profilesBlockInstance,
   promotions: promotionsBlockInstance,
@@ -513,7 +516,7 @@ export const blocks = {
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & AgentCheckoutEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & AdvisoriesEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OauthServerEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & TasksEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & AgentCheckoutEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & AdvisoriesEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OauthServerEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & TasksEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -1047,6 +1050,11 @@ export const blockEvents: Events<BlockEvents> = {
     "observation.recorded",
     "observation_definition.created",
     "observation_definition.updated",
+    "option_set.created",
+    "option_set.updated",
+    "option_set_item.archived",
+    "option_set_item.created",
+    "option_set_item.updated",
     "order.cancelled",
     "order.completed",
     "order.fulfilled",
@@ -1866,6 +1874,11 @@ export const blockEventSchemas = {
   "observation.recorded": true,
   "observation_definition.created": true,
   "observation_definition.updated": true,
+  "option_set.created": true,
+  "option_set.updated": true,
+  "option_set_item.archived": true,
+  "option_set_item.created": true,
+  "option_set_item.updated": true,
   "order.cancelled": true,
   "order.completed": true,
   "order.fulfilled": true,

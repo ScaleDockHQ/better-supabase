@@ -1862,6 +1862,7 @@
               "oauth-server",
               "observations",
               "onboarding",
+              "option-sets",
               "orders",
               "organizations",
               "outbox",
@@ -2057,6 +2058,7 @@
                   "oauth-server",
                   "observations",
                   "onboarding",
+                  "option-sets",
                   "orders",
                   "organizations",
                   "outbox",
@@ -2464,6 +2466,9 @@
             },
             "onboarding": {
               "$ref": "#/$defs/blocks/onboarding"
+            },
+            "option-sets": {
+              "$ref": "#/$defs/blocks/option-sets"
             },
             "orders": {
               "$ref": "#/$defs/blocks/orders"
@@ -6850,6 +6855,19 @@
           }
         }
       },
+      "option-sets": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "brand": {}
+            }
+          }
+        }
+      },
       "orders": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -7097,7 +7115,8 @@
                 "additionalProperties": {
                   "type": "string"
                 }
-              }
+              },
+              "brand": {}
             }
           }
         }

@@ -48,6 +48,8 @@ export interface PipelineStage {
   readonly systemKey?: string;
   readonly name: string;
   readonly color?: string;
+  /** An icon name the app maps to its own icon set. */
+  readonly icon?: string;
   readonly rank: string;
   /** A category the subject type declares, such as `won` or `started`. */
   readonly category: string;
@@ -99,6 +101,7 @@ export interface PipelineStageInput {
   readonly rottingAfterDays?: number;
   readonly wipLimit?: number;
   readonly color?: string;
+  readonly icon?: string;
 }
 
 /** An allowed stage change. Without any, every change is allowed. */
@@ -121,6 +124,7 @@ export interface PipelineColumn {
   readonly key: string;
   readonly name: string;
   readonly color?: string;
+  readonly icon?: string;
   readonly category: string;
   readonly outcome: PipelineOutcome;
   readonly probability?: number;
@@ -206,8 +210,16 @@ export interface Pipelines<F extends object = Record<never, never>> {
     stageId: string;
     neighbors: RankNeighbors;
   }): AsyncResult<string>;
-  /** Archives an empty stage. A pipeline keeps at least one open stage. */
-  archiveStage(stageId: string): AsyncResult<boolean>;
+  /**
+   * Archives a stage. Its records move to `moveTo`, a stage of the same
+   * pipeline, even where the allowed stage changes would not permit it; without
+   * `moveTo` a stage that holds records is refused. A pipeline keeps at least
+   * one open stage.
+   */
+  archiveStage(input: {
+    stageId: string;
+    moveTo?: string;
+  }): AsyncResult<boolean>;
   /** Replaces the allowed stage changes. An empty list allows every change. */
   setTransitions(input: {
     pipelineId: string;
@@ -260,6 +272,7 @@ function stageOf(value: unknown): PipelineStage {
   const row = recordOf(value, "pipeline stage");
   const systemKey = optionalText(row["system_key"]);
   const color = optionalText(row["color"]);
+  const icon = optionalText(row["icon"]);
   const probability = numberOf(row["probability"]);
   const rotting = numberOf(row["rotting_after_days"]);
   const wipLimit = numberOf(row["wip_limit"]);
@@ -274,6 +287,7 @@ function stageOf(value: unknown): PipelineStage {
     outcome: enumOrThrow(row["outcome"], OUTCOMES, "pipeline stage outcome"),
     ...(systemKey === undefined ? {} : { systemKey }),
     ...(color === undefined ? {} : { color }),
+    ...(icon === undefined ? {} : { icon }),
     ...(probability === undefined ? {} : { probability }),
     ...(rotting === undefined ? {} : { rottingAfterDays: rotting }),
     ...(wipLimit === undefined ? {} : { wipLimit }),
@@ -301,6 +315,7 @@ function pipelineOf(value: unknown): Pipeline {
 function columnOf(value: unknown): PipelineColumn {
   const row = recordOf(value, "pipeline_board");
   const color = optionalText(row["color"]);
+  const icon = optionalText(row["icon"]);
   const probability = numberOf(row["probability"]);
   const wipLimit = numberOf(row["wipLimit"]);
 
@@ -326,6 +341,7 @@ function columnOf(value: unknown): PipelineColumn {
       };
     }),
     ...(color === undefined ? {} : { color }),
+    ...(icon === undefined ? {} : { icon }),
     ...(probability === undefined ? {} : { probability }),
     ...(wipLimit === undefined ? {} : { wipLimit }),
   };
@@ -483,6 +499,7 @@ export function createPipelines<
           rotting_after_days: input.rottingAfterDays ?? null,
           wip_limit: input.wipLimit ?? null,
           color: input.color ?? null,
+          icon: input.icon ?? null,
         },
         stageOf,
       ),
@@ -499,10 +516,10 @@ export function createPipelines<
         () => key.data,
       );
     },
-    archiveStage: (stageId) =>
+    archiveStage: ({ stageId, moveTo }) =>
       call(
         "archive_pipeline_stage",
-        { stage: stageId },
+        { stage: stageId, move_to: moveTo ?? null },
         (value) => value === true,
       ),
     setTransitions: ({ pipelineId, transitions }) =>

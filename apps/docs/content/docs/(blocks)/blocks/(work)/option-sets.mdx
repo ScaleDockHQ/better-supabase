@@ -1,0 +1,99 @@
+---
+title: Option sets
+description: Tenant-editable items for a field such as priority or severity, with a label, color, icon and level per item, replacement when an item is removed, and starter items per brand.
+---
+
+`option-sets` lets an organization rename, add, reorder and remove the choices of a field such as priority, severity or impact. Each item has a label, a color, an icon and a level. The record keeps the level in its own column, so sorting, filters and reports that read `priority` keep working while the labels belong to the organization.
+
+```bash
+better-supabase add option-sets
+```
+
+```ts
+import { createOptionSets } from "better-supabase/blocks/option-sets";
+```
+
+The module requires `memberships`, `permissions` and `subjects`. `outbox` records the events and `audit` audits every change. The [tasks](/docs/blocks/tasks) block contributes a `priority` field with the items None, Low, Medium, High and Urgent at levels 0 to 4.
+
+## Tables and permissions
+
+| Table              | Holds                                                                           |
+| ------------------ | ------------------------------------------------------------------------------- |
+| `option_sets`      | One set per organization, subject type, field and optional scope                |
+| `option_set_items` | An item with its key, label, color, icon, level, rank and an archived timestamp |
+
+| Permission           | Allows                         | Default roles |
+| -------------------- | ------------------------------ | ------------- |
+| `option-sets.read`   | listing sets and their items   | members       |
+| `option-sets.manage` | saving, ordering and archiving | owner, admin  |
+
+## Bind a field
+
+A binding names a subject type, a field and the level range. The record gets an option column (`<column>_option_id` unless you set `option`) that points at the chosen item. A trigger writes the item's level to the level column (`column`, the field name by default), so the number your queries read always matches the chosen item.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "option-sets": {
+    on: {
+      ticket: {
+        impact: {
+          levels: { min: 0, max: 3 },
+          column: "impact",
+          items: [
+            { key: "minor", label: "Minor", level: 0 },
+            { key: "major", label: "Major", level: 2, color: "orange" },
+            { key: "critical", label: "Critical", level: 3, color: "red", icon: "flame" },
+          ],
+        },
+      },
+    },
+  },
+}
+```
+
+Set `scope` to a record column when a set belongs to a team or a project instead of the whole organization. Set `follow: true` and a direct write to the level column picks the first item at that level.
+
+## Use it
+
+```ts
+const sets = createOptionSets({ transport });
+
+const [priority] = await sets
+  .ensure({ organizationId, subjectType: "work_item", field: "priority" })
+  .orThrow();
+```
+
+`ensure` creates the field's default set from the binding on first use, so calling it on every start is safe. `list`, `upsert`, `saveItem`, `reorderItem` and `archiveItem` do the rest.
+
+`archiveItem({ itemId, replacementId })` moves the records that use the item to the replacement, and writes the replacement's level to them. Without a replacement, an item that is in use is refused (`OPTION_SET_ITEM_IN_USE`). A set keeps at least one item (`OPTION_SET_LAST_ITEM`), and the replacement must be another active item of the same set (`OPTION_SET_REPLACEMENT_INVALID`).
+
+`createOptionSetsController` wraps the client for a settings screen. Its snapshot is `{ sets, error }`, and its actions are `refresh`, `saveItem`, `moveItem` and `archiveItem`.
+
+## Starter items per brand
+
+Give the block the table and column that hold an organization's brand, and add a `brands` map to the binding. An organization of that brand starts with its own items, and every other organization starts with `items`.
+
+```ts
+blocks: {
+  "option-sets": {
+    options: { brand: { table: "public.organizations", column: "brand" } },
+    on: {
+      ticket: {
+        priority: {
+          levels: { min: 0, max: 4 },
+          items: [{ key: "low", label: "Low", level: 1 }],
+          brands: {
+            acme: [{ key: "now", label: "Right now", level: 4 }],
+          },
+        },
+      },
+    },
+  },
+}
+```
+
+The brand is read when the set is first created. Changing the column later does not rename existing items.
+
+## Events
+
+`option_set.created`, `option_set.updated`, `option_set_item.created`, `option_set_item.updated` and `option_set_item.archived`. The payloads are in [events](/docs/extending/events).

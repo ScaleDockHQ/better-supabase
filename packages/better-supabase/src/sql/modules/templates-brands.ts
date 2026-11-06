@@ -1,18 +1,11 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { BrandSource } from "./brand-source.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { quotedTable, SERVICE_CALLER, userGrant } from "../shared.ts";
-
-const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
+import { SERVICE_CALLER, userGrant } from "../shared.ts";
+import { brandSourceOf } from "./brand-source.ts";
 
 const WHERE = "blocks.templates.options.brand";
-
-/** Where a tenant's brand lives: `{ table, column, tenant? }`, quoted. */
-export interface BrandSource {
-  readonly table: string;
-  readonly column: string;
-  readonly tenant: string;
-}
 
 /**
  * `options.brand`: the table and column that hold a tenant's brand, and the
@@ -20,49 +13,18 @@ export interface BrandSource {
  * table). Undefined when the option is unset.
  */
 export function brandOf(ctx: BlockSqlContext): BrandSource | undefined {
-  const option = ctx.option("brand");
-
-  if (option === undefined) {
-    return undefined;
-  }
-
-  if (typeof option !== "object" || option === null || Array.isArray(option)) {
-    throw new TypeError(`${WHERE} must be { table, column, tenant? }`);
-  }
-
-  const entries = new Map<string, unknown>(Object.entries(option));
-
-  const ident = (key: string, fallback?: string): string => {
-    const value = entries.get(key) ?? fallback;
-
-    if (typeof value !== "string" || !IDENT.test(value)) {
-      throw new TypeError(`${WHERE}.${key} must be a lowercase identifier`);
-    }
-
-    return sqlIdent(value);
-  };
-
-  const table = entries.get("table");
+  const source = brandSourceOf(ctx, WHERE);
 
   if (
-    typeof table !== "string" ||
-    table.split(".").length > 2 ||
-    !table.split(".").every((part) => IDENT.test(part))
+    source !== undefined &&
+    (!ctx.has("templates", "scope") || !ctx.has("templates", "brand"))
   ) {
-    throw new TypeError(`${WHERE}.table must be "table" or "schema.table"`);
-  }
-
-  if (!ctx.has("templates", "scope") || !ctx.has("templates", "brand")) {
     throw new TypeError(
       `${WHERE} needs the templates table's scope and brand columns`,
     );
   }
 
-  return {
-    table: quotedTable(table),
-    column: ident("column"),
-    tenant: ident("tenant", "id"),
-  };
+  return source;
 }
 
 export interface BrandParts {

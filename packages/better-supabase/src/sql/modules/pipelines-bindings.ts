@@ -26,6 +26,8 @@ interface StageTemplate {
   readonly name: string;
   readonly category: string;
   readonly probability?: number;
+  readonly color?: string;
+  readonly icon?: string;
 }
 
 /** One `on` entry, checked against `config.subjects`. */
@@ -53,7 +55,11 @@ export interface PipelineBinding {
     readonly follow?: boolean;
   };
   readonly stages: readonly StageTemplate[];
+  /** Stage templates per brand; an organization of that brand starts with these. */
+  readonly brands: Readonly<Record<string, readonly StageTemplate[]>>;
 }
+
+const BRAND = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/;
 
 function columnOf(
   where: string,
@@ -132,7 +138,7 @@ function stagesOf(
       throw new TypeError(`${at} must be an object`);
     }
 
-    const { key, name, category, probability } = item;
+    const { key, name, category, probability, color, icon } = item;
 
     if (typeof key !== "string" || !NAME.test(key) || keys.has(key)) {
       throw new TypeError(`${at}.key must be a distinct lowercase name`);
@@ -158,11 +164,22 @@ function stagesOf(
       throw new TypeError(`${at}.probability must be an integer 0 to 100`);
     }
 
+    for (const [field, text] of [
+      ["color", color],
+      ["icon", icon],
+    ] as const) {
+      if (text !== undefined && (typeof text !== "string" || text === "")) {
+        throw new TypeError(`${at}.${field} must be text`);
+      }
+    }
+
     return {
       key,
       name,
       category,
       ...(typeof probability === "number" && { probability }),
+      ...(typeof color === "string" && { color }),
+      ...(typeof icon === "string" && { icon }),
     };
   });
 
@@ -171,6 +188,36 @@ function stagesOf(
   }
 
   return stages;
+}
+
+function brandsOf(
+  where: string,
+  value: unknown,
+  categories: Readonly<Record<string, PipelineOutcome>>,
+): Readonly<Record<string, readonly StageTemplate[]>> {
+  if (value === undefined) {
+    return {};
+  }
+
+  if (!isRecord(value)) {
+    throw new TypeError(`${where}.brands must map a brand to its stages`);
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([brand, entry]) => {
+      if (!BRAND.test(brand)) {
+        throw new TypeError(`${where}.brands.${brand} is not a brand`);
+      }
+
+      const at = `${where}.brands.${brand}`;
+
+      if (!isRecord(entry)) {
+        throw new TypeError(`${at} must be { stages }`);
+      }
+
+      return [brand, stagesOf(at, entry["stages"], categories)];
+    }),
+  );
 }
 
 function statusOf(
@@ -307,6 +354,7 @@ export function pipelineBindings(
         "pipeline_id",
       categories,
       stages: stagesOf(where, entry["stages"], categories),
+      brands: brandsOf(where, entry["brands"], categories),
       ...(enteredAt !== undefined && { enteredAt }),
       ...(amount !== undefined && { amount }),
       ...(currency !== undefined && { currency }),

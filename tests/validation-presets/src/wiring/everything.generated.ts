@@ -126,6 +126,7 @@ import { ordersBlock } from "better-supabase/blocks/orders";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { contactsBlock } from "better-supabase/blocks/contacts";
+import { optionSetsBlock } from "better-supabase/blocks/option-sets";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { promotionsBlock } from "better-supabase/blocks/promotions";
@@ -291,6 +292,7 @@ export const blockSet = defineBlocks(blockConfig, {
   organizations: organizationsBlock,
   outbox: outboxBlock,
   contacts: contactsBlock,
+  optionSets: optionSetsBlock,
   pipelines: pipelinesBlock,
   profiles: profilesBlock,
   promotions: promotionsBlock,

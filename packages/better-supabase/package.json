@@ -952,6 +952,11 @@
       "types": "./dist/blocks/templates/index.d.ts",
       "default": "./dist/blocks/templates/index.js"
     },
+    "./blocks/option-sets": {
+      "@better-supabase/source": "./src/blocks/option-sets/index.ts",
+      "types": "./dist/blocks/option-sets/index.d.ts",
+      "default": "./dist/blocks/option-sets/index.js"
+    },
     "./blocks/pipelines": {
       "@better-supabase/source": "./src/blocks/pipelines/index.ts",
       "types": "./dist/blocks/pipelines/index.d.ts",
@@ -2145,6 +2150,10 @@
       "./blocks/templates": {
         "types": "./dist/blocks/templates/index.d.ts",
         "default": "./dist/blocks/templates/index.js"
+      },
+      "./blocks/option-sets": {
+        "types": "./dist/blocks/option-sets/index.d.ts",
+        "default": "./dist/blocks/option-sets/index.js"
       },
       "./blocks/pipelines": {
         "types": "./dist/blocks/pipelines/index.d.ts",

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:821a02eb3f360be7e80e39b0a3a4ff6a4545f3e049ca3ff8d33b146cc99b2f98
+-- @bsb-hash sha256:f4f5ed849b7a1db5b1d9f80b369489551c53e5d765cf2fdaf02fe66599a1c604
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -116,6 +116,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "system_key" text,
   "name" text not null check (length("name") between 1 and 200),
   "color" text,
+  "icon" text check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "category" text not null,
   "outcome" text not null check ("outcome" in ('open', 'success', 'failure')),
@@ -334,7 +335,8 @@ grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenti
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text)
+drop function if exists "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -373,8 +375,8 @@ begin
   end;
   begin
     if v_stage is null then
-      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color,
+      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
+      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
         case
     when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
     when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
@@ -389,7 +391,7 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "updated_at" = now()
+      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
       where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
@@ -414,8 +416,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) from public, anon;
-grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "better_supabase"."rank_pipeline_stage"(stage uuid, rank text)
@@ -448,8 +450,11 @@ $$;
 revoke execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) to authenticated, service_role;
 
--- Archives an empty stage. The last open stage of a pipeline stays.
-create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid)
+-- Archives a stage. Records in it move to move_to, a stage of the same
+-- pipeline; without move_to a stage that holds records is refused. The last
+-- open stage of a pipeline stays.
+drop function if exists "better_supabase"."archive_pipeline_stage"(uuid);
+create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
 security definer
@@ -462,6 +467,7 @@ declare
   v_outcome text;
   v_used boolean;
   v_stage uuid := archive_pipeline_stage.stage;
+  v_to uuid := archive_pipeline_stage.move_to;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -477,8 +483,16 @@ begin
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
   v_used := false;
-  if v_used then
-    raise exception 'records are in this stage; move them first' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
+  if archive_pipeline_stage.move_to is not null then
+    if archive_pipeline_stage.move_to = archive_pipeline_stage.stage or not exists (
+      select 1 from "better_supabase"."pipeline_stages" x
+      where x."id" = archive_pipeline_stage.move_to and x."pipeline_id" = v_pipeline and x."archived_at" is null
+    ) then
+      raise exception 'move_to must be another active stage of the same pipeline' using errcode = '22023', hint = 'PIPELINE_STAGE_REPLACEMENT_INVALID';
+    end if;
+  end if;
+  if v_used and archive_pipeline_stage.move_to is null then
+    raise exception 'records are in this stage; move them first or name a stage to move them to' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
   end if;
   if v_outcome = 'open' and not exists (
     select 1 from "better_supabase"."pipeline_stages" x where x."pipeline_id" = v_pipeline and x."outcome" = 'open'
@@ -486,13 +500,20 @@ begin
   ) then
     raise exception 'a pipeline keeps at least one open stage' using errcode = '23514', hint = 'PIPELINE_LAST_OPEN_STAGE';
   end if;
+  if v_used then
+    -- The stage trigger lets this one change through even where the allowed
+    -- stage changes would not.
+    perform set_config('bsb.lane_move', v_stage::text || ':' || v_to::text, true);
+    null;
+    perform set_config('bsb.lane_move', '', true);
+  end if;
   update "better_supabase"."pipeline_stages" x set "archived_at" = now(), "updated_at" = now() where x."id" = archive_pipeline_stage.stage;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid) from public, anon;
-grant execute on function "better_supabase"."archive_pipeline_stage"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.
@@ -770,7 +791,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:4088005e0400696108602246871acd262237c216c5bc0ba21016809bff241a6c
+-- @bsb-hash sha256:294eb3a454f0213fb8e2a9fbad8243224c5bcb07a6c71587985f52e4eb382b8b
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -902,6 +923,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "system_key" text,
   "name" text not null check (length("name") between 1 and 200),
   "color" text,
+  "icon" text check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "category" text not null,
   "outcome" text not null check ("outcome" in ('open', 'success', 'failure')),
@@ -1122,6 +1144,7 @@ begin
   end if;
   if tg_op = 'INSERT' or new."stage_id" is distinct from old."stage_id" then
     if tg_op = 'UPDATE' and old."stage_id" is not null
+      and coalesce(current_setting('bsb.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
       and exists (select 1 from "better_supabase"."pipeline_transitions" x where x."pipeline_id" = new."pipeline_id")
       and not exists (
         select 1 from "better_supabase"."pipeline_transitions" x
@@ -1250,6 +1273,7 @@ begin
   end if;
   if tg_op = 'INSERT' or new."stage_id" is distinct from old."stage_id" then
     if tg_op = 'UPDATE' and old."stage_id" is not null
+      and coalesce(current_setting('bsb.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
       and exists (select 1 from "better_supabase"."pipeline_transitions" x where x."pipeline_id" = new."pipeline_id")
       and not exists (
         select 1 from "better_supabase"."pipeline_transitions" x
@@ -1378,6 +1402,7 @@ begin
   end if;
   if tg_op = 'INSERT' or new."stage_id" is distinct from old."stage_id" then
     if tg_op = 'UPDATE' and old."stage_id" is not null
+      and coalesce(current_setting('bsb.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
       and exists (select 1 from "better_supabase"."pipeline_transitions" x where x."pipeline_id" = new."pipeline_id")
       and not exists (
         select 1 from "better_supabase"."pipeline_transitions" x
@@ -1506,6 +1531,7 @@ begin
   end if;
   if tg_op = 'INSERT' or new."stage_id" is distinct from old."stage_id" then
     if tg_op = 'UPDATE' and old."stage_id" is not null
+      and coalesce(current_setting('bsb.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
       and exists (select 1 from "better_supabase"."pipeline_transitions" x where x."pipeline_id" = new."pipeline_id")
       and not exists (
         select 1 from "better_supabase"."pipeline_transitions" x
@@ -1725,7 +1751,8 @@ grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenti
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text)
+drop function if exists "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1795,8 +1822,8 @@ begin
   end;
   begin
     if v_stage is null then
-      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color,
+      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
+      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
         case
     when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
     when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
@@ -1826,7 +1853,7 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "updated_at" = now()
+      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
       where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
@@ -1869,8 +1896,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) from public, anon;
-grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "better_supabase"."rank_pipeline_stage"(stage uuid, rank text)
@@ -1903,8 +1930,11 @@ $$;
 revoke execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) to authenticated, service_role;
 
--- Archives an empty stage. The last open stage of a pipeline stays.
-create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid)
+-- Archives a stage. Records in it move to move_to, a stage of the same
+-- pipeline; without move_to a stage that holds records is refused. The last
+-- open stage of a pipeline stays.
+drop function if exists "better_supabase"."archive_pipeline_stage"(uuid);
+create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
 security definer
@@ -1917,6 +1947,7 @@ declare
   v_outcome text;
   v_used boolean;
   v_stage uuid := archive_pipeline_stage.stage;
+  v_to uuid := archive_pipeline_stage.move_to;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1947,14 +1978,40 @@ begin
     else
       v_used := false;
   end case;
-  if v_used then
-    raise exception 'records are in this stage; move them first' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
+  if archive_pipeline_stage.move_to is not null then
+    if archive_pipeline_stage.move_to = archive_pipeline_stage.stage or not exists (
+      select 1 from "better_supabase"."pipeline_stages" x
+      where x."id" = archive_pipeline_stage.move_to and x."pipeline_id" = v_pipeline and x."archived_at" is null
+    ) then
+      raise exception 'move_to must be another active stage of the same pipeline' using errcode = '22023', hint = 'PIPELINE_STAGE_REPLACEMENT_INVALID';
+    end if;
+  end if;
+  if v_used and archive_pipeline_stage.move_to is null then
+    raise exception 'records are in this stage; move them first or name a stage to move them to' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
   end if;
   if v_outcome = 'open' and not exists (
     select 1 from "better_supabase"."pipeline_stages" x where x."pipeline_id" = v_pipeline and x."outcome" = 'open'
       and x."archived_at" is null and x."id" <> archive_pipeline_stage.stage
   ) then
     raise exception 'a pipeline keeps at least one open stage' using errcode = '23514', hint = 'PIPELINE_LAST_OPEN_STAGE';
+  end if;
+  if v_used then
+    -- The stage trigger lets this one change through even where the allowed
+    -- stage changes would not.
+    perform set_config('bsb.lane_move', v_stage::text || ':' || v_to::text, true);
+    case v_subject_type
+    when 'deal' then
+      update "better_supabase"."deals" r set "stage_id" = archive_pipeline_stage.move_to where r."stage_id" = archive_pipeline_stage.stage;
+    when 'task' then
+      update "better_supabase"."tasks" r set "stage_id" = archive_pipeline_stage.move_to where r."stage_id" = archive_pipeline_stage.stage;
+    when 'application' then
+      update "better_supabase"."applications" r set "stage_id" = archive_pipeline_stage.move_to where r."stage_id" = archive_pipeline_stage.stage;
+    when 'case' then
+      update "better_supabase"."cases" r set "stage_id" = archive_pipeline_stage.move_to where r."stage_id" = archive_pipeline_stage.stage;
+    else
+      null;
+  end case;
+    perform set_config('bsb.lane_move', '', true);
   end if;
   update "better_supabase"."pipeline_stages" x set "archived_at" = now(), "updated_at" = now() where x."id" = archive_pipeline_stage.stage;
   perform "better_supabase".emit_event('pipeline_stage.archived', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
@@ -1970,8 +2027,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid) from public, anon;
-grant execute on function "better_supabase"."archive_pipeline_stage"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.
@@ -2046,7 +2103,7 @@ begin
           group by stage_id
         )
         select coalesce(jsonb_agg(jsonb_build_object(
-          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color",
+          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color", 'icon', st."icon",
           'category', st."category", 'outcome', st."outcome", 'probability', st."probability",
           'wipLimit', st."wip_limit", 'count', coalesce(n.n, 0),
           'overLimit', st."wip_limit" is not null and coalesce(n.n, 0) > st."wip_limit",
@@ -2072,7 +2129,7 @@ begin
           group by stage_id
         )
         select coalesce(jsonb_agg(jsonb_build_object(
-          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color",
+          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color", 'icon', st."icon",
           'category', st."category", 'outcome', st."outcome", 'probability', st."probability",
           'wipLimit', st."wip_limit", 'count', coalesce(n.n, 0),
           'overLimit', st."wip_limit" is not null and coalesce(n.n, 0) > st."wip_limit",
@@ -2098,7 +2155,7 @@ begin
           group by stage_id
         )
         select coalesce(jsonb_agg(jsonb_build_object(
-          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color",
+          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color", 'icon', st."icon",
           'category', st."category", 'outcome', st."outcome", 'probability', st."probability",
           'wipLimit', st."wip_limit", 'count', coalesce(n.n, 0),
           'overLimit', st."wip_limit" is not null and coalesce(n.n, 0) > st."wip_limit",
@@ -2124,7 +2181,7 @@ begin
           group by stage_id
         )
         select coalesce(jsonb_agg(jsonb_build_object(
-          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color",
+          'stageId', st."id", 'key', st."key", 'name', st."name", 'color', st."color", 'icon', st."icon",
           'category', st."category", 'outcome', st."outcome", 'probability', st."probability",
           'wipLimit', st."wip_limit", 'count', coalesce(n.n, 0),
           'overLimit', st."wip_limit" is not null and coalesce(n.n, 0) > st."wip_limit",
@@ -2403,7 +2460,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:74fe2d2691f731c3672aa33ad365a17cef691a7df0af278e50f2c3fa6a1e24ca
+-- @bsb-hash sha256:72835ee1f58e64d1f325bb81d33b7fa7dfa4335db2368cda8d6847577f7f9214
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2523,6 +2580,7 @@ create table if not exists "app_private"."pipeline_stages" (
   "system_key" text,
   "name" text not null check (length("name") between 1 and 200),
   "color" text,
+  "icon" text check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "category" text not null,
   "outcome" text not null check ("outcome" in ('open', 'success', 'failure')),
@@ -2741,7 +2799,8 @@ grant execute on function "app_private"."archive_pipeline"(uuid) to authenticate
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-create or replace function "app_private"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text)
+drop function if exists "app_private"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+create or replace function "app_private"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2780,8 +2839,8 @@ begin
   end;
   begin
     if v_stage is null then
-      insert into "app_private"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color,
+      insert into "app_private"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
+      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
         case
     when (select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
     when length(substring((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
@@ -2796,7 +2855,7 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "app_private"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "updated_at" = now()
+      update "app_private"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
       where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
@@ -2821,8 +2880,8 @@ begin
   return (select to_jsonb(x) from "app_private"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "app_private"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) from public, anon;
-grant execute on function "app_private"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) to authenticated, service_role;
+revoke execute on function "app_private"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "app_private"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "app_private"."rank_pipeline_stage"(stage uuid, rank text)
@@ -2855,8 +2914,11 @@ $$;
 revoke execute on function "app_private"."rank_pipeline_stage"(uuid, text) from public, anon;
 grant execute on function "app_private"."rank_pipeline_stage"(uuid, text) to authenticated, service_role;
 
--- Archives an empty stage. The last open stage of a pipeline stays.
-create or replace function "app_private"."archive_pipeline_stage"(stage uuid)
+-- Archives a stage. Records in it move to move_to, a stage of the same
+-- pipeline; without move_to a stage that holds records is refused. The last
+-- open stage of a pipeline stays.
+drop function if exists "app_private"."archive_pipeline_stage"(uuid);
+create or replace function "app_private"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
 security definer
@@ -2869,6 +2931,7 @@ declare
   v_outcome text;
   v_used boolean;
   v_stage uuid := archive_pipeline_stage.stage;
+  v_to uuid := archive_pipeline_stage.move_to;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2884,8 +2947,16 @@ begin
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
   v_used := false;
-  if v_used then
-    raise exception 'records are in this stage; move them first' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
+  if archive_pipeline_stage.move_to is not null then
+    if archive_pipeline_stage.move_to = archive_pipeline_stage.stage or not exists (
+      select 1 from "app_private"."pipeline_stages" x
+      where x."id" = archive_pipeline_stage.move_to and x."pipeline_id" = v_pipeline and x."archived_at" is null
+    ) then
+      raise exception 'move_to must be another active stage of the same pipeline' using errcode = '22023', hint = 'PIPELINE_STAGE_REPLACEMENT_INVALID';
+    end if;
+  end if;
+  if v_used and archive_pipeline_stage.move_to is null then
+    raise exception 'records are in this stage; move them first or name a stage to move them to' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
   end if;
   if v_outcome = 'open' and not exists (
     select 1 from "app_private"."pipeline_stages" x where x."pipeline_id" = v_pipeline and x."outcome" = 'open'
@@ -2893,13 +2964,20 @@ begin
   ) then
     raise exception 'a pipeline keeps at least one open stage' using errcode = '23514', hint = 'PIPELINE_LAST_OPEN_STAGE';
   end if;
+  if v_used then
+    -- The stage trigger lets this one change through even where the allowed
+    -- stage changes would not.
+    perform set_config('bsb.lane_move', v_stage::text || ':' || v_to::text, true);
+    null;
+    perform set_config('bsb.lane_move', '', true);
+  end if;
   update "app_private"."pipeline_stages" x set "archived_at" = now(), "updated_at" = now() where x."id" = archive_pipeline_stage.stage;
   null;
   return true;
 end;
 $$;
-revoke execute on function "app_private"."archive_pipeline_stage"(uuid) from public, anon;
-grant execute on function "app_private"."archive_pipeline_stage"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."archive_pipeline_stage"(uuid, uuid) from public, anon;
+grant execute on function "app_private"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.
@@ -3177,7 +3255,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:27f0f5e2f1269862718465233e51a78c5930dee2fcf9c913571c88c9aea8430d
+-- @bsb-hash sha256:41a3cdf0d333c998ae0bcdc4f74bd166b31dc69862d1ab71abd5d98671dc04cc
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3292,6 +3370,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "system_key" text,
   "name" text not null check (length("name") between 1 and 200),
   "color" text,
+  "icon" text check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "category" text not null,
   "outcome" text not null check ("outcome" in ('open', 'success', 'failure')),
@@ -3510,7 +3589,8 @@ grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenti
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text)
+drop function if exists "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3549,8 +3629,8 @@ begin
   end;
   begin
     if v_stage is null then
-      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color,
+      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
+      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
         case
     when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
     when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
@@ -3565,7 +3645,7 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "updated_at" = now()
+      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
       where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
@@ -3590,8 +3670,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) from public, anon;
-grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "better_supabase"."rank_pipeline_stage"(stage uuid, rank text)
@@ -3624,8 +3704,11 @@ $$;
 revoke execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) to authenticated, service_role;
 
--- Archives an empty stage. The last open stage of a pipeline stays.
-create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid)
+-- Archives a stage. Records in it move to move_to, a stage of the same
+-- pipeline; without move_to a stage that holds records is refused. The last
+-- open stage of a pipeline stays.
+drop function if exists "better_supabase"."archive_pipeline_stage"(uuid);
+create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
 security definer
@@ -3638,6 +3721,7 @@ declare
   v_outcome text;
   v_used boolean;
   v_stage uuid := archive_pipeline_stage.stage;
+  v_to uuid := archive_pipeline_stage.move_to;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3653,8 +3737,16 @@ begin
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
   v_used := false;
-  if v_used then
-    raise exception 'records are in this stage; move them first' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
+  if archive_pipeline_stage.move_to is not null then
+    if archive_pipeline_stage.move_to = archive_pipeline_stage.stage or not exists (
+      select 1 from "better_supabase"."pipeline_stages" x
+      where x."id" = archive_pipeline_stage.move_to and x."pipeline_id" = v_pipeline and x."archived_at" is null
+    ) then
+      raise exception 'move_to must be another active stage of the same pipeline' using errcode = '22023', hint = 'PIPELINE_STAGE_REPLACEMENT_INVALID';
+    end if;
+  end if;
+  if v_used and archive_pipeline_stage.move_to is null then
+    raise exception 'records are in this stage; move them first or name a stage to move them to' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
   end if;
   if v_outcome = 'open' and not exists (
     select 1 from "better_supabase"."pipeline_stages" x where x."pipeline_id" = v_pipeline and x."outcome" = 'open'
@@ -3662,13 +3754,20 @@ begin
   ) then
     raise exception 'a pipeline keeps at least one open stage' using errcode = '23514', hint = 'PIPELINE_LAST_OPEN_STAGE';
   end if;
+  if v_used then
+    -- The stage trigger lets this one change through even where the allowed
+    -- stage changes would not.
+    perform set_config('bsb.lane_move', v_stage::text || ':' || v_to::text, true);
+    null;
+    perform set_config('bsb.lane_move', '', true);
+  end if;
   update "better_supabase"."pipeline_stages" x set "archived_at" = now(), "updated_at" = now() where x."id" = archive_pipeline_stage.stage;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid) from public, anon;
-grant execute on function "better_supabase"."archive_pipeline_stage"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.
@@ -3921,6 +4020,8 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."save_pipeline"(uuid, uuid, text, text, text, text, boolean, jsonb);
+drop function if exists "api"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+drop function if exists "api"."archive_pipeline_stage"(uuid);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -3968,14 +4069,14 @@ as $$ select "better_supabase"."archive_pipeline"($1) $$;
 revoke execute on function "api"."archive_pipeline"(uuid) from public, anon;
 grant execute on function "api"."archive_pipeline"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text)
+create or replace function "api"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_pipeline_stage"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) from public, anon;
-grant execute on function "api"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) to authenticated, service_role;
+as $$ select "better_supabase"."save_pipeline_stage"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "api"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 create or replace function "api"."rank_pipeline_stage"(stage uuid, rank text)
 returns boolean
@@ -3986,14 +4087,14 @@ as $$ select "better_supabase"."rank_pipeline_stage"($1, $2) $$;
 revoke execute on function "api"."rank_pipeline_stage"(uuid, text) from public, anon;
 grant execute on function "api"."rank_pipeline_stage"(uuid, text) to authenticated, service_role;
 
-create or replace function "api"."archive_pipeline_stage"(stage uuid)
+create or replace function "api"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."archive_pipeline_stage"($1) $$;
-revoke execute on function "api"."archive_pipeline_stage"(uuid) from public, anon;
-grant execute on function "api"."archive_pipeline_stage"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."archive_pipeline_stage"($1, $2) $$;
+revoke execute on function "api"."archive_pipeline_stage"(uuid, uuid) from public, anon;
+grant execute on function "api"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
 
 create or replace function "api"."set_pipeline_transitions"(pipeline uuid, pairs jsonb)
 returns integer
@@ -4074,7 +4175,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:27c7b61547d5460e5ec4c9722af8f1310684fa992323d4ea1642e0137cd21952
+-- @bsb-hash sha256:0af1071bc1bfed31b849209732d8a28b89b1dc0166459186a9f04a71ece848f0
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4203,6 +4304,7 @@ alter table "better_supabase"."pipeline_stages" add column if not exists "key" t
 alter table "better_supabase"."pipeline_stages" add column if not exists "system_key" text;
 alter table "better_supabase"."pipeline_stages" add column if not exists "name" text check (length("name") between 1 and 200);
 alter table "better_supabase"."pipeline_stages" add column if not exists "color" text;
+alter table "better_supabase"."pipeline_stages" add column if not exists "icon" text check (length("icon") <= 100);
 alter table "better_supabase"."pipeline_stages" add column if not exists "rank" text collate "C" not null default 'V';
 alter table "better_supabase"."pipeline_stages" add column if not exists "category" text;
 alter table "better_supabase"."pipeline_stages" add column if not exists "outcome" text check ("outcome" in ('open', 'success', 'failure'));
@@ -4213,6 +4315,7 @@ alter table "better_supabase"."pipeline_stages" add column if not exists "archiv
 alter table "better_supabase"."pipeline_stages" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."pipeline_stages" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_pipeline_stages_key_key" on "better_supabase"."pipeline_stages" ("pipeline_id", "key");
+alter table "better_supabase"."pipeline_stages" add column if not exists "icon" text check (length("icon") <= 100);
 create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
 alter table "better_supabase"."pipeline_stages" enable row level security;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
@@ -4415,7 +4518,8 @@ grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenti
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text)
+drop function if exists "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4454,8 +4558,8 @@ begin
   end;
   begin
     if v_stage is null then
-      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, better_supabase.as_column_type(save_pipeline_stage.category, (null::"better_supabase"."pipeline_stages")."category"), better_supabase.as_column_type(v_outcome, (null::"better_supabase"."pipeline_stages")."outcome"), save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color,
+      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
+      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, better_supabase.as_column_type(save_pipeline_stage.category, (null::"better_supabase"."pipeline_stages")."category"), better_supabase.as_column_type(v_outcome, (null::"better_supabase"."pipeline_stages")."outcome"), save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
         case
     when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
     when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
@@ -4470,7 +4574,7 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = better_supabase.as_column_type(save_pipeline_stage.category, (null::"better_supabase"."pipeline_stages")."category"), "outcome" = better_supabase.as_column_type(v_outcome, (null::"better_supabase"."pipeline_stages")."outcome"), "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "updated_at" = now()
+      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = better_supabase.as_column_type(save_pipeline_stage.category, (null::"better_supabase"."pipeline_stages")."category"), "outcome" = better_supabase.as_column_type(v_outcome, (null::"better_supabase"."pipeline_stages")."outcome"), "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
       where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
@@ -4492,11 +4596,11 @@ begin
         using v_stage;
     end if;
   end;
-  return (select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'pipeline_id', x."pipeline_id", 'key', x."key", 'system_key', x."system_key", 'name', x."name", 'color', x."color", 'rank', x."rank", 'category', x."category", 'outcome', x."outcome", 'probability', x."probability", 'rotting_after_days', x."rotting_after_days", 'wip_limit', x."wip_limit", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
+  return (select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'pipeline_id', x."pipeline_id", 'key', x."key", 'system_key', x."system_key", 'name', x."name", 'color', x."color", 'icon', x."icon", 'rank', x."rank", 'category', x."category", 'outcome', x."outcome", 'probability', x."probability", 'rotting_after_days', x."rotting_after_days", 'wip_limit', x."wip_limit", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) from public, anon;
-grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "better_supabase"."rank_pipeline_stage"(stage uuid, rank text)
@@ -4529,8 +4633,11 @@ $$;
 revoke execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) to authenticated, service_role;
 
--- Archives an empty stage. The last open stage of a pipeline stays.
-create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid)
+-- Archives a stage. Records in it move to move_to, a stage of the same
+-- pipeline; without move_to a stage that holds records is refused. The last
+-- open stage of a pipeline stays.
+drop function if exists "better_supabase"."archive_pipeline_stage"(uuid);
+create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
 security definer
@@ -4543,6 +4650,7 @@ declare
   v_outcome text;
   v_used boolean;
   v_stage uuid := archive_pipeline_stage.stage;
+  v_to uuid := archive_pipeline_stage.move_to;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4558,8 +4666,16 @@ begin
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
   v_used := false;
-  if v_used then
-    raise exception 'records are in this stage; move them first' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
+  if archive_pipeline_stage.move_to is not null then
+    if archive_pipeline_stage.move_to = archive_pipeline_stage.stage or not exists (
+      select 1 from "better_supabase"."pipeline_stages" x
+      where x."id" = archive_pipeline_stage.move_to and x."pipeline_id" = v_pipeline and x."archived_at" is null
+    ) then
+      raise exception 'move_to must be another active stage of the same pipeline' using errcode = '22023', hint = 'PIPELINE_STAGE_REPLACEMENT_INVALID';
+    end if;
+  end if;
+  if v_used and archive_pipeline_stage.move_to is null then
+    raise exception 'records are in this stage; move them first or name a stage to move them to' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
   end if;
   if v_outcome = 'open' and not exists (
     select 1 from "better_supabase"."pipeline_stages" x where x."pipeline_id" = v_pipeline and x."outcome" = 'open'
@@ -4567,13 +4683,20 @@ begin
   ) then
     raise exception 'a pipeline keeps at least one open stage' using errcode = '23514', hint = 'PIPELINE_LAST_OPEN_STAGE';
   end if;
+  if v_used then
+    -- The stage trigger lets this one change through even where the allowed
+    -- stage changes would not.
+    perform set_config('bsb.lane_move', v_stage::text || ':' || v_to::text, true);
+    null;
+    perform set_config('bsb.lane_move', '', true);
+  end if;
   update "better_supabase"."pipeline_stages" x set "archived_at" = now(), "updated_at" = now() where x."id" = archive_pipeline_stage.stage;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid) from public, anon;
-grant execute on function "better_supabase"."archive_pipeline_stage"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.
@@ -4710,7 +4833,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'subject_type', x."subject_type", 'scope_id', x."scope_id", 'key', x."key", 'name', x."name", 'rank', x."rank", 'is_default', x."is_default", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('stages', coalesce((
-      select jsonb_agg(jsonb_build_object('id', st."id", 'tenant_id', st."tenant_id", 'pipeline_id', st."pipeline_id", 'key', st."key", 'system_key', st."system_key", 'name', st."name", 'color', st."color", 'rank', st."rank", 'category', st."category", 'outcome', st."outcome", 'probability', st."probability", 'rotting_after_days', st."rotting_after_days", 'wip_limit', st."wip_limit", 'archived_at', st."archived_at", 'created_at', st."created_at", 'updated_at', st."updated_at") order by st."rank" collate "C")
+      select jsonb_agg(jsonb_build_object('id', st."id", 'tenant_id', st."tenant_id", 'pipeline_id', st."pipeline_id", 'key', st."key", 'system_key', st."system_key", 'name', st."name", 'color', st."color", 'icon', st."icon", 'rank', st."rank", 'category', st."category", 'outcome', st."outcome", 'probability', st."probability", 'rotting_after_days', st."rotting_after_days", 'wip_limit', st."wip_limit", 'archived_at', st."archived_at", 'created_at', st."created_at", 'updated_at', st."updated_at") order by st."rank" collate "C")
       from "better_supabase"."pipeline_stages" st where st."pipeline_id" = x."id" and st."archived_at" is null
     ), '[]'::jsonb)) order by x."rank" collate "C"), '[]'::jsonb)
   from "better_supabase"."pipelines" x
@@ -4851,7 +4974,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:924475fdc462ebfc5e332aec792837372a5608d356b5ef04299b11fbe1860d95
+-- @bsb-hash sha256:cc180a6482b795dd708425ecb8448912655c3462ef6550a38927d1c20f7aeead
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4966,6 +5089,7 @@ create table if not exists "better_supabase"."pipeline_stages" (
   "system_key" text,
   "name" text not null check (length("name") between 1 and 200),
   "color" text,
+  "icon" text check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "category" text not null,
   "outcome" text not null check ("outcome" in ('open', 'success', 'failure')),
@@ -5184,7 +5308,8 @@ grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenti
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text)
+drop function if exists "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text);
+create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5223,8 +5348,8 @@ begin
   end;
   begin
     if v_stage is null then
-      insert into "better_supabase"."pipeline_stages" ("org_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color,
+      insert into "better_supabase"."pipeline_stages" ("org_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
+      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
         case
     when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
     when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
@@ -5239,7 +5364,7 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "updated_at" = now()
+      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
       where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
@@ -5264,8 +5389,8 @@ begin
   return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) from public, anon;
-grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "better_supabase"."rank_pipeline_stage"(stage uuid, rank text)
@@ -5298,8 +5423,11 @@ $$;
 revoke execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_pipeline_stage"(uuid, text) to authenticated, service_role;
 
--- Archives an empty stage. The last open stage of a pipeline stays.
-create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid)
+-- Archives a stage. Records in it move to move_to, a stage of the same
+-- pipeline; without move_to a stage that holds records is refused. The last
+-- open stage of a pipeline stays.
+drop function if exists "better_supabase"."archive_pipeline_stage"(uuid);
+create or replace function "better_supabase"."archive_pipeline_stage"(stage uuid, move_to uuid default null)
 returns boolean
 language plpgsql
 security definer
@@ -5312,6 +5440,7 @@ declare
   v_outcome text;
   v_used boolean;
   v_stage uuid := archive_pipeline_stage.stage;
+  v_to uuid := archive_pipeline_stage.move_to;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5327,8 +5456,16 @@ begin
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
   v_used := false;
-  if v_used then
-    raise exception 'records are in this stage; move them first' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
+  if archive_pipeline_stage.move_to is not null then
+    if archive_pipeline_stage.move_to = archive_pipeline_stage.stage or not exists (
+      select 1 from "better_supabase"."pipeline_stages" x
+      where x."id" = archive_pipeline_stage.move_to and x."pipeline_id" = v_pipeline and x."archived_at" is null
+    ) then
+      raise exception 'move_to must be another active stage of the same pipeline' using errcode = '22023', hint = 'PIPELINE_STAGE_REPLACEMENT_INVALID';
+    end if;
+  end if;
+  if v_used and archive_pipeline_stage.move_to is null then
+    raise exception 'records are in this stage; move them first or name a stage to move them to' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
   end if;
   if v_outcome = 'open' and not exists (
     select 1 from "better_supabase"."pipeline_stages" x where x."pipeline_id" = v_pipeline and x."outcome" = 'open'
@@ -5336,13 +5473,20 @@ begin
   ) then
     raise exception 'a pipeline keeps at least one open stage' using errcode = '23514', hint = 'PIPELINE_LAST_OPEN_STAGE';
   end if;
+  if v_used then
+    -- The stage trigger lets this one change through even where the allowed
+    -- stage changes would not.
+    perform set_config('bsb.lane_move', v_stage::text || ':' || v_to::text, true);
+    null;
+    perform set_config('bsb.lane_move', '', true);
+  end if;
   update "better_supabase"."pipeline_stages" x set "archived_at" = now(), "updated_at" = now() where x."id" = archive_pipeline_stage.stage;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid) from public, anon;
-grant execute on function "better_supabase"."archive_pipeline_stage"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.
