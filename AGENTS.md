@@ -383,6 +383,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0270: Close the platform and runtime gaps of the base layer.
 - 0271: Name every generated trigger bsb_*, and end unique and exclusion names in `_key` and `_excl`.
 - 0310: Check the example app's feature-sliced RSC architecture in `pnpm verify`.
+- 0311: Keep tags in pure `<domain>-cache.ts` files built on `tagFor`.
 
 ## Pre-release pins
 

@@ -6,19 +6,11 @@ import { bsb } from "@/lib/supabase/server";
 
 import type { PermissionSet } from "./user-permissions";
 
+import { organizationSnapshotTag, snapshotTag } from "./user-cache";
+
 // See https://bettersupabase.com/docs/frameworks/next-cache-components#permission-snapshots.
 
 type CachedRequest = Awaited<ReturnType<typeof bsb.cached>>;
-
-/** The tag of a user's snapshot entries. */
-function snapshotTag(sub: string | null): string {
-  return `permissions:${sub ?? "anon"}`;
-}
-
-/** The tag of every member's snapshot in one organization. */
-export function organizationSnapshotTag(organizationId: string): string {
-  return `permissions:organization:${organizationId}`;
-}
 
 /**
  * The caller's keys in the active organization: the role's catalog keys with

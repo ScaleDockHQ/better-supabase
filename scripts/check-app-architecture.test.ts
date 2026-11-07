@@ -88,6 +88,19 @@ export function Client() { return <Notes />; }`,
     ).toEqual(["client-imports-async", "connection", "suspense-in-feature"]);
   });
 
+  it("flags a cache file that imports server code and accepts a pure one", () => {
+    expect(
+      rules({
+        "features/notes/notes-cache.ts": `import { cacheTag } from "next/cache";\nexport const a = cacheTag;`,
+      }),
+    ).toEqual(["cache-pure"]);
+    expect(
+      rules({
+        "features/notes/notes-cache.ts": `export const tag = (id: string) => \`notes:\${id}\`;`,
+      }),
+    ).toEqual([]);
+  });
+
   it("accepts a connection call with a reason on the line before", () => {
     expect(
       rules({

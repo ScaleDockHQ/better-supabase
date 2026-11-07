@@ -6,12 +6,9 @@ import { cacheTag } from "next/cache";
 
 import { bsb } from "@/lib/supabase/server";
 
-export type { Team } from "better-supabase/blocks/teams";
+import { teamsTag } from "./teams-cache";
 
-/** The tag of one organization's teams. */
-export function teamsTag(organizationId: string): string {
-  return `teams:${organizationId}`;
-}
+export type { Team } from "better-supabase/blocks/teams";
 
 /**
  * The active organization's teams through the teams block's `list_teams`,

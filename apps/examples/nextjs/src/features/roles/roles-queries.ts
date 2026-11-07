@@ -8,7 +8,7 @@ import * as v from "valibot";
 
 import type { PermissionSet } from "@/features/user/user-permissions";
 
-import { organizationSnapshotTag } from "@/features/user/permission-snapshot";
+import { organizationSnapshotTag } from "@/features/user/user-cache";
 import { Role } from "@/lib/claims";
 import { bsb } from "@/lib/supabase/server";
 

@@ -215,6 +215,19 @@ export const checkRoot = (root: string, allow: Allow): Finding[] => {
         }
       }
 
+      if (
+        name.endsWith("-cache.ts") &&
+        /server-only|from\s+["']next\/cache["']|@\/lib\/supabase\/server|["']use (?:cache|server)/.test(
+          code,
+        )
+      ) {
+        add(
+          file,
+          "cache-pure",
+          "a *-cache.ts file holds pure tags and keys and imports no server code",
+        );
+      }
+
       if (/\/components\/[^/]+\.tsx$/.test(rel)) {
         const exported = new Set(
           [

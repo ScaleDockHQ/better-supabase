@@ -268,7 +268,7 @@ values with `params.then()` before a feature sees them. A feature takes ids and
 a `query` object, never the route promise. Queries sit in
 `<folder>-queries.ts` with `import "server-only"`, actions in
 `<folder>-actions.ts`, and pure helpers a page needs (a scope, a filter parser)
-in `<folder>-cache.ts`. An async component in `components/` exports its
+in `<folder>-cache.ts`. A tag you write yourself lives in `<folder>-cache.ts` too, built with `tagFor` (ADR 0311). An async component in `components/` exports its
 `*Skeleton` in the same file, or carries `// skeleton: <reason>` above it. Use
 `io()` from `next/cache` for a clock or random read, and `connection()` only
 with a comment that states why rendering has to wait for a request. Read

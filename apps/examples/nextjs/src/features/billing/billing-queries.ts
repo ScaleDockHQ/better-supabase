@@ -10,6 +10,8 @@ import * as v from "valibot";
 
 import { bsb } from "@/lib/supabase/server";
 
+import { PLANS_TABLE } from "./billing-cache";
+
 export interface PlanOption {
   readonly key: string;
   readonly name: string;
@@ -30,7 +32,7 @@ export interface PlanOption {
 export async function getPlans(): Promise<readonly PlanOption[]> {
   "use cache";
   cacheLife("hours");
-  bsb.tag("plans");
+  bsb.tag(PLANS_TABLE);
 
   const plans = await bsb
     .admin()
