@@ -35,6 +35,7 @@ async function fill(): Promise<void> {
 describe("the cache folder", () => {
   it("lists and sizes what is cached, and purges all of it", async () => {
     expect(await listCache(root)).toEqual([]);
+    expect(await cacheSize(root)).toBe(0);
     expect(await purgeCache(root)).toMatchObject({ removed: [], bytes: 0 });
 
     await fill();

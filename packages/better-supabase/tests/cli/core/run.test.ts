@@ -1,5 +1,5 @@
 import { existsSync, utimesSync, writeFileSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -381,6 +381,45 @@ describe("run", () => {
     expect(
       api.calls.filter((call) => call.body?.includes("t_enums")).length,
     ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("watches the app's schema files and ignores the module files it writes", async () => {
+    const controller = new AbortController();
+    await mkdir(join(dir, "supabase/schemas/_better_supabase"), {
+      recursive: true,
+    });
+    await writeFile(join(dir, "supabase/schemas/tables.sql"), "select 1;\n");
+    await writeFile(
+      join(dir, "supabase/schemas/_better_supabase/900_better_supabase_1.sql"),
+      "select 2;\n",
+    );
+
+    const api = fakeFetch((call) => {
+      if (call.body?.includes("t_enums")) {
+        controller.abort();
+      }
+
+      return { body: [] };
+    });
+
+    vi.stubGlobal("fetch", api.fetch);
+
+    const result = await run(
+      [
+        "dev",
+        "--only",
+        "types,seed",
+        "--interval",
+        "1",
+        "--project-ref",
+        "abc",
+        "--cwd",
+        dir,
+      ],
+      { signal: controller.signal, env: ENV, io: io() },
+    );
+
+    expect(result.code).toBe(0);
   });
 
   it("watches the catalog fingerprint and reads the schema only when it changes", async () => {

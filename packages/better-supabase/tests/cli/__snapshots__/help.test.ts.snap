@@ -781,7 +781,7 @@ Examples
   # Runs the generator tasks, prints Ready, and runs only what a change affects
   $ better-supabase dev
 
-Side effects: Writes files, reads the database, runs the command you pass, stops or destroys local stacks.
+Side effects: Writes files, reads the database, calls the Supabase Management API with --project-ref, runs the command you pass, stops or destroys local stacks.
 Docs: https://bettersupabase.com/docs/cli/dev
 "
 `;
