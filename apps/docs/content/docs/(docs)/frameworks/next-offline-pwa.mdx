@@ -152,6 +152,34 @@ A form keeps its button disabled while the action is pending, and swaps the
 label for "Waiting for connection" when the action is pending because the app
 is offline (`SubmitLabel` in the example).
 
+## Block controllers that pause offline
+
+`useBlockQuery` and `useBlockMutation` from `better-supabase/next/client` read
+`useOffline()` for you. A read pauses while the app is offline: the last data
+stays, `offline` is `true` instead of an error, and the read runs once when the
+connection returns. A write queues once (a second call replaces the arguments
+and shares the first promise) and runs when the connection returns, the way
+`experimental.useOffline` retries a Server Action.
+
+```tsx
+"use client";
+
+import { useBlockQuery } from "better-supabase/next/client";
+
+export function Tasks() {
+  const tasks = useBlockQuery(blocks.tasks, "list", [{ status: "open" }]);
+
+  return tasks.offline ? <p>Showing the last list while offline.</p> : null;
+}
+```
+
+`useOffline()` is `false` during SSR and hydration, so the first render matches
+the server. The controllers ignore a repeated `setOffline` with the same value,
+so a double effect does nothing, and they never change their props. A read kept
+in a `DataEngine` follows the engine's own online handling and only reports the
+flag. `init` writes `app/manifest.ts`, `public/sw.js`, `public/offline.html` and
+the Web Push keys in `.env.example` for a new Next.js app.
+
 ## Check it
 
 1. Run `next build` and `next start`, open the app, and sign in.

@@ -407,6 +407,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0341: Give bsb.cached a render stage and a max life.
 - 0342: Gate the app layout with AuthGate and bsb.user.
 - 0343: Taint tokens and server contexts.
+- 0344: Pause block controllers offline and write the Next.js layout from init.
 
 ## Pre-release pins
 

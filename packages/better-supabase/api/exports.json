@@ -1914,6 +1914,8 @@
   },
   "./next/client": {
     "values": [
+      "useBlockMutation",
+      "useBlockQuery",
       "useSessionChange",
       "useSessionWatch",
       "watchSession"

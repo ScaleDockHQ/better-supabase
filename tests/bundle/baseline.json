@@ -25,7 +25,7 @@
   "./next/proxy": 126856,
   "./next/auth-gate": 1020,
   "./next/image": 1901,
-  "./next/client": 2365,
+  "./next/client": 8012,
   "./hono": 138160,
   "./tanstack-start": 127924,
   "./sveltekit": 128608,
