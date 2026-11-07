@@ -209,7 +209,7 @@ interface ScheduleListRow {
   readonly tenant: string | null;
   readonly next_run: Date | string | null;
   readonly last_run: Date | string | null;
-  readonly locked_until: Date | string | null;
+  readonly lock_expires_at: Date | string | null;
   readonly created_at: Date | string | null;
   readonly payload?: unknown;
 }
@@ -313,7 +313,7 @@ const scheduleInfo = (row: ScheduleListRow): StoredSchedule => ({
   tenant: row.tenant,
   nextRun: instantOrNull(row.next_run),
   lastRun: instantOrNull(row.last_run),
-  leasedUntil: instantOrNull(row.locked_until),
+  leasedUntil: instantOrNull(row.lock_expires_at),
   createdAt: instantOrNull(row.created_at),
   ...(row.payload === undefined ? {} : { payload: row.payload }),
 });

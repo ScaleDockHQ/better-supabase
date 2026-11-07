@@ -428,7 +428,7 @@ describe("createInbox", () => {
         reply_to: "m1",
         metadata: { source: "composer" },
       },
-      scheduled_for: AT,
+      scheduled_at: AT,
       created_at: AT,
     };
 
@@ -485,12 +485,12 @@ describe("createInbox", () => {
         {
           conversation: "c1",
           input: { body: "Back tomorrow", format: "markdown" },
-          scheduled_for: AT,
+          scheduled_at: AT,
         },
       ],
       ["list_scheduled_inbox_messages", { conversation: null }],
       ["list_scheduled_inbox_messages", { conversation: "c1" }],
-      ["reschedule_inbox_message", { scheduled: "s1", scheduled_for: AT }],
+      ["reschedule_inbox_message", { scheduled: "s1", scheduled_at: AT }],
       ["cancel_inbox_message", { scheduled: "s1" }],
       ["publish_due_inbox_messages", { max_rows: 5 }],
     ]);

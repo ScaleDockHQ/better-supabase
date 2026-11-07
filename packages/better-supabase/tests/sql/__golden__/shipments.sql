@@ -735,7 +735,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:dcc6ac2026424ec146322cd13a9790fb9345584bcff152b61c92ce304836853f
+-- @bsb-hash sha256:9c1aaae598ee825398688e95064def291c846f7b4f43df7c4d40ed4236b99422
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -845,7 +845,7 @@ begin
     if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
       select 1 from "better_supabase"."organization_deletions" x
       where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
-        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_at" <= now()
     ) then
       return old;
     end if;

@@ -231,12 +231,12 @@ describe("calendar client", () => {
     expect(calls.slice(1)).toEqual([
       {
         fn: "cancel_calendar_occurrence",
-        args: { event_id: "s1", original_start: "2026-03-30T07:00:00Z" },
+        args: { event_id: "s1", original_starts_at: "2026-03-30T07:00:00Z" },
       },
       { fn: "delete_calendar_event", args: { event_id: "e1" } },
       {
         fn: "cancel_calendar_occurrence",
-        args: { event_id: "s1", original_start: "2026-04-06T07:00:00Z" },
+        args: { event_id: "s1", original_starts_at: "2026-04-06T07:00:00Z" },
       },
     ]);
   });

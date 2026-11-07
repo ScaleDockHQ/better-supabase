@@ -32,7 +32,7 @@ const deletionRow = (overrides: Record<string, unknown> = {}) => ({
   organization_id: "org-1",
   requested_by: "u1",
   requested_at: "2026-10-06T12:00:00Z",
-  purge_after: "2026-11-05T12:00:00Z",
+  purge_at: "2026-11-05T12:00:00Z",
   cancelled_at: null,
   purged_at: null,
   previously_disabled: false,

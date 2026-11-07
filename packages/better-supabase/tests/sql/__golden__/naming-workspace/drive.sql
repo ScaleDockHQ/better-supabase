@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:c576f67cd3c9c927c66fe57cff509c336e4fc5298fd126033fca8205f0bb55bd
+-- @bsb-hash sha256:3adcc5adf772e174809a3e7ff8919c0267e06cf44697a3e2c7de45f0a34ae6c3
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20,9 +20,9 @@ create table "better_supabase"."drive_nodes" (
   "source" text not null default 'internal',
   "external_id" text,
   "external_metadata" jsonb not null default '{}'::jsonb,
-  "legal_hold_until" timestamptz,
+  "legal_hold_expires_at" timestamptz,
   "locked_by" uuid,
-  "locked_until" timestamptz,
+  "lock_expires_at" timestamptz,
   "lock_note" text constraint bsb_drive_nodes_lock_note_check check (length("lock_note") <= 500),
   "download_blocked" boolean not null default false,
   "preview_pages" integer constraint bsb_drive_nodes_preview_pages_check check ("preview_pages" >= 0),
@@ -102,7 +102,7 @@ as $$
     select 1 from "better_supabase"."drive_nodes" h
     where (h."id" in (select s.node_id from "better_supabase"."drive_subtree"(drive_node_held.node) s)
         or h."id" = any ("better_supabase"."drive_ancestors"(drive_node_held.node)))
-      and h."legal_hold_until" is not null and h."legal_hold_until" > now()
+      and h."legal_hold_expires_at" is not null and h."legal_hold_expires_at" > now()
   )
 $$;
 revoke execute on function "better_supabase"."drive_node_held"(uuid) from public, anon;
@@ -771,8 +771,8 @@ begin
   if (coalesce(v_node."source"::text, 'internal') not in ('internal', 'request') or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
-  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+  if (v_node."lock_expires_at" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."lock_expires_at")::text;
   end if;
   if v_name = v_node."name" then
     return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
@@ -837,8 +837,8 @@ begin
   if (coalesce(v_node."source"::text, 'internal') not in ('internal', 'request') or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
-  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+  if (v_node."lock_expires_at" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."lock_expires_at")::text;
   end if;
   if drive_move.rank is not null and drive_move.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a key from rankBetween' using errcode = '22023', hint = 'DRIVE_RANK_INVALID';
@@ -932,10 +932,10 @@ begin
   end if;
   select * into v_locked from "better_supabase"."drive_nodes" lk
   where lk."id" in (select s.node_id from "better_supabase"."drive_subtree"(v_node."id") s)
-    and (lk."locked_until" > now() and lk."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
+    and (lk."lock_expires_at" > now() and lk."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
   limit 1;
   if found then
-    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_locked."locked_by", 'lockedUntil', v_locked."locked_until")::text;
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_locked."locked_by", 'lockedUntil', v_locked."lock_expires_at")::text;
   end if;
   delete from "better_supabase"."drive_nodes" x where x."id" in (select s.node_id from "better_supabase"."drive_subtree"(v_node."id") s);
   return true;
@@ -1101,7 +1101,7 @@ begin
   if drive_hold.until is null or drive_hold.until <= now() then
     raise exception 'a legal hold needs an end in the future' using errcode = '22023', hint = 'DRIVE_HOLD_INVALID';
   end if;
-  update "better_supabase"."drive_nodes" x set "legal_hold_until" = drive_hold.until, "updated_at" = now()
+  update "better_supabase"."drive_nodes" x set "legal_hold_expires_at" = drive_hold.until, "updated_at" = now()
   where x."id" = v_node."id"
   returning * into v_node;
   null;
@@ -1134,7 +1134,7 @@ begin
   if (coalesce(v_node."source"::text, 'internal') not in ('internal', 'request') or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
-  update "better_supabase"."drive_nodes" x set "legal_hold_until" = null, "updated_at" = now()
+  update "better_supabase"."drive_nodes" x set "legal_hold_expires_at" = null, "updated_at" = now()
   where x."id" = v_node."id"
   returning * into v_node;
   null;
@@ -1185,10 +1185,10 @@ begin
   if length(drive_lock.note) > 500 then
     raise exception 'a lock note is at most 500 characters' using errcode = '22023', hint = 'DRIVE_LOCK_INVALID';
   end if;
-  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+  if (v_node."lock_expires_at" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."lock_expires_at")::text;
   end if;
-  update "better_supabase"."drive_nodes" x set "locked_by" = auth.uid(), "locked_until" = v_until, "lock_note" = drive_lock.note, "updated_at" = now()
+  update "better_supabase"."drive_nodes" x set "locked_by" = auth.uid(), "lock_expires_at" = v_until, "lock_note" = drive_lock.note, "updated_at" = now()
   where x."id" = v_node."id"
   returning * into v_node;
   null;
@@ -1219,9 +1219,9 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  if v_node."locked_until" is null or v_node."locked_until" <= now() then
+  if v_node."lock_expires_at" is null or v_node."lock_expires_at" <= now() then
     if v_node."locked_by" is not null then
-      update "better_supabase"."drive_nodes" x set "locked_by" = null, "locked_until" = null, "lock_note" = null
+      update "better_supabase"."drive_nodes" x set "locked_by" = null, "lock_expires_at" = null, "lock_note" = null
       where x."id" = v_node."id"
       returning * into v_node;
     end if;
@@ -1230,14 +1230,14 @@ begin
   v_holder := v_node."locked_by";
   if v_holder is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     if not coalesce(drive_unlock.force, false) then
-      raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+      raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."lock_expires_at")::text;
     end if;
     if not "better_supabase"."drive_can"(v_node."id", 'owner') then
       raise exception 'not allowed to break someone else''s lock' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
     end if;
     v_forced := true;
   end if;
-  update "better_supabase"."drive_nodes" x set "locked_by" = null, "locked_until" = null, "lock_note" = null, "updated_at" = now()
+  update "better_supabase"."drive_nodes" x set "locked_by" = null, "lock_expires_at" = null, "lock_note" = null, "updated_at" = now()
   where x."id" = v_node."id"
   returning * into v_node;
   null;

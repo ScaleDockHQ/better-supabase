@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:7c52391b288f0cf74a652036f19838f58988e6ce9d9daf3ce8cf6a8c8399404d
+-- @bsb-hash sha256:405ff1d50350cc000104097ab423b5e2b439ae4033eed5280c67820723757b7b
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,7 +16,7 @@ create table "better_supabase"."trash_items" (
   "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
-  "purge_after" timestamptz,
+  "purge_at" timestamptz,
   unique ("subject_type", "subject_id")
 );
 create index "trash_items_tenant_idx" on "better_supabase"."trash_items" ("tenant_id", "trashed_at" desc);
@@ -46,7 +46,7 @@ begin
   raise exception 'this subject type has no deletedAt column' using errcode = '22023', hint = 'TRASH_UNSUPPORTED';
   delete from "better_supabase"."trash_items" i
     where i."subject_type" = trash_cascade.subject_type and i."subject_id" = trash_cascade.subject_id;
-  insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_after")
+  insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_at")
   values (trash_cascade.tenant, trash_cascade.subject_type, trash_cascade.subject_id, v_title, trash_cascade.batch, trash_cascade.depth, trash_cascade.actor, now(), now() + make_interval(days => 30))
   returning * into v_item;
   null;
@@ -182,7 +182,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_trash.tenant, 'trash.read'), false)) then
     raise exception 'not allowed to read this organization''s trash' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_after") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_at") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
     into v_rows
   from (
     select x.*, (select count(*) from "better_supabase"."trash_items" b where b."batch_id" = x."batch_id")::integer as n
@@ -263,9 +263,9 @@ declare
 begin
   for v_batch in
     select t."batch_id" from "better_supabase"."trash_items" t
-    where t."depth" = 0 and t."purge_after" <= now()
+    where t."depth" = 0 and t."purge_at" <= now()
       and not false
-    order by t."purge_after"
+    order by t."purge_at"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);
@@ -330,7 +330,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:3c8de00f6139a2df4b596cdd1f7da90065a6d934a508e84520dfb223550c49d4
+-- @bsb-hash sha256:460bc06119fe7a6ee7f36c1f5bf1ba8a06ae53501d55618eb73a562b94e3a6fc
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -345,7 +345,7 @@ create table "better_supabase"."trash_items" (
   "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
-  "purge_after" timestamptz,
+  "purge_at" timestamptz,
   unique ("subject_type", "subject_id")
 );
 create index "trash_items_tenant_idx" on "better_supabase"."trash_items" ("tenant_id", "trashed_at" desc);
@@ -375,7 +375,7 @@ begin
   raise exception 'this subject type has no deletedAt column' using errcode = '22023', hint = 'TRASH_UNSUPPORTED';
   delete from "better_supabase"."trash_items" i
     where i."subject_type" = trash_cascade.subject_type and i."subject_id" = trash_cascade.subject_id;
-  insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_after")
+  insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_at")
   values (trash_cascade.tenant, trash_cascade.subject_type, trash_cascade.subject_id, v_title, trash_cascade.batch, trash_cascade.depth, trash_cascade.actor, now(), now() + make_interval(days => 30))
   returning * into v_item;
   perform "better_supabase".emit_event('subject.trashed', jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id"), 'trash-items/' || v_item."id"::text, (v_item."tenant_id")::text, null, 'better-supabase/trash');
@@ -529,7 +529,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_trash.tenant, 'trash.read'), false)) then
     raise exception 'not allowed to read this organization''s trash' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_after") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_at") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
     into v_rows
   from (
     select x.*, (select count(*) from "better_supabase"."trash_items" b where b."batch_id" = x."batch_id")::integer as n
@@ -619,9 +619,9 @@ declare
 begin
   for v_batch in
     select t."batch_id" from "better_supabase"."trash_items" t
-    where t."depth" = 0 and t."purge_after" <= now()
+    where t."depth" = 0 and t."purge_at" <= now()
       and not "better_supabase"."is_held"('trash', (t."tenant_id")::text)
-    order by t."purge_after"
+    order by t."purge_at"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);
@@ -686,7 +686,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:ff2866c493f321b2045cb33e4e85fabd9775c0c71bee7f01d7f6a2711b8eb371
+-- @bsb-hash sha256:81a4a4b5a91dbd79fd6768a412538c403a971e9aa95d38e39cfabbe542ffdc18
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -706,7 +706,7 @@ create table "app_private"."trash_items" (
   "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
-  "purge_after" timestamptz,
+  "purge_at" timestamptz,
   unique ("subject_type", "subject_id")
 );
 create index "trash_items_tenant_idx" on "app_private"."trash_items" ("tenant_id", "trashed_at" desc);
@@ -736,7 +736,7 @@ begin
   raise exception 'this subject type has no deletedAt column' using errcode = '22023', hint = 'TRASH_UNSUPPORTED';
   delete from "app_private"."trash_items" i
     where i."subject_type" = trash_cascade.subject_type and i."subject_id" = trash_cascade.subject_id;
-  insert into "app_private"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_after")
+  insert into "app_private"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_at")
   values (trash_cascade.tenant, trash_cascade.subject_type, trash_cascade.subject_id, v_title, trash_cascade.batch, trash_cascade.depth, trash_cascade.actor, now(), now() + make_interval(days => 30))
   returning * into v_item;
   null;
@@ -872,7 +872,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_trash.tenant, 'trash.read'), false)) then
     raise exception 'not allowed to read this organization''s trash' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_after") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_at") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
     into v_rows
   from (
     select x.*, (select count(*) from "app_private"."trash_items" b where b."batch_id" = x."batch_id")::integer as n
@@ -953,9 +953,9 @@ declare
 begin
   for v_batch in
     select t."batch_id" from "app_private"."trash_items" t
-    where t."depth" = 0 and t."purge_after" <= now()
+    where t."depth" = 0 and t."purge_at" <= now()
       and not false
-    order by t."purge_after"
+    order by t."purge_at"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "app_private"."trash_purge_batch"(v_batch);
@@ -1020,7 +1020,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:1931c9fd517466decfa8fc6dcbc47288432253e9391ac726e93f35a31d6c7022
+-- @bsb-hash sha256:67b1ce162ac50443f289e97a37e48564f1701aedaa8fe6c61e1f3db3130b0b4e
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1035,7 +1035,7 @@ create table "better_supabase"."trash_items" (
   "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
-  "purge_after" timestamptz,
+  "purge_at" timestamptz,
   unique ("subject_type", "subject_id")
 );
 create index "trash_items_tenant_idx" on "better_supabase"."trash_items" ("tenant_id", "trashed_at" desc);
@@ -1065,7 +1065,7 @@ begin
   raise exception 'this subject type has no deletedAt column' using errcode = '22023', hint = 'TRASH_UNSUPPORTED';
   delete from "better_supabase"."trash_items" i
     where i."subject_type" = trash_cascade.subject_type and i."subject_id" = trash_cascade.subject_id;
-  insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_after")
+  insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_at")
   values (trash_cascade.tenant, trash_cascade.subject_type, trash_cascade.subject_id, v_title, trash_cascade.batch, trash_cascade.depth, trash_cascade.actor, now(), now() + make_interval(days => 30))
   returning * into v_item;
   null;
@@ -1201,7 +1201,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_trash.tenant, 'trash.read'), false)) then
     raise exception 'not allowed to read this organization''s trash' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_after") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_at") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
     into v_rows
   from (
     select x.*, (select count(*) from "better_supabase"."trash_items" b where b."batch_id" = x."batch_id")::integer as n
@@ -1282,9 +1282,9 @@ declare
 begin
   for v_batch in
     select t."batch_id" from "better_supabase"."trash_items" t
-    where t."depth" = 0 and t."purge_after" <= now()
+    where t."depth" = 0 and t."purge_at" <= now()
       and not false
-    order by t."purge_after"
+    order by t."purge_at"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);
@@ -1409,7 +1409,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:67812715a41e4606f06871a3b547e0095a39600ea70f7d224e2037c3853a767a
+-- @bsb-hash sha256:d4e0d8cd10b089c52f2d33d989a0b863d3953116a12f4f0024220859e6593ce5
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1424,7 +1424,7 @@ alter table "better_supabase"."trash_items" add column if not exists "batch_id" 
 alter table "better_supabase"."trash_items" add column if not exists "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0);
 alter table "better_supabase"."trash_items" add column if not exists "trashed_by" uuid;
 alter table "better_supabase"."trash_items" add column if not exists "trashed_at" timestamptz not null default now();
-alter table "better_supabase"."trash_items" add column if not exists "purge_after" timestamptz;
+alter table "better_supabase"."trash_items" add column if not exists "purge_at" timestamptz;
 create index if not exists "trash_items_tenant_idx" on "better_supabase"."trash_items" ("tenant_id", "trashed_at" desc);
 create index if not exists "trash_items_batch_idx" on "better_supabase"."trash_items" ("batch_id");
 alter table "better_supabase"."trash_items" enable row level security;
@@ -1451,7 +1451,7 @@ begin
   raise exception 'this subject type has no deletedAt column' using errcode = '22023', hint = 'TRASH_UNSUPPORTED';
   delete from "better_supabase"."trash_items" i
     where i."subject_type" = trash_cascade.subject_type and i."subject_id" = trash_cascade.subject_id;
-  insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_after")
+  insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_at")
   values (trash_cascade.tenant, trash_cascade.subject_type, trash_cascade.subject_id, v_title, trash_cascade.batch, trash_cascade.depth, trash_cascade.actor, now(), now() + make_interval(days => 30))
   returning * into v_item;
   null;
@@ -1587,7 +1587,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_trash.tenant, 'trash.read'), false)) then
     raise exception 'not allowed to read this organization''s trash' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_after") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_at") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
     into v_rows
   from (
     select x.*, (select count(*) from "better_supabase"."trash_items" b where b."batch_id" = x."batch_id")::integer as n
@@ -1668,9 +1668,9 @@ declare
 begin
   for v_batch in
     select t."batch_id" from "better_supabase"."trash_items" t
-    where t."depth" = 0 and t."purge_after" <= now()
+    where t."depth" = 0 and t."purge_at" <= now()
       and not false
-    order by t."purge_after"
+    order by t."purge_at"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);
@@ -1735,7 +1735,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:1537e7bc6e0ef2a51a9443eaedda9592b5dbee9cdef0eab917d27c9cc8706f86
+-- @bsb-hash sha256:ccd6f8faab387a05017f69344852e73184b9ca920ef5beba8f4003dae1a652a1
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1750,7 +1750,7 @@ create table "better_supabase"."trash_items" (
   "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
-  "purge_after" timestamptz,
+  "purge_at" timestamptz,
   unique ("subject_type", "subject_id")
 );
 create index "trash_items_tenant_idx" on "better_supabase"."trash_items" ("org_id", "trashed_at" desc);
@@ -1780,7 +1780,7 @@ begin
   raise exception 'this subject type has no deletedAt column' using errcode = '22023', hint = 'TRASH_UNSUPPORTED';
   delete from "better_supabase"."trash_items" i
     where i."subject_type" = trash_cascade.subject_type and i."subject_id" = trash_cascade.subject_id;
-  insert into "better_supabase"."trash_items" ("org_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_after")
+  insert into "better_supabase"."trash_items" ("org_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_at")
   values (trash_cascade.tenant, trash_cascade.subject_type, trash_cascade.subject_id, v_title, trash_cascade.batch, trash_cascade.depth, trash_cascade.actor, now(), now() + make_interval(days => 30))
   returning * into v_item;
   null;
@@ -1916,7 +1916,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_trash.tenant, 'trash.read'), false)) then
     raise exception 'not allowed to read this organization''s trash' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_after") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_at") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
     into v_rows
   from (
     select x.*, (select count(*) from "better_supabase"."trash_items" b where b."batch_id" = x."batch_id")::integer as n
@@ -1997,9 +1997,9 @@ declare
 begin
   for v_batch in
     select t."batch_id" from "better_supabase"."trash_items" t
-    where t."depth" = 0 and t."purge_after" <= now()
+    where t."depth" = 0 and t."purge_at" <= now()
       and not false
-    order by t."purge_after"
+    order by t."purge_at"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);

@@ -232,7 +232,7 @@ ${policy(T.deliveries, sqlIdent(`${q.ctx.tableName("deliveries").name}_staff_rea
 -- Webhook deliveries from the channels, stored before the ack so a slow or
 -- failed handler loses nothing. external_id dedupes a platform's retries.
 -- attempts counts only starts of processing; available_at delays a retry and
--- locked_until is the lease of a processing row, after which it is picked
+-- lock_expires_at is the lease of a processing row, after which it is picked
 -- again.
 create table if not exists ${T.inbound} (
   ${ie("id")} uuid primary key default gen_random_uuid(),
@@ -270,7 +270,7 @@ ${lockTable(T.templates, { read: true })}
 ${policy(T.templates, sqlIdent(`${q.ctx.tableName("templates").name}_staff_read`), q.staff(tp("tenant")))}
 
 -- Staff replies to send later. publish_due_inbox_messages sends each one
--- through the normal reply path once scheduled_for passes; until then only
+-- through the normal reply path once scheduled_at passes; until then only
 -- its author sees it.
 create table if not exists ${T.scheduled} (
   ${sm("id")} uuid primary key default gen_random_uuid(),

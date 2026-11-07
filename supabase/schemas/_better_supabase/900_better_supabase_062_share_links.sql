@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:2ea6bf2bba8d572ef188b7143ebe3ab51ff4d70dbdc86fef48f5e5932e7821d1
+-- @bsb-hash sha256:23a8ae46c6c6e618bedff255027012a5dfb7e6cf78d916069e18d2082dac517f
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -274,10 +274,10 @@ begin
     if resolve_share_link.password is null then
       return jsonb_build_object('passwordRequired', true);
     end if;
-    select greatest(1, ceil(extract(epoch from k."window_start" + k."period" - now()))::integer) into v_retry
+    select greatest(1, ceil(extract(epoch from k."window_started_at" + k."period" - now()))::integer) into v_retry
     from "better_supabase"."rate_limits" k
     where k."scope" = 'share_link_password' and k."key" = v_link."id"::text
-      and k."window_start" + k."period" > now()
+      and k."window_started_at" + k."period" > now()
       and k."hits" >= coalesce((select q."max_requests" from "better_supabase"."rate_limit_rules" q where q."scope" = 'share_link_password'), 10);
     if v_retry is not null then
       raise exception 'too many wrong passwords for this link' using errcode = 'BS429', hint = 'SHARE_LINK_RATE_LIMITED', detail = 'retry after ' || v_retry;

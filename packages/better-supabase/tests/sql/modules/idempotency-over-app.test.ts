@@ -27,7 +27,7 @@ create table public.request_keys (
   state public.request_state not null default 'running',
   code integer,
   body jsonb,
-  locked_until timestamptz,
+  lock_expires_at timestamptz,
   expires_at timestamptz not null,
   owner uuid
 );

@@ -381,7 +381,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
         ),
       ).toBe(true);
       await s.rows(
-        "update better_supabase.ai_harness_sessions set locked_until = now() - interval '1 second' where chat_id = $1",
+        "update better_supabase.ai_harness_sessions set lock_expires_at = now() - interval '1 second' where chat_id = $1",
         [chat],
       );
       expect(

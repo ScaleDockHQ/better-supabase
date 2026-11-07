@@ -909,7 +909,7 @@ export function createCalendar<
           "cancel_calendar_occurrence",
           {
             event_id: occurrence.seriesId,
-            original_start: occurrence.originalStart.toString(),
+            original_starts_at: occurrence.originalStart.toString(),
           },
           (value) => value === true,
         );
@@ -929,7 +929,7 @@ export function createCalendar<
         "cancel_calendar_occurrence",
         {
           event_id: series.id,
-          original_start: occurrence.originalStart.toString(),
+          original_starts_at: occurrence.originalStart.toString(),
         },
         (value) => value === true,
       );

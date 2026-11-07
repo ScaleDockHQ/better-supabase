@@ -41,7 +41,7 @@ const RUNS = {
   tenant: "organization_id",
   user: "user_id",
   status: "status",
-  scheduledFor: "scheduled_for",
+  scheduledFor: "scheduled_at",
   chat: "chat_id",
   error: "error",
   startedAt: "started_at",

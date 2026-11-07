@@ -12,8 +12,8 @@ type DrivePrune = "mark" | "delete";
 
 /**
  * `options.sync.prune` of the drive in `ctx`: `delete` (the default) removes
- * unlisted nodes, `mark` keeps them and sets `missing_since` on their record in
- * the imports record map, so it needs the imports block (ADR 0147).
+ * unlisted nodes, `mark` keeps them and sets `went_missing_at` on their record
+ * in the imports record map, so it needs the imports block (ADR 0147).
  */
 function drivePrune(ctx: BlockSqlContext): DrivePrune {
   const raw = ctx.option("sync");
@@ -39,7 +39,7 @@ function drivePrune(ctx: BlockSqlContext): DrivePrune {
 
   if (usable(ctx, "imports") === undefined) {
     throw new TypeError(
-      `${where}.prune 'mark' keeps its missing_since in the imports record map, so it needs the imports block`,
+      `${where}.prune 'mark' keeps its went_missing_at in the imports record map, so it needs the imports block`,
     );
   }
 
@@ -256,7 +256,7 @@ export function syncBatchSql(kit: DriveKit): string {
       : `. Nodes are tracked in the imports record map by content hash: a node
 -- whose hash is unchanged is not written, and the return value counts the
 -- nodes written. options.sync.prune = 'mark' keeps unlisted nodes and sets
--- missing_since on their record instead of deleting them. Legal holds win`
+-- went_missing_at on their record instead of deleting them. Legal holds win`
   }.
 create or replace function ${fn("drive_sync_batch")}(drive uuid, items jsonb, root_external_id text, sync_run text default null, prune boolean default false, cursor text default null)
 returns integer

@@ -65,7 +65,7 @@ const NAMES: BlockSqlNames = {
         depth: "depth",
         trashedBy: "trashed_by",
         trashedAt: "trashed_at",
-        purgeAfter: "purge_after",
+        purgeAfter: "purge_at",
       },
     },
   },

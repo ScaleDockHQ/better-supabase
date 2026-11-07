@@ -45,7 +45,7 @@ const messageRow = {
   pinned_by: null,
   resolved_at: null,
   resolved_by: null,
-  scheduled_for: null,
+  scheduled_at: null,
   sent_at: AT,
   edited_at: null,
   deleted_at: null,

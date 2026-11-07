@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:2e343fd86bd49485e35f03a599d2eff25c0de4a482d02c2a7b8ff24118e6b0c2
+-- @bsb-hash sha256:5008aae043577ea360fcb82b4fbc9b120622f635b3a587589f6d283403b35f63
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,7 +13,7 @@ create table "better_supabase"."idempotency_keys" (
   "status" text not null default 'running' constraint bsb_idempotency_keys_status_check check ("status" in ('running', 'completed')),
   "status_code" integer,
   "response" jsonb,
-  "locked_until" timestamptz,
+  "lock_expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
@@ -49,7 +49,7 @@ begin
   delete from "better_supabase"."idempotency_keys" k
   where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key and k."expires_at" < now();
 
-  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "locked_until", "expires_at", "holder")
+  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "lock_expires_at", "expires_at", "holder")
   values (scope, key, request_hash, 'running', now() + lock, now() + ttl, token)
   on conflict ("scope", "key") do nothing;
   if found then
@@ -64,10 +64,10 @@ begin
     return query select 'mismatch'::text, null::integer, null::jsonb, null::uuid;
   elsif existing."status" = 'completed' then
     return query select 'replay'::text, existing."status_code", existing."response", null::uuid;
-  elsif existing."locked_until" < now() then
+  elsif existing."lock_expires_at" < now() then
     -- The holder's lock ran out: this request takes the key over, and the
     -- former holder's complete and release now return false.
-    update "better_supabase"."idempotency_keys" k set "locked_until" = now() + lock, "holder" = token
+    update "better_supabase"."idempotency_keys" k set "lock_expires_at" = now() + lock, "holder" = token
     where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key;
     return query select 'started'::text, null::integer, null::jsonb, token;
   else
@@ -93,7 +93,7 @@ as $$
   with done as (
     update "better_supabase"."idempotency_keys" k
     set "status" = 'completed', "status_code" = complete_idempotent.status_code,
-        "response" = complete_idempotent.response, "locked_until" = null, "holder" = null
+        "response" = complete_idempotent.response, "lock_expires_at" = null, "holder" = null
     where k."scope" = complete_idempotent.scope and k."key" = complete_idempotent.key
       and k."status" = 'running' and k."holder" = complete_idempotent.holder
     returning 1
@@ -116,10 +116,10 @@ set search_path = ''
 as $$
   with extended as (
     update "better_supabase"."idempotency_keys" k
-    set "locked_until" = now() + extend_idempotent.lock
+    set "lock_expires_at" = now() + extend_idempotent.lock
     where k."scope" = extend_idempotent.scope and k."key" = extend_idempotent.key
       and k."status" = 'running' and k."holder" = extend_idempotent.holder
-      and k."locked_until" > now()
+      and k."lock_expires_at" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -250,7 +250,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:2e343fd86bd49485e35f03a599d2eff25c0de4a482d02c2a7b8ff24118e6b0c2
+-- @bsb-hash sha256:5008aae043577ea360fcb82b4fbc9b120622f635b3a587589f6d283403b35f63
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -262,7 +262,7 @@ create table "better_supabase"."idempotency_keys" (
   "status" text not null default 'running' constraint bsb_idempotency_keys_status_check check ("status" in ('running', 'completed')),
   "status_code" integer,
   "response" jsonb,
-  "locked_until" timestamptz,
+  "lock_expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
@@ -298,7 +298,7 @@ begin
   delete from "better_supabase"."idempotency_keys" k
   where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key and k."expires_at" < now();
 
-  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "locked_until", "expires_at", "holder")
+  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "lock_expires_at", "expires_at", "holder")
   values (scope, key, request_hash, 'running', now() + lock, now() + ttl, token)
   on conflict ("scope", "key") do nothing;
   if found then
@@ -313,10 +313,10 @@ begin
     return query select 'mismatch'::text, null::integer, null::jsonb, null::uuid;
   elsif existing."status" = 'completed' then
     return query select 'replay'::text, existing."status_code", existing."response", null::uuid;
-  elsif existing."locked_until" < now() then
+  elsif existing."lock_expires_at" < now() then
     -- The holder's lock ran out: this request takes the key over, and the
     -- former holder's complete and release now return false.
-    update "better_supabase"."idempotency_keys" k set "locked_until" = now() + lock, "holder" = token
+    update "better_supabase"."idempotency_keys" k set "lock_expires_at" = now() + lock, "holder" = token
     where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key;
     return query select 'started'::text, null::integer, null::jsonb, token;
   else
@@ -342,7 +342,7 @@ as $$
   with done as (
     update "better_supabase"."idempotency_keys" k
     set "status" = 'completed', "status_code" = complete_idempotent.status_code,
-        "response" = complete_idempotent.response, "locked_until" = null, "holder" = null
+        "response" = complete_idempotent.response, "lock_expires_at" = null, "holder" = null
     where k."scope" = complete_idempotent.scope and k."key" = complete_idempotent.key
       and k."status" = 'running' and k."holder" = complete_idempotent.holder
     returning 1
@@ -365,10 +365,10 @@ set search_path = ''
 as $$
   with extended as (
     update "better_supabase"."idempotency_keys" k
-    set "locked_until" = now() + extend_idempotent.lock
+    set "lock_expires_at" = now() + extend_idempotent.lock
     where k."scope" = extend_idempotent.scope and k."key" = extend_idempotent.key
       and k."status" = 'running' and k."holder" = extend_idempotent.holder
-      and k."locked_until" > now()
+      and k."lock_expires_at" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -499,7 +499,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:6ed774dc53481a2683a06c192f8c0874b93c1550e4fe274dd5a2c3370a8d3544
+-- @bsb-hash sha256:9c87e5c57b87226f22eb69e86c189b5dae5dbe2d0dcf8854074927e47e7dd058
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -517,7 +517,7 @@ create table "app_private"."idempotency_keys" (
   "status" text not null default 'running' constraint bsb_idempotency_keys_status_check check ("status" in ('running', 'completed')),
   "status_code" integer,
   "response" jsonb,
-  "locked_until" timestamptz,
+  "lock_expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
@@ -553,7 +553,7 @@ begin
   delete from "app_private"."idempotency_keys" k
   where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key and k."expires_at" < now();
 
-  insert into "app_private"."idempotency_keys" ("scope", "key", "request_hash", "status", "locked_until", "expires_at", "holder")
+  insert into "app_private"."idempotency_keys" ("scope", "key", "request_hash", "status", "lock_expires_at", "expires_at", "holder")
   values (scope, key, request_hash, 'running', now() + lock, now() + ttl, token)
   on conflict ("scope", "key") do nothing;
   if found then
@@ -568,10 +568,10 @@ begin
     return query select 'mismatch'::text, null::integer, null::jsonb, null::uuid;
   elsif existing."status" = 'completed' then
     return query select 'replay'::text, existing."status_code", existing."response", null::uuid;
-  elsif existing."locked_until" < now() then
+  elsif existing."lock_expires_at" < now() then
     -- The holder's lock ran out: this request takes the key over, and the
     -- former holder's complete and release now return false.
-    update "app_private"."idempotency_keys" k set "locked_until" = now() + lock, "holder" = token
+    update "app_private"."idempotency_keys" k set "lock_expires_at" = now() + lock, "holder" = token
     where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key;
     return query select 'started'::text, null::integer, null::jsonb, token;
   else
@@ -597,7 +597,7 @@ as $$
   with done as (
     update "app_private"."idempotency_keys" k
     set "status" = 'completed', "status_code" = complete_idempotent.status_code,
-        "response" = complete_idempotent.response, "locked_until" = null, "holder" = null
+        "response" = complete_idempotent.response, "lock_expires_at" = null, "holder" = null
     where k."scope" = complete_idempotent.scope and k."key" = complete_idempotent.key
       and k."status" = 'running' and k."holder" = complete_idempotent.holder
     returning 1
@@ -620,10 +620,10 @@ set search_path = ''
 as $$
   with extended as (
     update "app_private"."idempotency_keys" k
-    set "locked_until" = now() + extend_idempotent.lock
+    set "lock_expires_at" = now() + extend_idempotent.lock
     where k."scope" = extend_idempotent.scope and k."key" = extend_idempotent.key
       and k."status" = 'running' and k."holder" = extend_idempotent.holder
-      and k."locked_until" > now()
+      and k."lock_expires_at" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -754,7 +754,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:c09a3cfc028850e5e164bcaa5a220cece39bb42739be74014cf5452b9b27465d
+-- @bsb-hash sha256:a277a1949b024769dadee207eb6cce97e10f0c14a8a35f7d3cb05ce3eead8449
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -766,7 +766,7 @@ create table "better_supabase"."idempotency_keys" (
   "status" text not null default 'running' constraint bsb_idempotency_keys_status_check check ("status" in ('running', 'completed')),
   "status_code" integer,
   "response" jsonb,
-  "locked_until" timestamptz,
+  "lock_expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
@@ -802,7 +802,7 @@ begin
   delete from "better_supabase"."idempotency_keys" k
   where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key and k."expires_at" < now();
 
-  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "locked_until", "expires_at", "holder")
+  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "lock_expires_at", "expires_at", "holder")
   values (scope, key, request_hash, 'running', now() + lock, now() + ttl, token)
   on conflict ("scope", "key") do nothing;
   if found then
@@ -817,10 +817,10 @@ begin
     return query select 'mismatch'::text, null::integer, null::jsonb, null::uuid;
   elsif existing."status" = 'completed' then
     return query select 'replay'::text, existing."status_code", existing."response", null::uuid;
-  elsif existing."locked_until" < now() then
+  elsif existing."lock_expires_at" < now() then
     -- The holder's lock ran out: this request takes the key over, and the
     -- former holder's complete and release now return false.
-    update "better_supabase"."idempotency_keys" k set "locked_until" = now() + lock, "holder" = token
+    update "better_supabase"."idempotency_keys" k set "lock_expires_at" = now() + lock, "holder" = token
     where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key;
     return query select 'started'::text, null::integer, null::jsonb, token;
   else
@@ -846,7 +846,7 @@ as $$
   with done as (
     update "better_supabase"."idempotency_keys" k
     set "status" = 'completed', "status_code" = complete_idempotent.status_code,
-        "response" = complete_idempotent.response, "locked_until" = null, "holder" = null
+        "response" = complete_idempotent.response, "lock_expires_at" = null, "holder" = null
     where k."scope" = complete_idempotent.scope and k."key" = complete_idempotent.key
       and k."status" = 'running' and k."holder" = complete_idempotent.holder
     returning 1
@@ -869,10 +869,10 @@ set search_path = ''
 as $$
   with extended as (
     update "better_supabase"."idempotency_keys" k
-    set "locked_until" = now() + extend_idempotent.lock
+    set "lock_expires_at" = now() + extend_idempotent.lock
     where k."scope" = extend_idempotent.scope and k."key" = extend_idempotent.key
       and k."status" = 'running' and k."holder" = extend_idempotent.holder
-      and k."locked_until" > now()
+      and k."lock_expires_at" > now()
     returning 1
   )
   select exists (select 1 from extended)
@@ -1079,7 +1079,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:fd9c3b98cdc10be061e4de246e5841bffce80c1dec83f6b8410fc9f9bb50d336
+-- @bsb-hash sha256:268a9f4c5d2f467177b64983fa80d73bc3e5a0a166eb988eb010b03930799c52
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1091,7 +1091,7 @@ alter table "better_supabase"."idempotency_keys" add column if not exists "reque
 alter table "better_supabase"."idempotency_keys" add column if not exists "status" text not null default 'running' constraint bsb_idempotency_keys_status_check check ("status" in ('running', 'completed'));
 alter table "better_supabase"."idempotency_keys" add column if not exists "status_code" integer;
 alter table "better_supabase"."idempotency_keys" add column if not exists "response" jsonb;
-alter table "better_supabase"."idempotency_keys" add column if not exists "locked_until" timestamptz;
+alter table "better_supabase"."idempotency_keys" add column if not exists "lock_expires_at" timestamptz;
 alter table "better_supabase"."idempotency_keys" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."idempotency_keys" add column if not exists "expires_at" timestamptz;
 create index if not exists "idempotency_keys_expiry_idx" on "better_supabase"."idempotency_keys" ("expires_at");
@@ -1125,7 +1125,7 @@ begin
   delete from "better_supabase"."idempotency_keys" k
   where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key and k."expires_at" < now();
 
-  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "locked_until", "expires_at", "holder")
+  insert into "better_supabase"."idempotency_keys" ("scope", "key", "request_hash", "status", "lock_expires_at", "expires_at", "holder")
   values (scope, key, request_hash, better_supabase.as_column_type('running', (null::"better_supabase"."idempotency_keys")."status"), now() + lock, now() + ttl, token)
   on conflict ("scope", "key") do nothing;
   if found then
@@ -1140,10 +1140,10 @@ begin
     return query select 'mismatch'::text, null::integer, null::jsonb, null::uuid;
   elsif existing."status" = 'completed' then
     return query select 'replay'::text, existing."status_code", existing."response", null::uuid;
-  elsif existing."locked_until" < now() then
+  elsif existing."lock_expires_at" < now() then
     -- The holder's lock ran out: this request takes the key over, and the
     -- former holder's complete and release now return false.
-    update "better_supabase"."idempotency_keys" k set "locked_until" = now() + lock, "holder" = token
+    update "better_supabase"."idempotency_keys" k set "lock_expires_at" = now() + lock, "holder" = token
     where k."scope" = begin_idempotent.scope and k."key" = begin_idempotent.key;
     return query select 'started'::text, null::integer, null::jsonb, token;
   else
@@ -1169,7 +1169,7 @@ as $$
   with done as (
     update "better_supabase"."idempotency_keys" k
     set "status" = better_supabase.as_column_type('completed', (null::"better_supabase"."idempotency_keys")."status"), "status_code" = complete_idempotent.status_code,
-        "response" = complete_idempotent.response, "locked_until" = null, "holder" = null
+        "response" = complete_idempotent.response, "lock_expires_at" = null, "holder" = null
     where k."scope" = complete_idempotent.scope and k."key" = complete_idempotent.key
       and k."status" = 'running' and k."holder" = complete_idempotent.holder
     returning 1
@@ -1192,10 +1192,10 @@ set search_path = ''
 as $$
   with extended as (
     update "better_supabase"."idempotency_keys" k
-    set "locked_until" = now() + extend_idempotent.lock
+    set "lock_expires_at" = now() + extend_idempotent.lock
     where k."scope" = extend_idempotent.scope and k."key" = extend_idempotent.key
       and k."status" = 'running' and k."holder" = extend_idempotent.holder
-      and k."locked_until" > now()
+      and k."lock_expires_at" > now()
     returning 1
   )
   select exists (select 1 from extended)

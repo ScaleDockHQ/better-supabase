@@ -350,7 +350,7 @@ describe.skipIf(!live)("messaging", () => {
 
       await s.service();
       await s.rows(
-        "update better_supabase.messages set scheduled_for = now() - interval '1 minute' where id = $1",
+        "update better_supabase.messages set scheduled_at = now() - interval '1 minute' where id = $1",
         [later.id],
       );
       expect(await messaging.publishDue().orThrow()).toBe(1);

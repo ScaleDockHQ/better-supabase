@@ -392,7 +392,7 @@ describe.skipIf(!live)("inbox module", () => {
 
       // Once the lease ran out the row is offered again.
       await s.rows(
-        "update better_supabase.inbox_inbound_events set locked_until = now() - interval '1 second'",
+        "update better_supabase.inbox_inbound_events set lock_expires_at = now() - interval '1 second'",
       );
       expect(await inbox.inbound.pending().orThrow()).toHaveLength(1);
 
@@ -582,10 +582,10 @@ describe.skipIf(!live)("inbox module", () => {
       ]);
 
       await s.rows(
-        "update better_supabase.scheduled_inbox_messages set scheduled_for = now() - interval '1 minute'",
+        "update better_supabase.scheduled_inbox_messages set scheduled_at = now() - interval '1 minute'",
       );
       await s.rows(
-        "update better_supabase.inbox_conversations set snoozed_until = now() - interval '1 minute' where id = $1",
+        "update better_supabase.inbox_conversations set snooze_expires_at = now() - interval '1 minute' where id = $1",
         [opened.id],
       );
       expect(await inbox.publishDue().orThrow()).toBe(1);

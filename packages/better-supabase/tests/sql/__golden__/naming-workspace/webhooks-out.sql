@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:56de54b88f3d46ddc47ee3652b2987072bdb84185e6beaff3b0ef61676261f01
+-- @bsb-hash sha256:4bd7fea8eefec5dfd68dd0187735b918de3018dcd29567dea784ada772c5431d
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18,7 +18,7 @@ create table "better_supabase"."webhook_endpoints" (
   "signing" text not null default 'v1' constraint bsb_webhook_endpoints_signing_check check ("signing" in ('v1', 'v1a')),
   "format" text not null default 'cloudevents' constraint bsb_webhook_endpoints_format_check check ("format" ~ '^[a-z][a-z0-9-]{0,39}$'),
   "credential_ref" jsonb constraint bsb_webhook_endpoints_credential_ref_check check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
-  "failing_since" timestamptz,
+  "first_failed_at" timestamptz,
   "disabled_at" timestamptz,
   "disabled_reason" text,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
@@ -61,7 +61,7 @@ create table "better_supabase"."webhook_deliveries" (
   "status" text not null default 'pending' constraint bsb_webhook_deliveries_status_check check ("status" in ('pending', 'delivering', 'succeeded', 'retrying', 'dead', 'canceled')),
   "attempt" integer not null default 0 constraint bsb_webhook_deliveries_attempt_check check ("attempt" >= 0),
   "available_at" timestamptz not null default now(),
-  "leased_until" timestamptz,
+  "lease_expires_at" timestamptz,
   "response_status" integer,
   "response_body" text,
   "duration_ms" integer,
@@ -70,7 +70,7 @@ create table "better_supabase"."webhook_deliveries" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index webhook_deliveries_due_idx on "better_supabase"."webhook_deliveries" ("available_at", "leased_until") where "status" in ('pending', 'retrying', 'delivering');
+create index webhook_deliveries_due_idx on "better_supabase"."webhook_deliveries" ("available_at", "lease_expires_at") where "status" in ('pending', 'retrying', 'delivering');
 create index webhook_deliveries_endpoint_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "created_at" desc);
 create index webhook_deliveries_open_idx on "better_supabase"."webhook_deliveries" ("endpoint_id") where "status" in ('pending', 'retrying');
 create index webhook_deliveries_finished_idx on "better_supabase"."webhook_deliveries" ("created_at") where "status" in ('succeeded', 'canceled', 'dead');
@@ -87,7 +87,7 @@ set search_path = ''
 as $$
 begin
   if new."enabled" and not old."enabled" then
-    new."failing_since" := null;
+    new."first_failed_at" := null;
     new."disabled_at" := null;
     new."disabled_reason" := null;
   end if;
@@ -283,16 +283,16 @@ declare
   result jsonb;
 begin
   update "better_supabase"."webhook_deliveries" v
-  set "status" = 'canceled', "leased_until" = null, "last_error" = 'Endpoint is disabled', "processed_at" = now(), "updated_at" = now()
+  set "status" = 'canceled', "lease_expires_at" = null, "last_error" = 'Endpoint is disabled', "processed_at" = now(), "updated_at" = now()
   from "better_supabase"."webhook_endpoints" d
   where d."id" = v."endpoint_id"
     and not d."enabled"
     and v."status" in ('pending', 'retrying');
 
   update "better_supabase"."webhook_deliveries" v
-  set "status" = 'dead', "leased_until" = null, "last_error" = 'The lease ran out on the last attempt', "processed_at" = now(), "updated_at" = now()
+  set "status" = 'dead', "lease_expires_at" = null, "last_error" = 'The lease ran out on the last attempt', "processed_at" = now(), "updated_at" = now()
   where v."status" = 'delivering'
-    and v."leased_until" <= now()
+    and v."lease_expires_at" <= now()
     and v."attempt" >= greatest(1, coalesce(claim_webhook_deliveries.max_attempts, 8));
 
   with due as (
@@ -300,7 +300,7 @@ begin
     from "better_supabase"."webhook_deliveries" v
     where v."status" in ('pending', 'retrying', 'delivering')
       and v."available_at" <= now()
-      and (v."leased_until" is null or v."leased_until" <= now())
+      and (v."lease_expires_at" is null or v."lease_expires_at" <= now())
     order by v."available_at", v."created_at"
     for update skip locked
     limit greatest(1, least(coalesce(claim_webhook_deliveries.max_items, 25), 100))
@@ -309,7 +309,7 @@ begin
     update "better_supabase"."webhook_deliveries" v
     set "status" = 'delivering',
       "attempt" = v."attempt" + 1,
-      "leased_until" = now() + coalesce(claim_webhook_deliveries.lease, '2 minutes'), "updated_at" = now()
+      "lease_expires_at" = now() + coalesce(claim_webhook_deliveries.lease, '2 minutes'), "updated_at" = now()
     from due
     where v."id" = due.id
     returning v.*
@@ -361,7 +361,7 @@ begin
   set "status" = v_status,
     "attempt" = case when v_status = 'canceled' then greatest(v."attempt" - 1, 0) else v."attempt" end,
     "available_at" = case when v_status = 'retrying' then coalesce((complete_webhook_delivery.outcome ->> 'retry_at')::timestamptz, now()) else v."available_at" end,
-    "leased_until" = null,
+    "lease_expires_at" = null,
     "response_status" = (complete_webhook_delivery.outcome ->> 'response_status')::integer,
     "response_body" = complete_webhook_delivery.outcome ->> 'response_body',
     "duration_ms" = (complete_webhook_delivery.outcome ->> 'duration_ms')::integer,
@@ -379,12 +379,12 @@ begin
     raise exception 'Webhook delivery not found' using errcode = 'P0002', hint = 'WEBHOOK_DELIVERY_NOT_FOUND';
   end if;
   if v_status = 'succeeded' then
-    update "better_supabase"."webhook_endpoints" d set "failing_since" = null
-    where d."id" = v_endpoint and d."failing_since" is not null;
+    update "better_supabase"."webhook_endpoints" d set "first_failed_at" = null
+    where d."id" = v_endpoint and d."first_failed_at" is not null;
   elsif v_status in ('retrying', 'dead') then
-    update "better_supabase"."webhook_endpoints" d set "failing_since" = coalesce(d."failing_since", now())
+    update "better_supabase"."webhook_endpoints" d set "first_failed_at" = coalesce(d."first_failed_at", now())
     where d."id" = v_endpoint
-    returning d."failing_since", d."workspace_id" into v_since, v_tenant;
+    returning d."first_failed_at", d."workspace_id" into v_since, v_tenant;
     if v_since <= now() - '5 days'::interval then
       update "better_supabase"."webhook_endpoints" d set "enabled" = false, "disabled_at" = now(), "disabled_reason" = format('Deliveries failed since %s', v_since), "updated_at" = now()
       where d."id" = v_endpoint and d."enabled";
@@ -442,7 +442,7 @@ begin
     raise exception 'Webhook endpoint is disabled' using errcode = '55000', hint = 'WEBHOOK_ENDPOINT_DISABLED';
   end if;
   update "better_supabase"."webhook_deliveries" v
-  set "status" = 'pending', "attempt" = 0, "available_at" = now(), "leased_until" = null, "processed_at" = null, "last_error" = null, "updated_at" = now()
+  set "status" = 'pending', "attempt" = 0, "available_at" = now(), "lease_expires_at" = null, "processed_at" = null, "last_error" = null, "updated_at" = now()
   where v."id" = redeliver_webhook.delivery;
   return redeliver_webhook.delivery;
 end;
@@ -589,7 +589,7 @@ begin
     update "better_supabase"."webhook_endpoints" d set "permissions" = case when create_webhook_endpoint.fields ? 'permissions' then case when jsonb_typeof(create_webhook_endpoint.fields -> 'permissions') = 'null' then null else array(select jsonb_array_elements_text(create_webhook_endpoint.fields -> 'permissions')) end else d."permissions" end, "batch" = case when create_webhook_endpoint.fields ? 'batch' then (create_webhook_endpoint.fields ->> 'batch')::boolean else d."batch" end, "signing" = case when create_webhook_endpoint.fields ? 'signing' then create_webhook_endpoint.fields ->> 'signing' else d."signing" end, "format" = case when create_webhook_endpoint.fields ? 'format' then create_webhook_endpoint.fields ->> 'format' else d."format" end, "credential_ref" = case when create_webhook_endpoint.fields ? 'credentialRef' then nullif(create_webhook_endpoint.fields -> 'credentialRef', 'null'::jsonb) else d."credential_ref" end, "updated_at" = now()
   where d."id" = v_id;
   end if;
-  select jsonb_build_object('id', d."id", 'tenant', d."workspace_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."failing_since", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") into v_endpoint
+  select jsonb_build_object('id', d."id", 'tenant', d."workspace_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."first_failed_at", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") into v_endpoint
   from "better_supabase"."webhook_endpoints" d where d."id" = v_id;
   return v_endpoint;
 end;
@@ -634,7 +634,7 @@ begin
   end if;
   update "better_supabase"."webhook_endpoints" d set "name" = case when update_webhook_endpoint.fields ? 'name' then update_webhook_endpoint.fields ->> 'name' else d."name" end, "url" = case when update_webhook_endpoint.fields ? 'url' then update_webhook_endpoint.fields ->> 'url' else d."url" end, "enabled" = case when update_webhook_endpoint.fields ? 'enabled' then (update_webhook_endpoint.fields ->> 'enabled')::boolean else d."enabled" end, "event_types" = case when update_webhook_endpoint.fields ? 'eventTypes' then array(select jsonb_array_elements_text(update_webhook_endpoint.fields -> 'eventTypes')) else d."event_types" end, "permissions" = case when update_webhook_endpoint.fields ? 'permissions' then case when jsonb_typeof(update_webhook_endpoint.fields -> 'permissions') = 'null' then null else array(select jsonb_array_elements_text(update_webhook_endpoint.fields -> 'permissions')) end else d."permissions" end, "batch" = case when update_webhook_endpoint.fields ? 'batch' then (update_webhook_endpoint.fields ->> 'batch')::boolean else d."batch" end, "signing" = case when update_webhook_endpoint.fields ? 'signing' then update_webhook_endpoint.fields ->> 'signing' else d."signing" end, "format" = case when update_webhook_endpoint.fields ? 'format' then update_webhook_endpoint.fields ->> 'format' else d."format" end, "credential_ref" = case when update_webhook_endpoint.fields ? 'credentialRef' then nullif(update_webhook_endpoint.fields -> 'credentialRef', 'null'::jsonb) else d."credential_ref" end, "updated_at" = now()
   where d."id" = update_webhook_endpoint.endpoint;
-  select jsonb_build_object('id', d."id", 'tenant', d."workspace_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."failing_since", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") into v_endpoint
+  select jsonb_build_object('id', d."id", 'tenant', d."workspace_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."first_failed_at", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") into v_endpoint
   from "better_supabase"."webhook_endpoints" d where d."id" = update_webhook_endpoint.endpoint;
   return v_endpoint;
 end;
@@ -658,7 +658,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not false then
     raise exception 'Not allowed to manage this webhook endpoint' using errcode = '42501', hint = 'WEBHOOK_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', d."id", 'tenant', d."workspace_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."failing_since", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") order by d."created_at" desc, d."id"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', d."id", 'tenant', d."workspace_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."first_failed_at", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") order by d."created_at" desc, d."id"), '[]')
   into v_endpoints
   from "better_supabase"."webhook_endpoints" d
   where d."workspace_id" = list_webhook_endpoints.tenant;

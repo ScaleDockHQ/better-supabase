@@ -1,6 +1,6 @@
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:ecc33a03441cf655969ec6a15af9f5507d644cc0fdc8012d4c9894dade70bd36
+-- @bsb-hash sha256:3475954ef66a4ef4d55ab46c92a975b9d798e8ab0db40c1fc82f7858ecc7e27f
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1111,7 +1111,7 @@ begin
   insert into "better_supabase"."calendar_events" ("tenant_id", "calendar_id", "uid", "title", "starts_at", "ends_at", "all_day", "tz", "status", "subject_type", "subject_id")
   values (new."tenant_id", v_calendar, 'meeting-' || new."id"::text, new."title",
     new."starts_at", coalesce(new."ends_at", new."starts_at" + interval '1 hour'), false, 'UTC', 'confirmed', 'meeting', new."id"::text)
-  on conflict ("calendar_id", "uid", "original_start") do update set
+  on conflict ("calendar_id", "uid", "original_starts_at") do update set
     "title" = excluded."title", "starts_at" = excluded."starts_at",
     "ends_at" = excluded."ends_at", "updated_at" = now();
   return new;

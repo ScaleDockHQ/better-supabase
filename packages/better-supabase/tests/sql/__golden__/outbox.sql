@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:5430db5ede04cc74679d660904dee47c1ef272f52459f7d0ec22947292ef0cba
+-- @bsb-hash sha256:cde08af9820970026ac42e8b04d1c6bf25c96c6f6517eba1d65c199f71d2c489
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -37,7 +37,7 @@ create table "better_supabase"."outbox_consumers" (
   -- Type patterns ('organization.*', 'invoice.paid'); null takes every event.
   "types" text[],
   "lease_owner" text,
-  "lease_until" timestamptz,
+  "lease_expires_at" timestamptz,
   -- Failed claims in a row since the cursor last moved, and when to try again.
   "attempts" integer not null default 0,
   "last_error" text,
@@ -186,9 +186,9 @@ declare
   events jsonb;
 begin
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = owner, "lease_until" = now() + lease, "updated_at" = now()
+  set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
   where k."name" = consumer
-    and (k."lease_until" is null or k."lease_until" < now() or k."lease_owner" = owner)
+    and (k."lease_expires_at" is null or k."lease_expires_at" < now() or k."lease_owner" = owner)
     and (k."retry_at" is null or k."retry_at" <= now())
   returning k.* into c;
   if not found then
@@ -252,7 +252,7 @@ begin
       select e."xid", e."position" from "better_supabase"."outbox_events" e where e."position" = upto
     ),
     "attempts" = 0, "last_error" = null, "retry_at" = null,
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
     and upto is not null
     and exists (select 1 from "better_supabase"."outbox_events" e where e."position" = upto and (e."xid", e."position") > (k."cursor_xid", k."cursor_position"));
@@ -260,7 +260,7 @@ begin
     return true;
   end if;
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+  set "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner;
   return found;
 end;
@@ -291,7 +291,7 @@ declare
 begin
   update "better_supabase"."outbox_consumers" k
   set "attempts" = k."attempts" + 1, "last_error" = left(error, 4000),
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
   returning k.* into c;
   if not found then
@@ -515,7 +515,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:c4cae1e63bcaddbd0b61ff069fa5e6dd5f25387b75a9864d496f07c55e3f5ffb
+-- @bsb-hash sha256:7cc64d887f6dd850cb46a1612e47fbb5cc4dd0c4ecfd345d23bf9a8361da06d3
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -551,7 +551,7 @@ create table "better_supabase"."outbox_consumers" (
   -- Type patterns ('organization.*', 'invoice.paid'); null takes every event.
   "types" text[],
   "lease_owner" text,
-  "lease_until" timestamptz,
+  "lease_expires_at" timestamptz,
   -- Failed claims in a row since the cursor last moved, and when to try again.
   "attempts" integer not null default 0,
   "last_error" text,
@@ -700,9 +700,9 @@ declare
   events jsonb;
 begin
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = owner, "lease_until" = now() + lease, "updated_at" = now()
+  set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
   where k."name" = consumer
-    and (k."lease_until" is null or k."lease_until" < now() or k."lease_owner" = owner)
+    and (k."lease_expires_at" is null or k."lease_expires_at" < now() or k."lease_owner" = owner)
     and (k."retry_at" is null or k."retry_at" <= now())
   returning k.* into c;
   if not found then
@@ -766,7 +766,7 @@ begin
       select e."xid", e."position" from "better_supabase"."outbox_events" e where e."position" = upto
     ),
     "attempts" = 0, "last_error" = null, "retry_at" = null,
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
     and upto is not null
     and exists (select 1 from "better_supabase"."outbox_events" e where e."position" = upto and (e."xid", e."position") > (k."cursor_xid", k."cursor_position"));
@@ -774,7 +774,7 @@ begin
     return true;
   end if;
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+  set "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner;
   return found;
 end;
@@ -805,7 +805,7 @@ declare
 begin
   update "better_supabase"."outbox_consumers" k
   set "attempts" = k."attempts" + 1, "last_error" = left(error, 4000),
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
   returning k.* into c;
   if not found then
@@ -1033,7 +1033,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:91fccc2c203ebabfabc676c8bf5a705635fd7e0e78d8b3fcd1c7c1c332728c04
+-- @bsb-hash sha256:c036ea42e58e71c6f6c19edec54ac238aa73aae991acd4afc1d2ee75ab19ad02
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1074,7 +1074,7 @@ create table "app_private"."outbox_consumers" (
   -- Type patterns ('organization.*', 'invoice.paid'); null takes every event.
   "types" text[],
   "lease_owner" text,
-  "lease_until" timestamptz,
+  "lease_expires_at" timestamptz,
   -- Failed claims in a row since the cursor last moved, and when to try again.
   "attempts" integer not null default 0,
   "last_error" text,
@@ -1223,9 +1223,9 @@ declare
   events jsonb;
 begin
   update "app_private"."outbox_consumers" k
-  set "lease_owner" = owner, "lease_until" = now() + lease, "updated_at" = now()
+  set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
   where k."name" = consumer
-    and (k."lease_until" is null or k."lease_until" < now() or k."lease_owner" = owner)
+    and (k."lease_expires_at" is null or k."lease_expires_at" < now() or k."lease_owner" = owner)
     and (k."retry_at" is null or k."retry_at" <= now())
   returning k.* into c;
   if not found then
@@ -1289,7 +1289,7 @@ begin
       select e."xid", e."position" from "app_private"."outbox_events" e where e."position" = upto
     ),
     "attempts" = 0, "last_error" = null, "retry_at" = null,
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
     and upto is not null
     and exists (select 1 from "app_private"."outbox_events" e where e."position" = upto and (e."xid", e."position") > (k."cursor_xid", k."cursor_position"));
@@ -1297,7 +1297,7 @@ begin
     return true;
   end if;
   update "app_private"."outbox_consumers" k
-  set "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+  set "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner;
   return found;
 end;
@@ -1328,7 +1328,7 @@ declare
 begin
   update "app_private"."outbox_consumers" k
   set "attempts" = k."attempts" + 1, "last_error" = left(error, 4000),
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
   returning k.* into c;
   if not found then
@@ -1552,7 +1552,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:a25529051338fe8403370f5dda37771999a039290f665840f98cd501bc7d5dac
+-- @bsb-hash sha256:7bd44287605f0d87733e912bdbbcc215d86dd118a033e7e472441ebdc3a9f5aa
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1588,7 +1588,7 @@ create table "better_supabase"."outbox_consumers" (
   -- Type patterns ('organization.*', 'invoice.paid'); null takes every event.
   "types" text[],
   "lease_owner" text,
-  "lease_until" timestamptz,
+  "lease_expires_at" timestamptz,
   -- Failed claims in a row since the cursor last moved, and when to try again.
   "attempts" integer not null default 0,
   "last_error" text,
@@ -1737,9 +1737,9 @@ declare
   events jsonb;
 begin
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = owner, "lease_until" = now() + lease, "updated_at" = now()
+  set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
   where k."name" = consumer
-    and (k."lease_until" is null or k."lease_until" < now() or k."lease_owner" = owner)
+    and (k."lease_expires_at" is null or k."lease_expires_at" < now() or k."lease_owner" = owner)
     and (k."retry_at" is null or k."retry_at" <= now())
   returning k.* into c;
   if not found then
@@ -1803,7 +1803,7 @@ begin
       select e."xid", e."position" from "better_supabase"."outbox_events" e where e."position" = upto
     ),
     "attempts" = 0, "last_error" = null, "retry_at" = null,
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
     and upto is not null
     and exists (select 1 from "better_supabase"."outbox_events" e where e."position" = upto and (e."xid", e."position") > (k."cursor_xid", k."cursor_position"));
@@ -1811,7 +1811,7 @@ begin
     return true;
   end if;
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+  set "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner;
   return found;
 end;
@@ -1842,7 +1842,7 @@ declare
 begin
   update "better_supabase"."outbox_consumers" k
   set "attempts" = k."attempts" + 1, "last_error" = left(error, 4000),
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
   returning k.* into c;
   if not found then
@@ -2153,7 +2153,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:4d5fcf63581c434b3ea6e1af397083d9de09afd2d0ddf7759e510efc3d10996d
+-- @bsb-hash sha256:b59f030f1e6216b098f9bc14225a51b5bfc87a7f3ee0a7ad56c124aa3c3dc61a
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2166,7 +2166,7 @@ alter table "better_supabase"."outbox_consumers" add column if not exists "curso
 alter table "better_supabase"."outbox_consumers" add column if not exists "cursor_position" bigint not null default 0;
 alter table "better_supabase"."outbox_consumers" add column if not exists "types" text[];
 alter table "better_supabase"."outbox_consumers" add column if not exists "lease_owner" text;
-alter table "better_supabase"."outbox_consumers" add column if not exists "lease_until" timestamptz;
+alter table "better_supabase"."outbox_consumers" add column if not exists "lease_expires_at" timestamptz;
 alter table "better_supabase"."outbox_consumers" add column if not exists "attempts" integer not null default 0;
 alter table "better_supabase"."outbox_consumers" add column if not exists "last_error" text;
 alter table "better_supabase"."outbox_consumers" add column if not exists "retry_at" timestamptz;
@@ -2312,9 +2312,9 @@ declare
   events jsonb;
 begin
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = owner, "lease_until" = now() + lease, "updated_at" = now()
+  set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
   where k."name" = consumer
-    and (k."lease_until" is null or k."lease_until" < now() or k."lease_owner" = owner)
+    and (k."lease_expires_at" is null or k."lease_expires_at" < now() or k."lease_owner" = owner)
     and (k."retry_at" is null or k."retry_at" <= now())
   returning k.* into c;
   if not found then
@@ -2378,7 +2378,7 @@ begin
       select e."xid", e."position" from "better_supabase"."outbox_events" e where e."position" = upto
     ),
     "attempts" = 0, "last_error" = null, "retry_at" = null,
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
     and upto is not null
     and exists (select 1 from "better_supabase"."outbox_events" e where e."position" = upto and (e."xid", e."position") > (k."cursor_xid", k."cursor_position"));
@@ -2386,7 +2386,7 @@ begin
     return true;
   end if;
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+  set "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner;
   return found;
 end;
@@ -2417,7 +2417,7 @@ declare
 begin
   update "better_supabase"."outbox_consumers" k
   set "attempts" = k."attempts" + 1, "last_error" = left(error, 4000),
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
   returning k.* into c;
   if not found then
@@ -2641,7 +2641,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:7a92272926c4f3a39a8108504ab44665928951c89aef0ad76308fd95ac357e65
+-- @bsb-hash sha256:df75beb937600f3292244fac9b6d8374d859752d80703d5cd28779eb133db073
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2677,7 +2677,7 @@ create table "better_supabase"."outbox_consumers" (
   -- Type patterns ('organization.*', 'invoice.paid'); null takes every event.
   "types" text[],
   "lease_owner" text,
-  "lease_until" timestamptz,
+  "lease_expires_at" timestamptz,
   -- Failed claims in a row since the cursor last moved, and when to try again.
   "attempts" integer not null default 0,
   "last_error" text,
@@ -2826,9 +2826,9 @@ declare
   events jsonb;
 begin
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = owner, "lease_until" = now() + lease, "updated_at" = now()
+  set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
   where k."name" = consumer
-    and (k."lease_until" is null or k."lease_until" < now() or k."lease_owner" = owner)
+    and (k."lease_expires_at" is null or k."lease_expires_at" < now() or k."lease_owner" = owner)
     and (k."retry_at" is null or k."retry_at" <= now())
   returning k.* into c;
   if not found then
@@ -2892,7 +2892,7 @@ begin
       select e."xid", e."position" from "better_supabase"."outbox_events" e where e."position" = upto
     ),
     "attempts" = 0, "last_error" = null, "retry_at" = null,
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
     and upto is not null
     and exists (select 1 from "better_supabase"."outbox_events" e where e."position" = upto and (e."xid", e."position") > (k."cursor_xid", k."cursor_position"));
@@ -2900,7 +2900,7 @@ begin
     return true;
   end if;
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+  set "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner;
   return found;
 end;
@@ -2931,7 +2931,7 @@ declare
 begin
   update "better_supabase"."outbox_consumers" k
   set "attempts" = k."attempts" + 1, "last_error" = left(error, 4000),
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
   returning k.* into c;
   if not found then

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:2d6fcef3e0ec119540acf05583b320bf9be9e3a5424f6b51317826f26fb81459
+-- @bsb-hash sha256:0e8432a30bf2ee6e2c318ccbcadfd01fe4947c01d9c46bbd3f877a93491ca497
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -40,7 +40,7 @@ create table "better_supabase"."calendar_events" (
   "rrule" text,
   "exdates" timestamptz[] not null default '{}',
   "recurrence_id" uuid references "better_supabase"."calendar_events" ("id") on delete cascade,
-  "original_start" timestamptz,
+  "original_starts_at" timestamptz,
   "subject_type" text,
   "subject_id" text,
   "color" text,
@@ -51,8 +51,8 @@ create table "better_supabase"."calendar_events" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   constraint bsb_calendar_events_check check ("ends_at" >= "starts_at"),
-  constraint bsb_calendar_events_check1 check (("recurrence_id" is null) = ("original_start" is null)),
-  unique nulls not distinct ("calendar_id", "uid", "original_start")
+  constraint bsb_calendar_events_check1 check (("recurrence_id" is null) = ("original_starts_at" is null)),
+  unique nulls not distinct ("calendar_id", "uid", "original_starts_at")
 );
 create index calendar_events_recurrence_idx on "better_supabase"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
 create index calendar_events_range_idx on "better_supabase"."calendar_events" ("calendar_id", "starts_at");
@@ -269,7 +269,7 @@ begin
     end if;
     v_id := gen_random_uuid();
     v_uid := coalesce(v_uid, v_id::text);
-    insert into "better_supabase"."calendar_events" ("id", "tenant_id", "calendar_id", "uid", "recurrence_id", "original_start", "title", "starts_at", "ends_at", "all_day", "tz", "status", "rrule", "exdates", "description", "location", "color", "kind", "transparency", "auto_decline", "subject_type", "subject_id", "created_by", "app_note")
+    insert into "better_supabase"."calendar_events" ("id", "tenant_id", "calendar_id", "uid", "recurrence_id", "original_starts_at", "title", "starts_at", "ends_at", "all_day", "tz", "status", "rrule", "exdates", "description", "location", "color", "kind", "transparency", "auto_decline", "subject_type", "subject_id", "created_by", "app_note")
     values (v_id, v_tenant, save_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, coalesce(v_item ->> 'title', ''), (v_item ->> 'startsAt')::timestamptz, (v_item ->> 'endsAt')::timestamptz, coalesce((v_item ->> 'allDay')::boolean, false), coalesce(v_item ->> 'tz', v_tz), coalesce(v_item ->> 'status', 'confirmed'), nullif(v_item ->> 'rrule', ''), v_exdates, v_item ->> 'description', v_item ->> 'location', v_item ->> 'color', coalesce(v_item ->> 'kind', 'event'), coalesce(v_item ->> 'transparency', 'opaque'), coalesce((v_item ->> 'autoDecline')::boolean, false), v_item ->> 'subjectType', v_item ->> 'subjectId', v_actor, case when v_item ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."calendar_events", jsonb_build_object('app_note', v_item -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."calendar_events"', 'app_note', (null::"better_supabase"."calendar_events")."app_note") end);
     v_created := true;
   else
@@ -374,7 +374,7 @@ revoke execute on function "better_supabase"."delete_calendar_event"(uuid) from 
 grant execute on function "better_supabase"."delete_calendar_event"(uuid) to authenticated, service_role;
 
 -- Removes one occurrence of a series: adds an EXDATE and drops its override.
-create or replace function "better_supabase"."cancel_calendar_occurrence"(event_id uuid, original_start timestamptz)
+create or replace function "better_supabase"."cancel_calendar_occurrence"(event_id uuid, original_starts_at timestamptz)
 returns boolean
 language plpgsql
 security definer
@@ -398,10 +398,10 @@ begin
     raise exception 'not allowed to change this calendar' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;
   update "better_supabase"."calendar_events" set "exdates" = (
-      select array_agg(distinct d order by d) from unnest(array_append("exdates", cancel_calendar_occurrence.original_start)) d
+      select array_agg(distinct d order by d) from unnest(array_append("exdates", cancel_calendar_occurrence.original_starts_at)) d
     ), "updated_at" = now()
   where "id" = v_id;
-  delete from "better_supabase"."calendar_events" where "recurrence_id" = v_id and "original_start" = cancel_calendar_occurrence.original_start;
+  delete from "better_supabase"."calendar_events" where "recurrence_id" = v_id and "original_starts_at" = cancel_calendar_occurrence.original_starts_at;
   null;
   return true;
 end;
@@ -457,7 +457,7 @@ begin
   ));
   v_new_id := (v_new ->> 'id')::uuid;
   update "better_supabase"."calendar_events" set "recurrence_id" = v_new_id, "uid" = v_new_uid, "updated_at" = now()
-  where "recurrence_id" = v_id and "original_start" >= split_calendar_event.split_at;
+  where "recurrence_id" = v_id and "original_starts_at" >= split_calendar_event.split_at;
   null;
   return jsonb_build_object('id', v_new_id, 'uid', v_new_uid);
 end;
@@ -489,17 +489,17 @@ begin
     v_id := null;
     if v_item ->> 'originalStart' is null then
       select "id" into v_id from "better_supabase"."calendar_events"
-        where "calendar_id" = import_calendar_events.calendar_id and "uid" = v_item ->> 'uid' and "original_start" is null;
+        where "calendar_id" = import_calendar_events.calendar_id and "uid" = v_item ->> 'uid' and "original_starts_at" is null;
     else
       select "id" into v_master from "better_supabase"."calendar_events"
-        where "calendar_id" = import_calendar_events.calendar_id and "uid" = v_item ->> 'uid' and "original_start" is null and "rrule" is not null;
+        where "calendar_id" = import_calendar_events.calendar_id and "uid" = v_item ->> 'uid' and "original_starts_at" is null and "rrule" is not null;
       if v_master is null then
         v_skipped := v_skipped + 1;
         continue;
       end if;
       select "id" into v_id from "better_supabase"."calendar_events"
         where "calendar_id" = import_calendar_events.calendar_id and "uid" = v_item ->> 'uid'
-          and "original_start" = (v_item ->> 'originalStart')::timestamptz;
+          and "original_starts_at" = (v_item ->> 'originalStart')::timestamptz;
       v_item := v_item || jsonb_build_object('recurrenceId', v_master);
     end if;
     if v_id is null then
@@ -527,14 +527,14 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', e."id", 'calendarId', e."calendar_id", 'uid', e."uid", 'title', e."title", 'startsAt', e."starts_at", 'endsAt', e."ends_at", 'allDay', e."all_day", 'tz', e."tz", 'status', e."status", 'rrule', e."rrule", 'exdates', to_jsonb(e."exdates"), 'recurrenceId', e."recurrence_id", 'originalStart', e."original_start", 'description', e."description", 'location', e."location", 'color', e."color", 'subjectType', e."subject_type", 'subjectId', e."subject_id") || jsonb_build_object('updatedAt', e."updated_at", 'kind', e."kind", 'transparency', e."transparency", 'autoDecline', e."auto_decline", 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', a."email", 'name', a."name", 'userId', a."user_id", 'role', a."role", 'response', a."response") order by a."email") from "better_supabase"."calendar_attendees" a where a."event_id" = e."id"), '[]'::jsonb), 'alarms', coalesce((select jsonb_agg(jsonb_build_object('id', l."id", 'method', l."method", 'offsetMinutes', l."offset_minutes", 'related', l."related_to", 'at', l."trigger_at", 'repeat', l."repeat_count", 'repeatMinutes', l."repeat_minutes", 'description', l."description", 'summary', l."summary") order by l."offset_minutes" nulls last, l."trigger_at", l."id") from "better_supabase"."calendar_event_alarms" l where l."event_id" = e."id" and (l."user_id" is null or l."user_id" = (select auth.uid()))), '[]'::jsonb), 'fields', jsonb_build_object('app_note', e."app_note")) order by e."starts_at", e."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', e."id", 'calendarId', e."calendar_id", 'uid', e."uid", 'title', e."title", 'startsAt', e."starts_at", 'endsAt', e."ends_at", 'allDay', e."all_day", 'tz', e."tz", 'status', e."status", 'rrule', e."rrule", 'exdates', to_jsonb(e."exdates"), 'recurrenceId', e."recurrence_id", 'originalStart', e."original_starts_at", 'description', e."description", 'location', e."location", 'color', e."color", 'subjectType', e."subject_type", 'subjectId', e."subject_id") || jsonb_build_object('updatedAt', e."updated_at", 'kind', e."kind", 'transparency', e."transparency", 'autoDecline', e."auto_decline", 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', a."email", 'name', a."name", 'userId', a."user_id", 'role', a."role", 'response', a."response") order by a."email") from "better_supabase"."calendar_attendees" a where a."event_id" = e."id"), '[]'::jsonb), 'alarms', coalesce((select jsonb_agg(jsonb_build_object('id', l."id", 'method', l."method", 'offsetMinutes', l."offset_minutes", 'related', l."related_to", 'at', l."trigger_at", 'repeat', l."repeat_count", 'repeatMinutes', l."repeat_minutes", 'description', l."description", 'summary', l."summary") order by l."offset_minutes" nulls last, l."trigger_at", l."id") from "better_supabase"."calendar_event_alarms" l where l."event_id" = e."id" and (l."user_id" is null or l."user_id" = (select auth.uid()))), '[]'::jsonb), 'fields', jsonb_build_object('app_note', e."app_note")) order by e."starts_at", e."id"), '[]'::jsonb)
   from "better_supabase"."calendar_events" e
   where e."calendar_id" = any (list_calendar_events.calendar_ids)
     and e."starts_at" < list_calendar_events.range_end
     and (
       (e."rrule" is null and e."recurrence_id" is null and e."ends_at" > list_calendar_events.range_start)
       or e."rrule" is not null
-      or (e."recurrence_id" is not null and (e."ends_at" > list_calendar_events.range_start or e."original_start" >= list_calendar_events.range_start - interval '1 year'))
+      or (e."recurrence_id" is not null and (e."ends_at" > list_calendar_events.range_start or e."original_starts_at" >= list_calendar_events.range_start - interval '1 year'))
     )
 $$;
 revoke execute on function "better_supabase"."list_calendar_events"(uuid[], timestamptz, timestamptz) from public, anon;
@@ -709,7 +709,7 @@ begin
     and not (s.at = any (c.exdates))
     and not exists (
       select 1 from "better_supabase"."calendar_events" o
-      where o."recurrence_id" = c.event_id and o."original_start" = s.at
+      where o."recurrence_id" = c.event_id and o."original_starts_at" = s.at
     );
 end;
 $$;

@@ -188,7 +188,7 @@ describe("inbox module", () => {
 
     expect(sql).toContain("'processing'");
     expect(sql).toContain("available_at");
-    expect(sql).toContain("locked_until");
+    expect(sql).toContain("lock_expires_at");
     expect(sql).toContain("set_inbound_event_status");
     expect(INBOX.version).toBeGreaterThanOrEqual(9);
     expect(INBOX.upgrades?.some((step) => step.from === 8)).toBe(true);

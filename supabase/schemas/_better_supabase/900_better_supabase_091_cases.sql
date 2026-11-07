@@ -1,6 +1,6 @@
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:ef82086e83509a16d627adbf1748abc8f58f47a6314c92fa9ec5f688f38f7009
+-- @bsb-hash sha256:0d93355fb19ebde3ac67bbddf08e2186d282246ca99ba4c06242a55e6ae32925
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -992,7 +992,7 @@ begin
       and r."source_type" = 'case'
       and r."source_id" = case_blockers_of.target."id"::text
       and r."target_type" = 'drive_node'
-      and (n."effective_from" is null or n."effective_from" <= case_blockers_of.target."created_at")
+      and (n."effective_at" is null or n."effective_at" <= case_blockers_of.target."created_at")
   ) then
     v_blockers := v_blockers || 'CASE_DOCUMENTS_NOT_REVISED'::text;
   end if;

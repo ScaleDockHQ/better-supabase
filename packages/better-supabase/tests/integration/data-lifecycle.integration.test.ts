@@ -314,7 +314,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       expect(memory.files.get(path)).not.toContain(created.secret);
 
       await s.rows(
-        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        "insert into better_supabase.organization_deletions (organization_id, purge_at) values ($1, now() - interval '1 minute')",
         [organization],
       );
 
@@ -490,7 +490,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         `insert into public.bsb_test_teams values ($1);
          with p as (insert into public.bsb_test_projects (organization_id) values ($1) returning id)
          insert into public.bsb_test_tasks (organization_id, project_id) select $1, id from p;
-         insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute');`.replaceAll(
+         insert into better_supabase.organization_deletions (organization_id, purge_at) values ($1, now() - interval '1 minute');`.replaceAll(
           "$1",
           `'${team}'`,
         ),
@@ -973,7 +973,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       ).toBe("LEDGER_APPEND_ONLY");
 
       await s.rows(
-        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        "insert into better_supabase.organization_deletions (organization_id, purge_at) values ($1, now() - interval '1 minute')",
         [organization],
       );
 
@@ -1063,7 +1063,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       ).toBe(false);
 
       await s.rows(
-        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        "insert into better_supabase.organization_deletions (organization_id, purge_at) values ($1, now() - interval '1 minute')",
         [organization],
       );
 
@@ -1165,7 +1165,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         ]),
       ).toBe("ORGANIZATION_DELETION_NOT_DUE");
       await s.rows(
-        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        "insert into better_supabase.organization_deletions (organization_id, purge_at) values ($1, now() - interval '1 minute')",
         [organization],
       );
 

@@ -373,7 +373,7 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       // An endpoint that keeps failing for disableAfter is disabled.
       await client.query(
-        "update better_supabase.webhook_endpoints set failing_since = now() - interval '3 days' where id = $1",
+        "update better_supabase.webhook_endpoints set first_failed_at = now() - interval '3 days' where id = $1",
         [all],
       );
       await webhooks
@@ -420,7 +420,7 @@ describe.skipIf(!live)("webhooks-out", () => {
       );
       expect(
         await s.value(
-          "(select coalesce(failing_since::text, 'null') || '/' || coalesce(disabled_at::text, 'null') from better_supabase.webhook_endpoints where id = $1)",
+          "(select coalesce(first_failed_at::text, 'null') || '/' || coalesce(disabled_at::text, 'null') from better_supabase.webhook_endpoints where id = $1)",
           [all],
         ),
       ).toBe("null/null");
@@ -442,7 +442,7 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       // A worker that died on the last attempt still used it up.
       await client.query(
-        "insert into better_supabase.webhook_deliveries (organization_id, endpoint_id, event_type, status, attempt, leased_until) values ($1, $2, 'crashed', 'delivering', 8, now() - interval '1 minute')",
+        "insert into better_supabase.webhook_deliveries (organization_id, endpoint_id, event_type, status, attempt, lease_expires_at) values ($1, $2, 'crashed', 'delivering', 8, now() - interval '1 minute')",
         [organization, organizations],
       );
       expect(await webhooks.deliver()).toMatchObject({ succeeded: 0 });

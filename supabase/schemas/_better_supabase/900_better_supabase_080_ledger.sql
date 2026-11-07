@@ -1,6 +1,6 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:85ebfb11e07a5f42acc4b28b83e12631fec496cd5d075af2b83a02614308ad80
+-- @bsb-hash sha256:dcbcef12554f08102c18217060f1869978993f73a5ce94ab0711580ad7323a1e
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -168,7 +168,7 @@ begin
     if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
       select 1 from "better_supabase"."organization_deletions" x
       where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
-        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_at" <= now()
     ) then
       return old;
     end if;

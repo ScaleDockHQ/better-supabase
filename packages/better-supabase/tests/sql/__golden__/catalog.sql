@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:9fbe8da33951041470669a85cc6295b8e9c0edb2ab7698f52d43ba98ab87d19e
+-- @bsb-hash sha256:cf812ed4118ee479af215164a4ddb3e398403f2da13837b0ec5a0fc3f15b6cdb
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -136,8 +136,8 @@ create table "better_supabase"."product_prices" (
   "currency" char(3) not null constraint bsb_product_prices_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount" bigint not null constraint bsb_product_prices_amount_check check ("amount" >= 0),
   "compare_at_amount" bigint constraint bsb_product_prices_check check ("compare_at_amount" > "amount"),
-  "valid_from" timestamptz,
-  "valid_until" timestamptz constraint bsb_product_prices_check1 check ("valid_until" > "valid_from"),
+  "starts_at" timestamptz,
+  "expires_at" timestamptz constraint bsb_product_prices_check1 check ("expires_at" > "starts_at"),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -1228,7 +1228,7 @@ grant execute on function "better_supabase"."delete_price_list"(uuid) to authent
 -- Sets a variant's price in a currency, in minor units, for a price list
 -- (null for the base price) and a validity window. The same window is
 -- updated in place; a window that overlaps another price is refused.
-create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, starts_at timestamptz, expires_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -1260,8 +1260,8 @@ begin
   if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
     raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
   end if;
-  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
-    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  if set_price.expires_at is not null and set_price.expires_at <= coalesce(set_price.starts_at, '-infinity'::timestamptz) then
+    raise exception 'expires_at must be after starts_at' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
   end if;
   if set_price.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = set_price.price_list and x."tenant_id" = v_tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
@@ -1276,18 +1276,18 @@ begin
   end;
   select x."id", x."amount" into v_id, v_previous from "better_supabase"."product_prices" x
   where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
-    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+    and x."starts_at" is not distinct from set_price.starts_at and x."expires_at" is not distinct from set_price.expires_at;
   if exists (
     select 1 from "better_supabase"."product_prices" x
     where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
       and x."id" is distinct from v_id
-      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+      and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.starts_at, '-infinity'::timestamptz), coalesce(set_price.expires_at, 'infinity'::timestamptz), '[)')
   ) then
     raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
   end if;
   if v_id is null then
-    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
-    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "starts_at", "expires_at")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.starts_at, set_price.expires_at)
     returning "id" into v_id;
   else
     update "better_supabase"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
@@ -1359,7 +1359,7 @@ as $$
   from "better_supabase"."product_prices" x
   where x."variant_id" = $1 and x."currency" = $2
     and (x."price_list_id" is null or x."price_list_id" = $3)
-    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+    and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;
@@ -3671,7 +3671,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:1df9babd0a56670087743ab1ec2e10fce94ed210dd97b95f12ed380bc08f0b2a
+-- @bsb-hash sha256:8dd3a6e0c8728a6e95356b4d8aeac4676e250ec1c611ac6adb11edc644e0f396
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3806,8 +3806,8 @@ create table "better_supabase"."product_prices" (
   "currency" char(3) not null constraint bsb_product_prices_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount" bigint not null constraint bsb_product_prices_amount_check check ("amount" >= 0),
   "compare_at_amount" bigint constraint bsb_product_prices_check check ("compare_at_amount" > "amount"),
-  "valid_from" timestamptz,
-  "valid_until" timestamptz constraint bsb_product_prices_check1 check ("valid_until" > "valid_from"),
+  "starts_at" timestamptz,
+  "expires_at" timestamptz constraint bsb_product_prices_check1 check ("expires_at" > "starts_at"),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -4934,7 +4934,7 @@ grant execute on function "better_supabase"."delete_price_list"(uuid) to authent
 -- Sets a variant's price in a currency, in minor units, for a price list
 -- (null for the base price) and a validity window. The same window is
 -- updated in place; a window that overlaps another price is refused.
-create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, starts_at timestamptz, expires_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -4966,8 +4966,8 @@ begin
   if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
     raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
   end if;
-  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
-    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  if set_price.expires_at is not null and set_price.expires_at <= coalesce(set_price.starts_at, '-infinity'::timestamptz) then
+    raise exception 'expires_at must be after starts_at' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
   end if;
   if set_price.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = set_price.price_list and x."tenant_id" = v_tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
@@ -4982,18 +4982,18 @@ begin
   end;
   select x."id", x."amount" into v_id, v_previous from "better_supabase"."product_prices" x
   where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
-    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+    and x."starts_at" is not distinct from set_price.starts_at and x."expires_at" is not distinct from set_price.expires_at;
   if exists (
     select 1 from "better_supabase"."product_prices" x
     where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
       and x."id" is distinct from v_id
-      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+      and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.starts_at, '-infinity'::timestamptz), coalesce(set_price.expires_at, 'infinity'::timestamptz), '[)')
   ) then
     raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
   end if;
   if v_id is null then
-    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
-    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "starts_at", "expires_at")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.starts_at, set_price.expires_at)
     returning "id" into v_id;
   else
     update "better_supabase"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
@@ -5065,7 +5065,7 @@ as $$
   from "better_supabase"."product_prices" x
   where x."variant_id" = $1 and x."currency" = $2
     and (x."price_list_id" is null or x."price_list_id" = $3)
-    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+    and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;
@@ -7583,7 +7583,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:8e651328d6aca98bda6c21ec7e4d51d7921f8a9dae901f9369b3b58c1ca94537
+-- @bsb-hash sha256:4b7dd998e7bfbac81d2ae7b116debb1ea9cc1f3e7b3c36ef6ee023d5632788c2
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7723,8 +7723,8 @@ create table "app_private"."product_prices" (
   "currency" char(3) not null constraint bsb_product_prices_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount" bigint not null constraint bsb_product_prices_amount_check check ("amount" >= 0),
   "compare_at_amount" bigint constraint bsb_product_prices_check check ("compare_at_amount" > "amount"),
-  "valid_from" timestamptz,
-  "valid_until" timestamptz constraint bsb_product_prices_check1 check ("valid_until" > "valid_from"),
+  "starts_at" timestamptz,
+  "expires_at" timestamptz constraint bsb_product_prices_check1 check ("expires_at" > "starts_at"),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -8815,7 +8815,7 @@ grant execute on function "app_private"."delete_price_list"(uuid) to authenticat
 -- Sets a variant's price in a currency, in minor units, for a price list
 -- (null for the base price) and a validity window. The same window is
 -- updated in place; a window that overlaps another price is refused.
-create or replace function "app_private"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+create or replace function "app_private"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, starts_at timestamptz, expires_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -8847,8 +8847,8 @@ begin
   if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
     raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
   end if;
-  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
-    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  if set_price.expires_at is not null and set_price.expires_at <= coalesce(set_price.starts_at, '-infinity'::timestamptz) then
+    raise exception 'expires_at must be after starts_at' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
   end if;
   if set_price.price_list is not null and not exists (select 1 from "app_private"."catalog_price_lists" x where x."id" = set_price.price_list and x."tenant_id" = v_tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
@@ -8863,18 +8863,18 @@ begin
   end;
   select x."id", x."amount" into v_id, v_previous from "app_private"."product_prices" x
   where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
-    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+    and x."starts_at" is not distinct from set_price.starts_at and x."expires_at" is not distinct from set_price.expires_at;
   if exists (
     select 1 from "app_private"."product_prices" x
     where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
       and x."id" is distinct from v_id
-      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+      and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.starts_at, '-infinity'::timestamptz), coalesce(set_price.expires_at, 'infinity'::timestamptz), '[)')
   ) then
     raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
   end if;
   if v_id is null then
-    insert into "app_private"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
-    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    insert into "app_private"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "starts_at", "expires_at")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.starts_at, set_price.expires_at)
     returning "id" into v_id;
   else
     update "app_private"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
@@ -8946,7 +8946,7 @@ as $$
   from "app_private"."product_prices" x
   where x."variant_id" = $1 and x."currency" = $2
     and (x."price_list_id" is null or x."price_list_id" = $3)
-    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+    and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;
@@ -11258,7 +11258,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:aeb1a08fce0db455240f3cb555a7b331bb690c28ed05bfcc77a85a313d39098a
+-- @bsb-hash sha256:154232dc5108ecf83bfa3650c8883f6559443d1ea652cfc760662a8df8cee6c1
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11393,8 +11393,8 @@ create table "better_supabase"."product_prices" (
   "currency" char(3) not null constraint bsb_product_prices_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount" bigint not null constraint bsb_product_prices_amount_check check ("amount" >= 0),
   "compare_at_amount" bigint constraint bsb_product_prices_check check ("compare_at_amount" > "amount"),
-  "valid_from" timestamptz,
-  "valid_until" timestamptz constraint bsb_product_prices_check1 check ("valid_until" > "valid_from"),
+  "starts_at" timestamptz,
+  "expires_at" timestamptz constraint bsb_product_prices_check1 check ("expires_at" > "starts_at"),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -12485,7 +12485,7 @@ grant execute on function "better_supabase"."delete_price_list"(uuid) to authent
 -- Sets a variant's price in a currency, in minor units, for a price list
 -- (null for the base price) and a validity window. The same window is
 -- updated in place; a window that overlaps another price is refused.
-create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, starts_at timestamptz, expires_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -12517,8 +12517,8 @@ begin
   if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
     raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
   end if;
-  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
-    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  if set_price.expires_at is not null and set_price.expires_at <= coalesce(set_price.starts_at, '-infinity'::timestamptz) then
+    raise exception 'expires_at must be after starts_at' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
   end if;
   if set_price.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = set_price.price_list and x."tenant_id" = v_tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
@@ -12533,18 +12533,18 @@ begin
   end;
   select x."id", x."amount" into v_id, v_previous from "better_supabase"."product_prices" x
   where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
-    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+    and x."starts_at" is not distinct from set_price.starts_at and x."expires_at" is not distinct from set_price.expires_at;
   if exists (
     select 1 from "better_supabase"."product_prices" x
     where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
       and x."id" is distinct from v_id
-      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+      and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.starts_at, '-infinity'::timestamptz), coalesce(set_price.expires_at, 'infinity'::timestamptz), '[)')
   ) then
     raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
   end if;
   if v_id is null then
-    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
-    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "starts_at", "expires_at")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.starts_at, set_price.expires_at)
     returning "id" into v_id;
   else
     update "better_supabase"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
@@ -12616,7 +12616,7 @@ as $$
   from "better_supabase"."product_prices" x
   where x."variant_id" = $1 and x."currency" = $2
     and (x."price_list_id" is null or x."price_list_id" = $3)
-    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+    and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;
@@ -15042,7 +15042,7 @@ as $$ select "better_supabase"."delete_price_list"($1) $$;
 revoke execute on function "api"."delete_price_list"(uuid) from public, anon;
 grant execute on function "api"."delete_price_list"(uuid) to authenticated, service_role;
 
-create or replace function "api"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+create or replace function "api"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, starts_at timestamptz, expires_at timestamptz)
 returns jsonb
 language sql
 security invoker
@@ -15563,7 +15563,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:97c3b059ea371a5034f23316ae5f63395f76f2b6385b4db33927645c176c92f5
+-- @bsb-hash sha256:d732284dbdb0332c1eaf54e5d326d8b8afb81b0e48d46e8a9f32ca945d4e467d
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15680,8 +15680,8 @@ alter table "better_supabase"."product_prices" add column if not exists "price_l
 alter table "better_supabase"."product_prices" add column if not exists "currency" char(3) constraint bsb_product_prices_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."product_prices" add column if not exists "amount" bigint constraint bsb_product_prices_amount_check check ("amount" >= 0);
 alter table "better_supabase"."product_prices" add column if not exists "compare_at_amount" bigint constraint bsb_product_prices_check check ("compare_at_amount" > "amount");
-alter table "better_supabase"."product_prices" add column if not exists "valid_from" timestamptz;
-alter table "better_supabase"."product_prices" add column if not exists "valid_until" timestamptz constraint bsb_product_prices_check1 check ("valid_until" > "valid_from");
+alter table "better_supabase"."product_prices" add column if not exists "starts_at" timestamptz;
+alter table "better_supabase"."product_prices" add column if not exists "expires_at" timestamptz constraint bsb_product_prices_check1 check ("expires_at" > "starts_at");
 alter table "better_supabase"."product_prices" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."product_prices" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists product_prices_variant_idx on "better_supabase"."product_prices" ("variant_id", "currency");
@@ -16754,7 +16754,7 @@ grant execute on function "better_supabase"."delete_price_list"(uuid) to authent
 -- Sets a variant's price in a currency, in minor units, for a price list
 -- (null for the base price) and a validity window. The same window is
 -- updated in place; a window that overlaps another price is refused.
-create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, starts_at timestamptz, expires_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -16786,8 +16786,8 @@ begin
   if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
     raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
   end if;
-  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
-    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  if set_price.expires_at is not null and set_price.expires_at <= coalesce(set_price.starts_at, '-infinity'::timestamptz) then
+    raise exception 'expires_at must be after starts_at' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
   end if;
   if set_price.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = set_price.price_list and x."tenant_id" = v_tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
@@ -16802,18 +16802,18 @@ begin
   end;
   select x."id", x."amount" into v_id, v_previous from "better_supabase"."product_prices" x
   where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
-    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+    and x."starts_at" is not distinct from set_price.starts_at and x."expires_at" is not distinct from set_price.expires_at;
   if exists (
     select 1 from "better_supabase"."product_prices" x
     where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
       and x."id" is distinct from v_id
-      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+      and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.starts_at, '-infinity'::timestamptz), coalesce(set_price.expires_at, 'infinity'::timestamptz), '[)')
   ) then
     raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
   end if;
   if v_id is null then
-    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
-    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "starts_at", "expires_at")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.starts_at, set_price.expires_at)
     returning "id" into v_id;
   else
     update "better_supabase"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
@@ -16885,7 +16885,7 @@ as $$
   from "better_supabase"."product_prices" x
   where x."variant_id" = $1 and x."currency" = $2
     and (x."price_list_id" is null or x."price_list_id" = $3)
-    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+    and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;
@@ -19197,7 +19197,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:96b340d9ed3fcf3b1bc1123cac2dfedc2aa08fa83d255ded9c03d58556c5aa72
+-- @bsb-hash sha256:7d4163da344541dc33f7b3e17ebcc57ed770b4b1f69667b605ab6884916ec79c
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19332,8 +19332,8 @@ create table "better_supabase"."product_prices" (
   "currency" char(3) not null constraint bsb_product_prices_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount" bigint not null constraint bsb_product_prices_amount_check check ("amount" >= 0),
   "compare_at_amount" bigint constraint bsb_product_prices_check check ("compare_at_amount" > "amount"),
-  "valid_from" timestamptz,
-  "valid_until" timestamptz constraint bsb_product_prices_check1 check ("valid_until" > "valid_from"),
+  "starts_at" timestamptz,
+  "expires_at" timestamptz constraint bsb_product_prices_check1 check ("expires_at" > "starts_at"),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -20424,7 +20424,7 @@ grant execute on function "better_supabase"."delete_price_list"(uuid) to authent
 -- Sets a variant's price in a currency, in minor units, for a price list
 -- (null for the base price) and a validity window. The same window is
 -- updated in place; a window that overlaps another price is refused.
-create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, starts_at timestamptz, expires_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -20456,8 +20456,8 @@ begin
   if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
     raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
   end if;
-  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
-    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  if set_price.expires_at is not null and set_price.expires_at <= coalesce(set_price.starts_at, '-infinity'::timestamptz) then
+    raise exception 'expires_at must be after starts_at' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
   end if;
   if set_price.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = set_price.price_list and x."org_id" = v_tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
@@ -20472,18 +20472,18 @@ begin
   end;
   select x."id", x."amount" into v_id, v_previous from "better_supabase"."product_prices" x
   where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
-    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+    and x."starts_at" is not distinct from set_price.starts_at and x."expires_at" is not distinct from set_price.expires_at;
   if exists (
     select 1 from "better_supabase"."product_prices" x
     where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
       and x."id" is distinct from v_id
-      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+      and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.starts_at, '-infinity'::timestamptz), coalesce(set_price.expires_at, 'infinity'::timestamptz), '[)')
   ) then
     raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
   end if;
   if v_id is null then
-    insert into "better_supabase"."product_prices" ("org_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
-    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    insert into "better_supabase"."product_prices" ("org_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "starts_at", "expires_at")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.starts_at, set_price.expires_at)
     returning "id" into v_id;
   else
     update "better_supabase"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
@@ -20555,7 +20555,7 @@ as $$
   from "better_supabase"."product_prices" x
   where x."variant_id" = $1 and x."currency" = $2
     and (x."price_list_id" is null or x."price_list_id" = $3)
-    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+    and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;

@@ -1268,7 +1268,7 @@ describe("schedules with the drain scheduler", () => {
             tenant: "t1",
             next_run: new Date("2026-01-01T10:00:00Z"),
             last_run: null,
-            locked_until: null,
+            lock_expires_at: null,
             created_at: "2025-12-01T00:00:00Z",
           },
         ],
@@ -1309,7 +1309,7 @@ describe("schedules with the drain scheduler", () => {
       tenant: "t1",
       next_run: null,
       last_run: null,
-      locked_until: null,
+      lock_expires_at: null,
       created_at: null,
     });
 
@@ -1410,7 +1410,7 @@ describe("schedules with the drain scheduler", () => {
             tenant,
             next_run: null,
             last_run: null,
-            locked_until: null,
+            lock_expires_at: null,
             created_at: null,
             payload: reversed(JSON.parse(String(payload))),
           });

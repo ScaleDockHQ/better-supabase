@@ -85,7 +85,7 @@ const NAMES: BlockSqlNames = {
         scopes: "scopes",
         kind: "kind",
         rateLimit: "rate_limit",
-        windowStart: "window_start",
+        windowStart: "window_started_at",
         windowHits: "window_hits",
         expiresAt: "expires_at",
         lastUsedAt: "last_used_at",

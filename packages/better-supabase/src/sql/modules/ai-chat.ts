@@ -233,7 +233,7 @@ const HARNESS = {
   continue: "continue_state",
   status: "status",
   holder: "lock_holder",
-  lockedUntil: "locked_until",
+  lockedUntil: "lock_expires_at",
   lastActiveAt: "last_active_at",
   createdAt: "created_at",
   updatedAt: "updated_at",

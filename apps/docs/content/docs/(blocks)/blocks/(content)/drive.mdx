@@ -312,10 +312,10 @@ A full listing passes `sync_run` on every page and `prune` on the last one. `syn
 blocks: { drive: { options: { drives: true, sync: { prune: "mark" } } } },
 ```
 
-| `sync.prune`       | Unlisted nodes                                                                                                       |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `delete` (default) | The node is deleted, unless a legal hold keeps it.                                                                   |
-| `mark`             | The node stays, and its `import_records` row gets `missing_since`. A later listing that includes it clears the mark. |
+| `sync.prune`       | Unlisted nodes                                                                                                         |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `delete` (default) | The node is deleted, unless a legal hold keeps it.                                                                     |
+| `mark`             | The node stays, and its `import_records` row gets `went_missing_at`. A later listing that includes it clears the mark. |
 
 `mark` needs the imports block and fails at render time without it. Nodes the provider reports as `removed` are always deleted, and a legal hold always keeps its node.
 
@@ -324,7 +324,7 @@ A legal hold keeps a node and everything under it from being purged. `hold(id, u
 ```ts title="better-supabase.config.ts"
 trash: {
   on: {
-    drive_node: { deletedAt: "deleted_at", held: "legal_hold_until" },
+    drive_node: { deletedAt: "deleted_at", held: "legal_hold_expires_at" },
   },
 },
 ```

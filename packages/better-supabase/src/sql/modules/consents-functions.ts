@@ -257,7 +257,7 @@ create or replace function ${fn("record_consent")}(
   status text,
   given_by text default 'self',
   given_by_contact_id uuid default null,
-  valid_until timestamptz default null,
+  expires_at timestamptz default null,
   scope jsonb default '{}'::jsonb,
   evidence jsonb default '{}'::jsonb
 )
@@ -275,7 +275,7 @@ declare
   v_contact uuid := record_consent.given_by_contact_id;
   v_scope jsonb := coalesce(record_consent.scope, '{}'::jsonb);
   v_evidence jsonb := coalesce(record_consent.evidence, '{}'::jsonb);
-  v_until timestamptz := record_consent.valid_until;
+  v_until timestamptz := record_consent.expires_at;
   v_signature uuid;
   v_submission uuid;
   v_attachment uuid;
@@ -339,7 +339,7 @@ begin
     v_until := now() + make_interval(months => v_purpose.${p("validMonths")});
   end if;
   if v_until is not null and v_until <= now() then
-    ${invalid("valid_until is in the past")}
+    ${invalid("expires_at is in the past")}
   end if;
   ${ctx.hook("before_consent_record", [
     [ctx.idType, "v_tenant"],
@@ -436,7 +436,7 @@ function readFunctions(ctx: BlockSqlContext, q: ConsentsSql): string {
     subjectTenant(ctx, `${func}.subject_type`, `${func}.subject_id`);
 
   return `-- Whether record subject_type/subject_id has a consent in force for the
--- current version of purpose_key: granted and not past valid_until. False for
+-- current version of purpose_key: granted and not past expires_at. False for
 -- a caller who can't read the record's consents.
 create or replace function ${fn("consent_active")}(subject_type text, subject_id text, purpose_key text)
 returns boolean
@@ -501,7 +501,7 @@ end;
 $$;
 ${userGrant(`${fn("list_consents")}(text, text, boolean)`)}
 
--- Marks every granted consent past valid_until expired and records
+-- Marks every granted consent past expires_at expired and records
 -- consent.expired for each. Run it on a schedule; returns how many expired.
 create or replace function ${fn("expire_consents")}()
 returns integer

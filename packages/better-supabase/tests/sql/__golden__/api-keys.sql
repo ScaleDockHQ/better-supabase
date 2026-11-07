@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:271f81f378a5895966c87f7ca6545d7b6908e526e33130ff39ee753a64908b22
+-- @bsb-hash sha256:91256c1728aa7df626fa3de94df2a4980a794b014a56534c15ddc273ac12f080
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,7 +19,7 @@ create table "better_supabase"."api_keys" (
   "secret_hash" text not null constraint bsb_api_keys_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$'),
   "scopes" text[] not null default '{}',
   "rate_limit" integer constraint bsb_api_keys_rate_limit_check check ("rate_limit" > 0),
-  "window_start" timestamptz,
+  "window_started_at" timestamptz,
   "window_hits" integer not null default 0,
   "expires_at" timestamptz,
   "last_used_at" timestamptz,
@@ -337,11 +337,11 @@ begin
   if found."rate_limit" is not null then
     -- One update counts the hit and, for an allowed request, touches last_used_at.
     update "better_supabase"."api_keys" k set
-      "window_start" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then now() else k."window_start" end,
-      "window_hits" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
-      "last_used_at" = case when case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
+      "window_started_at" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then now() else k."window_started_at" end,
+      "window_hits" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
+      "last_used_at" = case when case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
     where k."id" = found."id"
-    returning k."window_start", k."window_hits" into started, hits;
+    returning k."window_started_at", k."window_hits" into started, hits;
     if hits > found."rate_limit" then
       return jsonb_build_object(
         'status', 'rate_limited',
@@ -433,7 +433,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:ed6572bdaea89c19acc0f84bd173b8bae69e279b61b2d2ca013b069486d553bc
+-- @bsb-hash sha256:fb31a5b9c8883d796122eab7daee359babafd95af5c2e8c924bf2f081bb54e1f
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -451,7 +451,7 @@ create table "better_supabase"."api_keys" (
   "secret_hash" text not null constraint bsb_api_keys_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$'),
   "scopes" text[] not null default '{}',
   "rate_limit" integer constraint bsb_api_keys_rate_limit_check check ("rate_limit" > 0),
-  "window_start" timestamptz,
+  "window_started_at" timestamptz,
   "window_hits" integer not null default 0,
   "expires_at" timestamptz,
   "last_used_at" timestamptz,
@@ -796,11 +796,11 @@ begin
   if found."rate_limit" is not null then
     -- One update counts the hit and, for an allowed request, touches last_used_at.
     update "better_supabase"."api_keys" k set
-      "window_start" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then now() else k."window_start" end,
-      "window_hits" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
-      "last_used_at" = case when case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
+      "window_started_at" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then now() else k."window_started_at" end,
+      "window_hits" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
+      "last_used_at" = case when case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
     where k."id" = found."id"
-    returning k."window_start", k."window_hits" into started, hits;
+    returning k."window_started_at", k."window_hits" into started, hits;
     if hits > found."rate_limit" then
       return jsonb_build_object(
         'status', 'rate_limited',
@@ -895,7 +895,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:587c55a1bc75d4edb50af016fca0224cd1545841691e8ca52fa308238c224359
+-- @bsb-hash sha256:f34b45e9552f2f45f6994a1dc9df17cc69f589bbd379ec7eaad496be4ddf9caf
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -918,7 +918,7 @@ create table "app_private"."api_keys" (
   "secret_hash" text not null constraint bsb_api_keys_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$'),
   "scopes" text[] not null default '{}',
   "rate_limit" integer constraint bsb_api_keys_rate_limit_check check ("rate_limit" > 0),
-  "window_start" timestamptz,
+  "window_started_at" timestamptz,
   "window_hits" integer not null default 0,
   "expires_at" timestamptz,
   "last_used_at" timestamptz,
@@ -1236,11 +1236,11 @@ begin
   if found."rate_limit" is not null then
     -- One update counts the hit and, for an allowed request, touches last_used_at.
     update "app_private"."api_keys" k set
-      "window_start" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then now() else k."window_start" end,
-      "window_hits" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
-      "last_used_at" = case when case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
+      "window_started_at" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then now() else k."window_started_at" end,
+      "window_hits" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
+      "last_used_at" = case when case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
     where k."id" = found."id"
-    returning k."window_start", k."window_hits" into started, hits;
+    returning k."window_started_at", k."window_hits" into started, hits;
     if hits > found."rate_limit" then
       return jsonb_build_object(
         'status', 'rate_limited',
@@ -1332,7 +1332,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:68cf0de9e668f368497242769c42dcd1cf54f1b225372f0c5a40f79d6f6ad2c3
+-- @bsb-hash sha256:f8f3db50ea3cd602e34ab8959533214fce5b2a72317d53d17c44c4a7c374d87e
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1350,7 +1350,7 @@ create table "better_supabase"."api_keys" (
   "secret_hash" text not null constraint bsb_api_keys_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$'),
   "scopes" text[] not null default '{}',
   "rate_limit" integer constraint bsb_api_keys_rate_limit_check check ("rate_limit" > 0),
-  "window_start" timestamptz,
+  "window_started_at" timestamptz,
   "window_hits" integer not null default 0,
   "expires_at" timestamptz,
   "last_used_at" timestamptz,
@@ -1668,11 +1668,11 @@ begin
   if found."rate_limit" is not null then
     -- One update counts the hit and, for an allowed request, touches last_used_at.
     update "better_supabase"."api_keys" k set
-      "window_start" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then now() else k."window_start" end,
-      "window_hits" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
-      "last_used_at" = case when case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
+      "window_started_at" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then now() else k."window_started_at" end,
+      "window_hits" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
+      "last_used_at" = case when case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
     where k."id" = found."id"
-    returning k."window_start", k."window_hits" into started, hits;
+    returning k."window_started_at", k."window_hits" into started, hits;
     if hits > found."rate_limit" then
       return jsonb_build_object(
         'status', 'rate_limited',
@@ -1834,7 +1834,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:b8050cf75cfb089a48effa48d366200a1490c70578e2e866fbaf4cb5b7358aa6
+-- @bsb-hash sha256:88fbe8b2fdf828d57f6b9dcb141012615c2991f73f4cfd8d6e2504120064256c
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1852,7 +1852,7 @@ alter table "better_supabase"."api_keys" add column if not exists "public_id" te
 alter table "better_supabase"."api_keys" add column if not exists "secret_hash" text constraint bsb_api_keys_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."api_keys" add column if not exists "scopes" text[] not null default '{}';
 alter table "better_supabase"."api_keys" add column if not exists "rate_limit" integer constraint bsb_api_keys_rate_limit_check check ("rate_limit" > 0);
-alter table "better_supabase"."api_keys" add column if not exists "window_start" timestamptz;
+alter table "better_supabase"."api_keys" add column if not exists "window_started_at" timestamptz;
 alter table "better_supabase"."api_keys" add column if not exists "window_hits" integer not null default 0;
 alter table "better_supabase"."api_keys" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."api_keys" add column if not exists "last_used_at" timestamptz;
@@ -2164,11 +2164,11 @@ begin
   if found."rate_limit" is not null then
     -- One update counts the hit and, for an allowed request, touches last_used_at.
     update "better_supabase"."api_keys" k set
-      "window_start" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then now() else k."window_start" end,
-      "window_hits" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
-      "last_used_at" = case when case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
+      "window_started_at" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then now() else k."window_started_at" end,
+      "window_hits" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
+      "last_used_at" = case when case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
     where k."id" = found."id"
-    returning k."window_start", k."window_hits" into started, hits;
+    returning k."window_started_at", k."window_hits" into started, hits;
     if hits > found."rate_limit" then
       return jsonb_build_object(
         'status', 'rate_limited',
@@ -2260,7 +2260,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:c9a6abf68bb84c58aaaf4c583e9664c0751dcd122fddc5970d59e8269087300a
+-- @bsb-hash sha256:4f7104788a5740f8bac52918a68dcbdf570cdbdb8932365f96f51d99f947dc9c
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2278,7 +2278,7 @@ create table "better_supabase"."api_keys" (
   "secret_hash" text not null constraint bsb_api_keys_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$'),
   "scopes" text[] not null default '{}',
   "rate_limit" integer constraint bsb_api_keys_rate_limit_check check ("rate_limit" > 0),
-  "window_start" timestamptz,
+  "window_started_at" timestamptz,
   "window_hits" integer not null default 0,
   "expires_at" timestamptz,
   "last_used_at" timestamptz,
@@ -2596,11 +2596,11 @@ begin
   if found."rate_limit" is not null then
     -- One update counts the hit and, for an allowed request, touches last_used_at.
     update "better_supabase"."api_keys" k set
-      "window_start" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then now() else k."window_start" end,
-      "window_hits" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
-      "last_used_at" = case when case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
+      "window_started_at" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then now() else k."window_started_at" end,
+      "window_hits" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
+      "last_used_at" = case when case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
     where k."id" = found."id"
-    returning k."window_start", k."window_hits" into started, hits;
+    returning k."window_started_at", k."window_hits" into started, hits;
     if hits > found."rate_limit" then
       return jsonb_build_object(
         'status', 'rate_limited',

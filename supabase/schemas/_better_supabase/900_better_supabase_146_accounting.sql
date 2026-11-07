@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:0e1e8c21703d6ad75e863d2c1f41859b7f509cacca5385dae52ce4f74c1332a5
+-- @bsb-hash sha256:4bf94c02d83e87210e523eee3ad552f45c8a35e8bc1a7900d1d57ab5a60f4540
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -330,7 +330,7 @@ begin
     if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
       select 1 from "better_supabase"."organization_deletions" x
       where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
-        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_at" <= now()
     ) then
       return old;
     end if;
@@ -366,7 +366,7 @@ begin
     if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
       select 1 from "better_supabase"."organization_deletions" x
       where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
-        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_at" <= now()
     ) then
       return old;
     end if;

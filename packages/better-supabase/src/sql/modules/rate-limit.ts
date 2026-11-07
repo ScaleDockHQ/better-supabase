@@ -64,7 +64,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         scope: "scope",
         key: "key",
-        windowStart: "window_start",
+        windowStart: "window_started_at",
         hits: "hits",
         period: "period",
       },

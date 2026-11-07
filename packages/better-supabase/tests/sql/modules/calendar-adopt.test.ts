@@ -60,7 +60,7 @@ create table public.events (
   timezone text not null default 'UTC',
   status public.event_status not null default 'busy',
   recurrence_id uuid references public.events (id) on delete cascade,
-  original_start timestamptz,
+  original_starts_at timestamptz,
   visibility public.event_visibility not null default 'normal',
   transparency public.event_transparency not null default 'opaque',
   source text not null default 'local',

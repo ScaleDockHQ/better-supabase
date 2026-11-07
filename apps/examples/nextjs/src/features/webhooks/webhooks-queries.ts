@@ -15,7 +15,7 @@ interface EndpointRecord {
   readonly url: string;
   readonly enabled: boolean;
   readonly event_types: readonly string[];
-  readonly failing_since: Date | null;
+  readonly first_failed_at: Date | null;
   readonly disabled_reason: string | null;
   readonly created_at: Date;
 }
@@ -62,7 +62,7 @@ export async function loadWebhooks(): Promise<WebhooksOverview | null> {
 
   const [endpoints, deliveries] = await Promise.all([
     sql.queryRaw<EndpointRecord>(
-      `select id, name, url, enabled, event_types, failing_since, disabled_reason, created_at
+      `select id, name, url, enabled, event_types, first_failed_at, disabled_reason, created_at
        from better_supabase.webhook_endpoints
        where organization_id = $1
        order by created_at desc`,
@@ -87,7 +87,7 @@ export async function loadWebhooks(): Promise<WebhooksOverview | null> {
       url: row.url,
       enabled: row.enabled,
       eventTypes: row.event_types,
-      failingSince: row.failing_since?.toISOString() ?? null,
+      failingSince: row.first_failed_at?.toISOString() ?? null,
       disabledReason: row.disabled_reason,
       createdAt: row.created_at.toISOString(),
     })),

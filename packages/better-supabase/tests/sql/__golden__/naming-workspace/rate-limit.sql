@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:136b5da4d223f5ac220fb381c7e190f4f5fa70051c5c7e70e17379386ade0ca1
+-- @bsb-hash sha256:07be2bad4ea4c348956de7465da8d2b04be588ab9aad59c26f09ddcc72d5b91b
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,7 @@ create unique index "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."r
 create unlogged table "better_supabase"."rate_limits" (
   "scope" text not null,
   "key" text not null,
-  "window_start" timestamptz not null,
+  "window_started_at" timestamptz not null,
   "hits" integer not null,
   primary key ("scope", "key")
 );
@@ -142,13 +142,13 @@ begin
       claims ->> rule."key_claim",
       'ip:' || coalesce(nullif(trim(reverse(split_part(reverse(headers ->> 'x-forwarded-for'), ',', 1))), ''), 'unknown')
     );
-    insert into "better_supabase"."rate_limits" as l ("scope", "key", "window_start", "hits", "period")
+    insert into "better_supabase"."rate_limits" as l ("scope", "key", "window_started_at", "hits", "period")
     values (rule."scope", caller, now(), 1, rule."period")
     on conflict on constraint rate_limits_pkey do update set
-      "window_start" = case when l."window_start" + rule."period" <= now() then now() else l."window_start" end,
-      "hits" = case when l."window_start" + rule."period" <= now() then 1 else l."hits" + 1 end,
+      "window_started_at" = case when l."window_started_at" + rule."period" <= now() then now() else l."window_started_at" end,
+      "hits" = case when l."window_started_at" + rule."period" <= now() then 1 else l."hits" + 1 end,
       "period" = rule."period"
-    returning l."hits", l."window_start" into used, started;
+    returning l."hits", l."window_started_at" into used, started;
     if used > rule."max_requests" then
       retry := greatest(1, ceil(extract(epoch from started + rule."period" - now()))::integer);
       raise sqlstate 'PGRST' using
@@ -210,13 +210,13 @@ begin
     raise exception 'No rate limit for %: call set_rate_limit or pass max_requests and period', scope
       using errcode = '22023', hint = 'RATE_LIMIT_UNKNOWN';
   end if;
-  insert into "better_supabase"."rate_limits" as l ("scope", "key", "window_start", "hits", "period")
+  insert into "better_supabase"."rate_limits" as l ("scope", "key", "window_started_at", "hits", "period")
   values (scope, key, now(), 1, limit_period)
   on conflict on constraint rate_limits_pkey do update set
-    "window_start" = case when l."window_start" + limit_period <= now() then now() else l."window_start" end,
-    "hits" = case when l."window_start" + limit_period <= now() then 1 else l."hits" + 1 end,
+    "window_started_at" = case when l."window_started_at" + limit_period <= now() then now() else l."window_started_at" end,
+    "hits" = case when l."window_started_at" + limit_period <= now() then 1 else l."hits" + 1 end,
     "period" = limit_period
-  returning l."hits", l."window_start" into used, started;
+  returning l."hits", l."window_started_at" into used, started;
   return query select
     used <= limit_max,
     greatest(limit_max - used, 0),
@@ -314,7 +314,7 @@ begin
     periods := periods || limit_period;
   end loop;
 
-  insert into "better_supabase"."rate_limits" as l ("scope", "key", "window_start", "hits", "period")
+  insert into "better_supabase"."rate_limits" as l ("scope", "key", "window_started_at", "hits", "period")
   select u.scope, u.key, now(), 0, u.period
   from unnest(scopes, keys, periods) as u(scope, key, period)
   order by u.scope, u.key
@@ -329,12 +329,12 @@ begin
   for i in 1 .. total loop
     select * into counter from "better_supabase"."rate_limits" l
     where l."scope" = scopes[i] and l."key" = keys[i];
-    if counter."window_start" + periods[i] <= now() then
+    if counter."window_started_at" + periods[i] <= now() then
       used := used || 0;
       starts := starts || now();
     else
       used := used || counter."hits";
-      starts := starts || counter."window_start";
+      starts := starts || counter."window_started_at";
     end if;
     if used[i] + 1 > maxes[i] then
       longest := greatest(longest, greatest(1, ceil(extract(epoch from starts[i] + periods[i] - now()))::integer));
@@ -347,7 +347,7 @@ begin
   if passed then
     for i in 1 .. total loop
       update "better_supabase"."rate_limits" l set
-        "window_start" = starts[i],
+        "window_started_at" = starts[i],
         "hits" = used[i] + 1,
         "period" = periods[i]
       where l."scope" = scopes[i] and l."key" = keys[i];
@@ -389,7 +389,7 @@ as $$
   with expired as (
     select l."scope", l."key" from "better_supabase"."rate_limits" l
     left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."workspace_id" is null
-    where l."window_start" + coalesce(l."period", r."period", interval '1 day') <= now()
+    where l."window_started_at" + coalesce(l."period", r."period", interval '1 day') <= now()
     limit batch
   ),
   purged as (

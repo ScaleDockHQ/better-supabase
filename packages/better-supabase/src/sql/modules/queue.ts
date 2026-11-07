@@ -547,7 +547,7 @@ $$;
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
 -- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -670,7 +670,7 @@ $$;
 -- Schedules whose name starts with name_prefix and that run for for_tenant (either
 -- filter null: all), for a product page that shows the next run.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
 language sql
 stable
 security definer
@@ -807,7 +807,7 @@ const NAMES: BlockSqlNames = {
         payload: "payload",
         nextRun: "next_run",
         lastRun: "last_run",
-        lockedUntil: "locked_until",
+        lockedUntil: "lock_expires_at",
         createdAt: "created_at",
         tenant: "tenant",
         firstAfter: "first_after",

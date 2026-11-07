@@ -768,7 +768,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           attempts integer not null default 0,
           available_at timestamptz not null default now(),
           locked_by text,
-          locked_until timestamptz,
+          lock_expires_at timestamptz,
           last_error text,
           received_at timestamptz not null default now(),
           processed_at timestamptz,

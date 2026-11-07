@@ -679,9 +679,9 @@ begin
     ${forbidden("read this organization's drive")}
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', b.item_id, 'batchId', b.batch_id, 'count', b.n, 'trashedBy', b.trashed_by, 'trashedAt', b.trashed_at, 'purgeAfter', b.purge_after, 'node', b.node) order by b.trashed_at desc, b.item_id), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', b.item_id, 'batchId', b.batch_id, 'count', b.n, 'trashedBy', b.trashed_by, 'trashedAt', b.trashed_at, 'purgeAfter', b.purge_at, 'node', b.node) order by b.trashed_at desc, b.item_id), '[]'::jsonb)
     from (
-      select i.${ti("id")} as item_id, i.${ti("batch")} as batch_id, i.${ti("trashedBy")} as trashed_by, i.${ti("trashedAt")} as trashed_at, i.${ti("purgeAfter")} as purge_after,
+      select i.${ti("id")} as item_id, i.${ti("batch")} as batch_id, i.${ti("trashedBy")} as trashed_by, i.${ti("trashedAt")} as trashed_at, i.${ti("purgeAfter")} as purge_at,
         (select count(*) from ${trash.table("items")} c where c.${ti("batch")} = i.${ti("batch")})::integer as n,
         ${json("x")} as node
       from ${trash.table("items")} i

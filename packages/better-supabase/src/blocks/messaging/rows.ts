@@ -89,7 +89,7 @@ export function messageOf(value: unknown): Message {
     pinnedBy: optionalText(row["pinned_by"]),
     resolvedAt: optionalInstant(row["resolved_at"]),
     resolvedBy: optionalText(row["resolved_by"]),
-    scheduledFor: optionalInstant(row["scheduled_for"]),
+    scheduledFor: optionalInstant(row["scheduled_at"]),
     sentAt: optionalInstant(row["sent_at"]),
     editedAt: optionalInstant(row["edited_at"]),
     deletedAt: optionalInstant(row["deleted_at"]),

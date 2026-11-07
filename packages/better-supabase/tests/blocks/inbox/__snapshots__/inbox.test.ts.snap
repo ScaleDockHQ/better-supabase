@@ -114,7 +114,7 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     "set_conversation_status",
     {
       "conversation": "c1",
-      "snoozed_until": "2026-02-01T00:00:00Z",
+      "snooze_expires_at": "2026-02-01T00:00:00Z",
       "status": "snoozed",
     },
   ],
@@ -122,7 +122,7 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     "set_conversation_status",
     {
       "conversation": "c1",
-      "snoozed_until": undefined,
+      "snooze_expires_at": undefined,
       "status": "resolved",
     },
   ],
@@ -130,7 +130,7 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     "set_conversation_status",
     {
       "conversation": "c1",
-      "snoozed_until": undefined,
+      "snooze_expires_at": undefined,
       "status": "open",
     },
   ],

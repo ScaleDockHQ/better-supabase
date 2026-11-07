@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:bf5eb3b79323ba7f410324456181d5f9845abe2da464a81f040b61bec6e129c0
+-- @bsb-hash sha256:388dcb2cb2204df08a8749aaf00d47e97e8a33ed88e76e945bc57f0ac84b8eb9
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -56,7 +56,7 @@ create table "better_supabase"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
   "paused_by_user_id" uuid,
   "created_at" timestamptz not null default now(),
@@ -332,7 +332,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:bf5eb3b79323ba7f410324456181d5f9845abe2da464a81f040b61bec6e129c0
+-- @bsb-hash sha256:388dcb2cb2204df08a8749aaf00d47e97e8a33ed88e76e945bc57f0ac84b8eb9
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -387,7 +387,7 @@ create table "better_supabase"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
   "paused_by_user_id" uuid,
   "created_at" timestamptz not null default now(),
@@ -663,7 +663,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:22b039fe0605f123041bd57f8740bc9118663eb157fa90f874ffc567fc1a346f
+-- @bsb-hash sha256:1472ca0933db7935dcd255089f3da4eea434f98dc936be2f026b87033c6fd515
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -723,7 +723,7 @@ create table "app_private"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
   "paused_by_user_id" uuid,
   "created_at" timestamptz not null default now(),
@@ -999,7 +999,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:d60fd8f90adc7fd0c517964e8a7df4a20dab13a18e1021962464a5d351154fca
+-- @bsb-hash sha256:1741aaacccb87a2d9dfa1c7ce5401d54af6e79499db936ca9f1a9e85d6991b15
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1054,7 +1054,7 @@ create table "better_supabase"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
   "paused_by_user_id" uuid,
   "created_at" timestamptz not null default now(),
@@ -1400,7 +1400,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:03cf4d696693274ad56c247daa5e50c941f506c4c95e9fa63614d1bc4d0c8381
+-- @bsb-hash sha256:b1a9a5a942277aabca1351476e71e5b38049aec7af238a9c29d8ed03177a425e
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1451,7 +1451,7 @@ alter table "better_supabase"."subject_lifecycles" add column if not exists "sub
 alter table "better_supabase"."subject_lifecycles" add column if not exists "version" integer not null default 1;
 alter table "better_supabase"."subject_lifecycles" add column if not exists "flags" text[] not null default '{}';
 alter table "better_supabase"."subject_lifecycles" add column if not exists "paused_at" timestamptz;
-alter table "better_supabase"."subject_lifecycles" add column if not exists "paused_until" timestamptz;
+alter table "better_supabase"."subject_lifecycles" add column if not exists "pause_expires_at" timestamptz;
 alter table "better_supabase"."subject_lifecycles" add column if not exists "pause_reason" text;
 alter table "better_supabase"."subject_lifecycles" add column if not exists "paused_by_user_id" uuid;
 alter table "better_supabase"."subject_lifecycles" add column if not exists "created_at" timestamptz not null default now();
@@ -1724,7 +1724,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:83d2f019cffecd3a215dde4ac9613e83123b1e2622387c79efcb4b98bcac51a8
+-- @bsb-hash sha256:7ff3f7c6e629ad2f68b96879de998567777615f5897e31f61ada878ef45b5a26
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1779,7 +1779,7 @@ create table "better_supabase"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
   "paused_by_user_id" uuid,
   "created_at" timestamptz not null default now(),

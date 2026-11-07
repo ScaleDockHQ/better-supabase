@@ -1,6 +1,6 @@
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:534247b990fcfd8c33b49c5638f34b42fdc799a3d7884d5d0d6b70f42757f8aa
+-- @bsb-hash sha256:2f83c1069a796401306b2537d09c8a13727f91c86fde88086bc4512d01fe0f7d
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,7 +84,7 @@ as $$
     set "status" = 'processing', "attempts" = w."attempts" + 1, "locked_by" = worker, "locked_until" = now() + lease
     from next
     where w."id" = next."id"
-    returning w."id" as id, jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."external_id", 'event_type', w."event_kind", 'payload', w."payload", 'headers', '{}'::jsonb, 'status', w."status", 'attempts', w."attempts", 'max_attempts', 8, 'available_at', w."available_at", 'locked_by', w."locked_by", 'locked_until', w."locked_until", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."organization_id"::text, 'checkpoint', '{}'::jsonb) as message
+    returning w."id" as id, jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."external_id", 'event_type', w."event_kind", 'payload', w."payload", 'headers', '{}'::jsonb, 'status', w."status", 'attempts', w."attempts", 'max_attempts', 8, 'available_at', w."available_at", 'locked_by', w."locked_by", 'lock_expires_at', w."locked_until", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."organization_id"::text, 'checkpoint', '{}'::jsonb) as message
   )
   select coalesce(jsonb_agg(claimed.message order by claimed.id), '[]'::jsonb) from claimed
 $$;
@@ -182,7 +182,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.message order by x.n), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."external_id", 'event_type', w."event_kind", 'payload', w."payload", 'headers', '{}'::jsonb, 'status', w."status", 'attempts', w."attempts", 'max_attempts', 8, 'available_at', w."available_at", 'locked_by', w."locked_by", 'locked_until', w."locked_until", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."organization_id"::text, 'checkpoint', '{}'::jsonb) as message, row_number() over (order by w."received_at" desc, w."id" desc) as n
+    select jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."external_id", 'event_type', w."event_kind", 'payload', w."payload", 'headers', '{}'::jsonb, 'status', w."status", 'attempts', w."attempts", 'max_attempts', 8, 'available_at', w."available_at", 'locked_by', w."locked_by", 'lock_expires_at', w."locked_until", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."organization_id"::text, 'checkpoint', '{}'::jsonb) as message, row_number() over (order by w."received_at" desc, w."id" desc) as n
     from "centrakit"."inbound_webhook_events" w
     where w."organization_id"::text = for_tenant
       and (for_source is null or w."source" = for_source)

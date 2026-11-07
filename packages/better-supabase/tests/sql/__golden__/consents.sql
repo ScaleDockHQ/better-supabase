@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:e7b68537d4616e48eb8d88e656df0eb0b497f1168c1f797519a3756d0efa8ec5
+-- @bsb-hash sha256:b9f8dea0a8ae0615f813617d6e0032f021c8f20296842e9e35d8a83e6a8d24f9
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,7 +45,7 @@ create table "better_supabase"."consents" (
   "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object'),
   -- When the decision was made, for a refusal too.
   "granted_at" timestamptz not null default now(),
-  "valid_until" timestamptz,
+  "expires_at" timestamptz,
   "withdrawn_at" timestamptz,
   "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
   "signature_id" uuid,
@@ -60,7 +60,7 @@ create table "better_supabase"."consents" (
 create unique index "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
 create index "consents_subject_idx" on "better_supabase"."consents" ("tenant_id", "subject_type", "subject_id", "created_at" desc);
 create index "consents_purpose_idx" on "better_supabase"."consents" ("purpose_id");
-create index "consents_expiry_idx" on "better_supabase"."consents" ("valid_until") where "status" = 'granted' and "valid_until" is not null;
+create index "consents_expiry_idx" on "better_supabase"."consents" ("expires_at") where "status" = 'granted' and "expires_at" is not null;
 alter table "better_supabase"."consents" enable row level security;
 revoke all on "better_supabase"."consents" from public, anon, authenticated;
 grant select on "better_supabase"."consents" to authenticated;
@@ -281,7 +281,7 @@ create or replace function "better_supabase"."record_consent"(
   status text,
   given_by text default 'self',
   given_by_contact_id uuid default null,
-  valid_until timestamptz default null,
+  expires_at timestamptz default null,
   scope jsonb default '{}'::jsonb,
   evidence jsonb default '{}'::jsonb
 )
@@ -299,7 +299,7 @@ declare
   v_contact uuid := record_consent.given_by_contact_id;
   v_scope jsonb := coalesce(record_consent.scope, '{}'::jsonb);
   v_evidence jsonb := coalesce(record_consent.evidence, '{}'::jsonb);
-  v_until timestamptz := record_consent.valid_until;
+  v_until timestamptz := record_consent.expires_at;
   v_signature uuid;
   v_submission uuid;
   v_attachment uuid;
@@ -381,7 +381,7 @@ begin
     v_until := now() + make_interval(months => v_purpose."valid_months");
   end if;
   if v_until is not null and v_until <= now() then
-    raise exception 'valid_until is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
+    raise exception 'expires_at is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_consent_record"(uuid, text, text, uuid, text)');
@@ -400,7 +400,7 @@ begin
       select y."id" from "better_supabase"."consent_purposes" y
       where y."key" = v_purpose."key" and (y."tenant_id" = v_tenant or y."tenant_id" is null)
     );
-  insert into "better_supabase"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "valid_until", "signature_id", "submission_id", "attachment_id", "created_by")
+  insert into "better_supabase"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "expires_at", "signature_id", "submission_id", "attachment_id", "created_by")
   values (v_tenant, v_purpose."id", record_consent.subject_type, record_consent.subject_id, v_given_by, v_contact, auth.uid(), record_consent.status, v_scope, v_until, v_signature, v_submission, v_attachment, auth.uid())
   returning * into v_row;
   if record_consent.status = 'granted' then
@@ -416,7 +416,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."record_consent"(text, text, text, text, text, uuid, timestamptz, jsonb, jsonb) from public, anon;
@@ -490,14 +490,14 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."withdraw_consent"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."withdraw_consent"(uuid, text) to authenticated, service_role;
 
 -- Whether record subject_type/subject_id has a consent in force for the
--- current version of purpose_key: granted and not past valid_until. False for
+-- current version of purpose_key: granted and not past expires_at. False for
 -- a caller who can't read the record's consents.
 create or replace function "better_supabase"."consent_active"(subject_type text, subject_id text, purpose_key text)
 returns boolean
@@ -528,7 +528,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."tenant_id" = v_tenant and x."purpose_id" = v_purpose
       and x."subject_type" = consent_active.subject_type and x."subject_id" = consent_active.subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -558,7 +558,7 @@ begin
   return (
     select coalesce(jsonb_agg(l.item order by l.key, l.created desc, l.id), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."valid_until", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."expires_at", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
         row_number() over (partition by y."key" order by x."created_at" desc, x."id" desc) as n
       from "better_supabase"."consents" x
       join "better_supabase"."consent_purposes" y on y."id" = x."purpose_id"
@@ -572,7 +572,7 @@ $$;
 revoke execute on function "better_supabase"."list_consents"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."list_consents"(text, text, boolean) to authenticated, service_role;
 
--- Marks every granted consent past valid_until expired and records
+-- Marks every granted consent past expires_at expired and records
 -- consent.expired for each. Run it on a schedule; returns how many expired.
 create or replace function "better_supabase"."expire_consents"()
 returns integer
@@ -587,7 +587,7 @@ declare
 begin
   for v_row in
     update "better_supabase"."consents" x set "status" = 'expired'
-    where x."status" = 'granted' and x."valid_until" <= now()
+    where x."status" = 'granted' and x."expires_at" <= now()
     returning x.*
   loop
     select * into v_purpose from "better_supabase"."consent_purposes" y where y."id" = v_row."purpose_id";
@@ -841,7 +841,7 @@ begin
     'organizationId', v_row."tenant_id",
     'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
     'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
-    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
     'evidence', jsonb_build_object(
       'signatureId', v_row."signature_id",
       'submissionId', v_row."submission_id",
@@ -923,7 +923,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."tenant_id" = tenant and x."purpose_id" = v_purpose
       and x."subject_type" = subject_type and x."subject_id" = subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -1042,7 +1042,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:648341bffb98e200a5f8474cd6befcefa142b96afd7c19936472f569f9cb6122
+-- @bsb-hash sha256:c384c69c971039514cc87503abbdf2b87a33bc19d5915927eb87d32e61715c6d
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1086,7 +1086,7 @@ create table "better_supabase"."consents" (
   "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object'),
   -- When the decision was made, for a refusal too.
   "granted_at" timestamptz not null default now(),
-  "valid_until" timestamptz,
+  "expires_at" timestamptz,
   "withdrawn_at" timestamptz,
   "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
   "signature_id" uuid,
@@ -1101,7 +1101,7 @@ create table "better_supabase"."consents" (
 create unique index "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
 create index "consents_subject_idx" on "better_supabase"."consents" ("tenant_id", "subject_type", "subject_id", "created_at" desc);
 create index "consents_purpose_idx" on "better_supabase"."consents" ("purpose_id");
-create index "consents_expiry_idx" on "better_supabase"."consents" ("valid_until") where "status" = 'granted' and "valid_until" is not null;
+create index "consents_expiry_idx" on "better_supabase"."consents" ("expires_at") where "status" = 'granted' and "expires_at" is not null;
 alter table "better_supabase"."consents" enable row level security;
 revoke all on "better_supabase"."consents" from public, anon, authenticated;
 grant select on "better_supabase"."consents" to authenticated;
@@ -1352,7 +1352,7 @@ create or replace function "better_supabase"."record_consent"(
   status text,
   given_by text default 'self',
   given_by_contact_id uuid default null,
-  valid_until timestamptz default null,
+  expires_at timestamptz default null,
   scope jsonb default '{}'::jsonb,
   evidence jsonb default '{}'::jsonb
 )
@@ -1370,7 +1370,7 @@ declare
   v_contact uuid := record_consent.given_by_contact_id;
   v_scope jsonb := coalesce(record_consent.scope, '{}'::jsonb);
   v_evidence jsonb := coalesce(record_consent.evidence, '{}'::jsonb);
-  v_until timestamptz := record_consent.valid_until;
+  v_until timestamptz := record_consent.expires_at;
   v_signature uuid;
   v_submission uuid;
   v_attachment uuid;
@@ -1501,7 +1501,7 @@ begin
     v_until := now() + make_interval(months => v_purpose."valid_months");
   end if;
   if v_until is not null and v_until <= now() then
-    raise exception 'valid_until is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
+    raise exception 'expires_at is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_consent_record"(uuid, text, text, uuid, text)');
@@ -1520,7 +1520,7 @@ begin
       select y."id" from "better_supabase"."consent_purposes" y
       where y."key" = v_purpose."key" and (y."tenant_id" = v_tenant or y."tenant_id" is null)
     );
-  insert into "better_supabase"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "valid_until", "signature_id", "submission_id", "attachment_id", "created_by")
+  insert into "better_supabase"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "expires_at", "signature_id", "submission_id", "attachment_id", "created_by")
   values (v_tenant, v_purpose."id", record_consent.subject_type, record_consent.subject_id, v_given_by, v_contact, auth.uid(), record_consent.status, v_scope, v_until, v_signature, v_submission, v_attachment, auth.uid())
   returning * into v_row;
   if record_consent.status = 'granted' then
@@ -1556,7 +1556,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."record_consent"(text, text, text, text, text, uuid, timestamptz, jsonb, jsonb) from public, anon;
@@ -1660,14 +1660,14 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."withdraw_consent"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."withdraw_consent"(uuid, text) to authenticated, service_role;
 
 -- Whether record subject_type/subject_id has a consent in force for the
--- current version of purpose_key: granted and not past valid_until. False for
+-- current version of purpose_key: granted and not past expires_at. False for
 -- a caller who can't read the record's consents.
 create or replace function "better_supabase"."consent_active"(subject_type text, subject_id text, purpose_key text)
 returns boolean
@@ -1708,7 +1708,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."tenant_id" = v_tenant and x."purpose_id" = v_purpose
       and x."subject_type" = consent_active.subject_type and x."subject_id" = consent_active.subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -1748,7 +1748,7 @@ begin
   return (
     select coalesce(jsonb_agg(l.item order by l.key, l.created desc, l.id), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."valid_until", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."expires_at", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
         row_number() over (partition by y."key" order by x."created_at" desc, x."id" desc) as n
       from "better_supabase"."consents" x
       join "better_supabase"."consent_purposes" y on y."id" = x."purpose_id"
@@ -1762,7 +1762,7 @@ $$;
 revoke execute on function "better_supabase"."list_consents"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."list_consents"(text, text, boolean) to authenticated, service_role;
 
--- Marks every granted consent past valid_until expired and records
+-- Marks every granted consent past expires_at expired and records
 -- consent.expired for each. Run it on a schedule; returns how many expired.
 create or replace function "better_supabase"."expire_consents"()
 returns integer
@@ -1777,7 +1777,7 @@ declare
 begin
   for v_row in
     update "better_supabase"."consents" x set "status" = 'expired'
-    where x."status" = 'granted' and x."valid_until" <= now()
+    where x."status" = 'granted' and x."expires_at" <= now()
     returning x.*
   loop
     select * into v_purpose from "better_supabase"."consent_purposes" y where y."id" = v_row."purpose_id";
@@ -2071,7 +2071,7 @@ begin
     'organizationId', v_row."tenant_id",
     'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
     'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
-    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
     'evidence', jsonb_build_object(
       'signatureId', v_row."signature_id",
       'submissionId', v_row."submission_id",
@@ -2163,7 +2163,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."tenant_id" = tenant and x."purpose_id" = v_purpose
       and x."subject_type" = subject_type and x."subject_id" = subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -2304,7 +2304,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:9f9b9983e75c0724b6a1fded171d1e0de60b949cb47e766c422f721a7f687c75
+-- @bsb-hash sha256:1fa61939ef1b152bd08ae948f6f7ac1515c645b8e384c1f3a1165f259465467c
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2353,7 +2353,7 @@ create table "app_private"."consents" (
   "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object'),
   -- When the decision was made, for a refusal too.
   "granted_at" timestamptz not null default now(),
-  "valid_until" timestamptz,
+  "expires_at" timestamptz,
   "withdrawn_at" timestamptz,
   "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
   "signature_id" uuid,
@@ -2368,7 +2368,7 @@ create table "app_private"."consents" (
 create unique index "consents_granted_idx" on "app_private"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
 create index "consents_subject_idx" on "app_private"."consents" ("tenant_id", "subject_type", "subject_id", "created_at" desc);
 create index "consents_purpose_idx" on "app_private"."consents" ("purpose_id");
-create index "consents_expiry_idx" on "app_private"."consents" ("valid_until") where "status" = 'granted' and "valid_until" is not null;
+create index "consents_expiry_idx" on "app_private"."consents" ("expires_at") where "status" = 'granted' and "expires_at" is not null;
 alter table "app_private"."consents" enable row level security;
 revoke all on "app_private"."consents" from public, anon, authenticated;
 grant select on "app_private"."consents" to authenticated;
@@ -2589,7 +2589,7 @@ create or replace function "app_private"."record_consent"(
   status text,
   given_by text default 'self',
   given_by_contact_id uuid default null,
-  valid_until timestamptz default null,
+  expires_at timestamptz default null,
   scope jsonb default '{}'::jsonb,
   evidence jsonb default '{}'::jsonb
 )
@@ -2607,7 +2607,7 @@ declare
   v_contact uuid := record_consent.given_by_contact_id;
   v_scope jsonb := coalesce(record_consent.scope, '{}'::jsonb);
   v_evidence jsonb := coalesce(record_consent.evidence, '{}'::jsonb);
-  v_until timestamptz := record_consent.valid_until;
+  v_until timestamptz := record_consent.expires_at;
   v_signature uuid;
   v_submission uuid;
   v_attachment uuid;
@@ -2689,7 +2689,7 @@ begin
     v_until := now() + make_interval(months => v_purpose."valid_months");
   end if;
   if v_until is not null and v_until <= now() then
-    raise exception 'valid_until is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
+    raise exception 'expires_at is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_consent_record"(uuid, text, text, uuid, text)');
@@ -2708,7 +2708,7 @@ begin
       select y."id" from "app_private"."consent_purposes" y
       where y."key" = v_purpose."key" and (y."tenant_id" = v_tenant or y."tenant_id" is null)
     );
-  insert into "app_private"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "valid_until", "signature_id", "submission_id", "attachment_id", "created_by")
+  insert into "app_private"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "expires_at", "signature_id", "submission_id", "attachment_id", "created_by")
   values (v_tenant, v_purpose."id", record_consent.subject_type, record_consent.subject_id, v_given_by, v_contact, auth.uid(), record_consent.status, v_scope, v_until, v_signature, v_submission, v_attachment, auth.uid())
   returning * into v_row;
   if record_consent.status = 'granted' then
@@ -2724,7 +2724,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "app_private"."record_consent"(text, text, text, text, text, uuid, timestamptz, jsonb, jsonb) from public, anon;
@@ -2798,14 +2798,14 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "app_private"."withdraw_consent"(uuid, text) from public, anon;
 grant execute on function "app_private"."withdraw_consent"(uuid, text) to authenticated, service_role;
 
 -- Whether record subject_type/subject_id has a consent in force for the
--- current version of purpose_key: granted and not past valid_until. False for
+-- current version of purpose_key: granted and not past expires_at. False for
 -- a caller who can't read the record's consents.
 create or replace function "app_private"."consent_active"(subject_type text, subject_id text, purpose_key text)
 returns boolean
@@ -2836,7 +2836,7 @@ begin
     select 1 from "app_private"."consents" x
     where x."tenant_id" = v_tenant and x."purpose_id" = v_purpose
       and x."subject_type" = consent_active.subject_type and x."subject_id" = consent_active.subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -2866,7 +2866,7 @@ begin
   return (
     select coalesce(jsonb_agg(l.item order by l.key, l.created desc, l.id), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."valid_until", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."expires_at", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
         row_number() over (partition by y."key" order by x."created_at" desc, x."id" desc) as n
       from "app_private"."consents" x
       join "app_private"."consent_purposes" y on y."id" = x."purpose_id"
@@ -2880,7 +2880,7 @@ $$;
 revoke execute on function "app_private"."list_consents"(text, text, boolean) from public, anon;
 grant execute on function "app_private"."list_consents"(text, text, boolean) to authenticated, service_role;
 
--- Marks every granted consent past valid_until expired and records
+-- Marks every granted consent past expires_at expired and records
 -- consent.expired for each. Run it on a schedule; returns how many expired.
 create or replace function "app_private"."expire_consents"()
 returns integer
@@ -2895,7 +2895,7 @@ declare
 begin
   for v_row in
     update "app_private"."consents" x set "status" = 'expired'
-    where x."status" = 'granted' and x."valid_until" <= now()
+    where x."status" = 'granted' and x."expires_at" <= now()
     returning x.*
   loop
     select * into v_purpose from "app_private"."consent_purposes" y where y."id" = v_row."purpose_id";
@@ -3149,7 +3149,7 @@ begin
     'organizationId', v_row."tenant_id",
     'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
     'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
-    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
     'evidence', jsonb_build_object(
       'signatureId', v_row."signature_id",
       'submissionId', v_row."submission_id",
@@ -3231,7 +3231,7 @@ begin
     select 1 from "app_private"."consents" x
     where x."tenant_id" = tenant and x."purpose_id" = v_purpose
       and x."subject_type" = subject_type and x."subject_id" = subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -3350,7 +3350,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:542b0d4048627d7aa354334660c143fa2f6057056e6aac5a0eddac178c65ed45
+-- @bsb-hash sha256:06d861aa4793200bf898aef1b8a42f5cd0693fff82b9b28153ad27308b0dd550
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3394,7 +3394,7 @@ create table "better_supabase"."consents" (
   "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object'),
   -- When the decision was made, for a refusal too.
   "granted_at" timestamptz not null default now(),
-  "valid_until" timestamptz,
+  "expires_at" timestamptz,
   "withdrawn_at" timestamptz,
   "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
   "signature_id" uuid,
@@ -3409,7 +3409,7 @@ create table "better_supabase"."consents" (
 create unique index "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
 create index "consents_subject_idx" on "better_supabase"."consents" ("tenant_id", "subject_type", "subject_id", "created_at" desc);
 create index "consents_purpose_idx" on "better_supabase"."consents" ("purpose_id");
-create index "consents_expiry_idx" on "better_supabase"."consents" ("valid_until") where "status" = 'granted' and "valid_until" is not null;
+create index "consents_expiry_idx" on "better_supabase"."consents" ("expires_at") where "status" = 'granted' and "expires_at" is not null;
 alter table "better_supabase"."consents" enable row level security;
 revoke all on "better_supabase"."consents" from public, anon, authenticated;
 grant select on "better_supabase"."consents" to authenticated;
@@ -3630,7 +3630,7 @@ create or replace function "better_supabase"."record_consent"(
   status text,
   given_by text default 'self',
   given_by_contact_id uuid default null,
-  valid_until timestamptz default null,
+  expires_at timestamptz default null,
   scope jsonb default '{}'::jsonb,
   evidence jsonb default '{}'::jsonb
 )
@@ -3648,7 +3648,7 @@ declare
   v_contact uuid := record_consent.given_by_contact_id;
   v_scope jsonb := coalesce(record_consent.scope, '{}'::jsonb);
   v_evidence jsonb := coalesce(record_consent.evidence, '{}'::jsonb);
-  v_until timestamptz := record_consent.valid_until;
+  v_until timestamptz := record_consent.expires_at;
   v_signature uuid;
   v_submission uuid;
   v_attachment uuid;
@@ -3730,7 +3730,7 @@ begin
     v_until := now() + make_interval(months => v_purpose."valid_months");
   end if;
   if v_until is not null and v_until <= now() then
-    raise exception 'valid_until is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
+    raise exception 'expires_at is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_consent_record"(uuid, text, text, uuid, text)');
@@ -3749,7 +3749,7 @@ begin
       select y."id" from "better_supabase"."consent_purposes" y
       where y."key" = v_purpose."key" and (y."tenant_id" = v_tenant or y."tenant_id" is null)
     );
-  insert into "better_supabase"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "valid_until", "signature_id", "submission_id", "attachment_id", "created_by")
+  insert into "better_supabase"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "expires_at", "signature_id", "submission_id", "attachment_id", "created_by")
   values (v_tenant, v_purpose."id", record_consent.subject_type, record_consent.subject_id, v_given_by, v_contact, auth.uid(), record_consent.status, v_scope, v_until, v_signature, v_submission, v_attachment, auth.uid())
   returning * into v_row;
   if record_consent.status = 'granted' then
@@ -3765,7 +3765,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."record_consent"(text, text, text, text, text, uuid, timestamptz, jsonb, jsonb) from public, anon;
@@ -3839,14 +3839,14 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."withdraw_consent"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."withdraw_consent"(uuid, text) to authenticated, service_role;
 
 -- Whether record subject_type/subject_id has a consent in force for the
--- current version of purpose_key: granted and not past valid_until. False for
+-- current version of purpose_key: granted and not past expires_at. False for
 -- a caller who can't read the record's consents.
 create or replace function "better_supabase"."consent_active"(subject_type text, subject_id text, purpose_key text)
 returns boolean
@@ -3877,7 +3877,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."tenant_id" = v_tenant and x."purpose_id" = v_purpose
       and x."subject_type" = consent_active.subject_type and x."subject_id" = consent_active.subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -3907,7 +3907,7 @@ begin
   return (
     select coalesce(jsonb_agg(l.item order by l.key, l.created desc, l.id), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."valid_until", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."expires_at", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
         row_number() over (partition by y."key" order by x."created_at" desc, x."id" desc) as n
       from "better_supabase"."consents" x
       join "better_supabase"."consent_purposes" y on y."id" = x."purpose_id"
@@ -3921,7 +3921,7 @@ $$;
 revoke execute on function "better_supabase"."list_consents"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."list_consents"(text, text, boolean) to authenticated, service_role;
 
--- Marks every granted consent past valid_until expired and records
+-- Marks every granted consent past expires_at expired and records
 -- consent.expired for each. Run it on a schedule; returns how many expired.
 create or replace function "better_supabase"."expire_consents"()
 returns integer
@@ -3936,7 +3936,7 @@ declare
 begin
   for v_row in
     update "better_supabase"."consents" x set "status" = 'expired'
-    where x."status" = 'granted' and x."valid_until" <= now()
+    where x."status" = 'granted' and x."expires_at" <= now()
     returning x.*
   loop
     select * into v_purpose from "better_supabase"."consent_purposes" y where y."id" = v_row."purpose_id";
@@ -4190,7 +4190,7 @@ begin
     'organizationId', v_row."tenant_id",
     'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
     'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
-    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
     'evidence', jsonb_build_object(
       'signatureId', v_row."signature_id",
       'submissionId', v_row."submission_id",
@@ -4272,7 +4272,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."tenant_id" = tenant and x."purpose_id" = v_purpose
       and x."subject_type" = subject_type and x."subject_id" = subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -4409,7 +4409,7 @@ as $$ select "better_supabase"."list_consent_purposes"($1, $2) $$;
 revoke execute on function "api"."list_consent_purposes"(uuid, boolean) from public, anon;
 grant execute on function "api"."list_consent_purposes"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "api"."record_consent"(subject_type text, subject_id text, purpose_key text, status text, given_by text default 'self', given_by_contact_id uuid default null, valid_until timestamptz default null, scope jsonb default '{}'::jsonb, evidence jsonb default '{}'::jsonb)
+create or replace function "api"."record_consent"(subject_type text, subject_id text, purpose_key text, status text, given_by text default 'self', given_by_contact_id uuid default null, expires_at timestamptz default null, scope jsonb default '{}'::jsonb, evidence jsonb default '{}'::jsonb)
 returns jsonb
 language sql
 security invoker
@@ -4521,7 +4521,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:a9aa03589f490b3d974086706794e57827deab42cef59bdf3ce436847b7f7e71
+-- @bsb-hash sha256:1ae3a6676f1bc0bd9a874ff2db83b319712482838b05c966ccfb6de02b2e3f11
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4560,7 +4560,7 @@ alter table "better_supabase"."consents" add column if not exists "given_by_user
 alter table "better_supabase"."consents" add column if not exists "status" text constraint bsb_consents_status_check check ("status" in ('granted', 'refused', 'withdrawn', 'expired'));
 alter table "better_supabase"."consents" add column if not exists "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object');
 alter table "better_supabase"."consents" add column if not exists "granted_at" timestamptz not null default now();
-alter table "better_supabase"."consents" add column if not exists "valid_until" timestamptz;
+alter table "better_supabase"."consents" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."consents" add column if not exists "withdrawn_at" timestamptz;
 alter table "better_supabase"."consents" add column if not exists "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000);
 alter table "better_supabase"."consents" add column if not exists "signature_id" uuid;
@@ -4572,7 +4572,7 @@ alter table "better_supabase"."consents" add column if not exists "created_at" t
 create unique index if not exists "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
 create index if not exists "consents_subject_idx" on "better_supabase"."consents" ("tenant_id", "subject_type", "subject_id", "created_at" desc);
 create index if not exists "consents_purpose_idx" on "better_supabase"."consents" ("purpose_id");
-create index if not exists "consents_expiry_idx" on "better_supabase"."consents" ("valid_until") where "status" = 'granted' and "valid_until" is not null;
+create index if not exists "consents_expiry_idx" on "better_supabase"."consents" ("expires_at") where "status" = 'granted' and "expires_at" is not null;
 alter table "better_supabase"."consents" enable row level security;
 grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
@@ -4787,7 +4787,7 @@ create or replace function "better_supabase"."record_consent"(
   status text,
   given_by text default 'self',
   given_by_contact_id uuid default null,
-  valid_until timestamptz default null,
+  expires_at timestamptz default null,
   scope jsonb default '{}'::jsonb,
   evidence jsonb default '{}'::jsonb
 )
@@ -4805,7 +4805,7 @@ declare
   v_contact uuid := record_consent.given_by_contact_id;
   v_scope jsonb := coalesce(record_consent.scope, '{}'::jsonb);
   v_evidence jsonb := coalesce(record_consent.evidence, '{}'::jsonb);
-  v_until timestamptz := record_consent.valid_until;
+  v_until timestamptz := record_consent.expires_at;
   v_signature uuid;
   v_submission uuid;
   v_attachment uuid;
@@ -4887,7 +4887,7 @@ begin
     v_until := now() + make_interval(months => v_purpose."valid_months");
   end if;
   if v_until is not null and v_until <= now() then
-    raise exception 'valid_until is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
+    raise exception 'expires_at is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_consent_record"(uuid, text, text, uuid, text)');
@@ -4906,7 +4906,7 @@ begin
       select y."id" from "better_supabase"."consent_purposes" y
       where y."key" = v_purpose."key" and (y."tenant_id" = v_tenant or y."tenant_id" is null)
     );
-  insert into "better_supabase"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "valid_until", "signature_id", "submission_id", "attachment_id", "created_by")
+  insert into "better_supabase"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "expires_at", "signature_id", "submission_id", "attachment_id", "created_by")
   values (v_tenant, v_purpose."id", record_consent.subject_type, record_consent.subject_id, better_supabase.as_column_type(v_given_by, (null::"better_supabase"."consents")."given_by"), v_contact, auth.uid(), better_supabase.as_column_type(record_consent.status, (null::"better_supabase"."consents")."status"), v_scope, v_until, v_signature, v_submission, v_attachment, auth.uid())
   returning * into v_row;
   if record_consent.status = 'granted' then
@@ -4922,7 +4922,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."record_consent"(text, text, text, text, text, uuid, timestamptz, jsonb, jsonb) from public, anon;
@@ -4996,14 +4996,14 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."withdraw_consent"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."withdraw_consent"(uuid, text) to authenticated, service_role;
 
 -- Whether record subject_type/subject_id has a consent in force for the
--- current version of purpose_key: granted and not past valid_until. False for
+-- current version of purpose_key: granted and not past expires_at. False for
 -- a caller who can't read the record's consents.
 create or replace function "better_supabase"."consent_active"(subject_type text, subject_id text, purpose_key text)
 returns boolean
@@ -5034,7 +5034,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."tenant_id" = v_tenant and x."purpose_id" = v_purpose
       and x."subject_type" = consent_active.subject_type and x."subject_id" = consent_active.subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -5064,7 +5064,7 @@ begin
   return (
     select coalesce(jsonb_agg(l.item order by l.key, l.created desc, l.id), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."valid_until", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."expires_at", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
         row_number() over (partition by y."key" order by x."created_at" desc, x."id" desc) as n
       from "better_supabase"."consents" x
       join "better_supabase"."consent_purposes" y on y."id" = x."purpose_id"
@@ -5078,7 +5078,7 @@ $$;
 revoke execute on function "better_supabase"."list_consents"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."list_consents"(text, text, boolean) to authenticated, service_role;
 
--- Marks every granted consent past valid_until expired and records
+-- Marks every granted consent past expires_at expired and records
 -- consent.expired for each. Run it on a schedule; returns how many expired.
 create or replace function "better_supabase"."expire_consents"()
 returns integer
@@ -5093,7 +5093,7 @@ declare
 begin
   for v_row in
     update "better_supabase"."consents" x set "status" = better_supabase.as_column_type('expired', (null::"better_supabase"."consents")."status")
-    where x."status" = 'granted' and x."valid_until" <= now()
+    where x."status" = 'granted' and x."expires_at" <= now()
     returning x.*
   loop
     select * into v_purpose from "better_supabase"."consent_purposes" y where y."id" = v_row."purpose_id";
@@ -5347,7 +5347,7 @@ begin
     'organizationId', v_row."tenant_id",
     'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
     'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
-    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
     'evidence', jsonb_build_object(
       'signatureId', v_row."signature_id",
       'submissionId', v_row."submission_id",
@@ -5429,7 +5429,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."tenant_id" = tenant and x."purpose_id" = v_purpose
       and x."subject_type" = subject_type and x."subject_id" = subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -5548,7 +5548,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:1e9f7c4316bd8842b1506a9de39f2572193bdfdf4f23b4c9e6933ace825885cd
+-- @bsb-hash sha256:2dae4c43af2e189bb273ef85654fb084f636bf1c85829671ddab793fe0156c40
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5592,7 +5592,7 @@ create table "better_supabase"."consents" (
   "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object'),
   -- When the decision was made, for a refusal too.
   "granted_at" timestamptz not null default now(),
-  "valid_until" timestamptz,
+  "expires_at" timestamptz,
   "withdrawn_at" timestamptz,
   "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
   "signature_id" uuid,
@@ -5607,7 +5607,7 @@ create table "better_supabase"."consents" (
 create unique index "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
 create index "consents_subject_idx" on "better_supabase"."consents" ("org_id", "subject_type", "subject_id", "created_at" desc);
 create index "consents_purpose_idx" on "better_supabase"."consents" ("purpose_id");
-create index "consents_expiry_idx" on "better_supabase"."consents" ("valid_until") where "status" = 'granted' and "valid_until" is not null;
+create index "consents_expiry_idx" on "better_supabase"."consents" ("expires_at") where "status" = 'granted' and "expires_at" is not null;
 alter table "better_supabase"."consents" enable row level security;
 revoke all on "better_supabase"."consents" from public, anon, authenticated;
 grant select on "better_supabase"."consents" to authenticated;
@@ -5828,7 +5828,7 @@ create or replace function "better_supabase"."record_consent"(
   status text,
   given_by text default 'self',
   given_by_contact_id uuid default null,
-  valid_until timestamptz default null,
+  expires_at timestamptz default null,
   scope jsonb default '{}'::jsonb,
   evidence jsonb default '{}'::jsonb
 )
@@ -5846,7 +5846,7 @@ declare
   v_contact uuid := record_consent.given_by_contact_id;
   v_scope jsonb := coalesce(record_consent.scope, '{}'::jsonb);
   v_evidence jsonb := coalesce(record_consent.evidence, '{}'::jsonb);
-  v_until timestamptz := record_consent.valid_until;
+  v_until timestamptz := record_consent.expires_at;
   v_signature uuid;
   v_submission uuid;
   v_attachment uuid;
@@ -5928,7 +5928,7 @@ begin
     v_until := now() + make_interval(months => v_purpose."valid_months");
   end if;
   if v_until is not null and v_until <= now() then
-    raise exception 'valid_until is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
+    raise exception 'expires_at is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_consent_record"(uuid, text, text, uuid, text)');
@@ -5947,7 +5947,7 @@ begin
       select y."id" from "better_supabase"."consent_purposes" y
       where y."key" = v_purpose."key" and (y."org_id" = v_tenant or y."org_id" is null)
     );
-  insert into "better_supabase"."consents" ("org_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "valid_until", "signature_id", "submission_id", "attachment_id", "created_by")
+  insert into "better_supabase"."consents" ("org_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "expires_at", "signature_id", "submission_id", "attachment_id", "created_by")
   values (v_tenant, v_purpose."id", record_consent.subject_type, record_consent.subject_id, v_given_by, v_contact, auth.uid(), record_consent.status, v_scope, v_until, v_signature, v_submission, v_attachment, auth.uid())
   returning * into v_row;
   if record_consent.status = 'granted' then
@@ -5963,7 +5963,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."record_consent"(text, text, text, text, text, uuid, timestamptz, jsonb, jsonb) from public, anon;
@@ -6037,14 +6037,14 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."withdraw_consent"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."withdraw_consent"(uuid, text) to authenticated, service_role;
 
 -- Whether record subject_type/subject_id has a consent in force for the
--- current version of purpose_key: granted and not past valid_until. False for
+-- current version of purpose_key: granted and not past expires_at. False for
 -- a caller who can't read the record's consents.
 create or replace function "better_supabase"."consent_active"(subject_type text, subject_id text, purpose_key text)
 returns boolean
@@ -6075,7 +6075,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."org_id" = v_tenant and x."purpose_id" = v_purpose
       and x."subject_type" = consent_active.subject_type and x."subject_id" = consent_active.subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -6105,7 +6105,7 @@ begin
   return (
     select coalesce(jsonb_agg(l.item order by l.key, l.created desc, l.id), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."valid_until", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
+      select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."expires_at", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
         row_number() over (partition by y."key" order by x."created_at" desc, x."id" desc) as n
       from "better_supabase"."consents" x
       join "better_supabase"."consent_purposes" y on y."id" = x."purpose_id"
@@ -6119,7 +6119,7 @@ $$;
 revoke execute on function "better_supabase"."list_consents"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."list_consents"(text, text, boolean) to authenticated, service_role;
 
--- Marks every granted consent past valid_until expired and records
+-- Marks every granted consent past expires_at expired and records
 -- consent.expired for each. Run it on a schedule; returns how many expired.
 create or replace function "better_supabase"."expire_consents"()
 returns integer
@@ -6134,7 +6134,7 @@ declare
 begin
   for v_row in
     update "better_supabase"."consents" x set "status" = 'expired'
-    where x."status" = 'granted' and x."valid_until" <= now()
+    where x."status" = 'granted' and x."expires_at" <= now()
     returning x.*
   loop
     select * into v_purpose from "better_supabase"."consent_purposes" y where y."id" = v_row."purpose_id";
@@ -6388,7 +6388,7 @@ begin
     'organizationId', v_row."org_id",
     'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
     'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
-    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
     'evidence', jsonb_build_object(
       'signatureId', v_row."signature_id",
       'submissionId', v_row."submission_id",
@@ -6470,7 +6470,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."org_id" = tenant and x."purpose_id" = v_purpose
       and x."subject_type" = subject_type and x."subject_id" = subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;

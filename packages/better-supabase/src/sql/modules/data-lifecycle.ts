@@ -99,7 +99,7 @@ const NAMES: BlockSqlNames = {
         tenant: "organization_id",
         requestedBy: "requested_by",
         requestedAt: "requested_at",
-        purgeAfter: "purge_after",
+        purgeAfter: "purge_at",
         cancelledAt: "cancelled_at",
         purgedAt: "purged_at",
         previouslyDisabled: "previously_disabled",

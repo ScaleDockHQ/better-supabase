@@ -93,7 +93,7 @@ describe("messaging.anchoredTo", () => {
               mentions: [],
               mention_scope: null,
               broadcast: false,
-              scheduled_for: null,
+              scheduled_at: null,
               sent_at: AT,
               created_at: AT,
               edited_at: null,

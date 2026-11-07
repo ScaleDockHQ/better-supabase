@@ -13,7 +13,7 @@ import { NAMING_RENAME_RULES } from "../../src/cli/doctor/naming-renames.ts";
 describe("the rename table", () => {
   it("renames each name once, to a name it doesn't rename again", () => {
     const from = NAMING_RENAMES.map(
-      (rename) => `${rename.kind}:${rename.from}`,
+      (rename) => `${rename.kind}:${rename.table ?? ""}:${rename.from}`,
     );
 
     expect(new Set(from).size).toBe(from.length);
@@ -135,6 +135,7 @@ describe("renameMigrationSql", () => {
           (rename) =>
             rename.kind !== "sqlFunction" &&
             rename.kind !== "trigger" &&
+            rename.kind !== "column" &&
             rename.kind !== "constraint" &&
             rename.kind !== "index",
         ),

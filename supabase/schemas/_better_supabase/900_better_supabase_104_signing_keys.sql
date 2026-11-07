@@ -1,13 +1,13 @@
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:ddbd94d0d3d1cfabdf00481792d9283416aba9105308ce364e38cd0c2fba7f17
+-- @bsb-hash sha256:a34cb4c183831b70e50769416bf4f777d4ec6c494e95fb2760748ac52182b36d
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Asymmetric signing keys per owner (a tenant, an app, a stream): the public
 -- JWK here, the private JWK in Vault. One key per owner is active; a retired
--- key stays in the JWKS until publish_until, the latest exp a signer noted.
+-- key stays in the JWKS until publish_expires_at, the latest exp a signer noted.
 create table "better_supabase"."signing_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "owner_type" text not null constraint bsb_signing_keys_owner_type_check check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
@@ -17,7 +17,7 @@ create table "better_supabase"."signing_keys" (
   "public_jwk" jsonb not null constraint bsb_signing_keys_public_jwk_check check (not ("public_jwk" ? 'd')),
   "vault_secret_id" uuid not null,
   "state" text not null default 'active' constraint bsb_signing_keys_state_check check ("state" in ('active', 'retired')),
-  "publish_until" timestamptz,
+  "publish_expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "retired_at" timestamptz
 );
@@ -122,9 +122,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role manages signing keys' using errcode = '42501', hint = 'SIGNING_KEYS_FORBIDDEN';
   end if;
-  update "better_supabase"."signing_keys" k set "publish_until" = note_signing_key_exp.exp
+  update "better_supabase"."signing_keys" k set "publish_expires_at" = note_signing_key_exp.exp
   where k."kid" = note_signing_key_exp.kid
-    and (k."publish_until" is null or k."publish_until" < note_signing_key_exp.exp);
+    and (k."publish_expires_at" is null or k."publish_expires_at" < note_signing_key_exp.exp);
   return exists (select 1 from "better_supabase"."signing_keys" k where k."kid" = note_signing_key_exp.kid);
 end;
 $$;
@@ -182,7 +182,7 @@ begin
     from "better_supabase"."signing_keys" k
     where k."owner_type" = signing_jwks.owner_type
       and k."owner_id" = signing_jwks.owner_id
-      and (k."state" = 'active' or k."publish_until" + coalesce(grace, '5 minutes'::interval) > now())
+      and (k."state" = 'active' or k."publish_expires_at" + coalesce(grace, '5 minutes'::interval) > now())
   ), '[]'::jsonb));
 end;
 $$;
@@ -226,7 +226,7 @@ begin
     raise exception 'only the service role manages signing keys' using errcode = '42501', hint = 'SIGNING_KEYS_FORBIDDEN';
   end if;
   delete from "better_supabase"."signing_keys" k
-  where k."state" = 'retired' and not (k."state" = 'active' or k."publish_until" + coalesce(grace, '5 minutes'::interval) > now());
+  where k."state" = 'retired' and not (k."state" = 'active' or k."publish_expires_at" + coalesce(grace, '5 minutes'::interval) > now());
   get diagnostics v_count = row_count;
   return v_count;
 end;

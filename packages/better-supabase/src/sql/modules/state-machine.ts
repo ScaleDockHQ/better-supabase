@@ -108,7 +108,7 @@ const NAMES: BlockSqlNames = {
         version: "version",
         flags: "flags",
         pausedAt: "paused_at",
-        pausedUntil: "paused_until",
+        pausedUntil: "pause_expires_at",
         pauseReason: "pause_reason",
         pausedBy: "paused_by_user_id",
         workflowVersion: "workflow_version_id",

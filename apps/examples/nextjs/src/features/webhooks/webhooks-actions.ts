@@ -111,7 +111,7 @@ export const setWebhookEndpointEnabled = bsb.action(
          set enabled = $2,
              disabled_at = case when $2 then null else now() end,
              disabled_reason = case when $2 then null else 'Turned off in settings' end,
-             failing_since = case when $2 then null else failing_since end
+             first_failed_at = case when $2 then null else first_failed_at end
          where id = $1
          returning id`,
         [id, enabled],

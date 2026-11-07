@@ -42,7 +42,7 @@ export const conversationRow: Row = {
   team_id: null,
   bot_mode: "bot",
   thread_id: "whatsapp:+3100:+3199",
-  snoozed_until: null,
+  snooze_expires_at: null,
   last_message_at: AT,
   last_inbound_at: AT,
   active_stream_id: null,

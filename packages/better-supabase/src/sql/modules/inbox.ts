@@ -292,7 +292,7 @@ ${LEGACY_FUNCTIONS.map((signature) => `drop function if exists ${ctx.schema}.${s
 const REPLAY: BlockSqlUpgrade = {
   from: 8,
   description:
-    "Inbound events take the status processing, count an attempt only when processing starts, wait for available_at after a failure and are offered again once their lease (locked_until) ran out; set_inbound_event_status takes retry_in and lease. Deliveries record delivered_at, read_at and failed_at, and conversations keep last_inbound_at and active_stream_id (set_active_stream claims or releases it and broadcasts stream). Option realtimeColumns adds the listed conversation columns to the staff ping, and timeline events broadcast event.created.",
+    "Inbound events take the status processing, count an attempt only when processing starts, wait for available_at after a failure and are offered again once their lease (lock_expires_at) ran out; set_inbound_event_status takes retry_in and lease. Deliveries record delivered_at, read_at and failed_at, and conversations keep last_inbound_at and active_stream_id (set_active_stream claims or releases it and broadcasts stream). Option realtimeColumns adds the listed conversation columns to the staff ping, and timeline events broadcast event.created.",
   sql: (ctx) => {
     const q = inboxSql(ctx);
     const ie = q.cols("inbound");

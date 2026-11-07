@@ -122,7 +122,7 @@ describe("transportQueueProvider", () => {
           tenant: null,
           next_run: "2026-01-02T03:00:00Z",
           last_run: null,
-          locked_until: null,
+          lock_expires_at: null,
           created_at: "2026-01-01T00:00:00Z",
         },
       ],

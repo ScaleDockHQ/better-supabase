@@ -154,7 +154,7 @@ select is(
 );
 reset role;
 select isnt(
-  (select missing_since from better_supabase.import_records where external_key = 'c2' and source = 'erp'),
+  (select went_missing_at from better_supabase.import_records where external_key = 'c2' and source = 'erp'),
   null,
   'the missing record is marked'
 );
@@ -192,7 +192,7 @@ select better_supabase.import_upsert_batch(
   current_setting('bsb.run3')::uuid, 'customer', '[{"key":"c2","data":{"name":"Beta","kvk":"2"}}]'::jsonb
 );
 select is(
-  (select missing_since from better_supabase.import_records where external_key = 'c2' and source = 'erp'),
+  (select went_missing_at from better_supabase.import_records where external_key = 'c2' and source = 'erp'),
   null,
   'a run that sends a missing key clears its mark'
 );
@@ -200,7 +200,7 @@ select is(
 -- Conflict: a user changed the target after the last import.
 reset role;
 update better_supabase.import_records
-  set subject_updated_at_at_import = now() - interval '1 hour'
+  set subject_imported_updated_at = now() - interval '1 hour'
   where external_key = 'c1' and source = 'erp';
 set local role service_role;
 select is(

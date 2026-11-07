@@ -1,6 +1,6 @@
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:0e2cdee50caeaaeb1272a4fb9008ac3ca35deee90174261e3e244c175ce9bf1e
+-- @bsb-hash sha256:caec6501f05eb90bce2e9edf3aafd25fa194871eb5234d893799c35e5bf5ee64
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,17 +9,17 @@ create table "better_supabase"."metric_points" (
   "tenant_id" uuid not null,
   "metric" text not null,
   "grain" text not null constraint bsb_metric_points_grain_check check ("grain" in ('hour', 'day', 'week', 'month')),
-  "bucket_start" timestamptz not null,
+  "bucket_started_at" timestamptz not null,
   "dims" jsonb not null default '{}'::jsonb,
   "value" numeric not null,
   "count" bigint not null,
   "updated_at" timestamptz not null default now(),
-  primary key ("tenant_id", "metric", "grain", "bucket_start", "dims")
+  primary key ("tenant_id", "metric", "grain", "bucket_started_at", "dims")
 );
 alter table "better_supabase"."metric_points" enable row level security;
 revoke all on "better_supabase"."metric_points" from public, anon, authenticated;
 grant all on "better_supabase"."metric_points" to service_role;
-create index metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_start");
+create index metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_started_at");
 
 -- Re-aggregates the window [since, until), default the last 3 days, so
 -- rows that arrive late or change land in their buckets. Run it from cron or

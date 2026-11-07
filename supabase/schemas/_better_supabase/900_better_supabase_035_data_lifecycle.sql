@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:528d779301162600b8587f5cbcea9600c97b5313c3b66977f1496785223b5e6c
+-- @bsb-hash sha256:ed7749402111cd56735d76f87dc7f1c6ced9a206167d55c40f81b58861347313
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -51,12 +51,12 @@ create table "better_supabase"."organization_deletions" (
   "organization_id" uuid primary key,
   "requested_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "requested_at" timestamptz not null default now(),
-  "purge_after" timestamptz not null,
+  "purge_at" timestamptz not null,
   "cancelled_at" timestamptz,
   "purged_at" timestamptz,
   "previously_disabled" boolean not null default false
 );
-create index organization_deletions_due_idx on "better_supabase"."organization_deletions" ("purge_after") where "cancelled_at" is null and "purged_at" is null;
+create index organization_deletions_due_idx on "better_supabase"."organization_deletions" ("purge_at") where "cancelled_at" is null and "purged_at" is null;
 create index organization_deletions_requested_by_idx on "better_supabase"."organization_deletions" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."organization_deletions" enable row level security;
 revoke all on "better_supabase"."organization_deletions" from public, anon, authenticated;
@@ -1512,7 +1512,7 @@ begin
   if not exists (
     select 1 from "better_supabase"."organization_deletions" x
     where x."organization_id" = organization_credential_refs.tenant and x."cancelled_at" is null
-      and x."purged_at" is null and x."purge_after" <= now()
+      and x."purged_at" is null and x."purge_at" <= now()
   ) then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
@@ -2603,23 +2603,23 @@ begin
     raise exception 'The organization was already purged' using errcode = 'P0002', hint = 'ORGANIZATION_PURGED';
   end if;
   v_disabled := false;
-  insert into "better_supabase"."organization_deletions" as x ("organization_id", "requested_by", "purge_after", "previously_disabled")
+  insert into "better_supabase"."organization_deletions" as x ("organization_id", "requested_by", "purge_at", "previously_disabled")
   values (request_organization_deletion.tenant, auth.uid(), now() + request_organization_deletion.grace, coalesce(v_disabled, false))
   on conflict ("organization_id") do update set
     "requested_by" = excluded."requested_by",
     "requested_at" = now(),
-    "purge_after" = excluded."purge_after",
+    "purge_at" = excluded."purge_at",
     "previously_disabled" = case when x."cancelled_at" is null then x."previously_disabled" else excluded."previously_disabled" end,
     "cancelled_at" = null
   returning * into v_row;
-  perform "better_supabase".emit_event('organization.deletion_requested', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_after"), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform "better_supabase".emit_event('organization.deletion_requested', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_at"), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
   perform better_supabase.audit_event(
     event_type => 'organization.deletion_requested',
     category => 'data',
     target_type => 'organization',
     record_id => v_row."organization_id"::text,
     tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_after")
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_at")
   );
   return to_jsonb(v_row);
 end;
@@ -2653,14 +2653,14 @@ begin
   where x."organization_id" = v_row."organization_id"
   returning * into v_row;
   
-  perform "better_supabase".emit_event('organization.deletion_cancelled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_after"), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform "better_supabase".emit_event('organization.deletion_cancelled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_at"), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
   perform better_supabase.audit_event(
     event_type => 'organization.deletion_cancelled',
     category => 'data',
     target_type => 'organization',
     record_id => v_row."organization_id"::text,
     tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_after")
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_at")
   );
   return to_jsonb(v_row);
 end;
@@ -2687,11 +2687,11 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."purge_after"), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."purge_at"), '[]'::jsonb)
   from (
     select * from "better_supabase"."organization_deletions" y
-    where y."purge_after" <= now() and y."cancelled_at" is null and y."purged_at" is null
-    order by y."purge_after"
+    where y."purge_at" <= now() and y."cancelled_at" is null and y."purged_at" is null
+    order by y."purge_at"
     limit greatest(1, least(due_organization_deletions.max_rows, 1000))
   ) x
 $$;
@@ -2722,7 +2722,7 @@ begin
   select * into v_row from "better_supabase"."organization_deletions" x
   where x."organization_id" = purge_organization.tenant and x."cancelled_at" is null and x."purged_at" is null
   for update;
-  if v_row."organization_id" is null or v_row."purge_after" > now() then
+  if v_row."organization_id" is null or v_row."purge_at" > now() then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
   if exists (
@@ -2783,14 +2783,14 @@ begin
     raise exception 'Rows still reference the organization: %', sqlerrm
       using errcode = '23503', hint = 'ORGANIZATION_PURGE_BLOCKED';
   end;
-  perform "better_supabase".emit_event('organization.purged', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', null::uuid, 'purgeAfter', v_row."purge_after"), 'organizations/' || v_row."organization_id"::text, (null)::text, 'organization.purged:' || v_row."organization_id"::text, 'better-supabase/data-lifecycle');
+  perform "better_supabase".emit_event('organization.purged', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', null::uuid, 'purgeAfter', v_row."purge_at"), 'organizations/' || v_row."organization_id"::text, (null)::text, 'organization.purged:' || v_row."organization_id"::text, 'better-supabase/data-lifecycle');
   perform better_supabase.audit_event(
     event_type => 'organization.purged',
     category => 'data',
     target_type => 'organization',
     record_id => v_row."organization_id"::text,
     tenant => (null)::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', null::uuid, 'purgeAfter', v_row."purge_after"),
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', null::uuid, 'purgeAfter', v_row."purge_at"),
     idempotency_key => 'organization.purged:' || v_row."organization_id"::text
   );
   return jsonb_build_object('organizationId', v_row."organization_id"::text, 'deleted', v_deleted);

@@ -125,7 +125,7 @@ const NAMES: BlockSqlNames = {
         status: "status",
         scope: "scope",
         grantedAt: "granted_at",
-        validUntil: "valid_until",
+        validUntil: "expires_at",
         withdrawnAt: "withdrawn_at",
         withdrawnReason: "withdrawn_reason",
         signature: "signature_id",

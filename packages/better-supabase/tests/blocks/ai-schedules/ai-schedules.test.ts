@@ -33,7 +33,7 @@ const runRow = (overrides: Record<string, unknown> = {}) => ({
   organization_id: "o1",
   user_id: "u1",
   status: "queued",
-  scheduled_for: AT,
+  scheduled_at: AT,
   chat_id: null,
   error: null,
   started_at: null,

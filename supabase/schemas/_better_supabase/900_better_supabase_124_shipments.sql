@@ -1,6 +1,6 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:3b1a4c2bd0464468a05e536edcd984c4ea463e03d569485fbb68cb805d215084
+-- @bsb-hash sha256:b5522882fd9f71f33cb6230ac7f26b252b992b965b17072816e4acc439edf39f
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -110,7 +110,7 @@ begin
     if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
       select 1 from "better_supabase"."organization_deletions" x
       where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
-        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_at" <= now()
     ) then
       return old;
     end if;

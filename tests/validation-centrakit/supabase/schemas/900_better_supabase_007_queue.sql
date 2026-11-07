@@ -1,6 +1,6 @@
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:5b995d3aaffe61e3c6594b41ab315b4b52a9bf807c7be8b85f2d295e4f931625
+-- @bsb-hash sha256:2d2ddbd029160e4504f627fa1182826b10969847313f492107f83cbd1d580700
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -487,7 +487,7 @@ $$;
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
 -- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -539,19 +539,19 @@ as $$
 #variable_conflict use_column
 declare
   token uuid := gen_random_uuid();
-  lease_until timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
+  lease_expires_at timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
   taken "better_supabase"."job_leases"%rowtype;
 begin
   -- A held lease that ran out, or a completed one past its keep time, is taken
   -- over; the new holder token makes the former holder's calls return false.
   insert into "better_supabase"."job_leases" as l ("scope", "key", "holder", "state", "expires_at")
-  values (scope, key, token, 'held', lease_until)
+  values (scope, key, token, 'held', lease_expires_at)
   on conflict ("scope", "key") do update
     set "holder" = excluded."holder", "state" = 'held', "expires_at" = excluded."expires_at"
     where l."expires_at" <= now()
   returning * into taken;
   if found then
-    return query select 'claimed'::text, token, lease_until, 0;
+    return query select 'claimed'::text, token, lease_expires_at, 0;
     return;
   end if;
 

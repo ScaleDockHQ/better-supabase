@@ -1,6 +1,6 @@
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:9ca59c2eaf762512ddf36712452bcca423c04368b67e6948a0aad6008b330693
+-- @bsb-hash sha256:612251fdfdd6d8007e7c9cc1b1c051910d5f7cc88fb12d386a39b9ddd8a043e1
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -371,7 +371,7 @@ create policy bsb_ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
--- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
+-- continue state; its sandbox is a row in ai_sandboxes. lock_holder and lock_expires_at
 -- keep two turns from driving one sandbox. Experimental.
 create table "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
@@ -381,7 +381,7 @@ create table "better_supabase"."ai_harness_sessions" (
   "continue_state" jsonb,
   "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error')),
   "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200),
-  "locked_until" timestamptz,
+  "lock_expires_at" timestamptz,
   "last_active_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2206,7 +2206,7 @@ begin
        or (y."status" = 'stopping' and y."updated_at" <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1))))
       and not exists (
         select 1 from "better_supabase"."ai_harness_sessions" z
-        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."locked_until" > now()
+        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."lock_expires_at" > now()
       )
     order by y."last_used_at"
     limit least(greatest(idle_ai_sandboxes.batch, 1), 500)
@@ -2465,7 +2465,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."load_ai_harness_session"(uuid, text) from public, anon, authenticated;
@@ -2508,7 +2508,7 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = save_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
     raise exception 'Harness session % is locked', save_ai_harness_session.harness using errcode = '55P03', hint = 'AI_HARNESS_LOCKED';
   end if;
   update "better_supabase"."ai_harness_sessions" x set
@@ -2545,7 +2545,7 @@ begin
     update "better_supabase"."ai_sandboxes" y set "last_used_at" = now(), "updated_at" = now()
     where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" = 'running';
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_harness_session"(uuid, text, jsonb, text) from public, anon, authenticated;
@@ -2584,12 +2584,12 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = lock_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
     return false;
   end if;
   update "better_supabase"."ai_harness_sessions" x set
     "lock_holder" = lock_ai_harness_session.holder,
-    "locked_until" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
+    "lock_expires_at" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
     "updated_at" = now()
   where x."chat_id" = v_row."chat_id" and x."harness_id" = v_row."harness_id";
   return true;
@@ -2611,7 +2611,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "locked_until" = null, "updated_at" = now()
+  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "lock_expires_at" = null, "updated_at" = now()
   where x."chat_id" = unlock_ai_harness_session.chat
     and x."harness_id" = unlock_ai_harness_session.harness
     and x."lock_holder" = unlock_ai_harness_session.holder;

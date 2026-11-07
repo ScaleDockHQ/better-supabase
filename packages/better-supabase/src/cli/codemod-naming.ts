@@ -179,6 +179,10 @@ export function renameMigrationSql(
       }
 
       case "column": {
+        if (projectSql !== undefined && !projectSql.includes(rename.from)) {
+          return [];
+        }
+
         const { schema, name } = qualifiedOf(rename.table ?? "");
 
         return [

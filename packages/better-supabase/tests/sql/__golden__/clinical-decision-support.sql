@@ -619,7 +619,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:39d58273020ef3e26463b55762d501bd6d3b1bf27f08134b68f4caa1d27a255d
+-- @bsb-hash sha256:738ed692536ca1a9e8f3d26c5c3ade40936062458245e07483841710f3fcbef5
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -950,7 +950,7 @@ begin
         from "better_supabase"."observations" ox join "better_supabase"."observation_definitions" od on od."id" = ox."definition_id"
         where ox."tenant_id" = care_decision_context.tenant and ox."subject_type" = care_decision_context.subject_type and ox."subject_id" = care_decision_context.subject_id and ox."status" <> 'entered_in_error'
         order by od."id", ox."observed_at" desc) q), '[]'::jsonb),
-    'consents', coalesce((select jsonb_agg(jsonb_build_object('purpose', pu."key", 'status', cx."status", 'scope', cx."scope", 'grantedAt', cx."granted_at", 'validUntil', cx."valid_until") order by pu."key")
+    'consents', coalesce((select jsonb_agg(jsonb_build_object('purpose', pu."key", 'status', cx."status", 'scope', cx."scope", 'grantedAt', cx."granted_at", 'validUntil', cx."expires_at") order by pu."key")
       from "better_supabase"."consents" cx join "better_supabase"."consent_purposes" pu on pu."id" = cx."purpose_id"
       where cx."tenant_id" = care_decision_context.tenant and cx."subject_type" = care_decision_context.subject_type and cx."subject_id" = care_decision_context.subject_id and cx."status" = 'granted'), '[]'::jsonb),
     'carePlan', (select jsonb_build_object('id', px."id", 'title', px."title", 'version', px."version", 'reviewOn', px."review_on")

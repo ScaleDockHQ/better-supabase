@@ -1,6 +1,6 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:6d92a72b538c840b34cfd1da1052bebf55ab979749d8091a33d49d7a56daaea6
+-- @bsb-hash sha256:ad963267b20e5226293f1cd200e1e44db9b0f78b606b68e6025f7b1b81f9e8fc
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -65,7 +65,7 @@ create table "better_supabase"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
   "paused_by_user_id" uuid,
   "created_at" timestamptz not null default now(),
@@ -253,18 +253,18 @@ begin
           if (v_op ->> 'until') is not null and (v_op ->> 'until')::timestamptz <= now() then
             raise exception 'a pause must end in the future' using errcode = '22023', hint = 'STATE_PAUSE_INVALID';
           end if;
-          insert into "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type", "subject_id", "version", "paused_at", "paused_until", "pause_reason", "paused_by_user_id")
+          insert into "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type", "subject_id", "version", "paused_at", "pause_expires_at", "pause_reason", "paused_by_user_id")
           values (new."organization_id", 'change_request', new."id"::text, 1, now(), (v_op ->> 'until')::timestamptz, nullif(v_op ->> 'reason', ''), auth.uid())
           on conflict ("subject_type", "subject_id") do update set
             "paused_at" = excluded."paused_at",
-            "paused_until" = excluded."paused_until",
+            "pause_expires_at" = excluded."pause_expires_at",
             "pause_reason" = excluded."pause_reason",
             "paused_by_user_id" = excluded."paused_by_user_id",
             "updated_at" = now();
           perform set_config('better_supabase.lifecycle_changed', '1', true);
           perform "better_supabase".emit_event('status.paused', jsonb_build_object('organizationId', new."organization_id"::text, 'subjectType', 'change_request', 'subjectId', new."id"::text, 'until', v_op ->> 'until', 'reason', nullif(v_op ->> 'reason', '')), 'statuses/change_request/' || new."id"::text, (new."organization_id"::text)::text, null, 'better-supabase/state-machine');
         when 'resume' then
-          update "better_supabase"."subject_lifecycles" set "paused_at" = null, "paused_until" = null, "pause_reason" = null, "paused_by_user_id" = null, "updated_at" = now()
+          update "better_supabase"."subject_lifecycles" set "paused_at" = null, "pause_expires_at" = null, "pause_reason" = null, "paused_by_user_id" = null, "updated_at" = now()
           where "subject_type" = 'change_request' and "subject_id" = new."id"::text and "paused_at" is not null;
           if found then
             perform set_config('better_supabase.lifecycle_changed', '1', true);
@@ -319,12 +319,12 @@ begin
   if not coalesce((v_graph -> 'transitions' -> old."status"::text) ? new."status"::text, false) then
     raise exception 'that status change is not allowed' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
   end if;
-  select "paused_until", "paused_at" is not null into v_until, v_paused from "better_supabase"."subject_lifecycles" where "subject_type" = 'change_request' and "subject_id" = new."id"::text;
+  select "pause_expires_at", "paused_at" is not null into v_until, v_paused from "better_supabase"."subject_lifecycles" where "subject_type" = 'change_request' and "subject_id" = new."id"::text;
   if coalesce(v_paused, false) then
     if v_until is null or v_until > now() then
       raise exception 'the record is paused; resume it first' using errcode = '55000', hint = 'STATE_PAUSED';
     end if;
-    update "better_supabase"."subject_lifecycles" set "paused_at" = null, "paused_until" = null, "pause_reason" = null, "paused_by_user_id" = null, "updated_at" = now()
+    update "better_supabase"."subject_lifecycles" set "paused_at" = null, "pause_expires_at" = null, "pause_reason" = null, "paused_by_user_id" = null, "updated_at" = now()
     where "subject_type" = 'change_request' and "subject_id" = new."id"::text;
     perform "better_supabase".emit_event('status.resumed', jsonb_build_object('organizationId', new."organization_id"::text, 'subjectType', 'change_request', 'subjectId', new."id"::text), 'statuses/change_request/' || new."id"::text, (new."organization_id"::text)::text, null, 'better-supabase/state-machine');
   end if;
@@ -605,7 +605,7 @@ begin
       end if;
       select * into v_life from "better_supabase"."subject_lifecycles" x
       where x."subject_type" = 'change_request' and x."subject_id" = status_state.subject_id;
-      v_paused := v_life."paused_at" is not null and (v_life."paused_until" is null or v_life."paused_until" > now());
+      v_paused := v_life."paused_at" is not null and (v_life."pause_expires_at" is null or v_life."pause_expires_at" > now());
       v_order := coalesce(array(select jsonb_array_elements_text("better_supabase"."lifecycle_graph"(v_life."workflow_version_id") -> 'order')), '{}'::text[]);
       v_step := array_position(v_order, v_status);
       return jsonb_build_object(
@@ -613,7 +613,7 @@ begin
         'status', v_status, 'order', to_jsonb(v_order), 'step', v_step, 'steps', nullif(cardinality(v_order), 0), 'progress', case when v_step is null then null when cardinality(v_order) = 1 then 1 else round((v_step - 1)::numeric / (cardinality(v_order) - 1), 4) end,
         'version', v_life."version", 'flags', to_jsonb(coalesce(v_life."flags", '{}')),
         'paused', v_paused, 'pausedAt', case when v_paused then v_life."paused_at" end,
-        'pausedUntil', case when v_paused then v_life."paused_until" end,
+        'pausedUntil', case when v_paused then v_life."pause_expires_at" end,
         'pauseReason', case when v_paused then v_life."pause_reason" end, 'workflow', 'change-requests', 'workflowVersionId', v_life."workflow_version_id");
     when 'drive_node' then
       select s."document_status"::text, s."tenant_id"::text into v_status, v_tenant

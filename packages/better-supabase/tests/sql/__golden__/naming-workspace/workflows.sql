@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:9f4903382c278d228fe365576bb18ded7ec084842cec195f6e226b95bfe9cc37
+-- @bsb-hash sha256:35fa00a463fe28939e15b4abba6013e7aaa2f0c2027ec091b46dd4d2a79416ef
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,10 +41,10 @@ alter table "better_supabase"."workflow_runs" add column "mode" text not null de
 alter table "better_supabase"."workflow_runs" add column "trigger_node" text constraint bsb_workflow_runs_trigger_node_check check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
--- pending:; dispatch_until leases it to the process that starts it.
+-- pending:; dispatch_expires_at leases it to the process that starts it.
 alter table "better_supabase"."workflow_runs" add column "idempotency_key" text constraint bsb_workflow_runs_idempotency_key_check check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
 create unique index workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
-alter table "better_supabase"."workflow_runs" add column "dispatch_until" timestamptz;
+alter table "better_supabase"."workflow_runs" add column "dispatch_expires_at" timestamptz;
 alter table "better_supabase"."workflow_runs" add constraint bsb_workflow_runs_subject_check
   check (("subject_type" is null) = ("subject_id" is null));
 create index workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
@@ -70,7 +70,7 @@ create table "better_supabase"."workflow_schedules" (
   "timezone" text not null default 'UTC',
   "next_run_at" timestamptz not null,
   "last_run_at" timestamptz,
-  "locked_until" timestamptz,
+  "lock_expires_at" timestamptz,
   "paused" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -111,14 +111,14 @@ create table "better_supabase"."workflow_start_requests" (
   "actor_id" uuid references auth.users (id) on delete set null,
   "concurrency" integer constraint bsb_workflow_start_requests_concurrency_check check ("concurrency" > 0),
   "status" text not null default 'pending' constraint bsb_workflow_start_requests_status_check check ("status" in ('pending', 'started', 'superseded', 'dropped')),
-  "not_before" timestamptz not null default now(),
-  "claimed_until" timestamptz,
+  "not_before_at" timestamptz not null default now(),
+  "claim_expires_at" timestamptz,
   "run_id" text,
   "created_at" timestamptz not null default now(),
   "started_at" timestamptz
 );
 create index workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
-create index workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
+create index workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before_at") where "status" = 'pending';
 create index workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
 alter table "better_supabase"."workflow_start_requests" add column "subject_type" text constraint bsb_workflow_start_requests_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100);
 alter table "better_supabase"."workflow_start_requests" add column "subject_id" text constraint bsb_workflow_start_requests_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
@@ -236,11 +236,11 @@ as $$
 declare
   v_row "better_supabase"."workflow_runs"%rowtype;
 begin
-  update "better_supabase"."workflow_runs" x set "dispatch_until" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1)), "updated_at" = now()
+  update "better_supabase"."workflow_runs" x set "dispatch_expires_at" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1)), "updated_at" = now()
   where x."id" = run
     and x."status" = 'queued'
     and starts_with(x."external_id", 'pending:')
-    and (x."dispatch_until" is null or x."dispatch_until" < now())
+    and (x."dispatch_expires_at" is null or x."dispatch_expires_at" < now())
   returning * into v_row;
   if not found then
     return null;
@@ -327,7 +327,7 @@ begin
     'idempotencyKey', v_row."idempotency_key"
   );
   end if;
-  update "better_supabase"."workflow_runs" x set "engine" = engine, "external_id" = external_id, "dispatch_until" = null, "updated_at" = now()
+  update "better_supabase"."workflow_runs" x set "engine" = engine, "external_id" = external_id, "dispatch_expires_at" = null, "updated_at" = now()
   where x."id" = run
   returning * into v_row;
   return jsonb_build_object(
@@ -613,7 +613,7 @@ begin
     "cron" = excluded."cron",
     "timezone" = excluded."timezone",
     "next_run_at" = excluded."next_run_at",
-    "locked_until" = null
+    "lock_expires_at" = null
   returning * into v_row;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_workflow_schedule_create"(uuid)');
@@ -721,13 +721,13 @@ as $$
     select "id" from "better_supabase"."workflow_schedules"
     where not "paused"
       and "next_run_at" <= now()
-      and ("locked_until" is null or "locked_until" < now())
+      and ("lock_expires_at" is null or "lock_expires_at" < now())
     order by "next_run_at"
     limit greatest(coalesce(batch, 50), 1)
     for update skip locked
   ),
   leased as (
-    update "better_supabase"."workflow_schedules" x set "locked_until" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1))
+    update "better_supabase"."workflow_schedules" x set "lock_expires_at" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1))
     from due where x."id" = due."id"
     returning x.*
   )
@@ -759,7 +759,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  update "better_supabase"."workflow_schedules" x set "last_run_at" = fired, "next_run_at" = next_run, "locked_until" = null
+  update "better_supabase"."workflow_schedules" x set "last_run_at" = fired, "next_run_at" = next_run, "lock_expires_at" = null
   where x."id" = schedule and x."next_run_at" = fired;
   return found;
 end;
@@ -822,7 +822,7 @@ as $$
   select count(*)::integer from "better_supabase"."workflow_start_requests" x
   where x."key" = workflow_admission_active.key
     and (
-      (x."status" = 'pending' and x."claimed_until" >= now())
+      (x."status" = 'pending' and x."claim_expires_at" >= now())
       or (x."status" = 'started' and not exists (
         select 1 from "better_supabase"."workflow_runs" y
         where y."external_id" = x."run_id" and y."status" in ('completed', 'failed', 'cancelled')
@@ -876,9 +876,9 @@ begin
   if debounce is not null then
     update "better_supabase"."workflow_start_requests" x set "status" = 'superseded'
     where x."key" = key and x."status" = 'pending'
-      and (x."claimed_until" is null or x."claimed_until" < now());
+      and (x."claim_expires_at" is null or x."claim_expires_at" < now());
   end if;
-  insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before", "subject_type", "subject_id")
+  insert into "better_supabase"."workflow_start_requests" ("key", "workflow", "input", "tenant_id", "actor_id", "concurrency", "not_before_at", "subject_type", "subject_id")
   values (key, workflow, coalesce(payload -> 'input', '[]'::jsonb), tenant, actor, case when coalesce(singleton, false) then 1 else concurrency end, now() + coalesce(debounce, interval '0'), subject_type, subject_id)
   returning "id" into v_id;
   declare
@@ -911,8 +911,8 @@ begin
   for v_row in
     select * from "better_supabase"."workflow_start_requests"
     where "status" = 'pending'
-      and "not_before" <= now()
-      and ("claimed_until" is null or "claimed_until" < now())
+      and "not_before_at" <= now()
+      and ("claim_expires_at" is null or "claim_expires_at" < now())
     order by "created_at"
     for update skip locked
   loop
@@ -920,7 +920,7 @@ begin
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('workflow_admission'), pg_catalog.hashtext(v_row."key"));
     if v_row."concurrency" is null
       or "better_supabase"."workflow_admission_active"(v_row."key") < v_row."concurrency" then
-      update "better_supabase"."workflow_start_requests" set "claimed_until" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1))
+      update "better_supabase"."workflow_start_requests" set "claim_expires_at" = now() + make_interval(secs => greatest(coalesce(lease, 60), 1))
       where "id" = v_row."id";
       v_out := v_out || jsonb_build_array(jsonb_build_object(
         'id', v_row."id",
@@ -949,7 +949,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  update "better_supabase"."workflow_start_requests" x set "status" = 'started', "run_id" = run, "started_at" = now(), "claimed_until" = null
+  update "better_supabase"."workflow_start_requests" x set "status" = 'started', "run_id" = run, "started_at" = now(), "claim_expires_at" = null
   where x."id" = request and x."status" = 'pending';
   return found;
 end;

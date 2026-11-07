@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:8a8c9d903d3ac0f65da5b1809d4c843d93b00255d8e23a34c311bcfb2d817683
+-- @bsb-hash sha256:4ba96b0157660c76a50450e6984f71fe4d68cee84f22c36d61abcb3707db9a71
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,8 +46,8 @@ create table "better_supabase"."import_records" (
   "content_hash" text not null,
   "first_run_id" uuid not null,
   "last_run_id" uuid not null,
-  "subject_updated_at_at_import" timestamptz,
-  "missing_since" timestamptz,
+  "subject_imported_updated_at" timestamptz,
+  "went_missing_at" timestamptz,
   constraint "import_records_key" unique ("tenant_id", "source", "scope", "entity", "external_key", "role")
 );
 create index "import_records_subject_idx" on "better_supabase"."import_records" ("tenant_id", "subject_type", "subject_id");
@@ -329,8 +329,8 @@ begin
             where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."scope" = v_other
               and x."entity" = v_entity and x."external_key" = v_key and x."role" = 'primary' and x."content_hash" = v_hash
           ) then
-            insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import")
-            select x."tenant_id", x."source", v_scope, x."entity", x."external_key", x."role", x."subject_type", x."subject_id", x."content_hash", v_run_id, v_run_id, x."subject_updated_at_at_import"
+            insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at")
+            select x."tenant_id", x."source", v_scope, x."entity", x."external_key", x."role", x."subject_type", x."subject_id", x."content_hash", v_run_id, v_run_id, x."subject_imported_updated_at"
             from "better_supabase"."import_records" x
             where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."scope" = v_other
               and x."entity" = v_entity and x."external_key" = v_key
@@ -341,10 +341,10 @@ begin
           end if;
         end loop;
       elsif v_rec."content_hash" = v_hash then
-        update "better_supabase"."import_records" x set "last_run_id" = v_run_id, "missing_since" = null
+        update "better_supabase"."import_records" x set "last_run_id" = v_run_id, "went_missing_at" = null
         where x."tenant_id" = v_rec."tenant_id" and x."source" = v_rec."source" and x."scope" = v_rec."scope"
           and x."entity" = v_rec."entity" and x."external_key" = v_rec."external_key"
-          and (x."last_run_id" is distinct from v_run_id or x."missing_since" is not null);
+          and (x."last_run_id" is distinct from v_run_id or x."went_missing_at" is not null);
         v_unchanged := v_unchanged + 1;
         v_done := true;
       else
@@ -385,8 +385,8 @@ begin
           v_current := "public"."import_customer_updated_at"(v_rec."subject_id");
           else null;
         end case;
-        if v_current is not null and v_rec."subject_updated_at_at_import" is not null and v_current > v_rec."subject_updated_at_at_import" then
-          update "better_supabase"."import_records" x set "last_run_id" = v_run_id, "missing_since" = null
+        if v_current is not null and v_rec."subject_imported_updated_at" is not null and v_current > v_rec."subject_imported_updated_at" then
+          update "better_supabase"."import_records" x set "last_run_id" = v_run_id, "went_missing_at" = null
           where x."id" = v_rec."id";
           v_conflicted := v_conflicted + 1;
           v_done := true;
@@ -485,7 +485,7 @@ begin
           if jsonb_typeof(v_subject -> 'warnings') = 'array' then
             v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
           end if;
-          insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_updated_at_at_import", "missing_since")
+          insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
           values (
             v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
             coalesce(v_subject ->> 'role', 'primary'),
@@ -500,8 +500,8 @@ begin
             "subject_id" = excluded."subject_id",
             "content_hash" = excluded."content_hash",
             "last_run_id" = excluded."last_run_id",
-            "subject_updated_at_at_import" = excluded."subject_updated_at_at_import",
-            "missing_since" = null;
+            "subject_imported_updated_at" = excluded."subject_imported_updated_at",
+            "went_missing_at" = null;
         end loop;
 
         if v_found then
@@ -701,7 +701,7 @@ begin
         and x."role" = 'primary' and x."last_run_id" <> v_run_id
         and x."scope" in (select y."scope" from "better_supabase"."import_records" y where y."tenant_id" = v_run."tenant_id" and y."source" = v_run."source" and y."entity" = v_entity and y."last_run_id" = v_run_id);
       if not v_run."dry_run" then
-        update "better_supabase"."import_records" x set "missing_since" = coalesce(x."missing_since", now())
+        update "better_supabase"."import_records" x set "went_missing_at" = coalesce(x."went_missing_at", now())
         where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."entity" = v_entity
           and x."last_run_id" <> v_run_id
           and x."scope" in (select y."scope" from "better_supabase"."import_records" y where y."tenant_id" = v_run."tenant_id" and y."source" = v_run."source" and y."entity" = v_entity and y."last_run_id" = v_run_id);

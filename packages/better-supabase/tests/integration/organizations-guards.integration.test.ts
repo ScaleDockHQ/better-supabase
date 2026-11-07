@@ -282,11 +282,11 @@ describe.skipIf(!live)("organizations member guards", () => {
       ).toBe(true);
       await s.service();
       expect(
-        await s.value<{ purge_after: string } | null>(
+        await s.value<{ purge_at: string } | null>(
           "better_supabase.organization_deletion($1)",
           [organization],
         ),
-      ).toMatchObject({ purge_after: expect.any(String) });
+      ).toMatchObject({ purge_at: expect.any(String) });
       expect(
         await s.value(
           "(select count(*)::int from better_supabase.organizations where id = $1)",

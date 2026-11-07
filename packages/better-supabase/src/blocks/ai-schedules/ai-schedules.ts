@@ -231,7 +231,7 @@ function runOf(value: unknown): AiTaskRun {
     organizationId: textOf(row["organization_id"]),
     userId: textOf(row["user_id"]),
     status: runStateOf(row["status"], STATUSES, "failed"),
-    scheduledFor: instantOf(row["scheduled_for"]),
+    scheduledFor: instantOf(row["scheduled_at"]),
     chatId: optionalText(row["chat_id"]),
     error: optionalText(row["error"]),
     startedAt: optionalInstant(row["started_at"]),

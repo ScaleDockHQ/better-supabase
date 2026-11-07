@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:90cdf4ffbb6cffe0090c37be85427d51c3c8a5db42d86cbd294502de5f0f9840
+-- @bsb-hash sha256:fc7f48db5784ccf589f1a7fdfe6285171640413957317f9bff4eb1a6cbe9d0c2
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,8 +25,8 @@ create table "better_supabase"."passes" (
   "resource_id" uuid,
   "uses_allowed" integer constraint bsb_passes_uses_allowed_check check ("uses_allowed" is null or "uses_allowed" > 0),
   "uses" integer not null default 0 constraint bsb_passes_uses_check check ("uses" >= 0),
-  "valid_from" timestamptz not null default now(),
-  "valid_until" timestamptz,
+  "starts_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
   "status" text not null default 'active' constraint bsb_passes_status_check check ("status" in ('active', 'revoked')),
   "nonce" text not null unique,
   "issued_by" uuid,
@@ -35,7 +35,7 @@ create table "better_supabase"."passes" (
   "revoked_at" timestamptz,
   constraint bsb_passes_check check (("subject_type" is null) = ("subject_id" is null)),
   constraint bsb_passes_check1 check ("uses_allowed" is null or "uses" <= "uses_allowed"),
-  constraint bsb_passes_check2 check ("valid_until" is null or "valid_until" > "valid_from")
+  constraint bsb_passes_check2 check ("expires_at" is null or "expires_at" > "starts_at")
 );
 create index "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
 create index "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
@@ -68,9 +68,9 @@ revoke all on "better_supabase"."pass_check_ins" from public, anon, authenticate
 grant all on "better_supabase"."pass_check_ins" to service_role;
 
 -- Issues a pass in tenant: a ticket for booking_id (valid until the booking
--- ends unless valid_until says otherwise), a pass for resource_id, or a pass
+-- ends unless expires_at says otherwise), a pass for resource_id, or a pass
 -- for a registered record. Returns the pass with its nonce for the token.
-create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, valid_from timestamptz default null, valid_until timestamptz default null)
+create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, starts_at timestamptz default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -80,7 +80,7 @@ as $$
 declare
   v_row "better_supabase"."passes"%rowtype;
   v_resource uuid := issue_pass.resource_id;
-  v_until timestamptz := issue_pass.valid_until;
+  v_until timestamptz := issue_pass.expires_at;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -101,17 +101,17 @@ begin
   if issue_pass.booking_id is not null or issue_pass.resource_id is not null then
     raise exception 'install the bookings block to tie passes to bookings or resources' using errcode = '22023', hint = 'PASS_BOOKINGS_MISSING';
   end if;
-  if v_until is not null and v_until <= coalesce(issue_pass.valid_from, now()) then
-    raise exception 'valid_until must be after valid_from and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
+  if v_until is not null and v_until <= coalesce(issue_pass.starts_at, now()) then
+    raise exception 'expires_at must be after starts_at and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
   end if;
-  insert into "better_supabase"."passes" ("tenant_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "valid_from", "valid_until", "nonce", "issued_by")
+  insert into "better_supabase"."passes" ("tenant_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "starts_at", "expires_at", "nonce", "issued_by")
   values (issue_pass.tenant, coalesce(issue_pass.kind, 'ticket'), issue_pass.holder_user, issue_pass.holder_name, lower(btrim(issue_pass.holder_email)),
     issue_pass.subject_type, issue_pass.subject_id, issue_pass.booking_id, v_resource,
     case when issue_pass.booking_id is not null then coalesce(issue_pass.uses_allowed, 1) else issue_pass.uses_allowed end,
-    coalesce(issue_pass.valid_from, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
+    coalesce(issue_pass.starts_at, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."issue_pass"(uuid, text, uuid, text, text, text, text, uuid, uuid, integer, timestamptz, timestamptz) from public, anon;
@@ -141,7 +141,7 @@ begin
       returning * into v_row;
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_pass"(uuid) from public, anon;
@@ -163,7 +163,7 @@ begin
   if not found or not (coalesce(v_row."holder_user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'passes.manage'), false))) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."get_pass"(uuid) from public, anon;
@@ -201,8 +201,8 @@ begin
   v_reason := case
     when check_in_pass.method <> 'manual' and check_in_pass.nonce is distinct from v_pass."nonce" then 'invalid'
     when v_pass."status" = 'revoked' then 'revoked'
-    when now() < v_pass."valid_from" then 'not_yet_valid'
-    when v_pass."valid_until" is not null and now() >= v_pass."valid_until" then 'expired'
+    when now() < v_pass."starts_at" then 'not_yet_valid'
+    when v_pass."expires_at" is not null and now() >= v_pass."expires_at" then 'expired'
     when v_pass."uses_allowed" is not null and v_pass."uses" >= v_pass."uses_allowed" then 'used_up'
     when check_in_pass.resource_id is not null and v_pass."resource_id" is not null
       and check_in_pass.resource_id <> v_pass."resource_id" then 'wrong_resource'
@@ -218,7 +218,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."valid_from", 'validUntil', v_pass."valid_until", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."starts_at", 'validUntil', v_pass."expires_at", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."check_in_pass"(uuid, text, text, text, uuid) from public, anon;
@@ -240,7 +240,7 @@ begin
   return (
     select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
       from "better_supabase"."passes" x
       where x."tenant_id" = list_passes.tenant
         and (list_passes.holder_user is null or x."holder_user_id" = list_passes.holder_user)
@@ -264,11 +264,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."valid_from", x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."starts_at", x."id"), '[]'::jsonb)
   from "better_supabase"."passes" x
   where x."holder_user_id" = auth.uid()
     and x."status" = 'active'
-    and (x."valid_until" is null or x."valid_until" > now())
+    and (x."expires_at" is null or x."expires_at" > now())
     and not better_supabase.tenant_disabled(x."tenant_id")
 $$;
 revoke execute on function "better_supabase"."my_passes"() from public, anon;
@@ -323,7 +323,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:b66037d0162e2b1cf1e9099a6bd4f41e09479f09c595d3022c9f93bfce46af6e
+-- @bsb-hash sha256:a142d39052078310244f1e6d1c0f7dca10192711c478b8858bdd6bb137e87d46
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -347,8 +347,8 @@ create table "better_supabase"."passes" (
   "resource_id" uuid,
   "uses_allowed" integer constraint bsb_passes_uses_allowed_check check ("uses_allowed" is null or "uses_allowed" > 0),
   "uses" integer not null default 0 constraint bsb_passes_uses_check check ("uses" >= 0),
-  "valid_from" timestamptz not null default now(),
-  "valid_until" timestamptz,
+  "starts_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
   "status" text not null default 'active' constraint bsb_passes_status_check check ("status" in ('active', 'revoked')),
   "nonce" text not null unique,
   "issued_by" uuid,
@@ -357,7 +357,7 @@ create table "better_supabase"."passes" (
   "revoked_at" timestamptz,
   constraint bsb_passes_check check (("subject_type" is null) = ("subject_id" is null)),
   constraint bsb_passes_check1 check ("uses_allowed" is null or "uses" <= "uses_allowed"),
-  constraint bsb_passes_check2 check ("valid_until" is null or "valid_until" > "valid_from")
+  constraint bsb_passes_check2 check ("expires_at" is null or "expires_at" > "starts_at")
 );
 create index "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
 create index "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
@@ -393,9 +393,9 @@ revoke all on "better_supabase"."pass_check_ins" from public, anon, authenticate
 grant all on "better_supabase"."pass_check_ins" to service_role;
 
 -- Issues a pass in tenant: a ticket for booking_id (valid until the booking
--- ends unless valid_until says otherwise), a pass for resource_id, or a pass
+-- ends unless expires_at says otherwise), a pass for resource_id, or a pass
 -- for a registered record. Returns the pass with its nonce for the token.
-create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, valid_from timestamptz default null, valid_until timestamptz default null)
+create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, starts_at timestamptz default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -405,7 +405,7 @@ as $$
 declare
   v_row "better_supabase"."passes"%rowtype;
   v_resource uuid := issue_pass.resource_id;
-  v_until timestamptz := issue_pass.valid_until;
+  v_until timestamptz := issue_pass.expires_at;
   v_booking "better_supabase"."bookings"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -446,14 +446,14 @@ begin
       raise exception 'the resource does not exist in this organization' using errcode = 'P0002', hint = 'PASS_RESOURCE_NOT_FOUND';
     end if;
   end if;
-  if v_until is not null and v_until <= coalesce(issue_pass.valid_from, now()) then
-    raise exception 'valid_until must be after valid_from and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
+  if v_until is not null and v_until <= coalesce(issue_pass.starts_at, now()) then
+    raise exception 'expires_at must be after starts_at and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
   end if;
-  insert into "better_supabase"."passes" ("tenant_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "valid_from", "valid_until", "nonce", "issued_by")
+  insert into "better_supabase"."passes" ("tenant_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "starts_at", "expires_at", "nonce", "issued_by")
   values (issue_pass.tenant, coalesce(issue_pass.kind, 'ticket'), issue_pass.holder_user, issue_pass.holder_name, lower(btrim(issue_pass.holder_email)),
     issue_pass.subject_type, issue_pass.subject_id, issue_pass.booking_id, v_resource,
     case when issue_pass.booking_id is not null then coalesce(issue_pass.uses_allowed, 1) else issue_pass.uses_allowed end,
-    coalesce(issue_pass.valid_from, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
+    coalesce(issue_pass.starts_at, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
   returning * into v_row;
   perform "better_supabase".emit_event('pass.issued', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'bookingId', v_row."booking_id"), 'passes/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/passes');
   perform better_supabase.audit_event(
@@ -465,7 +465,7 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'bookingId', v_row."booking_id")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."issue_pass"(uuid, text, uuid, text, text, text, text, uuid, uuid, integer, timestamptz, timestamptz) from public, anon;
@@ -504,7 +504,7 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id")
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_pass"(uuid) from public, anon;
@@ -526,7 +526,7 @@ begin
   if not found or not (coalesce(v_row."holder_user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'passes.manage'), false))) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."get_pass"(uuid) from public, anon;
@@ -565,8 +565,8 @@ begin
   v_reason := case
     when check_in_pass.method <> 'manual' and check_in_pass.nonce is distinct from v_pass."nonce" then 'invalid'
     when v_pass."status" = 'revoked' then 'revoked'
-    when now() < v_pass."valid_from" then 'not_yet_valid'
-    when v_pass."valid_until" is not null and now() >= v_pass."valid_until" then 'expired'
+    when now() < v_pass."starts_at" then 'not_yet_valid'
+    when v_pass."expires_at" is not null and now() >= v_pass."expires_at" then 'expired'
     when v_pass."uses_allowed" is not null and v_pass."uses" >= v_pass."uses_allowed" then 'used_up'
     when check_in_pass.resource_id is not null and v_pass."resource_id" is not null
       and check_in_pass.resource_id <> v_pass."resource_id" then 'wrong_resource'
@@ -608,7 +608,7 @@ begin
   else
     perform "better_supabase".emit_event('pass.rejected', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."pass_id", 'checkInId', v_row."id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'reason', v_row."reason"), 'passes/' || v_row."pass_id"::text, (v_row."tenant_id")::text, null, 'better-supabase/passes');
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."valid_from", 'validUntil', v_pass."valid_until", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."starts_at", 'validUntil', v_pass."expires_at", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."check_in_pass"(uuid, text, text, text, uuid) from public, anon;
@@ -630,7 +630,7 @@ begin
   return (
     select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
       from "better_supabase"."passes" x
       where x."tenant_id" = list_passes.tenant
         and (list_passes.holder_user is null or x."holder_user_id" = list_passes.holder_user)
@@ -654,11 +654,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."valid_from", x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."starts_at", x."id"), '[]'::jsonb)
   from "better_supabase"."passes" x
   where x."holder_user_id" = auth.uid()
     and x."status" = 'active'
-    and (x."valid_until" is null or x."valid_until" > now())
+    and (x."expires_at" is null or x."expires_at" > now())
     and not better_supabase.tenant_disabled(x."tenant_id")
 $$;
 revoke execute on function "better_supabase"."my_passes"() from public, anon;
@@ -750,7 +750,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:a08e1271745c0429301aec7704cf27e5702f195660548cc86f0348b0b580fd3b
+-- @bsb-hash sha256:ff13dfe5f4108bea6a6fcd3fa81f0591a81cc7ac602a1005ce611ee682e00eed
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -779,8 +779,8 @@ create table "app_private"."passes" (
   "resource_id" uuid,
   "uses_allowed" integer constraint bsb_passes_uses_allowed_check check ("uses_allowed" is null or "uses_allowed" > 0),
   "uses" integer not null default 0 constraint bsb_passes_uses_check check ("uses" >= 0),
-  "valid_from" timestamptz not null default now(),
-  "valid_until" timestamptz,
+  "starts_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
   "status" text not null default 'active' constraint bsb_passes_status_check check ("status" in ('active', 'revoked')),
   "nonce" text not null unique,
   "issued_by" uuid,
@@ -789,7 +789,7 @@ create table "app_private"."passes" (
   "revoked_at" timestamptz,
   constraint bsb_passes_check check (("subject_type" is null) = ("subject_id" is null)),
   constraint bsb_passes_check1 check ("uses_allowed" is null or "uses" <= "uses_allowed"),
-  constraint bsb_passes_check2 check ("valid_until" is null or "valid_until" > "valid_from")
+  constraint bsb_passes_check2 check ("expires_at" is null or "expires_at" > "starts_at")
 );
 create index "passes_tenant_idx" on "app_private"."passes" ("tenant_id", "created_at" desc);
 create index "passes_holder_idx" on "app_private"."passes" ("holder_user_id");
@@ -822,9 +822,9 @@ revoke all on "app_private"."pass_check_ins" from public, anon, authenticated;
 grant all on "app_private"."pass_check_ins" to service_role;
 
 -- Issues a pass in tenant: a ticket for booking_id (valid until the booking
--- ends unless valid_until says otherwise), a pass for resource_id, or a pass
+-- ends unless expires_at says otherwise), a pass for resource_id, or a pass
 -- for a registered record. Returns the pass with its nonce for the token.
-create or replace function "app_private"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, valid_from timestamptz default null, valid_until timestamptz default null)
+create or replace function "app_private"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, starts_at timestamptz default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -834,7 +834,7 @@ as $$
 declare
   v_row "app_private"."passes"%rowtype;
   v_resource uuid := issue_pass.resource_id;
-  v_until timestamptz := issue_pass.valid_until;
+  v_until timestamptz := issue_pass.expires_at;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -855,17 +855,17 @@ begin
   if issue_pass.booking_id is not null or issue_pass.resource_id is not null then
     raise exception 'install the bookings block to tie passes to bookings or resources' using errcode = '22023', hint = 'PASS_BOOKINGS_MISSING';
   end if;
-  if v_until is not null and v_until <= coalesce(issue_pass.valid_from, now()) then
-    raise exception 'valid_until must be after valid_from and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
+  if v_until is not null and v_until <= coalesce(issue_pass.starts_at, now()) then
+    raise exception 'expires_at must be after starts_at and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
   end if;
-  insert into "app_private"."passes" ("tenant_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "valid_from", "valid_until", "nonce", "issued_by")
+  insert into "app_private"."passes" ("tenant_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "starts_at", "expires_at", "nonce", "issued_by")
   values (issue_pass.tenant, coalesce(issue_pass.kind, 'ticket'), issue_pass.holder_user, issue_pass.holder_name, lower(btrim(issue_pass.holder_email)),
     issue_pass.subject_type, issue_pass.subject_id, issue_pass.booking_id, v_resource,
     case when issue_pass.booking_id is not null then coalesce(issue_pass.uses_allowed, 1) else issue_pass.uses_allowed end,
-    coalesce(issue_pass.valid_from, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
+    coalesce(issue_pass.starts_at, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "app_private"."issue_pass"(uuid, text, uuid, text, text, text, text, uuid, uuid, integer, timestamptz, timestamptz) from public, anon;
@@ -895,7 +895,7 @@ begin
       returning * into v_row;
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "app_private"."revoke_pass"(uuid) from public, anon;
@@ -917,7 +917,7 @@ begin
   if not found or not (coalesce(v_row."holder_user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'passes.manage'), false))) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "app_private"."get_pass"(uuid) from public, anon;
@@ -955,8 +955,8 @@ begin
   v_reason := case
     when check_in_pass.method <> 'manual' and check_in_pass.nonce is distinct from v_pass."nonce" then 'invalid'
     when v_pass."status" = 'revoked' then 'revoked'
-    when now() < v_pass."valid_from" then 'not_yet_valid'
-    when v_pass."valid_until" is not null and now() >= v_pass."valid_until" then 'expired'
+    when now() < v_pass."starts_at" then 'not_yet_valid'
+    when v_pass."expires_at" is not null and now() >= v_pass."expires_at" then 'expired'
     when v_pass."uses_allowed" is not null and v_pass."uses" >= v_pass."uses_allowed" then 'used_up'
     when check_in_pass.resource_id is not null and v_pass."resource_id" is not null
       and check_in_pass.resource_id <> v_pass."resource_id" then 'wrong_resource'
@@ -972,7 +972,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."valid_from", 'validUntil', v_pass."valid_until", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."starts_at", 'validUntil', v_pass."expires_at", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
 end;
 $$;
 revoke execute on function "app_private"."check_in_pass"(uuid, text, text, text, uuid) from public, anon;
@@ -994,7 +994,7 @@ begin
   return (
     select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
       from "app_private"."passes" x
       where x."tenant_id" = list_passes.tenant
         and (list_passes.holder_user is null or x."holder_user_id" = list_passes.holder_user)
@@ -1018,11 +1018,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."valid_from", x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."starts_at", x."id"), '[]'::jsonb)
   from "app_private"."passes" x
   where x."holder_user_id" = auth.uid()
     and x."status" = 'active'
-    and (x."valid_until" is null or x."valid_until" > now())
+    and (x."expires_at" is null or x."expires_at" > now())
     and not better_supabase.tenant_disabled(x."tenant_id")
 $$;
 revoke execute on function "app_private"."my_passes"() from public, anon;
@@ -1077,7 +1077,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:3bd2ca1bf595ed3c6b27ed6f6db16993adc5dd395f313acfe3c1db6d5134318b
+-- @bsb-hash sha256:9794165518ea256b0945b71083a84ff77a620fc1ff37785d66bc91f91293baca
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1101,8 +1101,8 @@ create table "better_supabase"."passes" (
   "resource_id" uuid,
   "uses_allowed" integer constraint bsb_passes_uses_allowed_check check ("uses_allowed" is null or "uses_allowed" > 0),
   "uses" integer not null default 0 constraint bsb_passes_uses_check check ("uses" >= 0),
-  "valid_from" timestamptz not null default now(),
-  "valid_until" timestamptz,
+  "starts_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
   "status" text not null default 'active' constraint bsb_passes_status_check check ("status" in ('active', 'revoked')),
   "nonce" text not null unique,
   "issued_by" uuid,
@@ -1111,7 +1111,7 @@ create table "better_supabase"."passes" (
   "revoked_at" timestamptz,
   constraint bsb_passes_check check (("subject_type" is null) = ("subject_id" is null)),
   constraint bsb_passes_check1 check ("uses_allowed" is null or "uses" <= "uses_allowed"),
-  constraint bsb_passes_check2 check ("valid_until" is null or "valid_until" > "valid_from")
+  constraint bsb_passes_check2 check ("expires_at" is null or "expires_at" > "starts_at")
 );
 create index "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
 create index "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
@@ -1144,9 +1144,9 @@ revoke all on "better_supabase"."pass_check_ins" from public, anon, authenticate
 grant all on "better_supabase"."pass_check_ins" to service_role;
 
 -- Issues a pass in tenant: a ticket for booking_id (valid until the booking
--- ends unless valid_until says otherwise), a pass for resource_id, or a pass
+-- ends unless expires_at says otherwise), a pass for resource_id, or a pass
 -- for a registered record. Returns the pass with its nonce for the token.
-create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, valid_from timestamptz default null, valid_until timestamptz default null)
+create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, starts_at timestamptz default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1156,7 +1156,7 @@ as $$
 declare
   v_row "better_supabase"."passes"%rowtype;
   v_resource uuid := issue_pass.resource_id;
-  v_until timestamptz := issue_pass.valid_until;
+  v_until timestamptz := issue_pass.expires_at;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1177,17 +1177,17 @@ begin
   if issue_pass.booking_id is not null or issue_pass.resource_id is not null then
     raise exception 'install the bookings block to tie passes to bookings or resources' using errcode = '22023', hint = 'PASS_BOOKINGS_MISSING';
   end if;
-  if v_until is not null and v_until <= coalesce(issue_pass.valid_from, now()) then
-    raise exception 'valid_until must be after valid_from and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
+  if v_until is not null and v_until <= coalesce(issue_pass.starts_at, now()) then
+    raise exception 'expires_at must be after starts_at and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
   end if;
-  insert into "better_supabase"."passes" ("tenant_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "valid_from", "valid_until", "nonce", "issued_by")
+  insert into "better_supabase"."passes" ("tenant_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "starts_at", "expires_at", "nonce", "issued_by")
   values (issue_pass.tenant, coalesce(issue_pass.kind, 'ticket'), issue_pass.holder_user, issue_pass.holder_name, lower(btrim(issue_pass.holder_email)),
     issue_pass.subject_type, issue_pass.subject_id, issue_pass.booking_id, v_resource,
     case when issue_pass.booking_id is not null then coalesce(issue_pass.uses_allowed, 1) else issue_pass.uses_allowed end,
-    coalesce(issue_pass.valid_from, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
+    coalesce(issue_pass.starts_at, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."issue_pass"(uuid, text, uuid, text, text, text, text, uuid, uuid, integer, timestamptz, timestamptz) from public, anon;
@@ -1217,7 +1217,7 @@ begin
       returning * into v_row;
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_pass"(uuid) from public, anon;
@@ -1239,7 +1239,7 @@ begin
   if not found or not (coalesce(v_row."holder_user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'passes.manage'), false))) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."get_pass"(uuid) from public, anon;
@@ -1277,8 +1277,8 @@ begin
   v_reason := case
     when check_in_pass.method <> 'manual' and check_in_pass.nonce is distinct from v_pass."nonce" then 'invalid'
     when v_pass."status" = 'revoked' then 'revoked'
-    when now() < v_pass."valid_from" then 'not_yet_valid'
-    when v_pass."valid_until" is not null and now() >= v_pass."valid_until" then 'expired'
+    when now() < v_pass."starts_at" then 'not_yet_valid'
+    when v_pass."expires_at" is not null and now() >= v_pass."expires_at" then 'expired'
     when v_pass."uses_allowed" is not null and v_pass."uses" >= v_pass."uses_allowed" then 'used_up'
     when check_in_pass.resource_id is not null and v_pass."resource_id" is not null
       and check_in_pass.resource_id <> v_pass."resource_id" then 'wrong_resource'
@@ -1294,7 +1294,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."valid_from", 'validUntil', v_pass."valid_until", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."starts_at", 'validUntil', v_pass."expires_at", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."check_in_pass"(uuid, text, text, text, uuid) from public, anon;
@@ -1316,7 +1316,7 @@ begin
   return (
     select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
       from "better_supabase"."passes" x
       where x."tenant_id" = list_passes.tenant
         and (list_passes.holder_user is null or x."holder_user_id" = list_passes.holder_user)
@@ -1340,11 +1340,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."valid_from", x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."starts_at", x."id"), '[]'::jsonb)
   from "better_supabase"."passes" x
   where x."holder_user_id" = auth.uid()
     and x."status" = 'active'
-    and (x."valid_until" is null or x."valid_until" > now())
+    and (x."expires_at" is null or x."expires_at" > now())
     and not better_supabase.tenant_disabled(x."tenant_id")
 $$;
 revoke execute on function "better_supabase"."my_passes"() from public, anon;
@@ -1386,7 +1386,7 @@ grant execute on function "better_supabase"."list_pass_check_ins"(uuid, timestam
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, valid_from timestamptz default null, valid_until timestamptz default null)
+create or replace function "api"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, starts_at timestamptz default null, expires_at timestamptz default null)
 returns jsonb
 language sql
 security invoker
@@ -1470,7 +1470,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:18af45997b1c2b9f828e57541f32a5d59d62a3fa524ac8a170f5249b49ba472c
+-- @bsb-hash sha256:d3431255a212cce4371bacc312f81b52ec9f8cdad795c2d0427efad2c23bc431
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1494,8 +1494,8 @@ alter table "better_supabase"."passes" add column if not exists "booking_id" uui
 alter table "better_supabase"."passes" add column if not exists "resource_id" uuid;
 alter table "better_supabase"."passes" add column if not exists "uses_allowed" integer constraint bsb_passes_uses_allowed_check check ("uses_allowed" is null or "uses_allowed" > 0);
 alter table "better_supabase"."passes" add column if not exists "uses" integer not null default 0 constraint bsb_passes_uses_check check ("uses" >= 0);
-alter table "better_supabase"."passes" add column if not exists "valid_from" timestamptz not null default now();
-alter table "better_supabase"."passes" add column if not exists "valid_until" timestamptz;
+alter table "better_supabase"."passes" add column if not exists "starts_at" timestamptz not null default now();
+alter table "better_supabase"."passes" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."passes" add column if not exists "status" text not null default 'active' constraint bsb_passes_status_check check ("status" in ('active', 'revoked'));
 alter table "better_supabase"."passes" add column if not exists "nonce" text;
 alter table "better_supabase"."passes" add column if not exists "issued_by" uuid;
@@ -1529,9 +1529,9 @@ alter table "better_supabase"."pass_check_ins" enable row level security;
 grant all on "better_supabase"."pass_check_ins" to service_role;
 
 -- Issues a pass in tenant: a ticket for booking_id (valid until the booking
--- ends unless valid_until says otherwise), a pass for resource_id, or a pass
+-- ends unless expires_at says otherwise), a pass for resource_id, or a pass
 -- for a registered record. Returns the pass with its nonce for the token.
-create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, valid_from timestamptz default null, valid_until timestamptz default null)
+create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, starts_at timestamptz default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1541,7 +1541,7 @@ as $$
 declare
   v_row "better_supabase"."passes"%rowtype;
   v_resource uuid := issue_pass.resource_id;
-  v_until timestamptz := issue_pass.valid_until;
+  v_until timestamptz := issue_pass.expires_at;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1562,17 +1562,17 @@ begin
   if issue_pass.booking_id is not null or issue_pass.resource_id is not null then
     raise exception 'install the bookings block to tie passes to bookings or resources' using errcode = '22023', hint = 'PASS_BOOKINGS_MISSING';
   end if;
-  if v_until is not null and v_until <= coalesce(issue_pass.valid_from, now()) then
-    raise exception 'valid_until must be after valid_from and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
+  if v_until is not null and v_until <= coalesce(issue_pass.starts_at, now()) then
+    raise exception 'expires_at must be after starts_at and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
   end if;
-  insert into "better_supabase"."passes" ("tenant_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "valid_from", "valid_until", "nonce", "issued_by")
+  insert into "better_supabase"."passes" ("tenant_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "starts_at", "expires_at", "nonce", "issued_by")
   values (issue_pass.tenant, coalesce(issue_pass.kind, 'ticket'), issue_pass.holder_user, issue_pass.holder_name, lower(btrim(issue_pass.holder_email)),
     issue_pass.subject_type, issue_pass.subject_id, issue_pass.booking_id, v_resource,
     case when issue_pass.booking_id is not null then coalesce(issue_pass.uses_allowed, 1) else issue_pass.uses_allowed end,
-    coalesce(issue_pass.valid_from, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
+    coalesce(issue_pass.starts_at, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."issue_pass"(uuid, text, uuid, text, text, text, text, uuid, uuid, integer, timestamptz, timestamptz) from public, anon;
@@ -1602,7 +1602,7 @@ begin
       returning * into v_row;
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_pass"(uuid) from public, anon;
@@ -1624,7 +1624,7 @@ begin
   if not found or not (coalesce(v_row."holder_user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'passes.manage'), false))) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."get_pass"(uuid) from public, anon;
@@ -1662,8 +1662,8 @@ begin
   v_reason := case
     when check_in_pass.method <> 'manual' and check_in_pass.nonce is distinct from v_pass."nonce" then 'invalid'
     when v_pass."status"::text = 'revoked' then 'revoked'
-    when now() < v_pass."valid_from" then 'not_yet_valid'
-    when v_pass."valid_until" is not null and now() >= v_pass."valid_until" then 'expired'
+    when now() < v_pass."starts_at" then 'not_yet_valid'
+    when v_pass."expires_at" is not null and now() >= v_pass."expires_at" then 'expired'
     when v_pass."uses_allowed" is not null and v_pass."uses" >= v_pass."uses_allowed" then 'used_up'
     when check_in_pass.resource_id is not null and v_pass."resource_id" is not null
       and check_in_pass.resource_id <> v_pass."resource_id" then 'wrong_resource'
@@ -1679,7 +1679,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."valid_from", 'validUntil', v_pass."valid_until", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."starts_at", 'validUntil', v_pass."expires_at", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."check_in_pass"(uuid, text, text, text, uuid) from public, anon;
@@ -1701,7 +1701,7 @@ begin
   return (
     select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
       from "better_supabase"."passes" x
       where x."tenant_id" = list_passes.tenant
         and (list_passes.holder_user is null or x."holder_user_id" = list_passes.holder_user)
@@ -1725,11 +1725,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."valid_from", x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."starts_at", x."id"), '[]'::jsonb)
   from "better_supabase"."passes" x
   where x."holder_user_id" = auth.uid()
     and x."status"::text = 'active'
-    and (x."valid_until" is null or x."valid_until" > now())
+    and (x."expires_at" is null or x."expires_at" > now())
     and not better_supabase.tenant_disabled(x."tenant_id")
 $$;
 revoke execute on function "better_supabase"."my_passes"() from public, anon;
@@ -1784,7 +1784,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:3ec675269b07ea9561e3afafebb1da5f27fae7f0f191073e08a4b407b7fe4def
+-- @bsb-hash sha256:d7bd608d71b9a891e1fd785320a45af8414154bf9ab3897ea78e5db0b342f482
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1808,8 +1808,8 @@ create table "better_supabase"."passes" (
   "resource_id" uuid,
   "uses_allowed" integer constraint bsb_passes_uses_allowed_check check ("uses_allowed" is null or "uses_allowed" > 0),
   "uses" integer not null default 0 constraint bsb_passes_uses_check check ("uses" >= 0),
-  "valid_from" timestamptz not null default now(),
-  "valid_until" timestamptz,
+  "starts_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
   "status" text not null default 'active' constraint bsb_passes_status_check check ("status" in ('active', 'revoked')),
   "nonce" text not null unique,
   "issued_by" uuid,
@@ -1818,7 +1818,7 @@ create table "better_supabase"."passes" (
   "revoked_at" timestamptz,
   constraint bsb_passes_check check (("subject_type" is null) = ("subject_id" is null)),
   constraint bsb_passes_check1 check ("uses_allowed" is null or "uses" <= "uses_allowed"),
-  constraint bsb_passes_check2 check ("valid_until" is null or "valid_until" > "valid_from")
+  constraint bsb_passes_check2 check ("expires_at" is null or "expires_at" > "starts_at")
 );
 create index "passes_tenant_idx" on "better_supabase"."passes" ("org_id", "created_at" desc);
 create index "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
@@ -1851,9 +1851,9 @@ revoke all on "better_supabase"."pass_check_ins" from public, anon, authenticate
 grant all on "better_supabase"."pass_check_ins" to service_role;
 
 -- Issues a pass in tenant: a ticket for booking_id (valid until the booking
--- ends unless valid_until says otherwise), a pass for resource_id, or a pass
+-- ends unless expires_at says otherwise), a pass for resource_id, or a pass
 -- for a registered record. Returns the pass with its nonce for the token.
-create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, valid_from timestamptz default null, valid_until timestamptz default null)
+create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, starts_at timestamptz default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1863,7 +1863,7 @@ as $$
 declare
   v_row "better_supabase"."passes"%rowtype;
   v_resource uuid := issue_pass.resource_id;
-  v_until timestamptz := issue_pass.valid_until;
+  v_until timestamptz := issue_pass.expires_at;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1884,17 +1884,17 @@ begin
   if issue_pass.booking_id is not null or issue_pass.resource_id is not null then
     raise exception 'install the bookings block to tie passes to bookings or resources' using errcode = '22023', hint = 'PASS_BOOKINGS_MISSING';
   end if;
-  if v_until is not null and v_until <= coalesce(issue_pass.valid_from, now()) then
-    raise exception 'valid_until must be after valid_from and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
+  if v_until is not null and v_until <= coalesce(issue_pass.starts_at, now()) then
+    raise exception 'expires_at must be after starts_at and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
   end if;
-  insert into "better_supabase"."passes" ("org_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "valid_from", "valid_until", "nonce", "issued_by")
+  insert into "better_supabase"."passes" ("org_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "starts_at", "expires_at", "nonce", "issued_by")
   values (issue_pass.tenant, coalesce(issue_pass.kind, 'ticket'), issue_pass.holder_user, issue_pass.holder_name, lower(btrim(issue_pass.holder_email)),
     issue_pass.subject_type, issue_pass.subject_id, issue_pass.booking_id, v_resource,
     case when issue_pass.booking_id is not null then coalesce(issue_pass.uses_allowed, 1) else issue_pass.uses_allowed end,
-    coalesce(issue_pass.valid_from, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
+    coalesce(issue_pass.starts_at, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."issue_pass"(uuid, text, uuid, text, text, text, text, uuid, uuid, integer, timestamptz, timestamptz) from public, anon;
@@ -1924,7 +1924,7 @@ begin
       returning * into v_row;
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_pass"(uuid) from public, anon;
@@ -1946,7 +1946,7 @@ begin
   if not found or not (coalesce(v_row."holder_user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'passes.manage'), false))) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."get_pass"(uuid) from public, anon;
@@ -1984,8 +1984,8 @@ begin
   v_reason := case
     when check_in_pass.method <> 'manual' and check_in_pass.nonce is distinct from v_pass."nonce" then 'invalid'
     when v_pass."status" = 'revoked' then 'revoked'
-    when now() < v_pass."valid_from" then 'not_yet_valid'
-    when v_pass."valid_until" is not null and now() >= v_pass."valid_until" then 'expired'
+    when now() < v_pass."starts_at" then 'not_yet_valid'
+    when v_pass."expires_at" is not null and now() >= v_pass."expires_at" then 'expired'
     when v_pass."uses_allowed" is not null and v_pass."uses" >= v_pass."uses_allowed" then 'used_up'
     when check_in_pass.resource_id is not null and v_pass."resource_id" is not null
       and check_in_pass.resource_id <> v_pass."resource_id" then 'wrong_resource'
@@ -2001,7 +2001,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."org_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."valid_from", 'validUntil', v_pass."valid_until", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."org_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."starts_at", 'validUntil', v_pass."expires_at", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."check_in_pass"(uuid, text, text, text, uuid) from public, anon;
@@ -2023,7 +2023,7 @@ begin
   return (
     select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."org_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
+      select jsonb_build_object('id', x."id", 'organizationId', x."org_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
       from "better_supabase"."passes" x
       where x."org_id" = list_passes.tenant
         and (list_passes.holder_user is null or x."holder_user_id" = list_passes.holder_user)
@@ -2047,11 +2047,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."valid_from", x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."starts_at", x."id"), '[]'::jsonb)
   from "better_supabase"."passes" x
   where x."holder_user_id" = auth.uid()
     and x."status" = 'active'
-    and (x."valid_until" is null or x."valid_until" > now())
+    and (x."expires_at" is null or x."expires_at" > now())
     and not better_supabase.tenant_disabled(x."org_id")
 $$;
 revoke execute on function "better_supabase"."my_passes"() from public, anon;

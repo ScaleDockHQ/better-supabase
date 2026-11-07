@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:2c348d9c73c79d900b33c544d6afea91b3ef31474779d42bebb190e5c8bb47f3
+-- @bsb-hash sha256:817edc2b76e3e6adfa3e528a650863fb5d2f85a5e73620add26838dcffcfb79f
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -136,8 +136,8 @@ create table "better_supabase"."product_prices" (
   "currency" char(3) not null constraint bsb_product_prices_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount" bigint not null constraint bsb_product_prices_amount_check check ("amount" >= 0),
   "compare_at_amount" bigint constraint bsb_product_prices_check check ("compare_at_amount" > "amount"),
-  "valid_from" timestamptz,
-  "valid_until" timestamptz constraint bsb_product_prices_check1 check ("valid_until" > "valid_from"),
+  "starts_at" timestamptz,
+  "expires_at" timestamptz constraint bsb_product_prices_check1 check ("expires_at" > "starts_at"),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -1228,7 +1228,7 @@ grant execute on function "better_supabase"."delete_price_list"(uuid) to authent
 -- Sets a variant's price in a currency, in minor units, for a price list
 -- (null for the base price) and a validity window. The same window is
 -- updated in place; a window that overlaps another price is refused.
-create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+create or replace function "better_supabase"."set_price"(variant uuid, currency text, amount text, compare_at text, price_list uuid, starts_at timestamptz, expires_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -1260,8 +1260,8 @@ begin
   if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
     raise exception 'the compare-at amount must be above the amount' using errcode = '22023', hint = 'CATALOG_COMPARE_AT_INVALID';
   end if;
-  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
-    raise exception 'valid_until must be after valid_from' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
+  if set_price.expires_at is not null and set_price.expires_at <= coalesce(set_price.starts_at, '-infinity'::timestamptz) then
+    raise exception 'expires_at must be after starts_at' using errcode = '22023', hint = 'CATALOG_VALIDITY_INVALID';
   end if;
   if set_price.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = set_price.price_list and x."tenant_id" = v_tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
@@ -1276,18 +1276,18 @@ begin
   end;
   select x."id", x."amount" into v_id, v_previous from "better_supabase"."product_prices" x
   where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
-    and x."valid_from" is not distinct from set_price.valid_from and x."valid_until" is not distinct from set_price.valid_until;
+    and x."starts_at" is not distinct from set_price.starts_at and x."expires_at" is not distinct from set_price.expires_at;
   if exists (
     select 1 from "better_supabase"."product_prices" x
     where x."variant_id" = set_price.variant and x."currency" = set_price.currency and x."price_list_id" is not distinct from set_price.price_list
       and x."id" is distinct from v_id
-      and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.valid_from, '-infinity'::timestamptz), coalesce(set_price.valid_until, 'infinity'::timestamptz), '[)')
+      and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') && tstzrange(coalesce(set_price.starts_at, '-infinity'::timestamptz), coalesce(set_price.expires_at, 'infinity'::timestamptz), '[)')
   ) then
     raise exception 'another price of this variant, currency and list covers part of this window' using errcode = '23P01', hint = 'CATALOG_PRICE_OVERLAP';
   end if;
   if v_id is null then
-    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "valid_from", "valid_until")
-    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.valid_from, set_price.valid_until)
+    insert into "better_supabase"."product_prices" ("tenant_id", "variant_id", "currency", "amount", "price_list_id", "compare_at_amount", "starts_at", "expires_at")
+    values (v_tenant, set_price.variant, set_price.currency, v_amount, set_price.price_list, v_compare, set_price.starts_at, set_price.expires_at)
     returning "id" into v_id;
   else
     update "better_supabase"."product_prices" x set "amount" = v_amount, "compare_at_amount" = v_compare, "updated_at" = now()
@@ -1359,7 +1359,7 @@ as $$
   from "better_supabase"."product_prices" x
   where x."variant_id" = $1 and x."currency" = $2
     and (x."price_list_id" is null or x."price_list_id" = $3)
-    and tstzrange(coalesce(x."valid_from", '-infinity'::timestamptz), coalesce(x."valid_until", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
+    and tstzrange(coalesce(x."starts_at", '-infinity'::timestamptz), coalesce(x."expires_at", 'infinity'::timestamptz), '[)') @> coalesce($4, now())
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;

@@ -153,7 +153,7 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
         .orThrow();
       await s.client.query("reset role");
       await s.client.query(
-        "insert into better_supabase.organization_deletions (organization_id, requested_by, purge_after) values ($1, null, now() - interval '1 day')",
+        "insert into better_supabase.organization_deletions (organization_id, requested_by, purge_at) values ($1, null, now() - interval '1 day')",
         [tenant],
       );
       await s.client.query("set local role service_role");

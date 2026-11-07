@@ -134,8 +134,8 @@ describe("catalog row mapping", () => {
       .orThrow();
 
     expect(changed.previousAmount).toEqual(money(1000, "EUR"));
-    expect(calls[0]?.args["valid_from"]).not.toBeNull();
-    expect(calls[0]?.args["valid_until"]).not.toBeNull();
+    expect(calls[0]?.args["starts_at"]).not.toBeNull();
+    expect(calls[0]?.args["expires_at"]).not.toBeNull();
 
     const first = await catalog
       .setPrice({ variantId: "v1", input: { amount: money(900, "EUR") } })
@@ -143,8 +143,8 @@ describe("catalog row mapping", () => {
 
     expect(first.previousAmount).toBeUndefined();
     expect(calls[1]?.args).toMatchObject({
-      valid_from: null,
-      valid_until: null,
+      starts_at: null,
+      expires_at: null,
       price_list: null,
       compare_at: null,
     });

@@ -55,19 +55,19 @@ as $$
 #variable_conflict use_column
 declare
   token uuid := gen_random_uuid();
-  lease_until timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
+  lease_expires_at timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
   taken ${leases}%rowtype;
 begin
   -- A held lease that ran out, or a completed one past its keep time, is taken
   -- over; the new holder token makes the former holder's calls return false.
   insert into ${leases} as l (${l("scope")}, ${l("key")}, ${l("holder")}, ${l("state")}, ${l("expiresAt")})
-  values (scope, key, token, 'held', lease_until)
+  values (scope, key, token, 'held', lease_expires_at)
   on conflict (${l("scope")}, ${l("key")}) do update
     set ${l("holder")} = excluded.${l("holder")}, ${l("state")} = 'held', ${l("expiresAt")} = excluded.${l("expiresAt")}
     where l.${l("expiresAt")} <= now()
   returning * into taken;
   if found then
-    return query select 'claimed'::text, token, lease_until, 0;
+    return query select 'claimed'::text, token, lease_expires_at, 0;
     return;
   end if;
 

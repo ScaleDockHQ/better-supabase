@@ -328,7 +328,7 @@ export function deletionOf(value: unknown): OrganizationDeletion {
     organizationId: textOf(row["organization_id"]),
     requestedBy: optionalText(row["requested_by"]),
     requestedAt: toInstant(textOf(row["requested_at"])),
-    purgeAfter: toInstant(textOf(row["purge_after"])),
+    purgeAfter: toInstant(textOf(row["purge_at"])),
     cancelledAt: optionalInstant(row["cancelled_at"]),
     purgedAt: optionalInstant(row["purged_at"]),
   };

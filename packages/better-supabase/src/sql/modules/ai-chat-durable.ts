@@ -68,7 +68,7 @@ function harnessJson(
   ])}, 'sandbox_id', ${harnessSandbox(ctx, names, row)}, ${json([
     ["status", "status"],
     ["lock_holder", "holder"],
-    ["locked_until", "lockedUntil"],
+    ["lock_expires_at", "lockedUntil"],
     ["last_active_at", "lastActiveAt"],
     ["created_at", "createdAt"],
     ["updated_at", "updatedAt"],

@@ -942,8 +942,8 @@ export function createCatalog<
           amount: optionalAmountText(input.amount),
           compare_at: optionalAmountText(input.compareAt),
           price_list: input.priceListId ?? null,
-          valid_from: instantArg(input.validFrom) ?? null,
-          valid_until: instantArg(input.validUntil) ?? null,
+          starts_at: instantArg(input.validFrom) ?? null,
+          expires_at: instantArg(input.validUntil) ?? null,
         },
         (value) => {
           const row = recordOf(value, "set_price");

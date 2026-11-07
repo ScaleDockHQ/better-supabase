@@ -841,7 +841,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:615d2cc77f8514a2d86caf0c323969ce2a0993dfda1238c4315858fe36a05045
+-- @bsb-hash sha256:d52facf9d2f67794dc5a3a80fd022a1d2de115a4fc6e89bd4ef55cc921cc95c7
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1372,7 +1372,7 @@ begin
   if v_calendar is not null then
     insert into "better_supabase"."calendar_events" ("tenant_id", "calendar_id", "uid", "title", "starts_at", "ends_at", "tz", "status", "subject_type", "subject_id")
     values (v_booking."tenant_id", v_calendar, 'booking-' || v_booking."id"::text, coalesce(v_booking."customer_name", v_title), lower(v_booking."during"), upper(v_booking."during"), v_tz, 'confirmed', 'booking', v_booking."id"::text)
-    on conflict ("calendar_id", "uid", "original_start") do update set "starts_at" = excluded."starts_at", "ends_at" = excluded."ends_at"
+    on conflict ("calendar_id", "uid", "original_starts_at") do update set "starts_at" = excluded."starts_at", "ends_at" = excluded."ends_at"
     returning "id" into v_event;
     update "better_supabase"."bookings" set "calendar_event_id" = v_event where "id" = v_booking."id";
   end if;
@@ -1486,7 +1486,7 @@ begin
   if v_calendar is not null then
     insert into "better_supabase"."calendar_events" ("tenant_id", "calendar_id", "uid", "title", "starts_at", "ends_at", "tz", "status", "subject_type", "subject_id")
     values (v_booking."tenant_id", v_calendar, 'booking-' || v_booking."id"::text, coalesce(v_booking."customer_name", v_title), lower(v_booking."during"), upper(v_booking."during"), v_tz, 'confirmed', 'booking', v_booking."id"::text)
-    on conflict ("calendar_id", "uid", "original_start") do update set "starts_at" = excluded."starts_at", "ends_at" = excluded."ends_at"
+    on conflict ("calendar_id", "uid", "original_starts_at") do update set "starts_at" = excluded."starts_at", "ends_at" = excluded."ends_at"
     returning "id" into v_event;
     update "better_supabase"."bookings" set "calendar_event_id" = v_event where "id" = v_booking."id";
   end if;

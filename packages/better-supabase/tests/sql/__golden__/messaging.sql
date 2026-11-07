@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:711f4c5c564f4587b220f07f5adb0cfa95edbef54c5394623206d4a49a38ede9
+-- @bsb-hash sha256:39ad77519351afebbbb1894a1871f8383e64a9bc9dbb6ee507b44565664a08e8
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -103,7 +103,7 @@ create table "better_supabase"."messages" (
   "pinned_by" uuid,
   "resolved_at" timestamptz,
   "resolved_by" uuid,
-  "scheduled_for" timestamptz,
+  "scheduled_at" timestamptz,
   "sent_at" timestamptz,
   "edited_at" timestamptz,
   "deleted_at" timestamptz,
@@ -114,7 +114,7 @@ create index messaging_messages_conversation_idx on "better_supabase"."messages"
 create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
-create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_at") where "sent_at" is null;
 create index messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
@@ -266,7 +266,7 @@ as $$
   with page_rows as (
     select m.* from "better_supabase"."messages" m where m."id" = any (messaging_messages_json.ids)
   )
-  select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(x."sent_at", x."scheduled_for", x."created_at"), x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(x."sent_at", x."scheduled_at", x."created_at"), x."id"), '[]'::jsonb)
   from page_rows x
 $$;
 revoke execute on function "better_supabase"."messaging_messages_json"(uuid[]) from public, anon;
@@ -958,7 +958,7 @@ begin
   end;
   begin
     insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
-      "mentions", "mention_scope", "broadcast", "scheduled_for", "sent_at")
+      "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
       auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
@@ -1001,8 +1001,8 @@ begin
   end if;
   for v_id in
     select m."id" from "better_supabase"."messages" m
-    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_for" <= now()
-    order by m."scheduled_for", m."id"
+    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_at" <= now()
+    order by m."scheduled_at", m."id"
     limit least(greatest(coalesce(publish_due_messages.max_rows, 100), 1), 1000)
     for update skip locked
   loop
@@ -1595,7 +1595,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:7bc0602f190c7c43395e411ff6457780952389252485f26a7af16c8d527fe027
+-- @bsb-hash sha256:a1973ca24be8fadea2590800c7a2d5f9840ff96584bd7940e4f800131f83514e
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1700,7 +1700,7 @@ create table "better_supabase"."messages" (
   "pinned_by" uuid,
   "resolved_at" timestamptz,
   "resolved_by" uuid,
-  "scheduled_for" timestamptz,
+  "scheduled_at" timestamptz,
   "sent_at" timestamptz,
   "edited_at" timestamptz,
   "deleted_at" timestamptz,
@@ -1711,7 +1711,7 @@ create index messaging_messages_conversation_idx on "better_supabase"."messages"
 create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
-create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_at") where "sent_at" is null;
 create index messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
@@ -1909,7 +1909,7 @@ as $$
       select m."tenant_id" as tenant, array_agg(m."id"::text) as ids from page_rows m group by m."tenant_id"
     ) g
   )
-  select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('author', a.authors -> x.id::text) || jsonb_build_object('attachments', coalesce(f.files -> x.id::text, '[]'::jsonb)) || jsonb_build_object('reactions', coalesce(r.reactions -> x."tenant_id"::text -> x.id::text, '[]'::jsonb)) order by coalesce(x."sent_at", x."scheduled_for", x."created_at"), x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('author', a.authors -> x.id::text) || jsonb_build_object('attachments', coalesce(f.files -> x.id::text, '[]'::jsonb)) || jsonb_build_object('reactions', coalesce(r.reactions -> x."tenant_id"::text -> x.id::text, '[]'::jsonb)) order by coalesce(x."sent_at", x."scheduled_at", x."created_at"), x."id"), '[]'::jsonb)
   from page_rows x, a, f, r
 $$;
 revoke execute on function "better_supabase"."messaging_messages_json"(uuid[]) from public, anon;
@@ -2769,7 +2769,7 @@ begin
   end;
   begin
     insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
-      "mentions", "mention_scope", "broadcast", "scheduled_for", "sent_at")
+      "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
       auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
@@ -2824,8 +2824,8 @@ begin
   end if;
   for v_id in
     select m."id" from "better_supabase"."messages" m
-    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_for" <= now()
-    order by m."scheduled_for", m."id"
+    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_at" <= now()
+    order by m."scheduled_at", m."id"
     limit least(greatest(coalesce(publish_due_messages.max_rows, 100), 1), 1000)
     for update skip locked
   loop
@@ -3466,7 +3466,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:491224e8568f78a435e305c683b25884a2f4a5b3d07a61593b3e2f7d6996b5ee
+-- @bsb-hash sha256:4d3f2bd63e70a6454cb57fca97398659103f732bf4da91022bebdc2897dc386e
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3573,7 +3573,7 @@ create table "app_private"."messages" (
   "pinned_by" uuid,
   "resolved_at" timestamptz,
   "resolved_by" uuid,
-  "scheduled_for" timestamptz,
+  "scheduled_at" timestamptz,
   "sent_at" timestamptz,
   "edited_at" timestamptz,
   "deleted_at" timestamptz,
@@ -3584,7 +3584,7 @@ create index messaging_messages_conversation_idx on "app_private"."messages" ("c
 create index messaging_messages_thread_idx on "app_private"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index messaging_messages_parent_idx on "app_private"."messages" ("parent_id") where "parent_id" is not null;
 create index messaging_messages_author_idx on "app_private"."messages" ("author_id");
-create index messaging_messages_due_idx on "app_private"."messages" ("scheduled_for") where "sent_at" is null;
+create index messaging_messages_due_idx on "app_private"."messages" ("scheduled_at") where "sent_at" is null;
 create index messaging_messages_file_anchor_idx on "app_private"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index messaging_messages_pinned_idx on "app_private"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "app_private"."messages" enable row level security;
@@ -3736,7 +3736,7 @@ as $$
   with page_rows as (
     select m.* from "app_private"."messages" m where m."id" = any (messaging_messages_json.ids)
   )
-  select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(x."sent_at", x."scheduled_for", x."created_at"), x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(x."sent_at", x."scheduled_at", x."created_at"), x."id"), '[]'::jsonb)
   from page_rows x
 $$;
 revoke execute on function "app_private"."messaging_messages_json"(uuid[]) from public, anon;
@@ -4428,7 +4428,7 @@ begin
   end;
   begin
     insert into "app_private"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
-      "mentions", "mention_scope", "broadcast", "scheduled_for", "sent_at")
+      "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
       auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
@@ -4471,8 +4471,8 @@ begin
   end if;
   for v_id in
     select m."id" from "app_private"."messages" m
-    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_for" <= now()
-    order by m."scheduled_for", m."id"
+    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_at" <= now()
+    order by m."scheduled_at", m."id"
     limit least(greatest(coalesce(publish_due_messages.max_rows, 100), 1), 1000)
     for update skip locked
   loop
@@ -5065,7 +5065,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:03bc2e90d8d796d61ae73124143c5a02d6b57feecd7b166b45fb970e4cbf5825
+-- @bsb-hash sha256:6e5f0c24e5dc8b2429d5c5dbb359c139882afcce6dd5e36b6ef56c51c965b58d
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5167,7 +5167,7 @@ create table "better_supabase"."messages" (
   "pinned_by" uuid,
   "resolved_at" timestamptz,
   "resolved_by" uuid,
-  "scheduled_for" timestamptz,
+  "scheduled_at" timestamptz,
   "sent_at" timestamptz,
   "edited_at" timestamptz,
   "deleted_at" timestamptz,
@@ -5178,7 +5178,7 @@ create index messaging_messages_conversation_idx on "better_supabase"."messages"
 create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
-create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_at") where "sent_at" is null;
 create index messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
@@ -5330,7 +5330,7 @@ as $$
   with page_rows as (
     select m.* from "better_supabase"."messages" m where m."id" = any (messaging_messages_json.ids)
   )
-  select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(x."sent_at", x."scheduled_for", x."created_at"), x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(x."sent_at", x."scheduled_at", x."created_at"), x."id"), '[]'::jsonb)
   from page_rows x
 $$;
 revoke execute on function "better_supabase"."messaging_messages_json"(uuid[]) from public, anon;
@@ -6022,7 +6022,7 @@ begin
   end;
   begin
     insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
-      "mentions", "mention_scope", "broadcast", "scheduled_for", "sent_at")
+      "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
       auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
@@ -6065,8 +6065,8 @@ begin
   end if;
   for v_id in
     select m."id" from "better_supabase"."messages" m
-    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_for" <= now()
-    order by m."scheduled_for", m."id"
+    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_at" <= now()
+    order by m."scheduled_at", m."id"
     limit least(greatest(coalesce(publish_due_messages.max_rows, 100), 1), 1000)
     for update skip locked
   loop
@@ -6922,7 +6922,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:851cff0fa0c2043742cf181b44b62ae275bed9375cffa3bbf5529f68e573d0d0
+-- @bsb-hash sha256:60459f9dd79f0fa0eafc7806fb41835ab31deabc5a9c2e512c81dc76725ec631
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7018,7 +7018,7 @@ alter table "better_supabase"."messages" add column if not exists "pinned_at" ti
 alter table "better_supabase"."messages" add column if not exists "pinned_by" uuid;
 alter table "better_supabase"."messages" add column if not exists "resolved_at" timestamptz;
 alter table "better_supabase"."messages" add column if not exists "resolved_by" uuid;
-alter table "better_supabase"."messages" add column if not exists "scheduled_for" timestamptz;
+alter table "better_supabase"."messages" add column if not exists "scheduled_at" timestamptz;
 alter table "better_supabase"."messages" add column if not exists "sent_at" timestamptz;
 alter table "better_supabase"."messages" add column if not exists "edited_at" timestamptz;
 alter table "better_supabase"."messages" add column if not exists "deleted_at" timestamptz;
@@ -7027,7 +7027,7 @@ create index if not exists messaging_messages_conversation_idx on "better_supaba
 create index if not exists messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
-create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_at") where "sent_at" is null;
 create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
@@ -7170,7 +7170,7 @@ as $$
   with page_rows as (
     select m.* from "better_supabase"."messages" m where m."id" = any (messaging_messages_json.ids)
   )
-  select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(x."sent_at", x."scheduled_for", x."created_at"), x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(x."sent_at", x."scheduled_at", x."created_at"), x."id"), '[]'::jsonb)
   from page_rows x
 $$;
 revoke execute on function "better_supabase"."messaging_messages_json"(uuid[]) from public, anon;
@@ -7862,7 +7862,7 @@ begin
   end;
   begin
     insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
-      "mentions", "mention_scope", "broadcast", "scheduled_for", "sent_at")
+      "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
       auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
@@ -7905,8 +7905,8 @@ begin
   end if;
   for v_id in
     select m."id" from "better_supabase"."messages" m
-    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_for" <= now()
-    order by m."scheduled_for", m."id"
+    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_at" <= now()
+    order by m."scheduled_at", m."id"
     limit least(greatest(coalesce(publish_due_messages.max_rows, 100), 1), 1000)
     for update skip locked
   loop
@@ -8499,7 +8499,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:755796dfe6143926653acc128e2debc8fcc2bb33908f02566741ba24889be281
+-- @bsb-hash sha256:0ce520c474176c3d2bc50cd462ad3359a6013978a8d0e11543e090afd5a2f3c4
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8601,7 +8601,7 @@ create table "better_supabase"."messages" (
   "pinned_by" uuid,
   "resolved_at" timestamptz,
   "resolved_by" uuid,
-  "scheduled_for" timestamptz,
+  "scheduled_at" timestamptz,
   "sent_at" timestamptz,
   "edited_at" timestamptz,
   "deleted_at" timestamptz,
@@ -8612,7 +8612,7 @@ create index messaging_messages_conversation_idx on "better_supabase"."messages"
 create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
-create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_at") where "sent_at" is null;
 create index messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
@@ -8764,7 +8764,7 @@ as $$
   with page_rows as (
     select m.* from "better_supabase"."messages" m where m."id" = any (messaging_messages_json.ids)
   )
-  select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(x."sent_at", x."scheduled_for", x."created_at"), x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(x."sent_at", x."scheduled_at", x."created_at"), x."id"), '[]'::jsonb)
   from page_rows x
 $$;
 revoke execute on function "better_supabase"."messaging_messages_json"(uuid[]) from public, anon;
@@ -9456,7 +9456,7 @@ begin
   end;
   begin
     insert into "better_supabase"."messages" ("org_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
-      "mentions", "mention_scope", "broadcast", "scheduled_for", "sent_at")
+      "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."org_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
       auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
@@ -9499,8 +9499,8 @@ begin
   end if;
   for v_id in
     select m."id" from "better_supabase"."messages" m
-    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_for" <= now()
-    order by m."scheduled_for", m."id"
+    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_at" <= now()
+    order by m."scheduled_at", m."id"
     limit least(greatest(coalesce(publish_due_messages.max_rows, 100), 1), 1000)
     for update skip locked
   loop

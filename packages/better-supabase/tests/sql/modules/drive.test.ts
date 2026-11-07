@@ -713,7 +713,7 @@ describe("drive module", () => {
 
     const marked = sqlOf(["drive", "imports"], "drive", withOptions(options));
 
-    expect(marked).toContain("missing_since");
+    expect(marked).toContain("went_missing_at");
     expect(() => sqlOf(["drive"], "drive", withOptions(options))).toThrow(
       /needs the imports block/,
     );

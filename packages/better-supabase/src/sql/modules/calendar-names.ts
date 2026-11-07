@@ -108,7 +108,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
         rrule: "rrule",
         exdates: "exdates",
         recurrence: "recurrence_id",
-        originalStart: "original_start",
+        originalStart: "original_starts_at",
         subjectType: "subject_type",
         subjectId: "subject_id",
         color: "color",

@@ -17,7 +17,7 @@ const NAMES: BlockSqlNames = {
         status: "status",
         statusCode: "status_code",
         response: "response",
-        lockedUntil: "locked_until",
+        lockedUntil: "lock_expires_at",
         createdAt: "created_at",
         expiresAt: "expires_at",
         holder: "holder",

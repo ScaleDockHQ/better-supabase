@@ -78,7 +78,7 @@ create table public.tickets (
   team_id uuid,
   answered_by public.ticket_answerer not null default 'human',
   thread_id text,
-  snoozed_until timestamptz,
+  snooze_expires_at timestamptz,
   last_message_at timestamptz not null default now(),
   last_message_preview text,
   created_at timestamptz not null default now(),

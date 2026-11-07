@@ -77,7 +77,7 @@ select throws_ok(
   'a reply cannot be moved into the past'
 );
 select is(
-  (api.reschedule_inbox_message((select id from ids where name = 'scheduled'), now() + interval '3 hours') ->> 'scheduled_for')::timestamptz,
+  (api.reschedule_inbox_message((select id from ids where name = 'scheduled'), now() + interval '3 hours') ->> 'scheduled_at')::timestamptz,
   now() + interval '3 hours',
   'the author moves a scheduled reply'
 );
@@ -140,8 +140,8 @@ select is(
   'snoozing queues a delayed wake job'
 );
 
-update better_supabase.scheduled_inbox_messages set scheduled_for = now() - interval '1 minute';
-update better_supabase.inbox_conversations set snoozed_until = now() - interval '1 minute'
+update better_supabase.scheduled_inbox_messages set scheduled_at = now() - interval '1 minute';
+update better_supabase.inbox_conversations set snooze_expires_at = now() - interval '1 minute'
 where id = (select id from ids where name = 'conversation');
 
 -- The job handler.

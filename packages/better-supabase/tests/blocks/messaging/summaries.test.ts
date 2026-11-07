@@ -117,7 +117,7 @@ describe("messaging summaries", () => {
           broadcast: true,
         }),
         message("m6", "2026-01-01T00:06:00Z", { author: null }),
-        message("m7", null, { scheduled_for: "2026-02-01T00:00:00Z" }),
+        message("m7", null, { scheduled_at: "2026-02-01T00:00:00Z" }),
       ],
     });
 

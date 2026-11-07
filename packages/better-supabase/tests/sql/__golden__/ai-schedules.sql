@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:d6a8803ca854358a2685bd8f643b25fc754fc360e6770e40d3d6996cca6cb96c
+-- @bsb-hash sha256:aa837f03da9b3f2b25df400ea4ade88095d0398f8818f62e3b7fc749d1a5e214
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,7 +42,7 @@ create table "better_supabase"."ai_task_runs" (
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed')),
-  "scheduled_for" timestamptz not null,
+  "scheduled_at" timestamptz not null,
   "chat_id" uuid,
   "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000),
   "started_at" timestamptz,
@@ -170,7 +170,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'agent_id', x."agent_id", 'title', x."title", 'prompt', x."prompt", 'cron', x."cron", 'timezone', x."timezone", 'enabled', x."enabled", 'next_run_at', x."next_run_at", 'last_run_at', x."last_run_at", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('last_run', (
-    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "better_supabase"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
+    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "better_supabase"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
   )) order by x."created_at" desc), '[]')
   from "better_supabase"."ai_scheduled_tasks" x
   where x."organization_id" = list_ai_tasks.tenant and (not list_ai_tasks.mine or x."user_id" = auth.uid())
@@ -185,7 +185,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
   from (
     select * from "better_supabase"."ai_task_runs" y0 where y0."task_id" = list_ai_task_runs.task_id
     order by y0."created_at" desc limit least(greatest(list_ai_task_runs.max_rows, 1), 200)
@@ -220,11 +220,11 @@ begin
     limit least(greatest(claim_due_ai_tasks.batch, 1), 500)
     for update skip locked
   loop
-    insert into "better_supabase"."ai_task_runs" ("task_id", "organization_id", "user_id", "scheduled_for", "chat_id")
+    insert into "better_supabase"."ai_task_runs" ("task_id", "organization_id", "user_id", "scheduled_at", "chat_id")
     values (v_task."id", v_task."organization_id", v_task."user_id", v_task."next_run_at", v_task."chat_id")
     returning * into v_run;
     update "better_supabase"."ai_scheduled_tasks" x set "next_run_at" = null, "last_run_at" = now() where x."id" = v_task."id";
-    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
+    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'cron', x."cron", 'timezone', x."timezone")), '[]')
   into v_unscheduled
@@ -275,7 +275,7 @@ begin
     return null;
   end if;
   select * into v_task from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_run."task_id";
-  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."organization_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
+  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."organization_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."start_ai_task_run"(uuid) from public, anon, authenticated;
@@ -363,7 +363,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:ab287c160c1b856e6af388dce47b12a8e413a649a145963b6099764d80f2a376
+-- @bsb-hash sha256:f5f3fc0297fb6ac9242a02a8232e3bd52262a64bd1ef5cc069f996db26754e5f
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -404,7 +404,7 @@ create table "better_supabase"."ai_task_runs" (
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed')),
-  "scheduled_for" timestamptz not null,
+  "scheduled_at" timestamptz not null,
   "chat_id" uuid,
   "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000),
   "started_at" timestamptz,
@@ -532,7 +532,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'agent_id', x."agent_id", 'title', x."title", 'prompt', x."prompt", 'cron', x."cron", 'timezone', x."timezone", 'enabled', x."enabled", 'next_run_at', x."next_run_at", 'last_run_at', x."last_run_at", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('last_run', (
-    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "better_supabase"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
+    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "better_supabase"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
   )) order by x."created_at" desc), '[]')
   from "better_supabase"."ai_scheduled_tasks" x
   where x."organization_id" = list_ai_tasks.tenant and (not list_ai_tasks.mine or x."user_id" = auth.uid())
@@ -547,7 +547,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
   from (
     select * from "better_supabase"."ai_task_runs" y0 where y0."task_id" = list_ai_task_runs.task_id
     order by y0."created_at" desc limit least(greatest(list_ai_task_runs.max_rows, 1), 200)
@@ -582,12 +582,12 @@ begin
     limit least(greatest(claim_due_ai_tasks.batch, 1), 500)
     for update skip locked
   loop
-    insert into "better_supabase"."ai_task_runs" ("task_id", "organization_id", "user_id", "scheduled_for", "chat_id")
+    insert into "better_supabase"."ai_task_runs" ("task_id", "organization_id", "user_id", "scheduled_at", "chat_id")
     values (v_task."id", v_task."organization_id", v_task."user_id", v_task."next_run_at", v_task."chat_id")
     returning * into v_run;
     update "better_supabase"."ai_scheduled_tasks" x set "next_run_at" = null, "last_run_at" = now() where x."id" = v_task."id";
     perform "better_supabase"."enqueue_job"(queue => 'ai_task_run', payload => jsonb_build_object('run_id', v_run."id"), dedupe_key => 'ai-task:' || v_run."id"::text, dedupe_running => false);
-    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
+    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'cron', x."cron", 'timezone', x."timezone")), '[]')
   into v_unscheduled
@@ -638,7 +638,7 @@ begin
     return null;
   end if;
   select * into v_task from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_run."task_id";
-  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."organization_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
+  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."organization_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."start_ai_task_run"(uuid) from public, anon, authenticated;
@@ -729,7 +729,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:8591817c0f957a25017e1f04b2188344e0513cd642a45375c03f21d72575bddc
+-- @bsb-hash sha256:bfe940ffc1a6a6da06d332950111a72d7e0c0f2ac67b0ab02621118445a60594
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -775,7 +775,7 @@ create table "app_private"."ai_task_runs" (
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed')),
-  "scheduled_for" timestamptz not null,
+  "scheduled_at" timestamptz not null,
   "chat_id" uuid,
   "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000),
   "started_at" timestamptz,
@@ -903,7 +903,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'agent_id', x."agent_id", 'title', x."title", 'prompt', x."prompt", 'cron', x."cron", 'timezone', x."timezone", 'enabled', x."enabled", 'next_run_at', x."next_run_at", 'last_run_at', x."last_run_at", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('last_run', (
-    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "app_private"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
+    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "app_private"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
   )) order by x."created_at" desc), '[]')
   from "app_private"."ai_scheduled_tasks" x
   where x."organization_id" = list_ai_tasks.tenant and (not list_ai_tasks.mine or x."user_id" = auth.uid())
@@ -918,7 +918,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
   from (
     select * from "app_private"."ai_task_runs" y0 where y0."task_id" = list_ai_task_runs.task_id
     order by y0."created_at" desc limit least(greatest(list_ai_task_runs.max_rows, 1), 200)
@@ -953,11 +953,11 @@ begin
     limit least(greatest(claim_due_ai_tasks.batch, 1), 500)
     for update skip locked
   loop
-    insert into "app_private"."ai_task_runs" ("task_id", "organization_id", "user_id", "scheduled_for", "chat_id")
+    insert into "app_private"."ai_task_runs" ("task_id", "organization_id", "user_id", "scheduled_at", "chat_id")
     values (v_task."id", v_task."organization_id", v_task."user_id", v_task."next_run_at", v_task."chat_id")
     returning * into v_run;
     update "app_private"."ai_scheduled_tasks" x set "next_run_at" = null, "last_run_at" = now() where x."id" = v_task."id";
-    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
+    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'cron', x."cron", 'timezone', x."timezone")), '[]')
   into v_unscheduled
@@ -1008,7 +1008,7 @@ begin
     return null;
   end if;
   select * into v_task from "app_private"."ai_scheduled_tasks" x where x."id" = v_run."task_id";
-  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."organization_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
+  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."organization_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
 end;
 $$;
 revoke execute on function "app_private"."start_ai_task_run"(uuid) from public, anon, authenticated;
@@ -1096,7 +1096,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:244e6709509994cb6d342cf626376918cf69c83a67d81fee5cc8d57bc5a01543
+-- @bsb-hash sha256:02f2cb425a7e69108cbba5a669bef0b6edf7a56a6723c68240988410645898f1
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1137,7 +1137,7 @@ create table "better_supabase"."ai_task_runs" (
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed')),
-  "scheduled_for" timestamptz not null,
+  "scheduled_at" timestamptz not null,
   "chat_id" uuid,
   "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000),
   "started_at" timestamptz,
@@ -1265,7 +1265,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'agent_id', x."agent_id", 'title', x."title", 'prompt', x."prompt", 'cron', x."cron", 'timezone', x."timezone", 'enabled', x."enabled", 'next_run_at', x."next_run_at", 'last_run_at', x."last_run_at", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('last_run', (
-    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "better_supabase"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
+    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "better_supabase"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
   )) order by x."created_at" desc), '[]')
   from "better_supabase"."ai_scheduled_tasks" x
   where x."organization_id" = list_ai_tasks.tenant and (not list_ai_tasks.mine or x."user_id" = auth.uid())
@@ -1280,7 +1280,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
   from (
     select * from "better_supabase"."ai_task_runs" y0 where y0."task_id" = list_ai_task_runs.task_id
     order by y0."created_at" desc limit least(greatest(list_ai_task_runs.max_rows, 1), 200)
@@ -1315,11 +1315,11 @@ begin
     limit least(greatest(claim_due_ai_tasks.batch, 1), 500)
     for update skip locked
   loop
-    insert into "better_supabase"."ai_task_runs" ("task_id", "organization_id", "user_id", "scheduled_for", "chat_id")
+    insert into "better_supabase"."ai_task_runs" ("task_id", "organization_id", "user_id", "scheduled_at", "chat_id")
     values (v_task."id", v_task."organization_id", v_task."user_id", v_task."next_run_at", v_task."chat_id")
     returning * into v_run;
     update "better_supabase"."ai_scheduled_tasks" x set "next_run_at" = null, "last_run_at" = now() where x."id" = v_task."id";
-    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
+    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'cron', x."cron", 'timezone', x."timezone")), '[]')
   into v_unscheduled
@@ -1370,7 +1370,7 @@ begin
     return null;
   end if;
   select * into v_task from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_run."task_id";
-  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."organization_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
+  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."organization_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."start_ai_task_run"(uuid) from public, anon, authenticated;
@@ -1536,7 +1536,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:810751afa555fd2e15072cd58540be959046d990faf2821c1bc3139b85e8e965
+-- @bsb-hash sha256:d99b923b8cf9fb6dd137211fb1d05a6318b89b620d3ff42db5cd34ea8105e051
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1575,7 +1575,7 @@ alter table "better_supabase"."ai_task_runs" add column if not exists "task_id" 
 alter table "better_supabase"."ai_task_runs" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_task_runs" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_task_runs" add column if not exists "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed'));
-alter table "better_supabase"."ai_task_runs" add column if not exists "scheduled_for" timestamptz;
+alter table "better_supabase"."ai_task_runs" add column if not exists "scheduled_at" timestamptz;
 alter table "better_supabase"."ai_task_runs" add column if not exists "chat_id" uuid;
 alter table "better_supabase"."ai_task_runs" add column if not exists "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000);
 alter table "better_supabase"."ai_task_runs" add column if not exists "started_at" timestamptz;
@@ -1701,7 +1701,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'agent_id', x."agent_id", 'title', x."title", 'prompt', x."prompt", 'cron', x."cron", 'timezone', x."timezone", 'enabled', x."enabled", 'next_run_at', x."next_run_at", 'last_run_at', x."last_run_at", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('last_run', (
-    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "better_supabase"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
+    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "better_supabase"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
   )) order by x."created_at" desc), '[]')
   from "better_supabase"."ai_scheduled_tasks" x
   where x."organization_id" = list_ai_tasks.tenant and (not list_ai_tasks.mine or x."user_id" = auth.uid())
@@ -1716,7 +1716,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."organization_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
   from (
     select * from "better_supabase"."ai_task_runs" y0 where y0."task_id" = list_ai_task_runs.task_id
     order by y0."created_at" desc limit least(greatest(list_ai_task_runs.max_rows, 1), 200)
@@ -1751,11 +1751,11 @@ begin
     limit least(greatest(claim_due_ai_tasks.batch, 1), 500)
     for update skip locked
   loop
-    insert into "better_supabase"."ai_task_runs" ("task_id", "organization_id", "user_id", "scheduled_for", "chat_id")
+    insert into "better_supabase"."ai_task_runs" ("task_id", "organization_id", "user_id", "scheduled_at", "chat_id")
     values (v_task."id", v_task."organization_id", v_task."user_id", v_task."next_run_at", v_task."chat_id")
     returning * into v_run;
     update "better_supabase"."ai_scheduled_tasks" x set "next_run_at" = null, "last_run_at" = now() where x."id" = v_task."id";
-    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
+    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'cron', x."cron", 'timezone', x."timezone")), '[]')
   into v_unscheduled
@@ -1806,7 +1806,7 @@ begin
     return null;
   end if;
   select * into v_task from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_run."task_id";
-  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."organization_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
+  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."organization_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."organization_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."start_ai_task_run"(uuid) from public, anon, authenticated;
@@ -1894,7 +1894,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:16ee0736721760365f6e8d774d5b188128b8f24518b7fe8a081af055dd4f376e
+-- @bsb-hash sha256:b9b9625565899978f2ef3cf475f7fa4f5f9b90a02855a4cda7d76401f1521eaa
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1935,7 +1935,7 @@ create table "better_supabase"."ai_task_runs" (
   "org_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed')),
-  "scheduled_for" timestamptz not null,
+  "scheduled_at" timestamptz not null,
   "chat_id" uuid,
   "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000),
   "started_at" timestamptz,
@@ -2063,7 +2063,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."org_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'agent_id', x."agent_id", 'title', x."title", 'prompt', x."prompt", 'cron', x."cron", 'timezone', x."timezone", 'enabled', x."enabled", 'next_run_at', x."next_run_at", 'last_run_at', x."last_run_at", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('last_run', (
-    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."org_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "better_supabase"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
+    select jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."org_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") from "better_supabase"."ai_task_runs" y where y."task_id" = x."id" order by y."created_at" desc limit 1
   )) order by x."created_at" desc), '[]')
   from "better_supabase"."ai_scheduled_tasks" x
   where x."org_id" = list_ai_tasks.tenant and (not list_ai_tasks.mine or x."user_id" = auth.uid())
@@ -2078,7 +2078,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."org_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_for', y."scheduled_for", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'task_id', y."task_id", 'organization_id', y."org_id", 'user_id', y."user_id", 'status', y."status", 'scheduled_at', y."scheduled_at", 'chat_id', y."chat_id", 'error', y."error", 'started_at', y."started_at", 'finished_at', y."finished_at", 'created_at', y."created_at") order by y."created_at" desc), '[]')
   from (
     select * from "better_supabase"."ai_task_runs" y0 where y0."task_id" = list_ai_task_runs.task_id
     order by y0."created_at" desc limit least(greatest(list_ai_task_runs.max_rows, 1), 200)
@@ -2113,11 +2113,11 @@ begin
     limit least(greatest(claim_due_ai_tasks.batch, 1), 500)
     for update skip locked
   loop
-    insert into "better_supabase"."ai_task_runs" ("task_id", "org_id", "user_id", "scheduled_for", "chat_id")
+    insert into "better_supabase"."ai_task_runs" ("task_id", "org_id", "user_id", "scheduled_at", "chat_id")
     values (v_task."id", v_task."org_id", v_task."user_id", v_task."next_run_at", v_task."chat_id")
     returning * into v_run;
     update "better_supabase"."ai_scheduled_tasks" x set "next_run_at" = null, "last_run_at" = now() where x."id" = v_task."id";
-    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."org_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
+    v_runs := v_runs || jsonb_build_array(jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."org_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at"));
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'cron', x."cron", 'timezone', x."timezone")), '[]')
   into v_unscheduled
@@ -2168,7 +2168,7 @@ begin
     return null;
   end if;
   select * into v_task from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_run."task_id";
-  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."org_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_for', v_run."scheduled_for", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."org_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
+  return jsonb_build_object('id', v_run."id", 'task_id', v_run."task_id", 'organization_id', v_run."org_id", 'user_id', v_run."user_id", 'status', v_run."status", 'scheduled_at', v_run."scheduled_at", 'chat_id', v_run."chat_id", 'error', v_run."error", 'started_at', v_run."started_at", 'finished_at', v_run."finished_at", 'created_at', v_run."created_at") || jsonb_build_object('task', jsonb_build_object('id', v_task."id", 'organization_id', v_task."org_id", 'user_id', v_task."user_id", 'chat_id', v_task."chat_id", 'agent_id', v_task."agent_id", 'title', v_task."title", 'prompt', v_task."prompt", 'cron', v_task."cron", 'timezone', v_task."timezone", 'enabled', v_task."enabled", 'next_run_at', v_task."next_run_at", 'last_run_at', v_task."last_run_at", 'created_at', v_task."created_at", 'updated_at', v_task."updated_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."start_ai_task_run"(uuid) from public, anon, authenticated;

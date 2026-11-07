@@ -45,8 +45,8 @@ select extensions.cmp_ok(
 select extensions.cmp_ok(
   (select count(*) from information_schema.columns
     where table_schema = 'better_supabase' and data_type = 'timestamp with time zone' and column_name !~ '_at$'),
-  '<=', 33::bigint,
-  'timestamp columns end in _at'
+  '<=', 2::bigint,
+  'timestamp columns end in _at (dtstart stays: RFC 5545 names it)'
 );
 
 select extensions.cmp_ok(

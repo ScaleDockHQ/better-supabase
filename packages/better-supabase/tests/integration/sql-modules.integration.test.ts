@@ -3368,7 +3368,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       ).state,
     ).toBe("running");
     await pool.query(
-      "update better_supabase.idempotency_keys set locked_until = now() - interval '1 second' where scope = $1 and key = 'takeover'",
+      "update better_supabase.idempotency_keys set lock_expires_at = now() - interval '1 second' where scope = $1 and key = 'takeover'",
       [RUN],
     );
 
@@ -3422,7 +3422,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const lockOf = async () =>
       (
         await pool.query<{ left: number }>(
-          "select extract(epoch from locked_until - now())::integer as left from better_supabase.idempotency_keys where scope = $1 and key = 'extend'",
+          "select extract(epoch from lock_expires_at - now())::integer as left from better_supabase.idempotency_keys where scope = $1 and key = 'extend'",
           [RUN],
         )
       ).rows[0]?.left;
@@ -3432,7 +3432,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       .orThrow();
 
     await pool.query(
-      "update better_supabase.idempotency_keys set locked_until = now() + interval '2 seconds' where scope = $1 and key = 'extend'",
+      "update better_supabase.idempotency_keys set lock_expires_at = now() + interval '2 seconds' where scope = $1 and key = 'extend'",
       [RUN],
     );
     expect(
@@ -3448,7 +3448,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     ).toBe(false);
 
     await pool.query(
-      "update better_supabase.idempotency_keys set locked_until = now() - interval '1 second' where scope = $1 and key = 'extend'",
+      "update better_supabase.idempotency_keys set lock_expires_at = now() - interval '1 second' where scope = $1 and key = 'extend'",
       [RUN],
     );
     expect(
@@ -3783,7 +3783,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await inbox.store({ id: "m2", payload: {} }).orThrow();
       await pool.query(
         `update better_supabase.webhook_inbox
-         set status = 'processing', attempts = 2, locked_by = 'gone', locked_until = now() - interval '1 second'
+         set status = 'processing', attempts = 2, locked_by = 'gone', lock_expires_at = now() - interval '1 second'
          where source = $1 and message_id = 'm2'`,
         [source],
       );
@@ -3864,7 +3864,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       await started;
       await pool.query(
-        "update better_supabase.webhook_inbox set locked_until = now() - interval '1 second' where source = $1",
+        "update better_supabase.webhook_inbox set lock_expires_at = now() - interval '1 second' where source = $1",
         [source],
       );
       let releaseSecond!: () => void;
@@ -5895,7 +5895,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect((await call("GET")).status).toBe(200);
 
       await pool.query(
-        `insert into better_supabase.rate_limits (scope, key, window_start, hits)
+        `insert into better_supabase.rate_limits (scope, key, window_started_at, hits)
          values ($1, 'expired', now() - interval '2 minutes', 1)`,
         [scope],
       );

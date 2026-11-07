@@ -45,7 +45,7 @@ refs }`, and each item ends in exactly one outcome:
   listed in the run's `errors` and the batch goes on.
 
 `imports.finish(run)` ends a running run. On a `full` run it sets
-`missing_since` on records the run did not send and counts them as `missing`.
+`went_missing_at` on records the run did not send and counts them as `missing`.
 It never deletes a target row. It emits `import.entity_completed` for each
 entity and then `import.completed`, or `import.failed` when the run has
 errors. A dry run emits nothing. `imports.resolve(run, entity, keys)` maps

@@ -650,6 +650,237 @@
       "kind": "constraint",
       "since": "0.54",
       "table": "better_supabase.calendar_events"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_harness_sessions"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.drive_nodes"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.idempotency_keys"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.inbox_inbound_events"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_inbox"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.workflow_schedules"
+    },
+    {
+      "from": "scheduled_for",
+      "to": "scheduled_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_task_runs"
+    },
+    {
+      "from": "scheduled_for",
+      "to": "scheduled_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.messages"
+    },
+    {
+      "from": "scheduled_for",
+      "to": "scheduled_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.scheduled_inbox_messages"
+    },
+    {
+      "from": "window_start",
+      "to": "window_started_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.api_keys"
+    },
+    {
+      "from": "window_start",
+      "to": "window_started_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.rate_limits"
+    },
+    {
+      "from": "original_start",
+      "to": "original_starts_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.calendar_events"
+    },
+    {
+      "from": "legal_hold_until",
+      "to": "legal_hold_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.drive_nodes"
+    },
+    {
+      "from": "effective_from",
+      "to": "effective_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.drive_nodes"
+    },
+    {
+      "from": "missing_since",
+      "to": "went_missing_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.import_records"
+    },
+    {
+      "from": "subject_updated_at_at_import",
+      "to": "subject_imported_updated_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.import_records"
+    },
+    {
+      "from": "snoozed_until",
+      "to": "snooze_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.inbox_conversations"
+    },
+    {
+      "from": "bucket_start",
+      "to": "bucket_started_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.metric_points"
+    },
+    {
+      "from": "purge_after",
+      "to": "purge_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.organization_deletions"
+    },
+    {
+      "from": "purge_after",
+      "to": "purge_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.trash_items"
+    },
+    {
+      "from": "lease_until",
+      "to": "lease_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.outbox_consumers"
+    },
+    {
+      "from": "leased_until",
+      "to": "lease_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_deliveries"
+    },
+    {
+      "from": "publish_until",
+      "to": "publish_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.signing_keys"
+    },
+    {
+      "from": "paused_until",
+      "to": "pause_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.subject_lifecycles"
+    },
+    {
+      "from": "failing_since",
+      "to": "first_failed_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_endpoints"
+    },
+    {
+      "from": "dispatch_until",
+      "to": "dispatch_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.workflow_runs"
+    },
+    {
+      "from": "claimed_until",
+      "to": "claim_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.workflow_start_requests"
+    },
+    {
+      "from": "not_before",
+      "to": "not_before_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.workflow_start_requests"
+    },
+    {
+      "from": "valid_from",
+      "to": "starts_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.passes"
+    },
+    {
+      "from": "valid_until",
+      "to": "expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.passes"
+    },
+    {
+      "from": "valid_from",
+      "to": "starts_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.product_prices"
+    },
+    {
+      "from": "valid_until",
+      "to": "expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.product_prices"
+    },
+    {
+      "from": "valid_until",
+      "to": "expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.consents"
     }
   ],
   "allowlist": {

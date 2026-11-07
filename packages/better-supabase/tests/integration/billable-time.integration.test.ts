@@ -205,7 +205,7 @@ describe.skipIf(!live)("billable-time", () => {
 
       await s.client.query("reset role");
       await s.rows(
-        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        "insert into better_supabase.organization_deletions (organization_id, purge_at) values ($1, now() - interval '1 minute')",
         [tenant],
       );
       await s.service();

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:b8efca3537fdfa72cc4fc2f42fab099b086be957b0c2dc75c59829d22dd2c31f
+-- @bsb-hash sha256:26167315f911758d4cb94aa5578709d71e222f316212b71ae4d697c7a1a5e532
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -52,12 +52,12 @@ create table "better_supabase"."workspace_deletions" (
   "workspace_id" uuid primary key,
   "requested_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "requested_at" timestamptz not null default now(),
-  "purge_after" timestamptz not null,
+  "purge_at" timestamptz not null,
   "cancelled_at" timestamptz,
   "purged_at" timestamptz,
   "previously_disabled" boolean not null default false
 );
-create index workspace_deletions_due_idx on "better_supabase"."workspace_deletions" ("purge_after") where "cancelled_at" is null and "purged_at" is null;
+create index workspace_deletions_due_idx on "better_supabase"."workspace_deletions" ("purge_at") where "cancelled_at" is null and "purged_at" is null;
 create index workspace_deletions_requested_by_idx on "better_supabase"."workspace_deletions" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."workspace_deletions" enable row level security;
 revoke all on "better_supabase"."workspace_deletions" from public, anon, authenticated;
@@ -767,7 +767,7 @@ begin
   if not exists (
     select 1 from "better_supabase"."workspace_deletions" x
     where x."workspace_id" = workspace_credential_refs.tenant and x."cancelled_at" is null
-      and x."purged_at" is null and x."purge_after" <= now()
+      and x."purged_at" is null and x."purge_at" <= now()
   ) then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
@@ -1145,12 +1145,12 @@ begin
     raise exception 'The organization was already purged' using errcode = 'P0002', hint = 'ORGANIZATION_PURGED';
   end if;
   v_disabled := false;
-  insert into "better_supabase"."workspace_deletions" as x ("workspace_id", "requested_by", "purge_after", "previously_disabled")
+  insert into "better_supabase"."workspace_deletions" as x ("workspace_id", "requested_by", "purge_at", "previously_disabled")
   values (request_workspace_deletion.tenant, auth.uid(), now() + request_workspace_deletion.grace, coalesce(v_disabled, false))
   on conflict ("workspace_id") do update set
     "requested_by" = excluded."requested_by",
     "requested_at" = now(),
-    "purge_after" = excluded."purge_after",
+    "purge_at" = excluded."purge_at",
     "previously_disabled" = case when x."cancelled_at" is null then x."previously_disabled" else excluded."previously_disabled" end,
     "cancelled_at" = null
   returning * into v_row;
@@ -1213,11 +1213,11 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."purge_after"), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."purge_at"), '[]'::jsonb)
   from (
     select * from "better_supabase"."workspace_deletions" y
-    where y."purge_after" <= now() and y."cancelled_at" is null and y."purged_at" is null
-    order by y."purge_after"
+    where y."purge_at" <= now() and y."cancelled_at" is null and y."purged_at" is null
+    order by y."purge_at"
     limit greatest(1, least(due_workspace_deletions.max_rows, 1000))
   ) x
 $$;
@@ -1248,7 +1248,7 @@ begin
   select * into v_row from "better_supabase"."workspace_deletions" x
   where x."workspace_id" = purge_workspace.tenant and x."cancelled_at" is null and x."purged_at" is null
   for update;
-  if v_row."workspace_id" is null or v_row."purge_after" > now() then
+  if v_row."workspace_id" is null or v_row."purge_at" > now() then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
   if exists (

@@ -34,7 +34,7 @@ can attach to, with `leave` approved leave counts as out of office, and with
 | `calendar_event_alarms`  | An event's alarms: a `method`, an `offset_minutes` offset or a `trigger_at` time, a repeat count, and an optional `user_id`  |
 | `calendar_working_hours` | A member's weekly hours in an organization: a `weekday` with a `starts_at` and `ends_at` time in their `tz`                  |
 
-An override has `recurrence_id` (the series row) and `original_start` (the
+An override has `recurrence_id` (the series row) and `original_starts_at` (the
 occurrence it replaces) and shares the series' `uid`, as `RECURRENCE-ID` does
 in iCalendar. Members read through the tables' policies; every write goes
 through a function that checks `calendar.write`, or `calendar.manage` to

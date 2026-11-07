@@ -123,7 +123,7 @@ create table public.cron_jobs (
   cron text not null,
   timezone text not null default 'UTC',
   next_run_at timestamptz not null,
-  locked_until timestamptz,
+  lock_expires_at timestamptz,
   paused boolean not null default false,
   created_by uuid,
   created_at timestamptz not null default now()
@@ -138,8 +138,8 @@ create table public.start_queue (
   actor_id uuid,
   concurrency integer,
   state public.start_state not null default 'pending',
-  not_before timestamptz not null default now(),
-  claimed_until timestamptz,
+  not_before_at timestamptz not null default now(),
+  claim_expires_at timestamptz,
   run_id text,
   created_at timestamptz not null default now(),
   started_at timestamptz

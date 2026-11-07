@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:bb9e8f78aec01ade9cf67e9a1da685664f4b76d239809551155ca2d1dbabcc61
+-- @bsb-hash sha256:98c7b45f5a93325ff3919fd750070f0b9f051b261516d89a35ed3280480d061b
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,7 +19,7 @@ create table better_supabase.webhook_inbox (
   max_attempts integer not null default 8,
   available_at timestamptz not null default now(),
   locked_by text,
-  locked_until timestamptz,
+  lock_expires_at timestamptz,
   last_error text,
   received_at timestamptz not null default now(),
   processed_at timestamptz
@@ -110,15 +110,15 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.webhook_inbox d
-  set status = 'dead', last_error = 'The lease ran out on the last attempt', locked_by = null, locked_until = null
+  set status = 'dead', last_error = 'The lease ran out on the last attempt', locked_by = null, lock_expires_at = null
   where d.source = claim_webhooks.source and d.status = 'processing'
-    and d.locked_until < now() and d.attempts >= d.max_attempts;
+    and d.lock_expires_at < now() and d.attempts >= d.max_attempts;
   with next as materialized (
     select c.id from better_supabase.webhook_inbox c
     where c.source = claim_webhooks.source
       and (
         (c.status = 'pending' and c.available_at <= now())
-        or (c.status = 'processing' and c.locked_until < now())
+        or (c.status = 'processing' and c.lock_expires_at < now())
       )
     order by c.available_at, c.id
     for update skip locked
@@ -126,10 +126,10 @@ as $$
   ),
   claimed as (
     update better_supabase.webhook_inbox w
-    set status = 'processing', attempts = w.attempts + 1, locked_by = worker, locked_until = now() + lease
+    set status = 'processing', attempts = w.attempts + 1, locked_by = worker, lock_expires_at = now() + lease
     from next
     where w.id = next.id
-    returning w.id as id, jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'locked_until', w.locked_until, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message
+    returning w.id as id, jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'lock_expires_at', w.lock_expires_at, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message
   )
   select coalesce(jsonb_agg(claimed.message order by claimed.id), '[]'::jsonb) from claimed
 $$;
@@ -145,7 +145,7 @@ set search_path = ''
 as $$
   with done as (
     update better_supabase.webhook_inbox
-    set status = 'processed', processed_at = now(), locked_by = null, locked_until = null, last_error = null
+    set status = 'processed', processed_at = now(), locked_by = null, lock_expires_at = null, last_error = null
     where id = inbox_id and locked_by = worker and status = 'processing'
       and (attempt is null or attempts = attempt)
     returning 1
@@ -170,7 +170,7 @@ as $$
       available_at = now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, attempts))),
       last_error = left(error, 4000),
       locked_by = null,
-      locked_until = null
+      lock_expires_at = null
   where id = inbox_id and locked_by = worker and status = 'processing'
     and (attempt is null or attempts = attempt)
   returning status
@@ -189,7 +189,7 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.webhook_inbox
-  set locked_until = now() + lease
+  set lock_expires_at = now() + lease
   where id = inbox_id and locked_by = worker and status = 'processing'
     and attempts = attempt
   returning extract(epoch from lease)::double precision
@@ -227,7 +227,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.message order by x.n), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'locked_until', w.locked_until, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message, row_number() over (order by w.received_at desc, w.id desc) as n
+    select jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'lock_expires_at', w.lock_expires_at, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message, row_number() over (order by w.received_at desc, w.id desc) as n
     from better_supabase.webhook_inbox w
     where w.tenant = for_tenant
       and (for_source is null or w.source = for_source)
@@ -307,7 +307,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:736b94ae91661606308c789e2602141f7768aad8815f14fc5583a94c60c9b488
+-- @bsb-hash sha256:135a933bb3f723cc7460b5131e56bd816e75f261e75c2f91917796c35e585d88
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -325,7 +325,7 @@ create table better_supabase.webhook_inbox (
   max_attempts integer not null default 8,
   available_at timestamptz not null default now(),
   locked_by text,
-  locked_until timestamptz,
+  lock_expires_at timestamptz,
   last_error text,
   received_at timestamptz not null default now(),
   processed_at timestamptz
@@ -416,15 +416,15 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.webhook_inbox d
-  set status = 'dead', last_error = 'The lease ran out on the last attempt', locked_by = null, locked_until = null
+  set status = 'dead', last_error = 'The lease ran out on the last attempt', locked_by = null, lock_expires_at = null
   where d.source = claim_webhooks.source and d.status = 'processing'
-    and d.locked_until < now() and d.attempts >= d.max_attempts;
+    and d.lock_expires_at < now() and d.attempts >= d.max_attempts;
   with next as materialized (
     select c.id from better_supabase.webhook_inbox c
     where c.source = claim_webhooks.source
       and (
         (c.status = 'pending' and c.available_at <= now())
-        or (c.status = 'processing' and c.locked_until < now())
+        or (c.status = 'processing' and c.lock_expires_at < now())
       )
     order by c.available_at, c.id
     for update skip locked
@@ -432,10 +432,10 @@ as $$
   ),
   claimed as (
     update better_supabase.webhook_inbox w
-    set status = 'processing', attempts = w.attempts + 1, locked_by = worker, locked_until = now() + lease
+    set status = 'processing', attempts = w.attempts + 1, locked_by = worker, lock_expires_at = now() + lease
     from next
     where w.id = next.id
-    returning w.id as id, jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'locked_until', w.locked_until, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message
+    returning w.id as id, jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'lock_expires_at', w.lock_expires_at, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message
   )
   select coalesce(jsonb_agg(claimed.message order by claimed.id), '[]'::jsonb) from claimed
 $$;
@@ -451,7 +451,7 @@ set search_path = ''
 as $$
   with done as (
     update better_supabase.webhook_inbox
-    set status = 'processed', processed_at = now(), locked_by = null, locked_until = null, last_error = null
+    set status = 'processed', processed_at = now(), locked_by = null, lock_expires_at = null, last_error = null
     where id = inbox_id and locked_by = worker and status = 'processing'
       and (attempt is null or attempts = attempt)
     returning 1
@@ -476,7 +476,7 @@ as $$
       available_at = now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, attempts))),
       last_error = left(error, 4000),
       locked_by = null,
-      locked_until = null
+      lock_expires_at = null
   where id = inbox_id and locked_by = worker and status = 'processing'
     and (attempt is null or attempts = attempt)
   returning status
@@ -495,7 +495,7 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.webhook_inbox
-  set locked_until = now() + lease
+  set lock_expires_at = now() + lease
   where id = inbox_id and locked_by = worker and status = 'processing'
     and attempts = attempt
   returning extract(epoch from lease)::double precision
@@ -533,7 +533,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.message order by x.n), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'locked_until', w.locked_until, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message, row_number() over (order by w.received_at desc, w.id desc) as n
+    select jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'lock_expires_at', w.lock_expires_at, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message, row_number() over (order by w.received_at desc, w.id desc) as n
     from better_supabase.webhook_inbox w
     where w.tenant = for_tenant
       and (for_source is null or w.source = for_source)
@@ -617,7 +617,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:bb9e8f78aec01ade9cf67e9a1da685664f4b76d239809551155ca2d1dbabcc61
+-- @bsb-hash sha256:98c7b45f5a93325ff3919fd750070f0b9f051b261516d89a35ed3280480d061b
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -635,7 +635,7 @@ create table better_supabase.webhook_inbox (
   max_attempts integer not null default 8,
   available_at timestamptz not null default now(),
   locked_by text,
-  locked_until timestamptz,
+  lock_expires_at timestamptz,
   last_error text,
   received_at timestamptz not null default now(),
   processed_at timestamptz
@@ -726,15 +726,15 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.webhook_inbox d
-  set status = 'dead', last_error = 'The lease ran out on the last attempt', locked_by = null, locked_until = null
+  set status = 'dead', last_error = 'The lease ran out on the last attempt', locked_by = null, lock_expires_at = null
   where d.source = claim_webhooks.source and d.status = 'processing'
-    and d.locked_until < now() and d.attempts >= d.max_attempts;
+    and d.lock_expires_at < now() and d.attempts >= d.max_attempts;
   with next as materialized (
     select c.id from better_supabase.webhook_inbox c
     where c.source = claim_webhooks.source
       and (
         (c.status = 'pending' and c.available_at <= now())
-        or (c.status = 'processing' and c.locked_until < now())
+        or (c.status = 'processing' and c.lock_expires_at < now())
       )
     order by c.available_at, c.id
     for update skip locked
@@ -742,10 +742,10 @@ as $$
   ),
   claimed as (
     update better_supabase.webhook_inbox w
-    set status = 'processing', attempts = w.attempts + 1, locked_by = worker, locked_until = now() + lease
+    set status = 'processing', attempts = w.attempts + 1, locked_by = worker, lock_expires_at = now() + lease
     from next
     where w.id = next.id
-    returning w.id as id, jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'locked_until', w.locked_until, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message
+    returning w.id as id, jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'lock_expires_at', w.lock_expires_at, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message
   )
   select coalesce(jsonb_agg(claimed.message order by claimed.id), '[]'::jsonb) from claimed
 $$;
@@ -761,7 +761,7 @@ set search_path = ''
 as $$
   with done as (
     update better_supabase.webhook_inbox
-    set status = 'processed', processed_at = now(), locked_by = null, locked_until = null, last_error = null
+    set status = 'processed', processed_at = now(), locked_by = null, lock_expires_at = null, last_error = null
     where id = inbox_id and locked_by = worker and status = 'processing'
       and (attempt is null or attempts = attempt)
     returning 1
@@ -786,7 +786,7 @@ as $$
       available_at = now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, attempts))),
       last_error = left(error, 4000),
       locked_by = null,
-      locked_until = null
+      lock_expires_at = null
   where id = inbox_id and locked_by = worker and status = 'processing'
     and (attempt is null or attempts = attempt)
   returning status
@@ -805,7 +805,7 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.webhook_inbox
-  set locked_until = now() + lease
+  set lock_expires_at = now() + lease
   where id = inbox_id and locked_by = worker and status = 'processing'
     and attempts = attempt
   returning extract(epoch from lease)::double precision
@@ -843,7 +843,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.message order by x.n), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'locked_until', w.locked_until, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message, row_number() over (order by w.received_at desc, w.id desc) as n
+    select jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'lock_expires_at', w.lock_expires_at, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message, row_number() over (order by w.received_at desc, w.id desc) as n
     from better_supabase.webhook_inbox w
     where w.tenant = for_tenant
       and (for_source is null or w.source = for_source)
@@ -923,7 +923,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:9c803390ba9c5f1bf667fbbf605a540ea8335c8a8913e6ab56f530661cc256c2
+-- @bsb-hash sha256:bd18a810bed571b4a6fd38c9644bf15b2f270a39ace60f53460e33377d51023b
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -941,7 +941,7 @@ create table better_supabase.webhook_inbox (
   max_attempts integer not null default 8,
   available_at timestamptz not null default now(),
   locked_by text,
-  locked_until timestamptz,
+  lock_expires_at timestamptz,
   last_error text,
   received_at timestamptz not null default now(),
   processed_at timestamptz
@@ -1032,15 +1032,15 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.webhook_inbox d
-  set status = 'dead', last_error = 'The lease ran out on the last attempt', locked_by = null, locked_until = null
+  set status = 'dead', last_error = 'The lease ran out on the last attempt', locked_by = null, lock_expires_at = null
   where d.source = claim_webhooks.source and d.status = 'processing'
-    and d.locked_until < now() and d.attempts >= d.max_attempts;
+    and d.lock_expires_at < now() and d.attempts >= d.max_attempts;
   with next as materialized (
     select c.id from better_supabase.webhook_inbox c
     where c.source = claim_webhooks.source
       and (
         (c.status = 'pending' and c.available_at <= now())
-        or (c.status = 'processing' and c.locked_until < now())
+        or (c.status = 'processing' and c.lock_expires_at < now())
       )
     order by c.available_at, c.id
     for update skip locked
@@ -1048,10 +1048,10 @@ as $$
   ),
   claimed as (
     update better_supabase.webhook_inbox w
-    set status = 'processing', attempts = w.attempts + 1, locked_by = worker, locked_until = now() + lease
+    set status = 'processing', attempts = w.attempts + 1, locked_by = worker, lock_expires_at = now() + lease
     from next
     where w.id = next.id
-    returning w.id as id, jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'locked_until', w.locked_until, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message
+    returning w.id as id, jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'lock_expires_at', w.lock_expires_at, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message
   )
   select coalesce(jsonb_agg(claimed.message order by claimed.id), '[]'::jsonb) from claimed
 $$;
@@ -1067,7 +1067,7 @@ set search_path = ''
 as $$
   with done as (
     update better_supabase.webhook_inbox
-    set status = 'processed', processed_at = now(), locked_by = null, locked_until = null, last_error = null
+    set status = 'processed', processed_at = now(), locked_by = null, lock_expires_at = null, last_error = null
     where id = inbox_id and locked_by = worker and status = 'processing'
       and (attempt is null or attempts = attempt)
     returning 1
@@ -1092,7 +1092,7 @@ as $$
       available_at = now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, attempts))),
       last_error = left(error, 4000),
       locked_by = null,
-      locked_until = null
+      lock_expires_at = null
   where id = inbox_id and locked_by = worker and status = 'processing'
     and (attempt is null or attempts = attempt)
   returning status
@@ -1111,7 +1111,7 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.webhook_inbox
-  set locked_until = now() + lease
+  set lock_expires_at = now() + lease
   where id = inbox_id and locked_by = worker and status = 'processing'
     and attempts = attempt
   returning extract(epoch from lease)::double precision
@@ -1149,7 +1149,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.message order by x.n), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'locked_until', w.locked_until, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message, row_number() over (order by w.received_at desc, w.id desc) as n
+    select jsonb_build_object('id', w.id, 'source', w.source, 'message_id', w.message_id, 'event_type', w.event_type, 'payload', w.payload, 'headers', w.headers, 'status', w.status, 'attempts', w.attempts, 'max_attempts', w.max_attempts, 'available_at', w.available_at, 'locked_by', w.locked_by, 'lock_expires_at', w.lock_expires_at, 'last_error', w.last_error, 'received_at', w.received_at, 'processed_at', w.processed_at, 'tenant', w.tenant, 'checkpoint', w.checkpoint) as message, row_number() over (order by w.received_at desc, w.id desc) as n
     from better_supabase.webhook_inbox w
     where w.tenant = for_tenant
       and (for_source is null or w.source = for_source)
@@ -1306,7 +1306,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:de7789a14db8db770cf675b5a4796a32c96309c6a09efabe66a8df7c6e814e61
+-- @bsb-hash sha256:b0ad5b5cb0a47e29bedc8bb8fb4ee9b260435af643a1e57590dd20a4252c17d1
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1371,15 +1371,15 @@ language sql
 set search_path = ''
 as $$
   update "better_supabase"."webhook_inbox" d
-  set "status" = 'dead', "last_error" = 'The lease ran out on the last attempt', "locked_by" = null, "locked_until" = null
+  set "status" = 'dead', "last_error" = 'The lease ran out on the last attempt', "locked_by" = null, "lock_expires_at" = null
   where d."source" = claim_webhooks.source and d."status" = 'processing'
-    and d."locked_until" < now() and d."attempts" >= d."max_attempts";
+    and d."lock_expires_at" < now() and d."attempts" >= d."max_attempts";
   with next as materialized (
     select c."id" from "better_supabase"."webhook_inbox" c
     where c."source" = claim_webhooks.source
       and (
         (c."status" = 'pending' and c."available_at" <= now())
-        or (c."status" = 'processing' and c."locked_until" < now())
+        or (c."status" = 'processing' and c."lock_expires_at" < now())
       )
     order by c."available_at", c."id"
     for update skip locked
@@ -1387,10 +1387,10 @@ as $$
   ),
   claimed as (
     update "better_supabase"."webhook_inbox" w
-    set "status" = 'processing', "attempts" = w."attempts" + 1, "locked_by" = worker, "locked_until" = now() + lease
+    set "status" = 'processing', "attempts" = w."attempts" + 1, "locked_by" = worker, "lock_expires_at" = now() + lease
     from next
     where w."id" = next."id"
-    returning w."id" as id, jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."message_id", 'event_type', w."event_type", 'payload', w."payload", 'headers', w."headers", 'status', w."status", 'attempts', w."attempts", 'max_attempts', w."max_attempts", 'available_at', w."available_at", 'locked_by', w."locked_by", 'locked_until', w."locked_until", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."tenant"::text, 'checkpoint', w."checkpoint") as message
+    returning w."id" as id, jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."message_id", 'event_type', w."event_type", 'payload', w."payload", 'headers', w."headers", 'status', w."status", 'attempts', w."attempts", 'max_attempts', w."max_attempts", 'available_at', w."available_at", 'locked_by', w."locked_by", 'lock_expires_at', w."lock_expires_at", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."tenant"::text, 'checkpoint', w."checkpoint") as message
   )
   select coalesce(jsonb_agg(claimed.message order by claimed.id), '[]'::jsonb) from claimed
 $$;
@@ -1406,7 +1406,7 @@ set search_path = ''
 as $$
   with done as (
     update "better_supabase"."webhook_inbox"
-    set "status" = 'processed', "processed_at" = now(), "locked_by" = null, "locked_until" = null, "last_error" = null
+    set "status" = 'processed', "processed_at" = now(), "locked_by" = null, "lock_expires_at" = null, "last_error" = null
     where "id" = inbox_id and "locked_by" = worker and "status" = 'processing'
       and (attempt is null or "attempts" = attempt)
     returning 1
@@ -1431,7 +1431,7 @@ as $$
       "available_at" = now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, "attempts"))),
       "last_error" = left(error, 4000),
       "locked_by" = null,
-      "locked_until" = null
+      "lock_expires_at" = null
   where "id" = inbox_id and "locked_by" = worker and "status" = 'processing'
     and (attempt is null or "attempts" = attempt)
   returning "status"
@@ -1450,7 +1450,7 @@ language sql
 set search_path = ''
 as $$
   update "better_supabase"."webhook_inbox"
-  set "locked_until" = now() + lease
+  set "lock_expires_at" = now() + lease
   where "id" = inbox_id and "locked_by" = worker and "status" = 'processing'
     and "attempts" = attempt
   returning extract(epoch from lease)::double precision
@@ -1488,7 +1488,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.message order by x.n), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."message_id", 'event_type', w."event_type", 'payload', w."payload", 'headers', w."headers", 'status', w."status", 'attempts', w."attempts", 'max_attempts', w."max_attempts", 'available_at', w."available_at", 'locked_by', w."locked_by", 'locked_until', w."locked_until", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."tenant"::text, 'checkpoint', w."checkpoint") as message, row_number() over (order by w."received_at" desc, w."id" desc) as n
+    select jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."message_id", 'event_type', w."event_type", 'payload', w."payload", 'headers', w."headers", 'status', w."status", 'attempts', w."attempts", 'max_attempts', w."max_attempts", 'available_at', w."available_at", 'locked_by', w."locked_by", 'lock_expires_at', w."lock_expires_at", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."tenant"::text, 'checkpoint', w."checkpoint") as message, row_number() over (order by w."received_at" desc, w."id" desc) as n
     from "better_supabase"."webhook_inbox" w
     where w."tenant"::text = for_tenant
       and (for_source is null or w."source" = for_source)

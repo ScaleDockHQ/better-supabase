@@ -255,7 +255,7 @@ export interface BlockNameRegistry {
     readonly actions: "manage" | "own";
     readonly hooks: never;
     readonly entities: {
-      readonly "api_key": "id" | "organization_id" | "user_id" | "name" | "prefix" | "public_id" | "secret_hash" | "scopes" | "kind" | "rate_limit" | "window_start" | "window_hits" | "expires_at" | "last_used_at" | "revoked_at" | "rotated_from" | "created_by" | "created_at";
+      readonly "api_key": "id" | "organization_id" | "user_id" | "name" | "prefix" | "public_id" | "secret_hash" | "scopes" | "kind" | "rate_limit" | "window_started_at" | "window_hits" | "expires_at" | "last_used_at" | "revoked_at" | "rotated_from" | "created_by" | "created_at";
     };
     readonly primary: "api_key";
   };
@@ -462,7 +462,7 @@ export interface BlockNameRegistry {
     readonly actions: "manage" | "write" | "read" | "create" | "update" | "delete";
     readonly hooks: "before_calendar_event_save" | "after_calendar_event_save";
     readonly entities: {
-      readonly "calendar_event": "id" | "tenant_id" | "calendar_id" | "uid" | "title" | "description" | "location" | "starts_at" | "ends_at" | "all_day" | "tz" | "status" | "rrule" | "exdates" | "recurrence_id" | "original_start" | "subject_type" | "subject_id" | "color" | "kind" | "transparency" | "auto_decline" | "created_by" | "created_at" | "updated_at" | "visibility" | "owner_id" | "rdates";
+      readonly "calendar_event": "id" | "tenant_id" | "calendar_id" | "uid" | "title" | "description" | "location" | "starts_at" | "ends_at" | "all_day" | "tz" | "status" | "rrule" | "exdates" | "recurrence_id" | "original_starts_at" | "subject_type" | "subject_id" | "color" | "kind" | "transparency" | "auto_decline" | "created_by" | "created_at" | "updated_at" | "visibility" | "owner_id" | "rdates";
       readonly "calendar": "id" | "tenant_id" | "name" | "tz" | "color" | "owner_type" | "owner_id" | "created_at" | "visibility" | "description" | "rank" | "is_default";
     };
     readonly primary: "calendar_event";
@@ -668,7 +668,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_consent_record" | "after_consent_record" | "before_consent_withdraw" | "after_consent_withdraw";
     readonly entities: {
-      readonly "consent": "id" | "tenant_id" | "purpose_id" | "subject_type" | "subject_id" | "given_by" | "given_by_contact_id" | "given_by_user_id" | "status" | "scope" | "granted_at" | "valid_until" | "withdrawn_at" | "withdrawn_reason" | "signature_id" | "submission_id" | "attachment_id" | "created_by" | "created_at";
+      readonly "consent": "id" | "tenant_id" | "purpose_id" | "subject_type" | "subject_id" | "given_by" | "given_by_contact_id" | "given_by_user_id" | "status" | "scope" | "granted_at" | "expires_at" | "withdrawn_at" | "withdrawn_reason" | "signature_id" | "submission_id" | "attachment_id" | "created_by" | "created_at";
       readonly "consent_purpose": "id" | "tenant_id" | "key" | "title" | "description" | "legal_basis" | "version" | "requires_signature" | "valid_months" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "consent";
@@ -916,7 +916,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "create" | "manage";
     readonly hooks: "before_drive_node_create" | "after_drive_node_create" | "before_drive_node_move" | "after_drive_node_move" | "before_drive_node_rename" | "after_drive_node_rename" | "before_drive_node_share" | "after_drive_node_share";
     readonly entities: {
-      readonly "drive_node": "id" | "tenant_id" | "drive_id" | "parent_id" | "kind" | "name" | "attachment_id" | "path" | "rank" | "deleted_at" | "source" | "external_id" | "external_metadata" | "legal_hold_until" | "locked_by" | "locked_until" | "lock_note" | "download_blocked" | "preview_pages" | "document_number" | "document_type" | "document_status" | "document_owner_id" | "effective_version_id" | "effective_from" | "review_interval_months" | "next_review_on" | "review_notified_for" | "created_by" | "created_at" | "updated_at";
+      readonly "drive_node": "id" | "tenant_id" | "drive_id" | "parent_id" | "kind" | "name" | "attachment_id" | "path" | "rank" | "deleted_at" | "source" | "external_id" | "external_metadata" | "legal_hold_expires_at" | "locked_by" | "lock_expires_at" | "lock_note" | "download_blocked" | "preview_pages" | "document_number" | "document_type" | "document_status" | "document_owner_id" | "effective_version_id" | "effective_at" | "review_interval_months" | "next_review_on" | "review_notified_for" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "drive_node";
   };
@@ -1577,7 +1577,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "send" | "moderate";
     readonly hooks: "before_message_send" | "after_message_send" | "before_message_edit" | "after_message_edit";
     readonly entities: {
-      readonly "message": "id" | "tenant_id" | "conversation_id" | "parent_id" | "thread_id" | "author_id" | "kind" | "body" | "document" | "anchor" | "mentions" | "mention_scope" | "broadcast" | "reply_count" | "last_reply_at" | "reply_user_ids" | "pinned_at" | "pinned_by" | "resolved_at" | "resolved_by" | "scheduled_for" | "sent_at" | "edited_at" | "deleted_at" | "created_at";
+      readonly "message": "id" | "tenant_id" | "conversation_id" | "parent_id" | "thread_id" | "author_id" | "kind" | "body" | "document" | "anchor" | "mentions" | "mention_scope" | "broadcast" | "reply_count" | "last_reply_at" | "reply_user_ids" | "pinned_at" | "pinned_by" | "resolved_at" | "resolved_by" | "scheduled_at" | "sent_at" | "edited_at" | "deleted_at" | "created_at";
       readonly "conversation": "id" | "tenant_id" | "kind" | "access" | "subject_type" | "subject_id" | "title" | "member_key" | "created_by" | "last_message_at" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "message";
@@ -1752,7 +1752,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "manage" | "checkIn";
     readonly hooks: never;
     readonly entities: {
-      readonly "pass": "id" | "tenant_id" | "kind" | "holder_user_id" | "holder_name" | "holder_email" | "subject_type" | "subject_id" | "booking_id" | "resource_id" | "uses_allowed" | "uses" | "valid_from" | "valid_until" | "status" | "nonce" | "issued_by" | "created_at" | "updated_at" | "revoked_at";
+      readonly "pass": "id" | "tenant_id" | "kind" | "holder_user_id" | "holder_name" | "holder_email" | "subject_type" | "subject_id" | "booking_id" | "resource_id" | "uses_allowed" | "uses" | "starts_at" | "expires_at" | "status" | "nonce" | "issued_by" | "created_at" | "updated_at" | "revoked_at";
       readonly "pass_check_in": "id" | "tenant_id" | "pass_id" | "resource_id" | "booking_id" | "gate" | "method" | "admitted" | "reason" | "checked_in_by" | "created_at";
     };
     readonly primary: "pass";
@@ -2602,7 +2602,7 @@ export interface BlockNameRegistry {
     readonly actions: "manage" | "read";
     readonly hooks: "after_webhook_delivery";
     readonly entities: {
-      readonly "webhook_endpoint": "id" | "organization_id" | "name" | "url" | "enabled" | "event_types" | "permissions" | "batch" | "signing" | "format" | "credential_ref" | "failing_since" | "disabled_at" | "disabled_reason" | "created_by" | "created_at" | "updated_at";
+      readonly "webhook_endpoint": "id" | "organization_id" | "name" | "url" | "enabled" | "event_types" | "permissions" | "batch" | "signing" | "format" | "credential_ref" | "first_failed_at" | "disabled_at" | "disabled_reason" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "webhook_endpoint";
   };

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:ed3dde66e2891c758638e467b25757e9ffea8a648dcfa67d8b8f02294b2315fb
+-- @bsb-hash sha256:0ab32434234fe722b16047000a214be37f3d190bfd31ab460f7719a1a27f1399
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,7 +19,7 @@ create table "better_supabase"."api_keys" (
   "secret_hash" text not null constraint bsb_api_keys_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$'),
   "scopes" text[] not null default '{}',
   "rate_limit" integer constraint bsb_api_keys_rate_limit_check check ("rate_limit" > 0),
-  "window_start" timestamptz,
+  "window_started_at" timestamptz,
   "window_hits" integer not null default 0,
   "expires_at" timestamptz,
   "last_used_at" timestamptz,
@@ -341,11 +341,11 @@ begin
   if found."rate_limit" is not null then
     -- One update counts the hit and, for an allowed request, touches last_used_at.
     update "better_supabase"."api_keys" k set
-      "window_start" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then now() else k."window_start" end,
-      "window_hits" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
-      "last_used_at" = case when case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
+      "window_started_at" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then now() else k."window_started_at" end,
+      "window_hits" = case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
+      "last_used_at" = case when case when (k."window_started_at" is null or k."window_started_at" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
     where k."id" = found."id"
-    returning k."window_start", k."window_hits" into started, hits;
+    returning k."window_started_at", k."window_hits" into started, hits;
     if hits > found."rate_limit" then
       return jsonb_build_object(
         'status', 'rate_limited',

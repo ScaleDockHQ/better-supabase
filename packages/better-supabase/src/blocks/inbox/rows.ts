@@ -118,7 +118,7 @@ export function conversationOf(value: unknown): Conversation {
     teamId: nullableText(row["team_id"]),
     botMode: botModeOf(row["bot_mode"]),
     threadId: textOf(row["thread_id"]),
-    snoozedUntil: nullableInstant(row["snoozed_until"]),
+    snoozedUntil: nullableInstant(row["snooze_expires_at"]),
     lastMessageAt: nullableInstant(row["last_message_at"]),
     lastInboundAt: nullableInstant(row["last_inbound_at"]),
     activeStreamId: nullableText(row["active_stream_id"]),
@@ -277,8 +277,8 @@ export function scheduledOf(value: unknown): ScheduledInboxMessage {
     replyTo: nullableText(input["reply_to"]),
     metadata: recordOrEmpty(input["metadata"]),
     scheduledFor: requiredInstant(
-      row["scheduled_for"],
-      "scheduled_inbox_message.scheduled_for",
+      row["scheduled_at"],
+      "scheduled_inbox_message.scheduled_at",
     ),
     createdAt: requiredInstant(
       row["created_at"],

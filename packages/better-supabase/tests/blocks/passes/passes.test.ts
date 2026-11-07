@@ -241,8 +241,8 @@ describe("createPasses", () => {
           booking_id: "b1",
           resource_id: null,
           uses_allowed: null,
-          valid_from: undefined,
-          valid_until: LATER,
+          starts_at: undefined,
+          expires_at: LATER,
         },
       ],
     ]);

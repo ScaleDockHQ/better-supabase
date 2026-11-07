@@ -71,7 +71,7 @@ describe("webhooks-out module", () => {
 
     expect(sql).not.toContain('create table if not exists "public"');
     expect(sql).not.toContain("vault.");
-    expect(sql).not.toContain('"failing_since"');
+    expect(sql).not.toContain('"first_failed_at"');
     expect(sql).not.toContain('"expires_at"');
     expect(sql).toContain('"public"."webhook_endpoint_secrets"');
     expect(sql).toContain('"workflow_run_id"');
@@ -169,7 +169,7 @@ describe("webhooks-out module", () => {
       "webhooks-out": { options: { disableAfter: "3 days" } },
     });
 
-    expect(sql).toContain('"failing_since" timestamptz');
+    expect(sql).toContain('"first_failed_at" timestamptz');
     expect(sql).toContain("v_since <= now() - '3 days'::interval");
     expect(() =>
       body({ "webhooks-out": { options: { disableAfter: "soon" } } }),

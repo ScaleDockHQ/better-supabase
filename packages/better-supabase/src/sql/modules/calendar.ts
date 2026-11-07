@@ -683,7 +683,7 @@ $$;
 ${userGrant(`${fn("delete_calendar_event")}(uuid)`)}
 
 -- Removes one occurrence of a series: adds an EXDATE and drops its override.
-create or replace function ${fn("cancel_calendar_occurrence")}(event_id uuid, original_start timestamptz)
+create or replace function ${fn("cancel_calendar_occurrence")}(event_id uuid, original_starts_at timestamptz)
 returns boolean
 language plpgsql
 security definer
@@ -705,17 +705,17 @@ begin
   end if;${actionCheck("delete", "v_tenant")}${readOnlyCheck("v_id")}
   ${
     features.table
-      ? `if not (cancel_calendar_occurrence.original_start = any (${recurrence.exdatesOf("v_id")})) then
-    ${addDate(ctx, "v_id", "v_tenant", "exdate", "cancel_calendar_occurrence.original_start")}
+      ? `if not (cancel_calendar_occurrence.original_starts_at = any (${recurrence.exdatesOf("v_id")})) then
+    ${addDate(ctx, "v_id", "v_tenant", "exdate", "cancel_calendar_occurrence.original_starts_at")}
   end if;
   update ${events} set ${e("updatedAt")} = now()
   where ${e("id")} = v_id;`
       : `update ${events} set ${e("exdates")} = (
-      select array_agg(distinct d order by d) from unnest(array_append(${e("exdates")}, cancel_calendar_occurrence.original_start)) d
+      select array_agg(distinct d order by d) from unnest(array_append(${e("exdates")}, cancel_calendar_occurrence.original_starts_at)) d
     ), ${e("updatedAt")} = now()
   where ${e("id")} = v_id;`
   }
-  delete from ${events} where ${e("recurrence")} = v_id and ${e("originalStart")} = cancel_calendar_occurrence.original_start;
+  delete from ${events} where ${e("recurrence")} = v_id and ${e("originalStart")} = cancel_calendar_occurrence.original_starts_at;
   ${record("calendar_event.updated", "v_id", "v_calendar", "v_tenant")}
   return true;
 end;

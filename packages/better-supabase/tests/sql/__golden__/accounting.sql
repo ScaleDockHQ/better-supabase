@@ -3473,7 +3473,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:e20d0c01759b12f79db09057d10eb50e61e1a78b3d392d22c7c60723c18f9e21
+-- @bsb-hash sha256:d11fa85b247f47e99054b76c30d5e5cc6de5f8aae2d91b5fa51d9512e9de9d8e
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3803,7 +3803,7 @@ begin
     if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
       select 1 from "better_supabase"."organization_deletions" x
       where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
-        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_at" <= now()
     ) then
       return old;
     end if;
@@ -3839,7 +3839,7 @@ begin
     if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
       select 1 from "better_supabase"."organization_deletions" x
       where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
-        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_at" <= now()
     ) then
       return old;
     end if;

@@ -46,7 +46,7 @@ create table cal_app.events (
   timezone text not null default 'UTC',
   status text not null default 'confirmed',
   recurrence_id uuid references cal_app.events (id) on delete cascade,
-  original_start timestamptz,
+  original_starts_at timestamptz,
   created_by uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

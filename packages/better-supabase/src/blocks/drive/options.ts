@@ -42,8 +42,8 @@ export type DriveControl = {
 /**
  * `blocks.drive.options.sync`: what `drive_sync_batch` does when a full listing
  * no longer lists a node. `delete` (the default) removes it, unless a legal
- * hold keeps it; `mark` keeps it and sets `missing_since` on its record in the
- * imports record map, so it needs the `imports` block.
+ * hold keeps it; `mark` keeps it and sets `went_missing_at` on its record in
+ * the imports record map, so it needs the `imports` block.
  */
 export type DriveSync = { readonly prune?: "mark" | "delete" };
 

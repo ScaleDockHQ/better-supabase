@@ -631,7 +631,7 @@ grant select on ${t.steps} to authenticated;
 ${renderPolicy(makePolicy({ table: t.steps, name: "ai_run_steps_owner_read", command: "select", roles: ["authenticated"], using: `${rs.owner} = (select auth.uid())` }), { target: t.steps })}
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
--- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
+-- continue state; its sandbox is a row in ai_sandboxes. lock_holder and lock_expires_at
 -- keep two turns from driving one sandbox. Experimental.
 create table if not exists ${t.harness} (
   ${hs.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,

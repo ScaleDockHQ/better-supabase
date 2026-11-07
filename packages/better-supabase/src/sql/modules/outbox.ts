@@ -56,7 +56,7 @@ const NAMES: BlockSqlNames = {
         cursor: "cursor_position",
         types: "types",
         leaseOwner: "lease_owner",
-        leaseUntil: "lease_until",
+        leaseUntil: "lease_expires_at",
         attempts: "attempts",
         lastError: "last_error",
         retryAt: "retry_at",

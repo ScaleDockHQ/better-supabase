@@ -298,7 +298,7 @@ function harnessOf(value: unknown): AiHarnessSession {
     sandboxId: optionalText(row["sandbox_id"]),
     status: oneOf(row["status"], HARNESS_STATES, "active"),
     lockHolder: optionalText(row["lock_holder"]),
-    lockedUntil: optionalInstant(row["locked_until"]),
+    lockedUntil: optionalInstant(row["lock_expires_at"]),
     lastActiveAt: toInstant(textOf(row["last_active_at"])),
     createdAt: toInstant(textOf(row["created_at"])),
     updatedAt: toInstant(textOf(row["updated_at"])),

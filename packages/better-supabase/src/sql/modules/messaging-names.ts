@@ -166,7 +166,7 @@ export const MESSAGING_NAMES: BlockSqlNames = {
         pinnedBy: "pinned_by",
         resolvedAt: "resolved_at",
         resolvedBy: "resolved_by",
-        scheduledFor: "scheduled_for",
+        scheduledFor: "scheduled_at",
         sentAt: "sent_at",
         editedAt: "edited_at",
         deletedAt: "deleted_at",

@@ -64,7 +64,7 @@ const sessionRow = {
   sandbox_id: "sbx_1",
   status: "active",
   lock_holder: null,
-  locked_until: null,
+  lock_expires_at: null,
   last_active_at: AT,
   created_at: AT,
   updated_at: AT,

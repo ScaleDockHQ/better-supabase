@@ -42,7 +42,7 @@ const NAMES: BlockSqlNames = {
         publicJwk: "public_jwk",
         vaultId: "vault_secret_id",
         state: "state",
-        publishUntil: "publish_until",
+        publishUntil: "publish_expires_at",
         createdAt: "created_at",
         retiredAt: "retired_at",
       },
@@ -100,7 +100,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Asymmetric signing keys per owner (a tenant, an app, a stream): the public
 -- JWK here, the private JWK in Vault. One key per owner is active; a retired
--- key stays in the JWKS until publish_until, the latest exp a signer noted.
+-- key stays in the JWKS until publish_expires_at, the latest exp a signer noted.
 create table if not exists ${t} (
   ${c("id")} uuid primary key default gen_random_uuid(),
   ${c("ownerType")} text not null check (${c("ownerType")} ~ '^[a-z][a-z0-9_-]{0,39}$'),

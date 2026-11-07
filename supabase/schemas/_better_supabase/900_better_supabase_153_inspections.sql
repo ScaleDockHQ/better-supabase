@@ -1,6 +1,6 @@
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:fcc2d1447aa152726fb5c9e6cad79b768460fbe695d1fe49a975b884e7b300ce
+-- @bsb-hash sha256:7a5c1a3622ab9fa09750e9a14d8a30ca2497c52963219910e870af33e3e8b73f
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1395,7 +1395,7 @@ begin
   values (new."tenant_id", v_calendar, 'inspection-' || new."id"::text, new."number" || ' ' || new."title",
     (new."planned_start"::timestamp at time zone 'UTC'),
     (coalesce(new."planned_end", new."planned_start") + 1)::timestamp at time zone 'UTC', true, 'UTC', 'confirmed', 'inspection', new."id"::text)
-  on conflict ("calendar_id", "uid", "original_start") do update set
+  on conflict ("calendar_id", "uid", "original_starts_at") do update set
     "title" = excluded."title", "starts_at" = excluded."starts_at",
     "ends_at" = excluded."ends_at", "updated_at" = now();
   return new;
