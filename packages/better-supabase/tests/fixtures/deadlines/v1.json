@@ -1,0 +1,549 @@
+{
+  "content": {
+    "rules": [
+      {
+        "key": "file_notice",
+        "group": "file_notice",
+        "deadline": {
+          "n": 90,
+          "unit": "days",
+          "from": "first_day"
+        },
+        "applies": {
+          "state": "present"
+        },
+        "adjust": "next_business_day",
+        "citation": {
+          "reference": "Section 1"
+        }
+      },
+      {
+        "key": "business",
+        "group": "business",
+        "deadline": {
+          "n": 10,
+          "unit": "business_days",
+          "from": "first_day"
+        },
+        "citation": {
+          "reference": "Section 1"
+        }
+      },
+      {
+        "key": "months",
+        "group": "months",
+        "deadline": {
+          "n": 1,
+          "unit": "months",
+          "from": "first_day"
+        },
+        "adjust": "previous_business_day",
+        "citation": {
+          "reference": "Section 1"
+        }
+      }
+    ],
+    "groups": [
+      {
+        "key": "file_notice",
+        "citation": {
+          "reference": "Section 1"
+        }
+      },
+      {
+        "key": "business",
+        "citation": {
+          "reference": "Section 1"
+        }
+      },
+      {
+        "key": "months",
+        "citation": {
+          "reference": "Section 1"
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "facts 1",
+      "facts": {
+        "first_day": "2026-01-02",
+        "state": "ca"
+      },
+      "expect": [
+        {
+          "group": "file_notice",
+          "ruleKey": "file_notice",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-04-02",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_day",
+              "date": "2026-01-02"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 90,
+            "unit": "days",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-01-16",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_day",
+              "date": "2026-01-02"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 10,
+            "unit": "business_days",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-02-02",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_day",
+              "date": "2026-01-02"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 1,
+            "unit": "months",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "facts 2",
+      "facts": {
+        "first_day": "2026-01-31",
+        "state": "ca"
+      },
+      "expect": [
+        {
+          "group": "file_notice",
+          "ruleKey": "file_notice",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-05-01",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_day",
+              "date": "2026-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 90,
+            "unit": "days",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-02-13",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_day",
+              "date": "2026-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 10,
+            "unit": "business_days",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-02-27",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_day",
+              "date": "2026-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 1,
+            "unit": "months",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "facts 3",
+      "facts": {
+        "first_day": "2026-02-27"
+      },
+      "expect": [
+        {
+          "group": "file_notice",
+          "ruleKey": null,
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["state"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-03-13",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_day",
+              "date": "2026-02-27"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 10,
+            "unit": "business_days",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-03-27",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_day",
+              "date": "2026-02-27"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 1,
+            "unit": "months",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "facts 4",
+      "facts": {
+        "first_day": "2024-02-29",
+        "state": "tx"
+      },
+      "expect": [
+        {
+          "group": "file_notice",
+          "ruleKey": "file_notice",
+          "period": null,
+          "result": "due",
+          "dueOn": "2024-05-29",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_day",
+              "date": "2024-02-29"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 90,
+            "unit": "days",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2024-03-14",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_day",
+              "date": "2024-02-29"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 10,
+            "unit": "business_days",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2024-03-29",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_day",
+              "date": "2024-02-29"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 1,
+            "unit": "months",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "facts 5",
+      "facts": {
+        "first_day": "not a date",
+        "state": "tx"
+      },
+      "expect": [
+        {
+          "group": "file_notice",
+          "ruleKey": "file_notice",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["first_day"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 90,
+            "unit": "days",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["first_day"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "business_days",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["first_day"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 1,
+            "unit": "months",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "facts 6",
+      "facts": {
+        "state": "tx"
+      },
+      "expect": [
+        {
+          "group": "file_notice",
+          "ruleKey": "file_notice",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["first_day"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 90,
+            "unit": "days",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["first_day"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "business_days",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["first_day"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 1,
+            "unit": "months",
+            "from": "first_day"
+          },
+          "citation": {
+            "reference": "Section 1"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    }
+  ]
+}

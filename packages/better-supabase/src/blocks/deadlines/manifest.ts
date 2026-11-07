@@ -19,5 +19,5 @@ export const deadlinesBlock: BlockOf<
   recipes: [],
   category: "work",
   description:
-    "Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing.",
+    "Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: groups of cited rules with conditions, exceptions and counts, and the deadlines computed from a subject's facts per group: due on a date, unknown with the facts still missing, or the reason there is none.",
 });

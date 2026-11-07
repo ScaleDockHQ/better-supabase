@@ -1,0 +1,1597 @@
+{
+  "content": {
+    "groups": [
+      {
+        "key": "mn_contractor_notice",
+        "title": "Contractor's Notice to Owner",
+        "citation": {
+          "reference": "Minn. Stat. 514.011 subd. 1"
+        },
+        "meta": {
+          "function": "disclose",
+          "forum": "service",
+          "signing": {
+            "notarial_act": "none",
+            "signers": ["claimant", "agent"]
+          }
+        }
+      },
+      {
+        "key": "mn_preliminary_notice",
+        "title": "Subcontractor's Pre-Lien Notice",
+        "citation": {
+          "reference": "Minn. Stat. 514.011 subd. 2"
+        },
+        "meta": {
+          "function": "preserve_lien_rights",
+          "forum": "service",
+          "signing": {
+            "notarial_act": "none",
+            "signers": ["claimant", "agent"]
+          }
+        }
+      },
+      {
+        "key": "mn_claim_of_lien",
+        "title": "Mechanic's Lien Statement",
+        "citation": {
+          "reference": "Minn. Stat. 514.08"
+        },
+        "meta": {
+          "function": "perfect_lien",
+          "forum": "county_recorder",
+          "signing": {
+            "notarial_act": "jurat",
+            "signers": ["claimant", "agent"]
+          }
+        }
+      },
+      {
+        "key": "mn_release_of_lien",
+        "title": "Satisfaction of Mechanic's Lien",
+        "citation": {
+          "reference": "Minn. Stat. 514.08"
+        },
+        "meta": {
+          "function": "release_lien",
+          "forum": "county_recorder",
+          "signing": {
+            "notarial_act": "acknowledgment",
+            "signers": ["claimant", "agent"]
+          }
+        }
+      },
+      {
+        "key": "ks_notice_of_intent_to_perform",
+        "title": "Notice of Intent to Perform",
+        "citation": {
+          "reference": "K.S.A. 60-1103b"
+        },
+        "meta": {
+          "function": "preserve_lien_rights",
+          "forum": "clerk_docket",
+          "signing": {
+            "notarial_act": "none",
+            "preparer": "agent",
+            "signers": ["claimant", "agent"]
+          }
+        }
+      },
+      {
+        "key": "ks_mechanics_lien_statement",
+        "title": "Lien Statement",
+        "citation": {
+          "reference": "K.S.A. 60-1102"
+        },
+        "meta": {
+          "function": "perfect_lien",
+          "forum": "clerk_docket",
+          "signing": {
+            "notarial_act": "jurat",
+            "preparer": "agent",
+            "signers": ["claimant", "agent"]
+          },
+          "expires": {
+            "cite": "K.S.A. 60-1105(a)",
+            "from": "lien_recorded",
+            "n": 12,
+            "unit": "months"
+          }
+        }
+      },
+      {
+        "key": "ks_mechanics_lien_statement_expires",
+        "title": "Lien Statement expires",
+        "citation": {
+          "reference": "K.S.A. 60-1105(a)"
+        },
+        "requires": ["ks_mechanics_lien_statement"]
+      },
+      {
+        "key": "ks_lien_release",
+        "title": "Release of Mechanic's Lien",
+        "citation": {
+          "reference": "K.S.A. 60-1108"
+        },
+        "meta": {
+          "function": "release_lien",
+          "forum": "clerk_docket",
+          "signing": {
+            "notarial_act": "none",
+            "preparer": "agent",
+            "signers": ["claimant", "agent"]
+          }
+        }
+      }
+    ],
+    "rules": [
+      {
+        "key": "mn_contractor_notice__contractor",
+        "group": "mn_contractor_notice",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 10,
+          "unit": "days",
+          "from": "contract_date"
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "Minn. Stat. 514.011 subd. 1"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "service": {
+            "methods": ["personal_delivery", "certified_mail"]
+          },
+          "if_missed": {
+            "cite": "Minn. Stat. 514.011 subd. 1",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "514.011 subd. 1 (corpus): 'Every person who enters into a contract with the owner for the improvement of real property and who has contracted or will contract with any subcontractors or material suppliers to provide labor, skill or materials for the improvement shall include in any written contract with the owner the notice required in this subdivision ... If no written contract for the improvement is entered into, the notice must be prepared separately and delivered personally or by certified mail to the owner or the owner's authorized agent within ten days after the work of improvement is agreed upon. The notice ... must be in at least 10-point bold type, if printed ... A person who fails to provide the notice shall not have the lien and remedy provided by this chapter.'",
+            "The notice is not required of an owner of the improved real estate or of a corporate contractor the owner controls, or that controls the owning corporation (subd. 1's last paragraph); the registry has no fact for those relations."
+          ],
+          "review": {
+            "kind": "counsel_question",
+            "question": "Should the port ask whether the contractor uses subcontractors or suppliers, and prepare the notice as a contract clause when the contract is written?",
+            "reason": "Written as the separately delivered notice, ten days after the work is agreed upon (the contract date); with a written contract it belongs in the contract itself, at signing. It binds only a contractor that has contracted or will contract with subcontractors or material suppliers, which the registry cannot tell, and not an owner-related contractor.",
+            "since": "2026-11-04"
+          }
+        }
+      },
+      {
+        "key": "mn_preliminary_notice__residential_four_units_or_fewer",
+        "group": "mn_preliminary_notice",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 45,
+          "unit": "days",
+          "from": "first_furnishing_date"
+        },
+        "exceptions": [
+          {
+            "name": "more_than_four_family_units",
+            "when": {
+              "dwelling_units": ["5_or_more"],
+              "property_use": "residential"
+            },
+            "result": "not_required",
+            "citation": {
+              "reference": "Minn. Stat. 514.011 subd. 4b"
+            },
+            "note": "514.011 subd. 4b (corpus): 'The notice required by this section shall not be required to be given in connection with an improvement to real property consisting of or providing more than four family units when the improvement is wholly residential in character.'"
+          }
+        ],
+        "status": "review_required",
+        "citation": {
+          "reference": "Minn. Stat. 514.011 subd. 2"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "service": {
+            "methods": ["certified_mail", "personal_delivery"],
+            "proof": [
+              {
+                "cite": "Minn. Stat. 514.011 subd. 2(a)",
+                "kind": "certified_mail_receipt"
+              }
+            ]
+          },
+          "if_missed": {
+            "cite": "Minn. Stat. 514.011 subd. 2(a)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "514.011 subd. 2(a) (corpus): 'Every person who contributes to the improvement of real property so as to be entitled to a lien pursuant to section 514.01, except a party under direct contract with the owner must, as a necessary prerequisite to the validity of any claim or lien, cause to be given to the owner or the owner's authorized agent, either by personal delivery or by certified mail, not later than 45 days after the lien claimant has first furnished labor, skill or materials for the improvement, a written notice in at least 10-point bold type'."
+          ],
+          "review": {
+            "kind": "counsel_question",
+            "question": "Which commercial (nonresidential) improvements still need the 45-day notice under subd. 4c?",
+            "reason": "Subd. 4c exempts much nonresidential work (the capture is cut mid-list), so commercial jobs are left uncovered rather than guessed; subd. 4a's same-ownership exception has no registry fact.",
+            "since": "2026-11-03"
+          }
+        }
+      },
+      {
+        "key": "mn_claim_of_lien__all_claimants",
+        "group": "mn_claim_of_lien",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 120,
+          "unit": "days",
+          "from": "last_furnishing_date"
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "Minn. Stat. 514.08"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "Minn. Stat. 514.08 subd. 1(2)",
+            "methods": ["certified_mail", "personal_delivery"],
+            "to": ["owner"],
+            "within": {
+              "from": "lien_recorded",
+              "n": 0,
+              "unit": "days"
+            }
+          },
+          "if_missed": {
+            "cite": "Minn. Stat. 514.08 subd. 1",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "514.08 subd. 1 (corpus): 'The lien ceases at the end of 120 days after doing the last of the work, or furnishing the last item of skill, material, or machinery, unless within this period: (1) a statement of the claim is filed for record with the county recorder or, if registered land, with the registrar of titles ... and (2) a copy of the statement is served personally or by certified mail on the owner or the owner's authorized agent or the person who entered into the contract with the contractor.' Both fall within the same 120 days; the copy is due no later than the statement.",
+            "514.08 subd. 2: the statement 'shall ... be verified by the oath of some person shown by such verification to have knowledge of the facts stated'."
+          ],
+          "review": {
+            "kind": "schema_gap",
+            "question": "Confirm 120 days from last furnishing for both the recording and the service of the copy.",
+            "reason": "The copy must be served within the same 120 days, which the schema's serve_copy (counted from recording) cannot say; it is written as due by the recording itself.",
+            "since": "2026-11-03"
+          }
+        }
+      },
+      {
+        "key": "mn_release_of_lien__recorded_lien",
+        "group": "mn_release_of_lien",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": "none",
+        "status": "review_required",
+        "citation": {
+          "reference": "Minn. Stat. 514.08"
+        },
+        "meta": {
+          "review": {
+            "kind": "unsourced",
+            "question": "Is there a Minnesota provision requiring a claimant to satisfy a paid lien statement, with a deadline?",
+            "reason": "The corpus capture was not read for a satisfaction duty; no deadline is written.",
+            "since": "2026-11-03"
+          }
+        }
+      },
+      {
+        "key": "ks_notice_of_intent_to_perform__prime_residential_exempt",
+        "group": "ks_notice_of_intent_to_perform",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor"
+          ],
+          "property_use": ["residential"],
+          "project_sector": ["private"]
+        },
+        "exceptions": [
+          {
+            "name": "more_than_two_families",
+            "when": {
+              "dwelling_units": ["3", "4", "5_or_more"]
+            },
+            "result": "not_applicable",
+            "citation": {
+              "reference": "K.S.A. 60-1103b(a)"
+            },
+            "note": "'New residential property' is a new structure 'not used or intended for use as a residence for more than two families or for commercial purposes'."
+          }
+        ],
+        "status": "review_required",
+        "citation": {
+          "reference": "K.S.A. 60-1103b"
+        },
+        "meta": {
+          "if_missed": {
+            "cite": "K.S.A. 60-1103b(b)",
+            "result": "partial_rights_lost"
+          },
+          "notes": [
+            "K.S.A. 60-1103b(b) (corpus 2026-08-27): 'A lien for the furnishing of ... construction of new residential property may be claimed pursuant to K.S.A. 60-1101 or 60-1103 ... after the passage of title ... to a good faith purchaser for value only if the claimant has filed a notice of intent to perform prior to the recording of the deed'. The text names 60-1101, the prime lien, and the form's own wording in counsel's sub row reads 'I ... (name of supplier, subcontractor or contractor)', so a prime contractor on new residential property is not exempt on its face.",
+            "Counsel's prime row (counsel_regs.json, read 2026-10-22): 'General contractors are generally exempt from filing a Notice of Intent'; the VA guide's General Contractor page lists no notice of intent. Counsel's reading: primes need none. Statute reading: required, but only conditionally, because the obligation arises only if the lien would be claimed after the deed to a good faith purchaser records; 'generally' in counsel's row is the qualifier. The first pass wrote required: false; that has no textual basis.",
+            "The deadline is 'prior to the recording of the deed effecting passage of title'; no trigger in the closed list (SCHEMA.md §10) names that event, so the cell carries no deadline. As with sub_residential, 60-1103b(a) excludes 'any improvement of a preexisting structure or construction of any addition, garage or outbuilding appurtenant to a preexisting structure'; the registry has no new-construction fact, so a remodel cannot be separated and the exception is not written. Unlike 60-1103a, 60-1103b(a) has no owner-occupancy element, so a spec home is covered here; the two residential definitions are not merged. The prior record (priv/records/KS.json id 189) read 60-1103b as subcontractor-and-supplier only.",
+            "The notice is filed with the clerk of the district court (60-1103b(b)), not served, so no recipients or service are set. partial_rights_lost: without the notice the lien is lost only against a good faith purchaser after title passes, not against the owner."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Does a prime contractor building new residential property need a notice of intent before the deed records, and in which circumstances is the general-contractor exemption in counsel's row correct? Add a deed-recording trigger and a new-construction fact?",
+            "reason": "Contradicted: counsel's prime row says 'General contractors are generally exempt from filing a Notice of Intent' and the first pass wrote required: false, but K.S.A. 60-1103b(b) says a lien on new residential property 'may be claimed pursuant to K.S.A. 60-1101 or 60-1103 ... after the passage of title ... to a good faith purchaser for value only if the claimant has filed a notice of intent to perform prior to the recording of the deed', and 60-1101 is the prime lien. The cell is now required conditionally; the deed-recording deadline has no trigger and the registry has no new-construction fact, so the port cannot yet tell when it applies.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "ks_notice_of_intent_to_perform__commercial_not_required",
+        "group": "ks_notice_of_intent_to_perform",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor"
+          ],
+          "property_use": ["commercial"],
+          "project_sector": ["private"]
+        },
+        "required": false,
+        "status": "draft",
+        "citation": {
+          "reference": "K.S.A. 60-1103b"
+        },
+        "meta": {
+          "notes": [
+            "K.S.A. 60-1103b(a) (corpus 2026-08-27) defines 'new residential property' as 'a new structure which is constructed for use as a residence' for not more than two families; the notice of intent exists only for it.",
+            "The VA guide places the Notice of Intent to Perform under 'NEW residential' only, and counsel's rows say 'For new residential projects'."
+          ]
+        }
+      },
+      {
+        "key": "ks_notice_of_intent_to_perform__sub_residential",
+        "group": "ks_notice_of_intent_to_perform",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor"
+          ],
+          "property_use": ["residential"],
+          "project_sector": ["private"]
+        },
+        "exceptions": [
+          {
+            "name": "more_than_two_families",
+            "when": {
+              "dwelling_units": ["3", "4", "5_or_more"]
+            },
+            "result": "not_applicable",
+            "citation": {
+              "reference": "K.S.A. 60-1103b(a)"
+            },
+            "note": "'New residential property' is a new structure 'not used or intended for use as a residence for more than two families or for commercial purposes'."
+          }
+        ],
+        "status": "review_required",
+        "citation": {
+          "reference": "K.S.A. 60-1103b"
+        },
+        "meta": {
+          "if_missed": {
+            "cite": "K.S.A. 60-1103b(b)",
+            "result": "partial_rights_lost"
+          },
+          "notes": [
+            "K.S.A. 60-1103b(b) (corpus 2026-08-27): the lien on new residential property after passage of title to a good faith purchaser 'only if the claimant has filed a notice of intent to perform prior to the recording of the deed effecting passage of title'; it 'shall be filed in the office of the clerk of the district court of the county where the property is located'. The consequence is partial: without the notice the lien is lost against a good faith purchaser, not against the owner.",
+            "Counsel's sub and supplier rows (counsel_regs.json, read 2026-10-22): 'For new residential projects, Notice of intent to Perform and amendments thereto attached must be sent, however it should be filed with county clerk before closing'; Where Prelien Recorded 'NOI, District Court where property is located'; Prelien Legal Description 'NOI - Yes'; Prelien Notarized 'No'; Who Receives Notice 'Property Owner and Principal Contractor'. The statute provides for filing only, not for service on anyone, so no recipients or service are set.",
+            "K.S.A. 60-1103b(f): the notice 'shall be of no further force or effect after the expiration of 18 months from the date of filing the same, unless within such time the claimant has filed a lien'; the VA guide says 'expires in 18 months if no lien'. The instrument's expires block cannot say it because 'filing of the notice' is not a trigger (SCHEMA.md §5).",
+            "The VA guide (Subcontractor and Material Supplier pages) says the notice 'Extends your filing window to 5 months' and cites 'K.S.A. 60-1103c'. No such section is in the corpus and the statute does not extend the lien deadline for a notice of intent: 60-1103(e) gives five months on property 'other than residential property' only with a notice of extension filed within three months. The lien deadline on mechanics_lien_statement stays three months.",
+            "The Judicial Council forms are copyrighted for non-commercial use; the authored form must match the elements of the council form in original wording (instructions/ks_forms/README.md). The court forms carry a jurat ('Subscribed and sworn'), while counsel's row says not notarized; signing follows counsel and the question is raised below.",
+            "K.S.A. 60-1103(a): the subcontractor lien runs only for one acting 'under an agreement with the contractor, subcontractor or owner contractor'; prior record 202 cuts off a supplier whose only customer is another supplier, and the hiring party's capacity is a fact the schema does not yet carry (SCHEMA.md §14).",
+            "Scope (K.S.A. 60-1103b(a), corpus 2026-08-27): 'new residential property' 'does not include any improvement of a preexisting structure or construction of any addition, garage or outbuilding appurtenant to a preexisting structure'. This cell applies to all residential property, so a remodel subcontractor would be told a notice of intent applies when the statute says it cannot; the registry has no new-construction fact, so the exception cannot be written and the cell stays review_required. Unlike 60-1103a, 60-1103b(a) has no owner-occupancy element: a spec home or entity-owned new home is covered here although it is outside the warning statement. The two residential definitions are not merged.",
+            "Deadline (K.S.A. 60-1103b(b)): the notice must be filed 'prior to the recording of the deed effecting passage of title'. The cell carries no deadline key because the closed trigger list has no deed-recording event; the obligation is conditional, arising only if the lien would be claimed after title passes to a good faith purchaser. partial_rights_lost is right: the lien is lost only against a good faith purchaser after title passes."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Add a deed-recording trigger and a new-construction fact, and does the council form's sworn execution mean signing.notarial_act should be jurat?",
+            "reason": "Contradicted in scope: the cell applies to all residential property, but 60-1103b(a) excludes improvement of a preexisting structure and additions, garages and outbuildings. The statute's deadline is before the recording of the deed effecting passage of title, and no trigger in the closed list (§10) or registry (§11) names that event; the registry also has no fact separating new construction from improvement of an existing home, so the port cannot tell when this notice is required. The VA guide's 5-month extension and its 60-1103c citation contradict the statute, counsel's supplier row says '60 days' with no source, and the council forms' jurat contradicts counsel's 'not notarized'.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "ks_mechanics_lien_statement__prime",
+        "group": "ks_mechanics_lien_statement",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 4,
+          "unit": "months",
+          "from": "last_furnishing_date"
+        },
+        "exceptions": [
+          {
+            "name": "five_month_extension_commercial",
+            "when": {
+              "property_use": "commercial"
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "K.S.A. 60-1102(c)"
+            },
+            "note": "K.S.A. 60-1102(c): on 'property other than residential property' a lien 'may be claimed pursuant to this section within five months only if the claimant has filed a notice of extension within four months since last furnishing', filed with the clerk of the district court and 'mailed by certified and regular mail to the owner'.",
+            "status": "review_required"
+          },
+          {
+            "name": "five_month_extension_three_plus_units",
+            "when": {
+              "dwelling_units": ["3", "4", "5_or_more"]
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "K.S.A. 60-1102(c), (d)"
+            },
+            "note": "60-1102(d) defines 'residential property' as a structure constructed for use as a residence and not used or intended for use as a residence for more than two families, with no owner-occupancy element, so a residential structure for three or more families is 'property other than residential property' and qualifies for the five-month option, not only property_use commercial.",
+            "status": "review_required"
+          },
+          {
+            "name": "payment_bond_recorded",
+            "when": {
+              "payment_bond_recorded": true
+            },
+            "result": "review_required",
+            "remedy": "claim_against_bond",
+            "citation": {
+              "reference": "K.S.A. 60-1110"
+            },
+            "note": "K.S.A. 60-1110 (corpus 2026-08-27): when a private bond 'conditioned for the payment of all claims which might be the basis of liens' is approved and filed, 'no lien for the labor, equipment, material or supplies under contract, or claim described or referred to in the bond shall attach'; the bond statute is not in counsel's row.",
+            "status": "review_required"
+          }
+        ],
+        "status": "review_required",
+        "citation": {
+          "reference": "K.S.A. 60-1102"
+        },
+        "meta": {
+          "notes": [
+            "K.S.A. 60-1102(a) (corpus 2026-08-27): 'Any person claiming a lien on real property, under the provisions of K.S.A. 60-1101 ... shall file with the clerk of the district court of the county in which property is located, within four months after the date material, equipment or supplies, used or consumed was last furnished or last labor performed under the contract a verified statement showing: (1) The name of the owner, (2) the name and address sufficient for service of process of the claimant, (3) a description of the real property, (4) a reasonably itemized statement and the amount of the claim'; a written instrument or promissory note for the amount may be attached in place of the itemization.",
+            "Counsel's prime row (counsel_regs.json, read 2026-10-22): 'Lien Date: 4 months after work is completed or provisions of materials'; Completion of Work Date 'Last date material or equipment was furnished or last date labor was performed under the contract'; Where Lien Recorded 'District Court in County where property is located'; Certification Required 'contractor must be licensed and sign/verify under oath'. The VA guide (General Contractor page): 'File a VERIFIED statement with the Clerk of the District Court within 4 months of last work or materials'.",
+            "The VA guide footer: an unverified statement 'is invalid (K.S.A. 60-1102; Buchanan v. Overley)'; prior record 197 reads an acknowledged-only statement as fatally defective and not amendable after the period, so signing.notarial_act is jurat.",
+            "K.S.A. 60-1102(c): on property 'other than residential property' a lien 'may be claimed ... within five months only if the claimant has filed a notice of extension within four months since last furnishing', mailed 'by certified and regular mail to the owner'. The notice of extension is not an instrument in this file and no registry fact records it, so the cell carries the four-month rule; the VA guide's footer says 'A notice of extension can add one month to the filing window'.",
+            "K.S.A. 60-1102(d): 'residential property' is a structure constructed for use as a residence and 'not used or intended for use as a residence for more than two families'; it has no owner-occupancy element. The cell covers both uses for the four-month rule; the five-month option of 60-1102(c) reaches commercial property and any residential structure for three or more families (see the five_month_extension exceptions).",
+            "Owner contractor (K.S.A. 60-1102(a); 60-1103(a)-(b); corpus 2026-08-27): a claimant under contract directly with a fee owner who 'enters into contracts with more than one person, firm or corporation' files under 60-1103 with three months, not four. Statute reading: three months for that subset, so the four-month deadline overstates the time for it, which is the dangerous direction. Counsel's reading (prime row): every claimant under contract with the owner has four months. The cell keeps four months for the true prime and shows needs review; the registry has no owner-contractor fact. Sourced: four months from last furnishing 'under the contract', the verified statement and the clerk of the district court.",
+            "Recipients: the first pass listed owner as a recipient, but K.S.A. 60-1102 has no service step and 60-1103(c) service applies only to liens 'filed pursuant to this section' (60-1103), so recipients is left out. The owner mailing is counsel's prime-row position only, and the notice of extension in 60-1102(c) is the only mailing in the section.",
+            "Expiry (K.S.A. 60-1105(a)): the expires block gives one year from filing; the statute's variant is 'one year from the maturity of said note' when a promissory note is attached in lieu of an itemized statement. The expires block has no variant, so it shows the base period and the note-maturity case needs review; see the comment above expires.",
+            "New residential property (K.S.A. 60-1103b(b), (d)): a lien on new residential property claimed after title passes to a good faith purchaser requires a notice of intent filed before the deed records; an instrument-level requires cannot be conditional (SCHEMA.md §5), so this cell carries no cross-reference and the condition lives in notice_of_intent_to_perform/prime_residential_exempt.",
+            "Counsel's prime row: 'Lien Type of Mailing: Serve on property owner within 10 days of filing via certified or registered mail, return receipt delivery and regular mail' and 'Notice must be given w/in 10 days'. K.S.A. 60-1102 (corpus 2026-08-27) has no service step and its only mailing is the notice of extension; the service in 60-1103(c) is for subcontractor liens and the corpus text of 60-1103(c) states no number of days. serve_copy is left out until counsel says which section creates it.",
+            "K.S.A. 60-1105(a): an action to foreclose 'shall be brought within one year from the time of filing the lien statement, but if a promissory note has been attached ... within one year from the maturity of said note'; counsel's row 'Lien Rights Expiration: Does not expire but must be enforced within 1 year'; foreclosure is not an instrument (DEC-0033), so only expires shows it. 60-1108 cancels the lien 'by limitation of law' if no action is instituted in that time.",
+            "Recording format from counsel's row ('12pt font 8.5x11 to 8.5x14, 3 inch top margin on the first page, 1 inch bottom and side margin, legal description') belongs to the form, not this rule. Design professionals and laborers have no cell: 60-1101 names 'labor, equipment, material, or supplies' and the sources are silent on professional services."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Should the port ask whether the owner is an owner contractor and then treat the trades it hired as first_tier_sub with three months? Which section requires a prime contractor to serve the owner within 10 days of filing, and should the notice of extension be an instrument for non-residential jobs?",
+            "reason": "Contradicted: (1) a claimant hired directly by an owner contractor files under 60-1103 with three months, so the four-month deadline is wrong for that subset and direct_with_owner cannot separate it; (2) counsel's prime row requires serving the owner within 10 days of filing, but K.S.A. 60-1102 has no service step, so recipients and serve_copy are omitted; (3) the five-month option of 60-1102(c) on property other than residential property (commercial or three or more families) is a second deadline the schema cannot express without a notice-of-extension fact; (4) expires omits the 60-1105(a) note-maturity variant; (5) the new-residential notice-of-intent precondition is not cross-referenced.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "ks_mechanics_lien_statement__sub_supplier",
+        "group": "ks_mechanics_lien_statement",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 3,
+          "unit": "months",
+          "from": "last_furnishing_date"
+        },
+        "exceptions": [
+          {
+            "name": "five_month_extension_commercial",
+            "when": {
+              "property_use": "commercial"
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "K.S.A. 60-1103(e)"
+            },
+            "note": "K.S.A. 60-1103(e): on 'property other than residential property' a lien 'may be claimed pursuant to this section ... within five months only if the claimant has filed a notice of extension within three months since last furnishing', filed with the clerk of the district court and 'mailed by certified and regular mail to the general contractor or construction manager and a copy to the owner by regular mail, if known'. The window to file the notice is three months here, not the four months a prime has.",
+            "status": "review_required"
+          },
+          {
+            "name": "five_month_extension_three_plus_units",
+            "when": {
+              "dwelling_units": ["3", "4", "5_or_more"]
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "K.S.A. 60-1103(e), 60-1102(d)"
+            },
+            "note": "60-1102(d) defines 'residential property' as a structure constructed for use as a residence and not used or intended for use as a residence for more than two families, with no owner-occupancy element, so a residential structure for three or more families is 'property other than residential property' and qualifies for the five-month option of 60-1103(e), not only property_use commercial.",
+            "status": "review_required"
+          },
+          {
+            "name": "payment_bond_recorded",
+            "when": {
+              "payment_bond_recorded": true
+            },
+            "result": "review_required",
+            "remedy": "claim_against_bond",
+            "citation": {
+              "reference": "K.S.A. 60-1110"
+            },
+            "note": "K.S.A. 60-1110 (corpus 2026-08-27): once the bond is approved and filed 'no lien ... under contract, or claim described or referred to in the bond shall attach', and filed liens are discharged; the bond statute is not in counsel's row.",
+            "status": "review_required"
+          }
+        ],
+        "status": "review_required",
+        "citation": {
+          "reference": "K.S.A. 60-1102"
+        },
+        "meta": {
+          "recipients": ["owner", "hiring_party"],
+          "serve_copy": {
+            "cite": "K.S.A. 60-1103(c)",
+            "methods": ["personal_delivery", "certified_mail"],
+            "to": ["owner", "hiring_party"]
+          },
+          "notes": [
+            "K.S.A. 60-1103(a)(1) (corpus 2026-08-27): a supplier, subcontractor or other person 'under an agreement with the contractor, subcontractor or owner contractor may obtain a lien ... except that: (1) The lien statement must state the name of the contractor and be filed within three months after the date supplies, material or equipment was last furnished or labor performed by the claimant'. Counsel's sub row: 'Lien Date: 3 months after work is completed or provisions of materials'; the supplier row agrees; the VA guide: 'within 3 months of last work or materials'.",
+            "Owner contractor and preconditions (K.S.A. 60-1103(a)-(b), corpus 2026-08-27): this cell's three months is right for a claimant hired by a contractor, subcontractor or owner contractor, so an owner contractor's own direct hires belong here and not in prime (see the prime cell's note). The 60-1103(a)(2) affidavit and (a)(3) notice-of-intent preconditions are not tied to this cell: both depend on residential facts and an instrument-level requires cannot be conditional.",
+            "K.S.A. 60-1103(a)(2)-(3): where a warning statement is required 'there shall be attached to the lien statement the affidavit of the supplier or subcontractor that such warning statement was properly given', and a notice of intent to perform, 'if required pursuant to K.S.A. 60-1103b, ... must have been filed'. Both depend on residential facts the registry does not hold, and an instrument-level requires cannot be conditional, so the instrument carries no requires list (SCHEMA.md §5); the affidavit has no studio form key and so no packet item.",
+            "K.S.A. 60-1103(c): the claimant shall '(1) cause a copy of the lien statement to be served personally upon any one owner, any holder of a recorded equitable interest and any party obligated to pay the lien ... (2) mail a copy ... by restricted mail or (3) if the address of any one owner or such party is unknown and cannot be ascertained with reasonable diligence, post a copy of the lien statement in a conspicuous place on the premises'; service is 'deemed to have been complied with, if it is proven that the person to be served actually received a copy'. The corpus text states no number of days.",
+            "Service gaps (K.S.A. 60-1103(c); 60-103; corpus 2026-08-27): (1) serve_copy carries no within: 60-1103(c) states no period and the 10 days is counsel's number alone (counsel's reading: 10 days from lien_recorded); reasonable_time is reserved for a statute that says so (SCHEMA.md §6), so the port computes no second date and the duty is shown without one. (2) 60-1103(c)(2) requires 'restricted mail', which K.S.A. 60-103 defines as mail endorsed so the sender receives a return receipt with the date and address of delivery and, if the addressee is a natural person, 'only the addressee or an authorized agent will receive the mail'; plain certified mail does not meet that and no VOC-service-method code names restricted mail, so certified_mail stands for certified mail with return receipt and restricted delivery (kept per Dane's ruling 2026-10-23 pending counsel's answer below). (3) The posting fallback of 60-1103(c)(3), when an owner's address 'is unknown and cannot be ascertained with reasonable diligence', has no method code and is not expressed. (4) recipients omit 'any holder of a recorded equitable interest': 60-1103(c) bars foreclosure against residential real property unless that holder was served, so omitting it can block enforcement; the closed recipient list has no such role.",
+            "Counsel's sub row: 'Serve within 10 days on property owner and any party obligated to pay the lien via personal delivery, return receipt delivery, or publication if the parties cannot be located'; counsel's supplier row repeats it. The 10 days is counsel's number alone (the corpus text of 60-1103(c) has none), 'publication' is not a statutory method, and posting has no VOC-service-method code; the holder of a recorded equitable interest has no recipient role.",
+            "Counsel's sub row: Lien Notarized 'Not required, but good practice'; the VA guide says the statement 'MUST be verified (sworn)' and K.S.A. 60-1102(a) requires a 'verified statement'. signing follows the statute and the guide (jurat).",
+            "The VA guide says the window is '5 months on new residential if a notice of intent was filed', tying the extension to the notice of intent; the statute gives five months only on property 'other than residential property' with a notice of extension filed 'within three months' and mailed to 'the general contractor or construction manager and a copy to the owner' (60-1103(e)). The cell carries three months; see the notes on notice_of_intent_to_perform/sub_residential.",
+            "K.S.A. 60-1103(d): the owner is not liable for more than the owner contracted to pay the original contractor, except for payments made before the three-month filing period ends (no warning statement required) or after the owner received the warning statement.",
+            "K.S.A. 60-1103(a): the claimant must be under agreement with a contractor, subcontractor or owner contractor; prior record 202 cuts off a supplier whose only customer is another supplier, and the hiring party's capacity is not a schema fact yet (SCHEMA.md §14). Recording format and legal description belong to the form."
+          ],
+          "review": {
+            "kind": "counsel_question",
+            "question": "Does certified mail with return receipt and restricted delivery satisfy 'restricted mail' under 60-1103(c)(2) so certified_mail may stay beside personal_delivery, and is counsel's 10-day period sourced or a product rule? (Also open, as before: the equitable-interest-holder recipient and posting fallback, the jurat for sub and supplier liens, and whether the 60-1103(e) five-month route is a launch requirement.)",
+            "reason": "Counsel question on serve_copy.methods: K.S.A. 60-1103(c) (corpus 2026-08-27) says the claimant shall 'cause a copy of the lien statement to be served personally ... (2) mail a copy ... by restricted mail or (3) ... post a copy', and the cell keeps counsel's methods [certified_mail, personal_delivery] (counsel's sub row: 'personal delivery, return receipt delivery, or publication') although plain certified mail is not restricted mail under 60-103 and posting has no method code. Also contradicted: counsel's 10-day service period is not in the corpus text of 60-1103(c) and serve_copy carries no within; recipients omit the holder of a recorded equitable interest, without whom foreclosure against residential real property is barred; the single deadline flattens the five-month option of 60-1103(e) on property other than residential property (a notice of extension within three months); the 60-1103(a)(2)-(3) affidavit and notice-of-intent preconditions are not tied to the cell; counsel says notarization is not required where 60-1102(a) and the VA guide require a verified statement; and the VA guide's 5-month extension for a notice of intent contradicts 60-1103(e).",
+            "since": "2026-10-23"
+          }
+        }
+      },
+      {
+        "key": "ks_mechanics_lien_statement_expires",
+        "group": "ks_mechanics_lien_statement_expires",
+        "deadline": {
+          "n": 12,
+          "unit": "months",
+          "from": "lien_recording_date"
+        },
+        "citation": {
+          "reference": "K.S.A. 60-1105(a)"
+        }
+      },
+      {
+        "key": "ks_lien_release__filed_lien",
+        "group": "ks_lien_release",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "required": false,
+        "status": "draft",
+        "citation": {
+          "reference": "K.S.A. 60-1108"
+        },
+        "meta": {
+          "notes": [
+            "Counsel's rows (counsel_regs.json, read 2026-10-22): 'Lien Release Required: No, but good practice to release once payment is received'; Release Form Requirements, Release Date and Release Penalties 'N/A'; Release Recorded 'no required, but best practice' (prime) and 'N/A' (sub, supplier); Release Type of Mailing 'N/A'. The VA guide on every page: 'Release of Lien: File once paid in full.'",
+            "No section of K.S.A. 60-1101 to 60-1112 (corpus 2026-08-27) requires a claimant to release a filed lien after payment; K.S.A. 60-1108 is the nearest text and cancels a lien 'by limitation of law' when no action is brought within the 60-1105(a) period, so the instrument cite names the only provision about a lien ending, not a duty to release.",
+            "The only statutory release is the one for a notice of intent to perform (K.S.A. 60-1103b(d)), modelled as notice_of_intent_release. The studio's lien_release:KS artifact cites 60-1103b(d) and files in 'same_office_as_notice_of_intent_was_filed' while its banner releases a 'filed lien statement' under 60-1102 and 60-1103; the pointer here follows the VA file name 'KS 3 Release of Mechanics Lien'.",
+            "The studio's disclosure:KS and preliminary_notice:KS artifacts carry each other's provenance and expiration text (the warning statement's provenance describes the notice of intent, and the reverse); the titles match the instruments they are pointed to here."
+          ]
+        }
+      }
+    ],
+    "counting": {
+      "roll_to": "next_business_day",
+      "roll_when": ["saturday", "sunday", "holiday"],
+      "holidays": [],
+      "citation": {
+        "reference": "K.S.A. 60-206(a)(1)(C)"
+      },
+      "status": "review_required"
+    },
+    "meta": {
+      "note": "MN and KS instruments in one version"
+    }
+  },
+  "cases": [
+    {
+      "name": "more than four units owes no preliminary notice, and a duplex is not applicable in Kansas",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "residential",
+        "project_sector": "private",
+        "dwelling_units": "5_or_more",
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-09-01",
+        "last_furnishing_date": "2026-10-15",
+        "contract_date": "2026-08-01",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "mn_contractor_notice",
+          "ruleKey": null,
+          "period": null,
+          "result": "not_covered",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "Minn. Stat. 514.011 subd. 1"
+          }
+        },
+        {
+          "group": "mn_preliminary_notice",
+          "ruleKey": "mn_preliminary_notice__residential_four_units_or_fewer",
+          "period": null,
+          "result": "not_required",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "more_than_four_family_units",
+            "citation": {
+              "reference": "Minn. Stat. 514.011 subd. 4b"
+            },
+            "note": "514.011 subd. 4b (corpus): 'The notice required by this section shall not be required to be given in connection with an improvement to real property consisting of or providing more than four family units when the improvement is wholly residential in character.'"
+          },
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 45,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "Minn. Stat. 514.011 subd. 2"
+          }
+        },
+        {
+          "group": "mn_claim_of_lien",
+          "ruleKey": "mn_claim_of_lien__all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-12",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "review_required"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-15"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 120,
+            "unit": "days",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Minn. Stat. 514.08"
+          }
+        },
+        {
+          "group": "mn_release_of_lien",
+          "ruleKey": "mn_release_of_lien__recorded_lien",
+          "period": null,
+          "result": "undated",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": "none",
+          "citation": {
+            "reference": "Minn. Stat. 514.08"
+          }
+        },
+        {
+          "group": "ks_notice_of_intent_to_perform",
+          "ruleKey": "ks_notice_of_intent_to_perform__sub_residential",
+          "period": null,
+          "result": "not_applicable",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "more_than_two_families",
+            "citation": {
+              "reference": "K.S.A. 60-1103b(a)"
+            },
+            "note": "'New residential property' is a new structure 'not used or intended for use as a residence for more than two families or for commercial purposes'."
+          },
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "K.S.A. 60-1103b"
+          }
+        },
+        {
+          "group": "ks_mechanics_lien_statement",
+          "ruleKey": "ks_mechanics_lien_statement__sub_supplier",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-01-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "exception",
+              "name": "five_month_extension_three_plus_units",
+              "citation": {
+                "reference": "K.S.A. 60-1103(e), 60-1102(d)"
+              },
+              "note": "60-1102(d) defines 'residential property' as a structure constructed for use as a residence and not used or intended for use as a residence for more than two families, with no owner-occupancy element, so a residential structure for three or more families is 'property other than residential property' and qualifies for the five-month option of 60-1103(e), not only property_use commercial."
+            },
+            {
+              "kind": "counting",
+              "status": "review_required"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-15"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 3,
+            "unit": "months",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "K.S.A. 60-1102"
+          }
+        },
+        {
+          "group": "ks_mechanics_lien_statement_expires",
+          "ruleKey": "ks_mechanics_lien_statement_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 12,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "K.S.A. 60-1105(a)"
+          }
+        },
+        {
+          "group": "ks_lien_release",
+          "ruleKey": "ks_lien_release__filed_lien",
+          "period": null,
+          "result": "not_required",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "K.S.A. 60-1108"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a prime contractor on a house: an undated notice and a lien carried for review",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "residential",
+        "project_sector": "private",
+        "dwelling_units": "1",
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-09-01",
+        "last_furnishing_date": "2026-10-15",
+        "contract_date": "2026-08-01",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "mn_contractor_notice",
+          "ruleKey": "mn_contractor_notice__contractor",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-08-11",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "review_required"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "contract_date",
+              "date": "2026-08-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "from": "contract_date"
+          },
+          "citation": {
+            "reference": "Minn. Stat. 514.011 subd. 1"
+          }
+        },
+        {
+          "group": "mn_preliminary_notice",
+          "ruleKey": null,
+          "period": null,
+          "result": "not_covered",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "Minn. Stat. 514.011 subd. 2"
+          }
+        },
+        {
+          "group": "mn_claim_of_lien",
+          "ruleKey": "mn_claim_of_lien__all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-12",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "review_required"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-15"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 120,
+            "unit": "days",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Minn. Stat. 514.08"
+          }
+        },
+        {
+          "group": "mn_release_of_lien",
+          "ruleKey": "mn_release_of_lien__recorded_lien",
+          "period": null,
+          "result": "undated",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": "none",
+          "citation": {
+            "reference": "Minn. Stat. 514.08"
+          }
+        },
+        {
+          "group": "ks_notice_of_intent_to_perform",
+          "ruleKey": "ks_notice_of_intent_to_perform__prime_residential_exempt",
+          "period": null,
+          "result": "undated",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "K.S.A. 60-1103b"
+          }
+        },
+        {
+          "group": "ks_mechanics_lien_statement",
+          "ruleKey": "ks_mechanics_lien_statement__prime",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "review_required"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-15"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 4,
+            "unit": "months",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "K.S.A. 60-1102"
+          }
+        },
+        {
+          "group": "ks_mechanics_lien_statement_expires",
+          "ruleKey": "ks_mechanics_lien_statement_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 12,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "K.S.A. 60-1105(a)"
+          }
+        },
+        {
+          "group": "ks_lien_release",
+          "ruleKey": "ks_lien_release__filed_lien",
+          "period": null,
+          "result": "not_required",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "K.S.A. 60-1108"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a commercial prime contractor: a rule that is not required, and an unsettled extension",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "dwelling_units": "1",
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-09-01",
+        "last_furnishing_date": "2026-10-15",
+        "contract_date": "2026-08-01",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "mn_contractor_notice",
+          "ruleKey": "mn_contractor_notice__contractor",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-08-11",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "review_required"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "contract_date",
+              "date": "2026-08-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "from": "contract_date"
+          },
+          "citation": {
+            "reference": "Minn. Stat. 514.011 subd. 1"
+          }
+        },
+        {
+          "group": "mn_preliminary_notice",
+          "ruleKey": null,
+          "period": null,
+          "result": "not_covered",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "Minn. Stat. 514.011 subd. 2"
+          }
+        },
+        {
+          "group": "mn_claim_of_lien",
+          "ruleKey": "mn_claim_of_lien__all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-12",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "review_required"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-15"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 120,
+            "unit": "days",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Minn. Stat. 514.08"
+          }
+        },
+        {
+          "group": "mn_release_of_lien",
+          "ruleKey": "mn_release_of_lien__recorded_lien",
+          "period": null,
+          "result": "undated",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": "none",
+          "citation": {
+            "reference": "Minn. Stat. 514.08"
+          }
+        },
+        {
+          "group": "ks_notice_of_intent_to_perform",
+          "ruleKey": "ks_notice_of_intent_to_perform__commercial_not_required",
+          "period": null,
+          "result": "not_required",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "K.S.A. 60-1103b"
+          }
+        },
+        {
+          "group": "ks_mechanics_lien_statement",
+          "ruleKey": "ks_mechanics_lien_statement__prime",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "exception",
+              "name": "five_month_extension_commercial",
+              "citation": {
+                "reference": "K.S.A. 60-1102(c)"
+              },
+              "note": "K.S.A. 60-1102(c): on 'property other than residential property' a lien 'may be claimed pursuant to this section within five months only if the claimant has filed a notice of extension within four months since last furnishing', filed with the clerk of the district court and 'mailed by certified and regular mail to the owner'."
+            },
+            {
+              "kind": "counting",
+              "status": "review_required"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-15"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 4,
+            "unit": "months",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "K.S.A. 60-1102"
+          }
+        },
+        {
+          "group": "ks_mechanics_lien_statement_expires",
+          "ruleKey": "ks_mechanics_lien_statement_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 12,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "K.S.A. 60-1105(a)"
+          }
+        },
+        {
+          "group": "ks_lien_release",
+          "ruleKey": "ks_lien_release__filed_lien",
+          "period": null,
+          "result": "not_required",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "K.S.A. 60-1108"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "asks the units before passing the exception",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "residential",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-09-01",
+        "last_furnishing_date": "2026-10-15",
+        "contract_date": "2026-08-01",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "mn_contractor_notice",
+          "ruleKey": null,
+          "period": null,
+          "result": "not_covered",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "Minn. Stat. 514.011 subd. 1"
+          }
+        },
+        {
+          "group": "mn_preliminary_notice",
+          "ruleKey": "mn_preliminary_notice__residential_four_units_or_fewer",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-10-16",
+          "provisional": true,
+          "missing": ["dwelling_units"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "review_required"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "first_furnishing_date",
+              "date": "2026-09-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 45,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "Minn. Stat. 514.011 subd. 2"
+          }
+        },
+        {
+          "group": "mn_claim_of_lien",
+          "ruleKey": "mn_claim_of_lien__all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-12",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "review_required"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-15"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 120,
+            "unit": "days",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Minn. Stat. 514.08"
+          }
+        },
+        {
+          "group": "mn_release_of_lien",
+          "ruleKey": "mn_release_of_lien__recorded_lien",
+          "period": null,
+          "result": "undated",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": "none",
+          "citation": {
+            "reference": "Minn. Stat. 514.08"
+          }
+        },
+        {
+          "group": "ks_notice_of_intent_to_perform",
+          "ruleKey": "ks_notice_of_intent_to_perform__sub_residential",
+          "period": null,
+          "result": "undated",
+          "dueOn": null,
+          "provisional": true,
+          "missing": ["dwelling_units"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "K.S.A. 60-1103b"
+          }
+        },
+        {
+          "group": "ks_mechanics_lien_statement",
+          "ruleKey": "ks_mechanics_lien_statement__sub_supplier",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-01-15",
+          "provisional": true,
+          "missing": ["dwelling_units"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "review_required"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-15"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 3,
+            "unit": "months",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "K.S.A. 60-1102"
+          }
+        },
+        {
+          "group": "ks_mechanics_lien_statement_expires",
+          "ruleKey": "ks_mechanics_lien_statement_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 12,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "K.S.A. 60-1105(a)"
+          }
+        },
+        {
+          "group": "ks_lien_release",
+          "ruleKey": "ks_lien_release__filed_lien",
+          "period": null,
+          "result": "not_required",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "K.S.A. 60-1108"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    }
+  ]
+}
