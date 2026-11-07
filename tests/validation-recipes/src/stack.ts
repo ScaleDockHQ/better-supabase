@@ -36,7 +36,12 @@ export async function reachable(): Promise<boolean> {
 /** The module files `add` writes for the recipe, schema files first. */
 export function moduleFiles(recipe: Recipe) {
   const config = resolveConfig(recipe.config, process.cwd());
-  const files = renderBlocks(config.blockNames, moduleLayout(config));
+
+  const files = renderBlocks(config.blockNames, {
+    ...moduleLayout(config),
+    // The stack already holds the declarative schemas, so the install reruns.
+    rerunnable: true,
+  });
 
   return [
     ...files.filter((file) => file.kind === "schema"),
