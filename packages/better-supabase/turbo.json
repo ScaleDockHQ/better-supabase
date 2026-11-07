@@ -7,7 +7,8 @@
       "passThroughEnv": [
         "BS_TOML_SITE_URL",
         "DATABASE_URL",
-        "UPDATE_PRACTICES"
+        "UPDATE_PRACTICES",
+        "INIT_FIXTURE_UPDATE"
       ],
       "dependsOn": ["$TURBO_EXTENDS$", "build"],
       "outputs": [".vitest/blob/**"],
@@ -16,6 +17,7 @@
         "$TURBO_ROOT$/packages/registry/registry.json",
         "$TURBO_ROOT$/apps/marketing/public/r/**",
         "$TURBO_ROOT$/apps/docs/content/docs/**",
+        "$TURBO_ROOT$/tests/init-fixture/**",
         "$TURBO_ROOT$/supabase/schemas/**",
         "$TURBO_ROOT$/supabase/snapshot.json",
         "$TURBO_ROOT$/supabase/config.toml",

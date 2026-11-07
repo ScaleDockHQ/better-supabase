@@ -27,6 +27,8 @@ export const ignorePatterns: string[] = [
   "**/.source",
   "**/.agents/**",
   "**/.claude/**",
+  // What `init` writes for Next.js, compared byte for byte by the init fixture test.
+  "tests/init-fixture/**",
   "**/.cursor/**",
   "**/generated.ts",
   "**/generated.meta.*",
