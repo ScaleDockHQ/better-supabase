@@ -1801,6 +1801,7 @@
       "CachedContext",
       "CachedLife",
       "CachedOptions",
+      "CachedStage",
       "CacheScope",
       "CacheShare",
       "DbBudget",

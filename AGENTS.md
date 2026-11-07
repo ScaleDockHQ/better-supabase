@@ -404,6 +404,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0331: Move the generators out of better-supabase/config.
 - 0332: Register framework bindings with defineFramework.
 - 0340: Ship the proxy as its own subpath, `better-supabase/next/proxy`.
+- 0341: Give bsb.cached a render stage and a max life.
 
 ## Pre-release pins
 

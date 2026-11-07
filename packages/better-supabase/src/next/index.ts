@@ -73,6 +73,7 @@ export type {
   CacheShare,
   CachedContext,
   CachedLife,
+  CachedStage,
   CachedOptions,
   ExchangeCodeParams,
   EmailRedirect,

@@ -958,6 +958,14 @@ export interface SupportStarted {
  */
 export type CacheScope = "private" | "remote";
 
+/**
+ * The render stage a `bsb.cached()` or `bsb.bootstrap()` read waits for:
+ * `"prefetch"` awaits `prefetch()` and `"navigation"` awaits `navigation()`
+ * from `next/cache`, so the read leaves the App Shell and, for `"navigation"`,
+ * the runtime prefetch too.
+ */
+export type CachedStage = "prefetch" | "navigation";
+
 /** `cacheLife` for a `bsb.cached()` or `bsb.bootstrap()` entry. */
 export interface CachedLife {
   /**
@@ -1033,9 +1041,19 @@ export interface RemoteOptions<
 interface CachedEntryOptions<T extends string = string> {
   /**
    * `cacheLife` for the entry. Pass a permission snapshot's lifetime as `stale`
-   * so the entry goes stale with the snapshot too.
+   * so the entry goes stale with the snapshot too. `"max"` is `{ stale: 300,
+   * revalidate: 2592000, expire: 31536000 }`, the profile of Next.js's
+   * `cacheLife("max")`, for reads every write invalidates with `updateTag`; the
+   * token cap of `capToToken` still applies.
    */
-  readonly life?: CachedLife;
+  readonly life?: CachedLife | "max";
+  /**
+   * Waits for a render stage before the entry's context resolves. It runs in
+   * the calling component, never inside the `"use cache"` scope, where the
+   * gates throw. Without Cache Components and Partial Prefetching it does
+   * nothing and logs once in development.
+   */
+  readonly stage?: CachedStage;
   /** More tags for the entry, e.g. `snapshotTag(sub)` or `organization:<id>`. */
   readonly tags?: readonly string[];
   /**

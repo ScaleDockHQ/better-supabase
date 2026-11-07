@@ -81,7 +81,7 @@ import {
 } from "./cache.ts";
 import { logActionStats, requestIdOf, formatStats } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
-import { applyCacheEntry } from "./entry.ts";
+import { applyCacheEntry, awaitStage } from "./entry.ts";
 import { incomingRequest } from "./incoming-request.ts";
 import { proxyHandler } from "./proxy-handler.ts";
 import { proxyRuntime } from "./proxy-runtime.ts";
@@ -494,6 +494,12 @@ export function createNext<
     return { ctx, view: toSession(ctx.auth), scope: "remote", tenant };
   };
 
+  const stageWarn = development
+    ? (message: string): void => {
+        betterSupabase.events.logger.warn(message);
+      }
+    : undefined;
+
   const applyEntry = (
     ctx: ServerContext<M, F, E, C, P, B>,
     view: AuthSession<C, P>,
@@ -528,6 +534,8 @@ export function createNext<
       refreshCallerCache(await getClaims(), base),
 
     async cached(cachedOptions = {}) {
+      await awaitStage(cachedOptions.stage, stageWarn);
+
       const { ctx, view, scope, tenant } = await scopeOf(cachedOptions);
       applyEntry(ctx, view, scope, tenant, cachedOptions);
 
@@ -583,6 +591,8 @@ export function createNext<
     async bootstrap<T, S extends ReadSet = ReadSet>(
       bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,
     ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>> {
+      await awaitStage(bootstrapOptions.stage, stageWarn);
+
       const { ctx, view, scope, tenant } = await scopeOf(bootstrapOptions);
       const calls = bootstrapCalls();
 
