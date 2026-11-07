@@ -27,9 +27,12 @@ export default defineConfig({
       "docs.pages": { column: "embedding", distance: "inner_product" }, // or 'l2'
     },
   },
-  blocks: ["vector-search"],
 });
 ```
+
+A `vectorSearch` table, or a `-- @bsb vector-search` tag on one, installs the
+`vector-search` block, so the config needs no `blocks` entry. List the block
+only to set its `schema` option.
 
 ```bash
 better-supabase upgrade
