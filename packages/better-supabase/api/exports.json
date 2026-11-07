@@ -3445,9 +3445,11 @@
       "BUILT_IN_FRAMEWORKS",
       "defineFramework",
       "FRAMEWORK_API_VERSION",
+      "frameworkFiles",
       "frameworkProblem",
       "frameworkRegistry",
-      "hooksSubpathOf"
+      "hooksSubpathOf",
+      "serverImportOf"
     ],
     "types": [
       "FrameworkBinding",

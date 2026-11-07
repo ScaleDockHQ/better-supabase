@@ -38,4 +38,38 @@ describe("init and the hooks framework", () => {
   it("leaves it out when an adapter already selects the framework", async () => {
     expect(await init({ next: "16", react: "19" })).not.toContain("hooks:");
   });
+
+  it("writes the templates and names the server adapter of a registered framework", async () => {
+    await writeFile(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "app", dependencies: { "@acme/qwik": "1" } }),
+    );
+
+    await writeFile(
+      join(dir, "better-supabase.config.ts"),
+      `const qwik = {
+  apiVersion: 1,
+  name: 'qwik',
+  tier: 'community',
+  detect: ['@acme/qwik'],
+  serverSubpath: 'qwik-server',
+  templates: (context) => [
+    { path: context.srcDir + '/qwik.ts', contents: "import '" + context.serverImport + "';\\n" },
+  ],
+};
+
+export default { gen: { frameworks: [qwik] } };
+`,
+    );
+
+    const result = await run(["init", "--preset", "minimal", "--cwd", dir]);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(
+      "Server adapter for qwik: better-supabase/qwik-server.",
+    );
+    expect(await readFile(join(dir, "qwik.ts"), "utf-8")).toBe(
+      "import 'better-supabase/qwik-server';\n",
+    );
+  });
 });
