@@ -273,6 +273,9 @@ begin
     if v_item ? 'adjust' and not (jsonb_typeof(v_item -> 'adjust') = 'string' and (v_item ->> 'adjust') in (${list(DEADLINE_ADJUSTMENTS)})) then
       v_issues := v_issues || (v_at || ' adjust is ${words(DEADLINE_ADJUSTMENTS)}');
     end if;
+    if v_item ->> 'adjust' = 'next_business_day' and jsonb_path_exists(v_item -> 'deadline', 'strict $.**.before') then
+      v_issues := v_issues || (v_at || ' adjust next_business_day never follows a before count');
+    end if;
     if v_item ? 'required' and jsonb_typeof(v_item -> 'required') <> 'boolean' then
       v_issues := v_issues || (v_at || ' required is true or false');
     end if;

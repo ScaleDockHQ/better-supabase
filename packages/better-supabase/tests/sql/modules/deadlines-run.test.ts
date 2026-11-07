@@ -174,6 +174,18 @@ begin
     raise exception 'invalid rules saved';
   exception when sqlstate '22023' then null;
   end;
+  if not exists (select 1 from unnest(better_supabase.validate_deadline_rules(
+    '{"groups":[{"key":"lien","citation":{"reference":"s"}}],"rules":[{"key":"lien","group":"lien","adjust":"next_business_day","deadline":{"first_of":[{"before":"recorded","n":1,"unit":"days"},{"from":"end","n":2,"unit":"days"}]},"citation":{"reference":"s"}}]}'::jsonb)) i(issue)
+    where i.issue like '%adjust next_business_day never follows a before count') then
+    raise exception 'next business day after a before count accepted';
+  end if;
+  begin
+    perform better_supabase.evaluate_deadlines(
+      '{"groups":[{"key":"lien","citation":{"reference":"s"}}],"rules":[{"key":"lien","group":"lien","deadline":{"from":"end","n":2000000000,"unit":"business_days"},"citation":{"reference":"s"}}]}'::jsonb,
+      '{"end":"2026-01-02"}'::jsonb, '2026-01-02');
+    raise exception 'unbounded business days counted';
+  exception when sqlstate '22023' then null;
+  end;
   insert into better_supabase.approval_requests (tenant_id, subject_type, subject_id, action, policy, status, requested_by)
   values ('${TENANT}', 'deadline_rule_version', v_version ->> 'id', 'approve', '{}'::jsonb, 'approved', '${ALICE}');
   v_version := better_supabase.approve_rule_version(

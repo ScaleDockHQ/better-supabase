@@ -122,6 +122,17 @@ function badCondition(value: unknown, nonEmpty: boolean): boolean {
   );
 }
 
+function countsBefore(node: unknown): boolean {
+  if (Array.isArray(node)) {
+    return node.some(countsBefore);
+  }
+
+  return (
+    isRecord(node) &&
+    ("before" in node || Object.values(node).some(countsBefore))
+  );
+}
+
 function countIssues(count: unknown, at: string, inside: boolean): string[] {
   if (!isRecord(count)) {
     return [`${at} must be a count`];
@@ -476,6 +487,15 @@ function ruleIssues(
       !oneOf(DEADLINE_ADJUSTMENTS, rule["adjust"])
     ) {
       issues.push(`${at} adjust is ${list(DEADLINE_ADJUSTMENTS)}`);
+    }
+
+    if (
+      rule["adjust"] === "next_business_day" &&
+      countsBefore(rule["deadline"])
+    ) {
+      issues.push(
+        `${at} adjust next_business_day never follows a before count`,
+      );
     }
 
     if (

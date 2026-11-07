@@ -1,6 +1,7 @@
 import {
   FIRST_FURNISHING_FACT,
   LAST_FURNISHING_FACT,
+  OFFSET_LIMIT,
   WEEKDAYS,
 } from "./deadlines-values.ts";
 
@@ -210,6 +211,9 @@ begin
   if count ->> 'unit' = 'business_days' then
     v_step := case when v_n < 0 then -1 else 1 end;
     v_left := abs(v_n);
+    if v_left > ${String(OFFSET_LIMIT)} then
+      raise exception 'n is a whole number from 0 to ${String(OFFSET_LIMIT)}' using errcode = '22023', hint = 'DEADLINE_INVALID';
+    end if;
     while v_left > 0 loop
       v_day := v_day + v_step;
       if ${businessDay}(counting, v_day) then

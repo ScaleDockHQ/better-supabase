@@ -155,6 +155,25 @@ describe("validateRuleVersion", () => {
       "group 1 requires itself through lien",
       "group 2 requires itself through notice",
     ]);
+    expect(
+      validateRuleVersion({
+        ...CONTENT,
+        rules: [
+          {
+            key: "lien",
+            group: "lien",
+            adjust: "next_business_day",
+            deadline: {
+              first_of: [
+                { before: "recorded", n: 1, unit: "days" },
+                { from: "end", n: 2, unit: "days" },
+              ],
+            },
+            citation: CITATION,
+          },
+        ],
+      }),
+    ).toContain("rule 1 adjust next_business_day never follows a before count");
   });
 });
 

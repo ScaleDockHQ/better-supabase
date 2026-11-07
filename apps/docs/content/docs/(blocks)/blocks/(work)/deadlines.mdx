@@ -178,7 +178,9 @@ fact never rolls. A holiday is a fixed `{ month, day }` or the `nth` (or
 Saturday, a Sunday or any other day; an entry with `replaces: true` leaves the
 listed date a working day. `business_days` skip weekends and the holidays of an
 approved block. A rule's `adjust` (`next_business_day` or
-`previous_business_day`) applies after the roll.
+`previous_business_day`) applies after the roll. A rule with a `before` count
+can't use `next_business_day`, which could move the last day past the fact.
+A count is at most 3650 days, business days or months.
 
 ### Meta
 

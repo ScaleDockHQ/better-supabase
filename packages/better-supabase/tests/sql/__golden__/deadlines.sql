@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:0b5c562926f117e73f59ad6883c07919a1716115e38865cc6e73e395c869bf3b
+-- @bsb-hash sha256:cf64cb4a5460e6a0efe7b7c5232e671a05e0b30035225feb3a1cfa9a7245221c
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -348,6 +348,9 @@ begin
   if count ->> 'unit' = 'business_days' then
     v_step := case when v_n < 0 then -1 else 1 end;
     v_left := abs(v_n);
+    if v_left > 3650 then
+      raise exception 'n is a whole number from 0 to 3650' using errcode = '22023', hint = 'DEADLINE_INVALID';
+    end if;
     while v_left > 0 loop
       v_day := v_day + v_step;
       if "better_supabase"."deadline_business_day"(counting, v_day) then
@@ -1089,6 +1092,9 @@ begin
     end if;
     if v_item ? 'adjust' and not (jsonb_typeof(v_item -> 'adjust') = 'string' and (v_item ->> 'adjust') in ('none', 'next_business_day', 'previous_business_day')) then
       v_issues := v_issues || (v_at || ' adjust is none, next_business_day, previous_business_day');
+    end if;
+    if v_item ->> 'adjust' = 'next_business_day' and jsonb_path_exists(v_item -> 'deadline', 'strict $.**.before') then
+      v_issues := v_issues || (v_at || ' adjust next_business_day never follows a before count');
     end if;
     if v_item ? 'required' and jsonb_typeof(v_item -> 'required') <> 'boolean' then
       v_issues := v_issues || (v_at || ' required is true or false');
@@ -1810,7 +1816,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:93831608f4a34bff745103159deca4e3f525dea3e7e313e2ea03cc27efd747c6
+-- @bsb-hash sha256:83f3dab12a842d8561f90c1b058b9b1498bdc6bbba8c31d8008e82e03ae7b61a
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2157,6 +2163,9 @@ begin
   if count ->> 'unit' = 'business_days' then
     v_step := case when v_n < 0 then -1 else 1 end;
     v_left := abs(v_n);
+    if v_left > 3650 then
+      raise exception 'n is a whole number from 0 to 3650' using errcode = '22023', hint = 'DEADLINE_INVALID';
+    end if;
     while v_left > 0 loop
       v_day := v_day + v_step;
       if "better_supabase"."deadline_business_day"(counting, v_day) then
@@ -2898,6 +2907,9 @@ begin
     end if;
     if v_item ? 'adjust' and not (jsonb_typeof(v_item -> 'adjust') = 'string' and (v_item ->> 'adjust') in ('none', 'next_business_day', 'previous_business_day')) then
       v_issues := v_issues || (v_at || ' adjust is none, next_business_day, previous_business_day');
+    end if;
+    if v_item ->> 'adjust' = 'next_business_day' and jsonb_path_exists(v_item -> 'deadline', 'strict $.**.before') then
+      v_issues := v_issues || (v_at || ' adjust next_business_day never follows a before count');
     end if;
     if v_item ? 'required' and jsonb_typeof(v_item -> 'required') <> 'boolean' then
       v_issues := v_issues || (v_at || ' required is true or false');
@@ -3655,7 +3667,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:7b3e9d5354d972fd209c299797f125751babd8bc125e64ac334b2a5fddeed697
+-- @bsb-hash sha256:7455e0f44f2ab8630c0905a10481e3d06190960dc8b719efb63cc16e4569e5b4
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4007,6 +4019,9 @@ begin
   if count ->> 'unit' = 'business_days' then
     v_step := case when v_n < 0 then -1 else 1 end;
     v_left := abs(v_n);
+    if v_left > 3650 then
+      raise exception 'n is a whole number from 0 to 3650' using errcode = '22023', hint = 'DEADLINE_INVALID';
+    end if;
     while v_left > 0 loop
       v_day := v_day + v_step;
       if "app_private"."deadline_business_day"(counting, v_day) then
@@ -4749,6 +4764,9 @@ begin
     if v_item ? 'adjust' and not (jsonb_typeof(v_item -> 'adjust') = 'string' and (v_item ->> 'adjust') in ('none', 'next_business_day', 'previous_business_day')) then
       v_issues := v_issues || (v_at || ' adjust is none, next_business_day, previous_business_day');
     end if;
+    if v_item ->> 'adjust' = 'next_business_day' and jsonb_path_exists(v_item -> 'deadline', 'strict $.**.before') then
+      v_issues := v_issues || (v_at || ' adjust next_business_day never follows a before count');
+    end if;
     if v_item ? 'required' and jsonb_typeof(v_item -> 'required') <> 'boolean' then
       v_issues := v_issues || (v_at || ' required is true or false');
     end if;
@@ -5469,7 +5487,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:422d4cf1a746edc1d8af32ada2cb959c82253c533261c58c17877f023ff8ecc7
+-- @bsb-hash sha256:66b6397b326c9ecc8ac1fcd860e4ac0c515b8b4cf60b32c61d14bde04202e796
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5816,6 +5834,9 @@ begin
   if count ->> 'unit' = 'business_days' then
     v_step := case when v_n < 0 then -1 else 1 end;
     v_left := abs(v_n);
+    if v_left > 3650 then
+      raise exception 'n is a whole number from 0 to 3650' using errcode = '22023', hint = 'DEADLINE_INVALID';
+    end if;
     while v_left > 0 loop
       v_day := v_day + v_step;
       if "better_supabase"."deadline_business_day"(counting, v_day) then
@@ -6557,6 +6578,9 @@ begin
     end if;
     if v_item ? 'adjust' and not (jsonb_typeof(v_item -> 'adjust') = 'string' and (v_item ->> 'adjust') in ('none', 'next_business_day', 'previous_business_day')) then
       v_issues := v_issues || (v_at || ' adjust is none, next_business_day, previous_business_day');
+    end if;
+    if v_item ->> 'adjust' = 'next_business_day' and jsonb_path_exists(v_item -> 'deadline', 'strict $.**.before') then
+      v_issues := v_issues || (v_at || ' adjust next_business_day never follows a before count');
     end if;
     if v_item ? 'required' and jsonb_typeof(v_item -> 'required') <> 'boolean' then
       v_issues := v_issues || (v_at || ' required is true or false');
@@ -7386,7 +7410,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:ad4c25ad4e52aa724b4f7f19e185b1248bb91c695449d966da27249f8189be4d
+-- @bsb-hash sha256:031dddd263feddcc9eacab00c9d6db91d7355f6269d87325bc25ba4de4f18481
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7722,6 +7746,9 @@ begin
   if count ->> 'unit' = 'business_days' then
     v_step := case when v_n < 0 then -1 else 1 end;
     v_left := abs(v_n);
+    if v_left > 3650 then
+      raise exception 'n is a whole number from 0 to 3650' using errcode = '22023', hint = 'DEADLINE_INVALID';
+    end if;
     while v_left > 0 loop
       v_day := v_day + v_step;
       if "better_supabase"."deadline_business_day"(counting, v_day) then
@@ -8463,6 +8490,9 @@ begin
     end if;
     if v_item ? 'adjust' and not (jsonb_typeof(v_item -> 'adjust') = 'string' and (v_item ->> 'adjust') in ('none', 'next_business_day', 'previous_business_day')) then
       v_issues := v_issues || (v_at || ' adjust is none, next_business_day, previous_business_day');
+    end if;
+    if v_item ->> 'adjust' = 'next_business_day' and jsonb_path_exists(v_item -> 'deadline', 'strict $.**.before') then
+      v_issues := v_issues || (v_at || ' adjust next_business_day never follows a before count');
     end if;
     if v_item ? 'required' and jsonb_typeof(v_item -> 'required') <> 'boolean' then
       v_issues := v_issues || (v_at || ' required is true or false');
@@ -9184,7 +9214,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:d08f4dc4fd90f0482b3b33d027233f3427257815d889530b6b2cd5d65b7f0c07
+-- @bsb-hash sha256:5f93e7886f7b5306ff24a7afb1499d34ff25fc080e1545e0ec0bb05786dcb420
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9531,6 +9561,9 @@ begin
   if count ->> 'unit' = 'business_days' then
     v_step := case when v_n < 0 then -1 else 1 end;
     v_left := abs(v_n);
+    if v_left > 3650 then
+      raise exception 'n is a whole number from 0 to 3650' using errcode = '22023', hint = 'DEADLINE_INVALID';
+    end if;
     while v_left > 0 loop
       v_day := v_day + v_step;
       if "better_supabase"."deadline_business_day"(counting, v_day) then
@@ -10272,6 +10305,9 @@ begin
     end if;
     if v_item ? 'adjust' and not (jsonb_typeof(v_item -> 'adjust') = 'string' and (v_item ->> 'adjust') in ('none', 'next_business_day', 'previous_business_day')) then
       v_issues := v_issues || (v_at || ' adjust is none, next_business_day, previous_business_day');
+    end if;
+    if v_item ->> 'adjust' = 'next_business_day' and jsonb_path_exists(v_item -> 'deadline', 'strict $.**.before') then
+      v_issues := v_issues || (v_at || ' adjust next_business_day never follows a before count');
     end if;
     if v_item ? 'required' and jsonb_typeof(v_item -> 'required') <> 'boolean' then
       v_issues := v_issues || (v_at || ' required is true or false');

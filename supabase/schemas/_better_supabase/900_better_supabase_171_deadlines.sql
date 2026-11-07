@@ -1,6 +1,6 @@
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:79236f1cb4c152e1cff4efe743c7e9717de66dc80cc03eb01b17fd13c623d625
+-- @bsb-hash sha256:6b5bd8b00a623da79673970647179b71e555ba073a3f3cbef0df708d388e79a0
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -347,6 +347,9 @@ begin
   if count ->> 'unit' = 'business_days' then
     v_step := case when v_n < 0 then -1 else 1 end;
     v_left := abs(v_n);
+    if v_left > 3650 then
+      raise exception 'n is a whole number from 0 to 3650' using errcode = '22023', hint = 'DEADLINE_INVALID';
+    end if;
     while v_left > 0 loop
       v_day := v_day + v_step;
       if "better_supabase"."deadline_business_day"(counting, v_day) then
@@ -1088,6 +1091,9 @@ begin
     end if;
     if v_item ? 'adjust' and not (jsonb_typeof(v_item -> 'adjust') = 'string' and (v_item ->> 'adjust') in ('none', 'next_business_day', 'previous_business_day')) then
       v_issues := v_issues || (v_at || ' adjust is none, next_business_day, previous_business_day');
+    end if;
+    if v_item ->> 'adjust' = 'next_business_day' and jsonb_path_exists(v_item -> 'deadline', 'strict $.**.before') then
+      v_issues := v_issues || (v_at || ' adjust next_business_day never follows a before count');
     end if;
     if v_item ? 'required' and jsonb_typeof(v_item -> 'required') <> 'boolean' then
       v_issues := v_issues || (v_at || ' required is true or false');
