@@ -1,0 +1,3228 @@
+{
+  "content": {
+    "groups": [
+      {
+        "key": "zero",
+        "citation": {
+          "reference": "Hand case"
+        }
+      },
+      {
+        "key": "months",
+        "citation": {
+          "reference": "Hand case"
+        }
+      },
+      {
+        "key": "day_28",
+        "citation": {
+          "reference": "Hand case"
+        }
+      },
+      {
+        "key": "business",
+        "citation": {
+          "reference": "Hand case"
+        }
+      },
+      {
+        "key": "back",
+        "citation": {
+          "reference": "Hand case"
+        }
+      },
+      {
+        "key": "forward",
+        "citation": {
+          "reference": "Hand case"
+        }
+      }
+    ],
+    "rules": [
+      {
+        "key": "zero",
+        "group": "zero",
+        "deadline": {
+          "from": "day",
+          "n": 0,
+          "unit": "days"
+        },
+        "citation": {
+          "reference": "Hand case"
+        }
+      },
+      {
+        "key": "months",
+        "group": "months",
+        "deadline": {
+          "from": "day",
+          "n": 1,
+          "unit": "months"
+        },
+        "citation": {
+          "reference": "Hand case"
+        }
+      },
+      {
+        "key": "day_28",
+        "group": "day_28",
+        "deadline": {
+          "from": "day",
+          "n": 1,
+          "unit": "months",
+          "day_of_month": 28
+        },
+        "citation": {
+          "reference": "Hand case"
+        }
+      },
+      {
+        "key": "business",
+        "group": "business",
+        "deadline": {
+          "from": "day",
+          "n": 5,
+          "unit": "business_days"
+        },
+        "citation": {
+          "reference": "Hand case"
+        }
+      },
+      {
+        "key": "back",
+        "group": "back",
+        "deadline": {
+          "from": "day",
+          "n": 0,
+          "unit": "days"
+        },
+        "adjust": "previous_business_day",
+        "citation": {
+          "reference": "Hand case"
+        }
+      },
+      {
+        "key": "forward",
+        "group": "forward",
+        "deadline": {
+          "from": "day",
+          "n": 0,
+          "unit": "days"
+        },
+        "adjust": "next_business_day",
+        "citation": {
+          "reference": "Hand case"
+        }
+      }
+    ],
+    "counting": {
+      "roll_to": "next_business_day",
+      "roll_when": ["sunday", "holiday"],
+      "holidays": [
+        {
+          "name": "New Year's Day",
+          "date": {
+            "day": 1,
+            "month": 1
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(2)"
+          },
+          "observed": [
+            {
+              "falls_on": "sunday",
+              "observe": "following_monday",
+              "citation": {
+                "reference": "A.R.S. 1-301(B)"
+              }
+            },
+            {
+              "falls_on": "saturday",
+              "observe": "preceding_friday",
+              "citation": {
+                "reference": "A.R.S. 1-301(C)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Martin Luther King, Jr./Civil Rights Day",
+          "date": {
+            "month": 1,
+            "nth": 3,
+            "weekday": "monday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(3)"
+          }
+        },
+        {
+          "name": "Lincoln/Washington Presidents' Day",
+          "date": {
+            "month": 2,
+            "nth": 3,
+            "weekday": "monday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(4)"
+          }
+        },
+        {
+          "name": "Mothers' Day",
+          "date": {
+            "month": 5,
+            "nth": 2,
+            "weekday": "sunday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(5)"
+          }
+        },
+        {
+          "name": "Memorial Day",
+          "date": {
+            "month": 5,
+            "nth": "last",
+            "weekday": "monday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(6)"
+          }
+        },
+        {
+          "name": "Native American Day",
+          "date": {
+            "day": 2,
+            "month": 6
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(7)"
+          },
+          "observed": [
+            {
+              "falls_on": "other_than_sunday",
+              "observe": "following_sunday",
+              "replaces": true,
+              "citation": {
+                "reference": "A.R.S. 1-301(D)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fathers' Day",
+          "date": {
+            "month": 6,
+            "nth": 3,
+            "weekday": "sunday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(8)"
+          }
+        },
+        {
+          "name": "Independence Day",
+          "date": {
+            "day": 4,
+            "month": 7
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(9)"
+          },
+          "observed": [
+            {
+              "falls_on": "sunday",
+              "observe": "following_monday",
+              "citation": {
+                "reference": "A.R.S. 1-301(B)"
+              }
+            },
+            {
+              "falls_on": "saturday",
+              "observe": "preceding_friday",
+              "citation": {
+                "reference": "A.R.S. 1-301(C)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "American Family Day",
+          "date": {
+            "month": 8,
+            "nth": 1,
+            "weekday": "sunday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(10)"
+          }
+        },
+        {
+          "name": "National Navajo Code Talkers Day",
+          "date": {
+            "day": 14,
+            "month": 8
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(11)"
+          },
+          "observed": [
+            {
+              "falls_on": "other_than_sunday",
+              "observe": "following_sunday",
+              "replaces": true,
+              "citation": {
+                "reference": "A.R.S. 1-301(E)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Labor Day",
+          "date": {
+            "month": 9,
+            "nth": 1,
+            "weekday": "monday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(12)"
+          }
+        },
+        {
+          "name": "Constitution Commemoration Day",
+          "date": {
+            "day": 17,
+            "month": 9
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(13)"
+          },
+          "observed": [
+            {
+              "falls_on": "other_than_sunday",
+              "observe": "preceding_sunday",
+              "replaces": true,
+              "citation": {
+                "reference": "A.R.S. 1-301(F)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Columbus Day",
+          "date": {
+            "month": 10,
+            "nth": 2,
+            "weekday": "monday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(14)"
+          }
+        },
+        {
+          "name": "Veterans' Day",
+          "date": {
+            "day": 11,
+            "month": 11
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(15)"
+          },
+          "observed": [
+            {
+              "falls_on": "sunday",
+              "observe": "following_monday",
+              "citation": {
+                "reference": "A.R.S. 1-301(B)"
+              }
+            },
+            {
+              "falls_on": "saturday",
+              "observe": "preceding_friday",
+              "citation": {
+                "reference": "A.R.S. 1-301(C)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Thanksgiving Day",
+          "date": {
+            "month": 11,
+            "nth": 4,
+            "weekday": "thursday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(16)"
+          }
+        },
+        {
+          "name": "Christmas Day",
+          "date": {
+            "day": 25,
+            "month": 12
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(17)"
+          },
+          "observed": [
+            {
+              "falls_on": "sunday",
+              "observe": "following_monday",
+              "citation": {
+                "reference": "A.R.S. 1-301(B)"
+              }
+            },
+            {
+              "falls_on": "saturday",
+              "observe": "preceding_friday",
+              "citation": {
+                "reference": "A.R.S. 1-301(C)"
+              }
+            }
+          ]
+        }
+      ],
+      "citation": {
+        "reference": "A.R.S. 1-243(A)"
+      },
+      "status": "approved"
+    }
+  },
+  "cases": [
+    {
+      "name": "Arizona from 2026-07-03",
+      "facts": {
+        "day": "2026-07-03"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-07-06",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-07-03"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-08-03",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-07-03"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-08-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-07-03"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-07-10",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-07-03"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-07-06",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-07-03"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-07-06",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-07-03"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "Arizona from 2026-06-19",
+      "facts": {
+        "day": "2026-06-19"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-06-19",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-19"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-07-20",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-19"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-07-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-19"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-06-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-19"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-06-19",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-19"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-06-19",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-19"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "Arizona from 2026-06-02",
+      "facts": {
+        "day": "2026-06-02"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-06-02",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-02"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-07-02",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-02"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-07-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-02"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-06-09",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-02"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-06-02",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-02"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-06-02",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-06-02"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "Arizona from 2026-05-25",
+      "facts": {
+        "day": "2026-05-25"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-05-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-05-25"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-06-25",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-05-25"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-06-29",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-05-25"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-06-01",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-05-25"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-05-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-05-25"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-05-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-05-25"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "Arizona from 2026-11-26",
+      "facts": {
+        "day": "2026-11-26"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-27",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-03",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-27",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-27",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "Arizona from 2027-12-31",
+      "facts": {
+        "day": "2027-12-31"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2028-01-03",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-12-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2028-01-31",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-12-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2028-01-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-12-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2028-01-07",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-12-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2028-01-03",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-12-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2028-01-03",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-12-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "Arizona from 2027-03-14",
+      "facts": {
+        "day": "2027-03-14"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-14"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-04-14",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-14"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-04-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-14"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-19",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-14"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-14"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-14"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "Arizona from 2027-03-13",
+      "facts": {
+        "day": "2027-03-13"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-13",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-04-13",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-04-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-19",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-12",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "Arizona from 2026-01-31",
+      "facts": {
+        "day": "2026-01-31"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-01-31",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-02-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-02-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-02-06",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-01-30",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-02-02",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "Arizona from 2027-01-31",
+      "facts": {
+        "day": "2027-01-31"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-01",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-01",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-01",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-05",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-01",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-01",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-01-31"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "Arizona from 2026-11-23",
+      "facts": {
+        "day": "2026-11-23"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-23",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-23",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-01",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-23",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-23",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a Sunday-only block rolls past no holiday",
+      "facts": {
+        "day": "2026-11-26"
+      },
+      "counting": {
+        "roll_to": "next_business_day",
+        "roll_when": ["sunday"],
+        "holidays": [
+          {
+            "name": "New Year's Day",
+            "date": {
+              "day": 1,
+              "month": 1
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(2)"
+            },
+            "observed": [
+              {
+                "falls_on": "sunday",
+                "observe": "following_monday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(B)"
+                }
+              },
+              {
+                "falls_on": "saturday",
+                "observe": "preceding_friday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(C)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Martin Luther King, Jr./Civil Rights Day",
+            "date": {
+              "month": 1,
+              "nth": 3,
+              "weekday": "monday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(3)"
+            }
+          },
+          {
+            "name": "Lincoln/Washington Presidents' Day",
+            "date": {
+              "month": 2,
+              "nth": 3,
+              "weekday": "monday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(4)"
+            }
+          },
+          {
+            "name": "Mothers' Day",
+            "date": {
+              "month": 5,
+              "nth": 2,
+              "weekday": "sunday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(5)"
+            }
+          },
+          {
+            "name": "Memorial Day",
+            "date": {
+              "month": 5,
+              "nth": "last",
+              "weekday": "monday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(6)"
+            }
+          },
+          {
+            "name": "Native American Day",
+            "date": {
+              "day": 2,
+              "month": 6
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(7)"
+            },
+            "observed": [
+              {
+                "falls_on": "other_than_sunday",
+                "observe": "following_sunday",
+                "replaces": true,
+                "citation": {
+                  "reference": "A.R.S. 1-301(D)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Fathers' Day",
+            "date": {
+              "month": 6,
+              "nth": 3,
+              "weekday": "sunday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(8)"
+            }
+          },
+          {
+            "name": "Independence Day",
+            "date": {
+              "day": 4,
+              "month": 7
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(9)"
+            },
+            "observed": [
+              {
+                "falls_on": "sunday",
+                "observe": "following_monday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(B)"
+                }
+              },
+              {
+                "falls_on": "saturday",
+                "observe": "preceding_friday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(C)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "American Family Day",
+            "date": {
+              "month": 8,
+              "nth": 1,
+              "weekday": "sunday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(10)"
+            }
+          },
+          {
+            "name": "National Navajo Code Talkers Day",
+            "date": {
+              "day": 14,
+              "month": 8
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(11)"
+            },
+            "observed": [
+              {
+                "falls_on": "other_than_sunday",
+                "observe": "following_sunday",
+                "replaces": true,
+                "citation": {
+                  "reference": "A.R.S. 1-301(E)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Labor Day",
+            "date": {
+              "month": 9,
+              "nth": 1,
+              "weekday": "monday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(12)"
+            }
+          },
+          {
+            "name": "Constitution Commemoration Day",
+            "date": {
+              "day": 17,
+              "month": 9
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(13)"
+            },
+            "observed": [
+              {
+                "falls_on": "other_than_sunday",
+                "observe": "preceding_sunday",
+                "replaces": true,
+                "citation": {
+                  "reference": "A.R.S. 1-301(F)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Columbus Day",
+            "date": {
+              "month": 10,
+              "nth": 2,
+              "weekday": "monday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(14)"
+            }
+          },
+          {
+            "name": "Veterans' Day",
+            "date": {
+              "day": 11,
+              "month": 11
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(15)"
+            },
+            "observed": [
+              {
+                "falls_on": "sunday",
+                "observe": "following_monday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(B)"
+                }
+              },
+              {
+                "falls_on": "saturday",
+                "observe": "preceding_friday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(C)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Thanksgiving Day",
+            "date": {
+              "month": 11,
+              "nth": 4,
+              "weekday": "thursday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(16)"
+            }
+          },
+          {
+            "name": "Christmas Day",
+            "date": {
+              "day": 25,
+              "month": 12
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(17)"
+            },
+            "observed": [
+              {
+                "falls_on": "sunday",
+                "observe": "following_monday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(B)"
+                }
+              },
+              {
+                "falls_on": "saturday",
+                "observe": "preceding_friday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(C)"
+                }
+              }
+            ]
+          }
+        ],
+        "citation": {
+          "reference": "A.R.S. 1-243(A)"
+        },
+        "status": "approved"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-03",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-25",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-27",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a Saturday and Sunday block rolls a Saturday",
+      "facts": {
+        "day": "2027-03-13"
+      },
+      "counting": {
+        "roll_to": "next_business_day",
+        "roll_when": ["saturday", "sunday"],
+        "holidays": [],
+        "status": "approved"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-04-13",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-04-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-19",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2027-03-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a block that lists no holiday rolls past none",
+      "facts": {
+        "day": "2026-11-26"
+      },
+      "counting": {
+        "roll_to": "next_business_day",
+        "roll_when": ["sunday", "holiday"],
+        "holidays": [],
+        "status": "approved"
+      },
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-03",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-26"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "without a counting block weekends are the only non-business days",
+      "facts": {
+        "day": "2026-11-23"
+      },
+      "counting": null,
+      "expect": [
+        {
+          "group": "zero",
+          "ruleKey": "zero",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-23",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "months",
+          "ruleKey": "months",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-23",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "day_28",
+          "ruleKey": "day_28",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-28",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 1,
+            "unit": "months",
+            "day_of_month": 28
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "business",
+          "ruleKey": "business",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-30",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 5,
+            "unit": "business_days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "back",
+          "ruleKey": "back",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-23",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        },
+        {
+          "group": "forward",
+          "ruleKey": "forward",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-23",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "day",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "from": "day",
+            "n": 0,
+            "unit": "days"
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    }
+  ],
+  "holidays": [
+    {
+      "date": "2026-07-03",
+      "holiday": true
+    },
+    {
+      "date": "2026-07-04",
+      "holiday": true
+    },
+    {
+      "date": "2026-06-19",
+      "holiday": false
+    },
+    {
+      "date": "2026-06-02",
+      "holiday": false
+    },
+    {
+      "date": "2026-06-07",
+      "holiday": true
+    },
+    {
+      "date": "2026-09-17",
+      "holiday": false
+    },
+    {
+      "date": "2026-09-13",
+      "holiday": true
+    },
+    {
+      "date": "2026-05-25",
+      "holiday": true
+    },
+    {
+      "date": "2027-05-31",
+      "holiday": true
+    },
+    {
+      "date": "2027-05-24",
+      "holiday": false
+    },
+    {
+      "date": "2026-11-26",
+      "holiday": true
+    },
+    {
+      "date": "2026-11-19",
+      "holiday": false
+    },
+    {
+      "date": "2027-12-31",
+      "holiday": true
+    },
+    {
+      "date": "2026-11-27",
+      "holiday": false
+    }
+  ]
+}

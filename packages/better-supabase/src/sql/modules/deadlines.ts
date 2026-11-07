@@ -5,7 +5,11 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type {
+  BlockSqlDefinition,
+  BlockSqlDeprecation,
+  BlockSqlUpgrade,
+} from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -20,6 +24,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { evaluatorSql } from "./deadlines-evaluator.ts";
+import { validatorSql } from "./deadlines-validator.ts";
 import {
   DEADLINE_RESULTS,
   DEADLINE_STATES,
@@ -32,9 +37,12 @@ const PAYLOAD = [
   "id",
   "subjectType",
   "subjectId",
+  "groupKey",
   "ruleKey",
+  "period",
   "result",
   "dueOn",
+  "provisional",
 ] as const;
 
 const deadline = { subject: "deadlines", payload: [...PAYLOAD] } as const;
@@ -72,6 +80,9 @@ const NAMES: BlockSqlNames = {
         version: "version",
         status: "status",
         rules: "rules",
+        groups: "groups",
+        counting: "counting",
+        meta: "meta",
         contentHash: "content_hash",
         effectiveFrom: "effective_from",
         approvedBy: "approved_by",
@@ -91,13 +102,21 @@ const NAMES: BlockSqlNames = {
         subjectId: "subject_id",
         jurisdiction: "jurisdiction",
         kind: "kind",
+        groupKey: "group_key",
         ruleKey: "rule_key",
+        period: "period",
         ruleVersion: "rule_version_id",
         facts: "facts",
         result: "result",
         dueOn: "due_on",
+        provisional: "provisional",
         missing: "missing",
+        exception: "exception",
+        review: "review",
+        basis: "basis",
+        deadline: "deadline",
         citation: "citation",
+        asOf: "as_of",
         state: "state",
         satisfiedAt: "satisfied_at",
         satisfiedBy: "satisfied_by",
@@ -112,6 +131,174 @@ const NAMES: BlockSqlNames = {
 const quoted = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
+/** The SHA-256 of a version's content, shared by approval and the upgrade. */
+function contentHashSql(ctx: BlockSqlContext): string {
+  return `-- The SHA-256 content hash of a rule set version: its rules, groups,
+-- counting block and meta.
+create or replace function ${ctx.fn("version_content_hash")}(rules jsonb, groups jsonb, counting jsonb, meta jsonb)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select ${sha256HexSql("convert_to(jsonb_build_object('rules', rules, 'groups', groups, 'counting', counting, 'meta', meta)::text, 'UTF8')")}
+$$;
+${triggerGrant(`${ctx.fn("version_content_hash")}(jsonb, jsonb, jsonb, jsonb)`)}`;
+}
+
+/**
+ * Converts a rule of the version 1 shape (anchor and offset) to a rule and its
+ * group.
+ */
+function fromV1Sql(ctx: BlockSqlContext): string {
+  return `-- A rule of the version 1 shape (anchor, offset, requires) as a rule of
+-- its own group: the offset counts from the anchor, or before it when it is
+-- negative, and each required fact must be present.
+create or replace function ${ctx.fn("deadline_rule_from_v1")}(rule jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select jsonb_build_object(
+      'key', rule -> 'key',
+      'group', rule -> 'key',
+      'deadline', jsonb_build_object(
+        'n', abs((rule #>> '{offset,amount}')::integer),
+        'unit', rule #> '{offset,unit}',
+        case when (rule #>> '{offset,amount}')::integer < 0 then 'before' else 'from' end, rule -> 'anchor'),
+      'citation', rule -> 'citation')
+    || case when rule ? 'title' then jsonb_build_object('title', rule -> 'title') else '{}'::jsonb end
+    || case when rule ? 'adjust' then jsonb_build_object('adjust', rule -> 'adjust') else '{}'::jsonb end
+    || coalesce((
+      select jsonb_build_object('applies', jsonb_object_agg(r.name, 'present'))
+      from jsonb_array_elements_text(case when jsonb_typeof(rule -> 'requires') = 'array' then rule -> 'requires' else '[]'::jsonb end) r(name)
+      having count(*) > 0
+    ), '{}'::jsonb)
+$$;
+${triggerGrant(`${ctx.fn("deadline_rule_from_v1")}(jsonb)`)}`;
+}
+
+const TO_GROUPS: BlockSqlUpgrade = {
+  from: 1,
+  description:
+    "Rule set versions take groups, a counting block and meta, and rules move to the v2 grammar: each version 1 rule (anchor, offset) becomes a rule of its own group, and an approved version keeps its old hash in meta.previous_content_hash. Deadlines gain group_key (backfilled from rule_key), period, provisional, exception, review, basis, deadline and as_of; save_rule_version takes the content, and the per-rule unique constraint gives way to a unique index per group and period.",
+  sql: (ctx) => {
+    if (ctx.mode === "custom") {
+      return "";
+    }
+
+    const v = (column: string): string => ctx.col("ruleVersions", column);
+    const d = (column: string): string => ctx.col("deadlines", column);
+    const versions = ctx.table("ruleVersions");
+    const deadlines = ctx.table("deadlines");
+    const name = ctx.tableName("deadlines").name;
+
+    return `${contentHashSql(ctx)}
+
+${fromV1Sql(ctx)}
+
+do $$
+begin
+  if to_regclass(${sqlString(versions)}) is null then
+    return;
+  end if;
+  alter table ${versions} add column if not exists ${v("groups")} jsonb not null default '[]'::jsonb;
+  alter table ${versions} add column if not exists ${v("counting")} jsonb;
+  alter table ${versions} add column if not exists ${v("meta")} jsonb;
+  alter table ${deadlines} add column if not exists ${d("groupKey")} text;
+  alter table ${deadlines} add column if not exists ${d("period")} text check (${d("period")} ~ '^[0-9]{4}-[0-9]{2}$');
+  alter table ${deadlines} add column if not exists ${d("provisional")} boolean not null default false;
+  alter table ${deadlines} add column if not exists ${d("exception")} jsonb;
+  alter table ${deadlines} add column if not exists ${d("review")} jsonb not null default '[]'::jsonb;
+  alter table ${deadlines} add column if not exists ${d("basis")} jsonb;
+  alter table ${deadlines} add column if not exists ${d("deadline")} jsonb;
+  alter table ${deadlines} add column if not exists ${d("asOf")} date not null default current_date;
+  update ${deadlines} set ${d("groupKey")} = ${d("ruleKey")} where ${d("groupKey")} is null;
+  alter table ${deadlines} alter column ${d("groupKey")} set not null;
+  alter table ${deadlines} alter column ${d("ruleKey")} drop not null;
+  alter table ${deadlines} drop constraint if exists ${sqlIdent(`${name}_result_check`)};
+  alter table ${deadlines} add constraint ${sqlIdent(`${name}_result_check`)} check (${d("result")} in (${quoted(DEADLINE_RESULTS)}));
+  alter table ${deadlines} drop constraint if exists ${sqlIdent(`${name}_period_due_check`)};
+  alter table ${deadlines} add constraint ${sqlIdent(`${name}_period_due_check`)} check (${d("period")} is null or ${d("result")} = 'due');
+  alter table ${deadlines} drop constraint if exists ${sqlIdent(`${name}_subject_rule_key`)};
+
+  alter table ${versions} disable trigger bsb_deadlines_version_frozen;
+  with converted as (
+    select x.${v("id")} as id,
+      (select jsonb_agg(${ctx.fn("deadline_rule_from_v1")}(r.value) order by r.ord) from jsonb_array_elements(x.${v("rules")}) with ordinality r(value, ord)) as rules,
+      (select jsonb_agg(jsonb_build_object('key', r.value -> 'key', 'citation', r.value -> 'citation') order by r.ord) from jsonb_array_elements(x.${v("rules")}) with ordinality r(value, ord)) as groups,
+      case when x.${v("status")} = 'approved'
+        then coalesce(x.${v("meta")}, '{}'::jsonb) || jsonb_build_object('previous_content_hash', x.${v("contentHash")})
+        else x.${v("meta")} end as meta
+    from ${versions} x
+    where exists (select 1 from jsonb_array_elements(x.${v("rules")}) r(value) where r.value ? 'anchor')
+  )
+  update ${versions} x set ${v("rules")} = c.rules, ${v("groups")} = c.groups, ${v("meta")} = c.meta,
+    ${v("contentHash")} = case when x.${v("status")} = 'approved'
+      then ${ctx.fn("version_content_hash")}(c.rules, c.groups, x.${v("counting")}, c.meta) else x.${v("contentHash")} end
+  from converted c where x.${v("id")} = c.id;
+  alter table ${versions} enable trigger bsb_deadlines_version_frozen;
+end;
+$$;
+
+drop function if exists ${ctx.fn("save_rule_version")}(text, text, jsonb, date, text);
+drop function if exists ${ctx.fn("validate_deadline_rules")}(jsonb);`;
+  },
+};
+
+const DEPRECATED: readonly BlockSqlDeprecation[] = [
+  {
+    kind: "function",
+    symbol: "better_supabase.evaluate_deadline_rule",
+    use: "better_supabase.evaluate_deadlines(content, facts, as_of, group_key); removed in 0.58",
+    since: "0.56.0",
+    wrapper: (
+      ctx,
+    ) => `create or replace function ${ctx.fn("evaluate_deadline_rule")}(rule jsonb, facts jsonb)
+returns jsonb
+language plpgsql
+immutable
+security definer
+set search_path = ''
+as $$
+declare
+  v_rule jsonb := case when rule ? 'anchor' then ${ctx.fn("deadline_rule_from_v1")}(rule) else rule end;
+  v_result jsonb;
+begin
+  v_result := ${ctx.fn("evaluate_deadlines")}(
+    jsonb_build_object('rules', jsonb_build_array(v_rule),
+      'groups', jsonb_build_array(jsonb_build_object('key', v_rule -> 'group', 'citation', v_rule -> 'citation'))),
+    coalesce(facts, '{}'::jsonb), current_date) -> 0;
+  if v_result ->> 'result' = 'due' then
+    return jsonb_build_object('status', 'due', 'dueOn', v_result -> 'dueOn');
+  end if;
+  return jsonb_build_object('status', 'unknown', 'missing', v_result -> 'missing');
+end;
+$$;
+comment on function ${ctx.fn("evaluate_deadline_rule")}(jsonb, jsonb) is 'deprecated: use evaluate_deadlines';
+${userGrant(`${ctx.fn("evaluate_deadline_rule")}(jsonb, jsonb)`)}`,
+  },
+  {
+    kind: "function",
+    symbol: "better_supabase.compute_deadline",
+    use: "better_supabase.compute_deadlines(..., group_key); removed in 0.58",
+    since: "0.56.0",
+    wrapper: (
+      ctx,
+    ) => `create or replace function ${ctx.fn("compute_deadline")}(tenant ${ctx.idType}, subject_type text, subject_id text, jurisdiction text, kind text, rule_key text, facts jsonb default '{}', as_of date default current_date)
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  select ${ctx.fn("compute_deadlines")}(tenant, subject_type, subject_id, jurisdiction, kind, facts, as_of, rule_key) -> 0
+$$;
+comment on function ${ctx.fn("compute_deadline")}(${ctx.idType}, text, text, text, text, text, jsonb, date) is 'deprecated: use compute_deadlines';
+${userGrant(`${ctx.fn("compute_deadline")}(${ctx.idType}, text, text, text, text, text, jsonb, date)`)}`,
+  },
+];
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -125,6 +312,7 @@ function build(ctx: BlockSqlContext): string {
   const sets = ctx.table("ruleSets");
   const versions = ctx.table("ruleVersions");
   const deadlines = ctx.table("deadlines");
+  const deadlinesName = ctx.tableName("deadlines").name;
   const read = ctx.permission("read", OPERATIONS["deadlines.read"]);
   const write = ctx.permission("write", OPERATIONS["deadlines.write"]);
 
@@ -142,11 +330,17 @@ function build(ctx: BlockSqlContext): string {
 
   const missing = fail("DEADLINE_NOT_FOUND", "no such deadline", "P0002");
 
-  const versionJson = (row: string, sets_ = sets): string =>
-    `jsonb_build_object('id', ${row}.${v("id")}, 'jurisdiction', (select z.${s("jurisdiction")} from ${sets_} z where z.${s("id")} = ${row}.${v("ruleSet")}), 'kind', (select z.${s("kind")} from ${sets_} z where z.${s("id")} = ${row}.${v("ruleSet")}), 'version', ${row}.${v("version")}, 'status', ${row}.${v("status")}, 'rules', ${row}.${v("rules")}, 'contentHash', ${row}.${v("contentHash")}, 'effectiveFrom', ${row}.${v("effectiveFrom")}, 'approvedBy', ${row}.${v("approvedBy")}, 'approvedAt', ${row}.${v("approvedAt")}, 'createdAt', ${row}.${v("createdAt")})`;
+  const content = (row: string): string =>
+    `jsonb_build_object('rules', ${row}.${v("rules")}, 'groups', ${row}.${v("groups")}) || case when ${row}.${v("counting")} is null then '{}'::jsonb else jsonb_build_object('counting', ${row}.${v("counting")}) end || case when ${row}.${v("meta")} is null then '{}'::jsonb else jsonb_build_object('meta', ${row}.${v("meta")}) end`;
+
+  const versionJson = (row: string): string =>
+    `jsonb_build_object('id', ${row}.${v("id")}, 'jurisdiction', (select z.${s("jurisdiction")} from ${sets} z where z.${s("id")} = ${row}.${v("ruleSet")}), 'kind', (select z.${s("kind")} from ${sets} z where z.${s("id")} = ${row}.${v("ruleSet")}), 'version', ${row}.${v("version")}, 'status', ${row}.${v("status")}, 'rules', ${row}.${v("rules")}, 'groups', ${row}.${v("groups")}, 'counting', ${row}.${v("counting")}, 'meta', ${row}.${v("meta")}, 'contentHash', ${row}.${v("contentHash")}, 'effectiveFrom', ${row}.${v("effectiveFrom")}, 'approvedBy', ${row}.${v("approvedBy")}, 'approvedAt', ${row}.${v("approvedAt")}, 'createdAt', ${row}.${v("createdAt")})`;
 
   const json = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${d("id")}, 'organizationId', ${row}.${d("tenant")}, 'subjectType', ${row}.${d("subjectType")}, 'subjectId', ${row}.${d("subjectId")}, 'jurisdiction', ${row}.${d("jurisdiction")}, 'kind', ${row}.${d("kind")}, 'ruleKey', ${row}.${d("ruleKey")}, 'ruleVersionId', ${row}.${d("ruleVersion")}, 'ruleVersion', (select x.${v("version")} from ${versions} x where x.${v("id")} = ${row}.${d("ruleVersion")}), 'facts', ${row}.${d("facts")}, 'result', ${row}.${d("result")}, 'dueOn', ${row}.${d("dueOn")}, 'missing', to_jsonb(${row}.${d("missing")}), 'citation', ${row}.${d("citation")}, 'state', ${row}.${d("state")}, 'satisfiedAt', ${row}.${d("satisfiedAt")}, 'satisfiedBy', ${row}.${d("satisfiedBy")}, 'satisfiedAction', ${row}.${d("satisfiedAction")}, 'computedAt', ${row}.${d("computedAt")}, 'createdAt', ${row}.${d("createdAt")})`;
+    `jsonb_build_object('id', ${row}.${d("id")}, 'organizationId', ${row}.${d("tenant")}, 'subjectType', ${row}.${d("subjectType")}, 'subjectId', ${row}.${d("subjectId")}, 'jurisdiction', ${row}.${d("jurisdiction")}, 'kind', ${row}.${d("kind")}, 'groupKey', ${row}.${d("groupKey")}, 'ruleKey', ${row}.${d("ruleKey")}, 'period', ${row}.${d("period")}, 'ruleVersionId', ${row}.${d("ruleVersion")}, 'ruleVersion', (select x.${v("version")} from ${versions} x where x.${v("id")} = ${row}.${d("ruleVersion")}), 'facts', ${row}.${d("facts")}, 'result', ${row}.${d("result")}, 'dueOn', ${row}.${d("dueOn")}, 'provisional', ${row}.${d("provisional")}, 'missing', to_jsonb(${row}.${d("missing")}), 'exception', ${row}.${d("exception")}, 'review', ${row}.${d("review")}, 'basis', ${row}.${d("basis")}, 'deadline', ${row}.${d("deadline")}, 'citation', ${row}.${d("citation")}, 'asOf', ${row}.${d("asOf")}, 'state', ${row}.${d("state")}, 'satisfiedAt', ${row}.${d("satisfiedAt")}, 'satisfiedBy', ${row}.${d("satisfiedBy")}, 'satisfiedAction', ${row}.${d("satisfiedAction")}, 'computedAt', ${row}.${d("computedAt")}, 'createdAt', ${row}.${d("createdAt")})`;
+
+  const payload = (row: string): string =>
+    `jsonb_build_object('organizationId', ${row}.${d("tenant")}, 'id', ${row}.${d("id")}, 'subjectType', ${row}.${d("subjectType")}, 'subjectId', ${row}.${d("subjectId")}, 'groupKey', ${row}.${d("groupKey")}, 'ruleKey', ${row}.${d("ruleKey")}, 'period', ${row}.${d("period")}, 'result', ${row}.${d("result")}, 'dueOn', ${row}.${d("dueOn")}, 'provisional', ${row}.${d("provisional")})`;
 
   const record = (
     type: "deadline.computed" | "deadline.satisfied",
@@ -154,14 +348,14 @@ function build(ctx: BlockSqlContext): string {
   ): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('organizationId', ${row}.${d("tenant")}, 'id', ${row}.${d("id")}, 'subjectType', ${row}.${d("subjectType")}, 'subjectId', ${row}.${d("subjectId")}, 'ruleKey', ${row}.${d("ruleKey")}, 'result', ${row}.${d("result")}, 'dueOn', ${row}.${d("dueOn")})`,
+      payload: payload(row),
       subject: `'deadlines/' || ${row}.${d("id")}::text`,
       tenant: `${row}.${d("tenant")}`,
       audit: {
         category: "data",
         targetType: "deadline",
         recordId: `${row}.${d("id")}::text`,
-        targetLabel: `${row}.${d("ruleKey")} || ' ' || ${row}.${d("subjectType")} || '/' || ${row}.${d("subjectId")}`,
+        targetLabel: `${row}.${d("groupKey")} || coalesce(' ' || ${row}.${d("period")}, '') || ' ' || ${row}.${d("subjectType")} || '/' || ${row}.${d("subjectId")}`,
         summary: sqlString(type.replace("deadline.", "deadline ")),
       },
     });
@@ -195,7 +389,7 @@ function build(ctx: BlockSqlContext): string {
   const readPolicy = renderPolicy(
     makePolicy({
       table: deadlines,
-      name: sqlIdent(`${ctx.tableName("deadlines").name}_read`),
+      name: sqlIdent(`${deadlinesName}_read`),
       command: "select",
       roles: ["authenticated"],
       using: ctx.scope.check(d("tenant"), read),
@@ -205,22 +399,18 @@ function build(ctx: BlockSqlContext): string {
 
   const appKey = ctx.owns("deadlines")
     ? ""
-    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("deadlines").name}_tenant_id_key`)} on ${deadlines} (${d("tenant")}, ${d("id")});`;
+    : `\ncreate unique index if not exists ${sqlIdent(`bsb_${deadlinesName}_tenant_id_key`)} on ${deadlines} (${d("tenant")}, ${d("id")});`;
 
-  // Re-evaluates one pending row against the stored rule version.
-  const recomputeRow = `
-  select x.* into v_version from ${versions} x where x.${v("id")} = v_row.${d("ruleVersion")};
-  select e.value into v_rule from jsonb_array_elements(v_version.${v("rules")}) e(value)
-  where e.value ->> 'key' = v_row.${d("ruleKey")};
-  v_facts := v_row.${d("facts")} || coalesce(p_facts, '{}'::jsonb);
-  v_result := ${fn("evaluate_deadline_rule")}(v_rule, v_facts);`;
+  const periodKey = `(${d("tenant")}, ${d("subjectType")}, ${d("subjectId")}, ${d("groupKey")}, (coalesce(${d("period")}, '')))`;
 
   return `${schemaPreamble(ctx)}
 -- Deadlines: rule sets owned by the platform (no tenant), versioned and approved
--- once, and the deadlines computed from a subject's facts. A rule is data: an
--- anchor fact, an offset, a weekend adjustment, the facts it requires and a
--- citation. A deadline is either due on a date or unknown, naming the facts it
--- still waits for.
+-- once, and the deadlines computed from a subject's facts. A version is data:
+-- ordered groups, ordered rules with conditions, exceptions and a deadline
+-- grammar, a counting block with holidays, and opaque meta. Each group yields
+-- one deadline per subject (one per month for a periodic rule): due on a
+-- date, unknown with the facts it waits for, pending, undated, or refused as
+-- not covered, not applicable, not required or barred.
 create table if not exists ${sets} (
   ${s("id")} uuid primary key default gen_random_uuid(),
   ${s("jurisdiction")} text not null check (${s("jurisdiction")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -238,6 +428,9 @@ create table if not exists ${versions} (
   ${v("version")} integer not null check (${v("version")} >= 1),
   ${v("status")} text not null default 'draft' check (${v("status")} in (${quoted(RULE_VERSION_STATUSES)})),
   ${v("rules")} jsonb not null,
+  ${v("groups")} jsonb not null default '[]'::jsonb,
+  ${v("counting")} jsonb,
+  ${v("meta")} jsonb,
   ${v("contentHash")} text,
   ${v("effectiveFrom")} date,
   ${v("approvedBy")} uuid,
@@ -280,31 +473,46 @@ create table if not exists ${deadlines} (
   ${d("subjectId")} text not null check (length(${d("subjectId")}) between 1 and 200),
   ${d("jurisdiction")} text not null,
   ${d("kind")} text not null,
-  ${d("ruleKey")} text not null,
+  ${d("groupKey")} text not null,
+  ${d("ruleKey")} text,
+  ${d("period")} text check (${d("period")} ~ '^[0-9]{4}-[0-9]{2}$'),
   ${d("ruleVersion")} uuid not null references ${versions} (${v("id")}) on delete restrict,
   ${d("facts")} jsonb not null default '{}'::jsonb,
-  ${d("result")} text not null check (${d("result")} in (${quoted(DEADLINE_RESULTS)})),
+  ${d("result")} text not null,
   ${d("dueOn")} date,
+  ${d("provisional")} boolean not null default false,
   ${d("missing")} text[] not null default '{}',
+  ${d("exception")} jsonb,
+  ${d("review")} jsonb not null default '[]'::jsonb,
+  ${d("basis")} jsonb,
+  ${d("deadline")} jsonb,
   ${d("citation")} jsonb not null,
+  ${d("asOf")} date not null default current_date,
   ${d("state")} text not null default 'pending' check (${d("state")} in (${quoted(DEADLINE_STATES)})),
   ${d("satisfiedAt")} timestamptz,
   ${d("satisfiedBy")} uuid,
   ${d("satisfiedAction")} text check (${d("satisfiedAction")} is null or length(${d("satisfiedAction")}) <= 200),
   ${d("computedAt")} timestamptz not null default now(),
   ${d("createdAt")} timestamptz not null default now(),
+  constraint ${sqlIdent(`${deadlinesName}_result_check`)} check (${d("result")} in (${quoted(DEADLINE_RESULTS)})),
   check ((${d("result")} = 'due') = (${d("dueOn")} is not null)),
-  constraint ${sqlIdent(`${ctx.tableName("deadlines").name}_subject_rule_key`)} unique (${d("tenant")}, ${d("subjectType")}, ${d("subjectId")}, ${d("ruleKey")})
+  constraint ${sqlIdent(`${deadlinesName}_period_due_check`)} check (${d("period")} is null or ${d("result")} = 'due')
 );${appKey}
-create index if not exists ${sqlIdent(`${ctx.tableName("deadlines").name}_version_idx`)} on ${deadlines} (${d("ruleVersion")});
-create index if not exists ${sqlIdent(`${ctx.tableName("deadlines").name}_due_idx`)} on ${deadlines} (${d("tenant")}, ${d("dueOn")}) where ${d("state")} = 'pending';
+create unique index if not exists ${sqlIdent(`bsb_${deadlinesName}_subject_group_period_key`)} on ${deadlines} ${periodKey};
+create index if not exists ${sqlIdent(`${deadlinesName}_version_idx`)} on ${deadlines} (${d("ruleVersion")});
+create index if not exists ${sqlIdent(`${deadlinesName}_due_idx`)} on ${deadlines} (${d("tenant")}, ${d("dueOn")}) where ${d("state")} = 'pending';
 ${lockTable(deadlines, { read: true })}
 ${readPolicy}
-${evaluatorSql(fn, userGrant)}
--- Saves the rules of a rule set as a new draft version, creating the rule set
--- on first use. A draft is replaced by the next save until it is approved.
--- Service role only.
-create or replace function ${fn("save_rule_version")}(jurisdiction text, kind text, rules jsonb, effective_from date default null, title text default null)
+${evaluatorSql(fn, userGrant, triggerGrant)}
+${validatorSql(fn, userGrant, triggerGrant)}
+${contentHashSql(ctx)}
+
+${fromV1Sql(ctx)}
+
+-- Saves a rule set version's content ({ rules, groups, counting?, meta? }) as
+-- a new draft version, creating the rule set on first use. A draft is replaced
+-- by the next save until it is approved. Service role only.
+create or replace function ${fn("save_rule_version")}(jurisdiction text, kind text, content jsonb, effective_from date default null, title text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -315,13 +523,15 @@ declare
   v_set ${sets};
   v_row ${versions};
   v_issues text[];
+  v_counting jsonb := case when jsonb_typeof(save_rule_version.content -> 'counting') = 'object' then save_rule_version.content -> 'counting' end;
+  v_meta jsonb := case when jsonb_typeof(save_rule_version.content -> 'meta') = 'object' then save_rule_version.content -> 'meta' end;
 begin
   ${serviceOnly("save rule set versions")}
   if save_rule_version.jurisdiction is null or save_rule_version.jurisdiction !~ '^[a-z][a-z0-9_-]{0,62}$'
     or save_rule_version.kind is null or save_rule_version.kind !~ '^[a-z][a-z0-9_]{0,62}$' then
     ${fail("DEADLINE_RULES_INVALID", "a rule set has a lower case jurisdiction and kind", "22023")}
   end if;
-  v_issues := ${fn("validate_deadline_rules")}(save_rule_version.rules);
+  v_issues := ${fn("validate_deadline_rules")}(save_rule_version.content);
   if cardinality(v_issues) > 0 then
     raise exception 'invalid rules: %', array_to_string(v_issues, '; ') using errcode = '22023', hint = 'DEADLINE_RULES_INVALID', detail = jsonb_build_object('issues', to_jsonb(v_issues))::text;
   end if;
@@ -333,11 +543,13 @@ begin
   where x.${v("ruleSet")} = v_set.${s("id")} and x.${v("status")} = 'draft'
   order by x.${v("version")} desc limit 1 for update;
   if found then
-    update ${versions} x set ${v("rules")} = save_rule_version.rules, ${v("effectiveFrom")} = save_rule_version.effective_from
+    update ${versions} x set ${v("rules")} = save_rule_version.content -> 'rules', ${v("groups")} = save_rule_version.content -> 'groups',
+      ${v("counting")} = v_counting, ${v("meta")} = v_meta, ${v("effectiveFrom")} = save_rule_version.effective_from
     where x.${v("id")} = v_row.${v("id")} returning * into v_row;
   else
-    insert into ${versions} (${v("ruleSet")}, ${v("version")}, ${v("rules")}, ${v("effectiveFrom")})
-    values (v_set.${s("id")}, coalesce((select max(y.${v("version")}) from ${versions} y where y.${v("ruleSet")} = v_set.${s("id")}), 0) + 1, save_rule_version.rules, save_rule_version.effective_from)
+    insert into ${versions} (${v("ruleSet")}, ${v("version")}, ${v("rules")}, ${v("groups")}, ${v("counting")}, ${v("meta")}, ${v("effectiveFrom")})
+    values (v_set.${s("id")}, coalesce((select max(y.${v("version")}) from ${versions} y where y.${v("ruleSet")} = v_set.${s("id")}), 0) + 1,
+      save_rule_version.content -> 'rules', save_rule_version.content -> 'groups', v_counting, v_meta, save_rule_version.effective_from)
     returning * into v_row;
   end if;
   return ${versionJson("v_row")};
@@ -345,7 +557,7 @@ end;
 $$;
 ${serviceGrant(`${fn("save_rule_version")}(text, text, jsonb, date, text)`)}
 
--- Approves a draft version: freezes its rules with a SHA-256 content hash and
+-- Approves a draft version: freezes its content with a SHA-256 content hash and
 -- records who approved it and from which date it applies. ${approvals === undefined ? "" : "The approval request (subject type deadline_rule_version, subject id the version id) must be approved. "}Service role only.
 create or replace function ${fn("approve_rule_version")}(version_id uuid, approval_id uuid default null, effective_from date default null)
 returns jsonb
@@ -375,7 +587,7 @@ begin
   update ${versions} x set
     ${v("status")} = 'approved',
     ${v("effectiveFrom")} = v_from,
-    ${v("contentHash")} = ${sha256HexSql(`convert_to(v_row.${v("rules")}::text, 'UTF8')`)},
+    ${v("contentHash")} = ${fn("version_content_hash")}(v_row.${v("rules")}, v_row.${v("groups")}, v_row.${v("counting")}, v_row.${v("meta")}),
     ${v("approvedBy")} = auth.uid(),
     ${v("approvedAt")} = now(),
     ${v("approvalId")} = approve_rule_version.approval_id
@@ -411,11 +623,81 @@ end;
 $$;
 ${userGrant(`${fn("rule_version_at")}(text, text, date)`)}
 
--- Computes the deadline of one rule for a subject from its facts, with the rule
--- set version that applies on as_of (today by default), and stores it. The
--- result is due on a date or unknown with the facts it waits for. A satisfied
--- deadline is returned unchanged. Needs deadlines.write.
-create or replace function ${fn("compute_deadline")}(tenant ${idType}, subject_type text, subject_id text, jurisdiction text, kind text, rule_key text, facts jsonb default '{}', as_of date default current_date)
+-- Stores evaluated results for a subject: one row per group and period,
+-- upserted on the unique index. A satisfied row stays as it is; a pending row
+-- of the groups whose results these are and that has no result any more is
+-- deleted. Records deadline.computed for every row it inserts or changes, and
+-- returns { rows, changed }. The callers check permissions.
+create or replace function ${fn("deadline_store")}(p_tenant ${idType}, p_subject_type text, p_subject_id text, p_jurisdiction text, p_kind text, p_version_id uuid, p_facts jsonb, p_as_of date, p_results jsonb, p_group_keys text[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_result jsonb;
+  v_row ${deadlines};
+  v_rows jsonb := '[]'::jsonb;
+  v_changed integer := 0;
+  v_missing text[];
+  v_deleted integer;
+begin
+  for v_result in select e.value from jsonb_array_elements(p_results) e(value) loop
+    v_missing := array(select jsonb_array_elements_text(v_result -> 'missing'));
+    select * into v_row from ${deadlines} x
+    where x.${d("tenant")} = p_tenant and x.${d("subjectType")} = p_subject_type
+      and x.${d("subjectId")} = p_subject_id and x.${d("groupKey")} = v_result ->> 'group'
+      and coalesce(x.${d("period")}, '') = coalesce(v_result ->> 'period', '')
+    for update;
+    if found and (v_row.${d("state")} = 'satisfied' or (
+      v_row.${d("ruleVersion")} = p_version_id and v_row.${d("facts")} = p_facts
+      and v_row.${d("ruleKey")} is not distinct from v_result ->> 'ruleKey' and v_row.${d("result")} = v_result ->> 'result'
+      and v_row.${d("dueOn")} is not distinct from (v_result ->> 'dueOn')::date and v_row.${d("provisional")} = (v_result -> 'provisional')::boolean
+      and v_row.${d("missing")} = v_missing and v_row.${d("exception")} is not distinct from nullif(v_result -> 'exception', 'null'::jsonb)
+      and v_row.${d("review")} = v_result -> 'review' and v_row.${d("basis")} is not distinct from nullif(v_result -> 'basis', 'null'::jsonb)
+      and v_row.${d("deadline")} is not distinct from nullif(v_result -> 'deadline', 'null'::jsonb) and v_row.${d("citation")} = v_result -> 'citation')) then
+      v_rows := v_rows || ${json("v_row")};
+      continue;
+    end if;
+    insert into ${deadlines} (${d("tenant")}, ${d("subjectType")}, ${d("subjectId")}, ${d("jurisdiction")}, ${d("kind")}, ${d("groupKey")}, ${d("ruleKey")}, ${d("period")},
+      ${d("ruleVersion")}, ${d("facts")}, ${d("result")}, ${d("dueOn")}, ${d("provisional")}, ${d("missing")}, ${d("exception")}, ${d("review")}, ${d("basis")}, ${d("deadline")}, ${d("citation")}, ${d("asOf")})
+    values (p_tenant, p_subject_type, p_subject_id, p_jurisdiction, p_kind,
+      v_result ->> 'group', v_result ->> 'ruleKey', v_result ->> 'period', p_version_id, p_facts,
+      v_result ->> 'result', (v_result ->> 'dueOn')::date, (v_result -> 'provisional')::boolean, v_missing,
+      nullif(v_result -> 'exception', 'null'::jsonb), v_result -> 'review', nullif(v_result -> 'basis', 'null'::jsonb),
+      nullif(v_result -> 'deadline', 'null'::jsonb), v_result -> 'citation', p_as_of)
+    on conflict ${periodKey} do update set
+      ${d("jurisdiction")} = excluded.${d("jurisdiction")}, ${d("kind")} = excluded.${d("kind")}, ${d("ruleKey")} = excluded.${d("ruleKey")},
+      ${d("ruleVersion")} = excluded.${d("ruleVersion")}, ${d("facts")} = excluded.${d("facts")}, ${d("result")} = excluded.${d("result")},
+      ${d("dueOn")} = excluded.${d("dueOn")}, ${d("provisional")} = excluded.${d("provisional")}, ${d("missing")} = excluded.${d("missing")},
+      ${d("exception")} = excluded.${d("exception")}, ${d("review")} = excluded.${d("review")}, ${d("basis")} = excluded.${d("basis")},
+      ${d("deadline")} = excluded.${d("deadline")}, ${d("citation")} = excluded.${d("citation")}, ${d("asOf")} = excluded.${d("asOf")},
+      ${d("computedAt")} = now()
+    returning * into v_row;
+    ${record("deadline.computed", "v_row")}
+    v_rows := v_rows || ${json("v_row")};
+    v_changed := v_changed + 1;
+  end loop;
+  delete from ${deadlines} x
+  where x.${d("tenant")} = p_tenant and x.${d("subjectType")} = p_subject_type
+    and x.${d("subjectId")} = p_subject_id and x.${d("state")} = 'pending'
+    and x.${d("groupKey")} = any (p_group_keys)
+    and not exists (
+      select 1 from jsonb_array_elements(p_results) r(value)
+      where r.value ->> 'group' = x.${d("groupKey")} and coalesce(r.value ->> 'period', '') = coalesce(x.${d("period")}, '')
+    );
+  get diagnostics v_deleted = row_count;
+  return jsonb_build_object('rows', v_rows, 'changed', v_changed + v_deleted);
+end;
+$$;
+${triggerGrant(`${fn("deadline_store")}(${idType}, text, text, text, text, uuid, jsonb, date, jsonb, text[])`)}
+
+-- Computes a subject's deadlines from its facts with the rule set version that
+-- applies on as_of (today by default): every group of the version, or only
+-- group_key, and stores one row per group (one per month for a periodic
+-- rule). Returns the rows. A satisfied row is returned unchanged. Needs
+-- deadlines.write.
+create or replace function ${fn("compute_deadlines")}(tenant ${idType}, subject_type text, subject_id text, jurisdiction text, kind text, facts jsonb default '{}', as_of date default current_date, group_key text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -424,56 +706,43 @@ as $$
 #variable_conflict use_variable
 declare
   v_version jsonb;
-  v_rule jsonb;
-  v_result jsonb;
-  v_row ${deadlines};
+  v_results jsonb;
 begin
-  if not ${allowed("compute_deadline.tenant", write)} then
+  if not ${allowed("compute_deadlines.tenant", write)} then
     ${fail("DEADLINE_FORBIDDEN", "not allowed to compute deadlines")}
   end if;
-  if compute_deadline.subject_type is null or compute_deadline.subject_type !~ '^[a-z][a-z0-9_]{0,62}$'
-    or compute_deadline.subject_id is null or length(compute_deadline.subject_id) not between 1 and 200
-    or compute_deadline.facts is null or jsonb_typeof(compute_deadline.facts) <> 'object' then
-    ${fail("DEADLINE_INVALID", "a deadline needs a subject type, a subject id and facts as an object", "22023")}
+  if compute_deadlines.subject_type is null or compute_deadlines.subject_type !~ '^[a-z][a-z0-9_]{0,62}$'
+    or compute_deadlines.subject_id is null or length(compute_deadlines.subject_id) not between 1 and 200
+    or compute_deadlines.facts is null or jsonb_typeof(compute_deadlines.facts) <> 'object'
+    or compute_deadlines.as_of is null then
+    ${fail("DEADLINE_INVALID", "a deadline needs a subject type, a subject id, facts as an object and a date", "22023")}
   end if;
-  v_version := ${fn("rule_version_at")}(compute_deadline.jurisdiction, compute_deadline.kind, compute_deadline.as_of);
+  v_version := ${fn("rule_version_at")}(compute_deadlines.jurisdiction, compute_deadlines.kind, compute_deadlines.as_of);
   if v_version is null then
     ${fail("DEADLINE_RULES_NOT_FOUND", "no approved rule set version applies", "P0002")}
   end if;
-  select e.value into v_rule from jsonb_array_elements(v_version -> 'rules') e(value)
-  where e.value ->> 'key' = compute_deadline.rule_key;
-  if v_rule is null then
-    ${fail("DEADLINE_RULE_NOT_FOUND", "the rule set has no rule with this key", "P0002")}
+  if compute_deadlines.group_key is not null and not exists (
+    select 1 from jsonb_array_elements(v_version -> 'groups') g(value) where g.value ->> 'key' = compute_deadlines.group_key
+  ) then
+    ${fail("DEADLINE_RULE_NOT_FOUND", "the rule set has no group with this key", "P0002")}
   end if;
-  select * into v_row from ${deadlines} x
-  where x.${d("tenant")} = compute_deadline.tenant and x.${d("subjectType")} = compute_deadline.subject_type
-    and x.${d("subjectId")} = compute_deadline.subject_id and x.${d("ruleKey")} = compute_deadline.rule_key
-  for update;
-  if found and v_row.${d("state")} = 'satisfied' then
-    return ${json("v_row")};
-  end if;
-  v_result := ${fn("evaluate_deadline_rule")}(v_rule, compute_deadline.facts);
-  insert into ${deadlines} (${d("tenant")}, ${d("subjectType")}, ${d("subjectId")}, ${d("jurisdiction")}, ${d("kind")}, ${d("ruleKey")}, ${d("ruleVersion")}, ${d("facts")}, ${d("result")}, ${d("dueOn")}, ${d("missing")}, ${d("citation")})
-  values (compute_deadline.tenant, compute_deadline.subject_type, compute_deadline.subject_id, compute_deadline.jurisdiction, compute_deadline.kind, compute_deadline.rule_key,
-    (v_version ->> 'id')::uuid, compute_deadline.facts, case v_result ->> 'status' when 'due' then 'due' else 'unknown' end,
-    nullif(v_result ->> 'dueOn', '')::date,
-    coalesce(array(select jsonb_array_elements_text(coalesce(v_result -> 'missing', '[]'::jsonb))), '{}'),
-    v_rule -> 'citation')
-  on conflict on constraint ${sqlIdent(`${ctx.tableName("deadlines").name}_subject_rule_key`)} do update set
-    ${d("ruleVersion")} = excluded.${d("ruleVersion")}, ${d("facts")} = excluded.${d("facts")}, ${d("result")} = excluded.${d("result")},
-    ${d("dueOn")} = excluded.${d("dueOn")}, ${d("missing")} = excluded.${d("missing")}, ${d("citation")} = excluded.${d("citation")},
-    ${d("computedAt")} = now()
-  returning * into v_row;
-  ${record("deadline.computed", "v_row")}
-  return ${json("v_row")};
+  v_results := ${fn("evaluate_deadlines")}(
+    jsonb_build_object('rules', v_version -> 'rules', 'groups', v_version -> 'groups', 'counting', v_version -> 'counting'),
+    compute_deadlines.facts, compute_deadlines.as_of, compute_deadlines.group_key);
+  return ${fn("deadline_store")}(compute_deadlines.tenant, compute_deadlines.subject_type, compute_deadlines.subject_id,
+    compute_deadlines.jurisdiction, compute_deadlines.kind, (v_version ->> 'id')::uuid, compute_deadlines.facts, compute_deadlines.as_of,
+    v_results, case when compute_deadlines.group_key is null
+      then array(select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value))
+      else array[compute_deadlines.group_key] end) -> 'rows';
 end;
 $$;
-${userGrant(`${fn("compute_deadline")}(${idType}, text, text, text, text, text, jsonb, date)`)}
+${userGrant(`${fn("compute_deadlines")}(${idType}, text, text, text, text, jsonb, date, text)`)}
 
 -- Re-evaluates the pending deadlines of a subject after new facts arrived,
--- against the rule set version each one was computed with, and returns how many
--- changed. Runs without a permission check; the facts trigger and
--- recompute_deadlines call it.
+-- against the rule set version they were computed with (never a newer one),
+-- for the groups the subject has rows of, and returns how many rows changed.
+-- The facts are the latest stored ones merged with p_facts. Runs without a
+-- permission check; the facts trigger and recompute_deadlines call it.
 create or replace function ${fn("deadline_recompute")}(tenant text, subject_type text, subject_id text, p_facts jsonb)
 returns integer
 language plpgsql
@@ -482,31 +751,37 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_row ${deadlines};
+  v_set record;
   v_version ${versions};
-  v_rule jsonb;
   v_facts jsonb;
-  v_result jsonb;
+  v_groups text[];
+  v_results jsonb;
   v_changed integer := 0;
-  v_due date;
-  v_missing text[];
 begin
-  for v_row in
-    select * from ${deadlines} x
+  for v_set in
+    select x.${d("tenant")} as tenant, x.${d("jurisdiction")} as jurisdiction, x.${d("kind")} as kind, x.${d("ruleVersion")} as version_id
+    from ${deadlines} x
     where x.${d("tenant")}::text = deadline_recompute.tenant and x.${d("subjectType")} = deadline_recompute.subject_type
       and x.${d("subjectId")} = deadline_recompute.subject_id and x.${d("state")} = 'pending'
-    for update
-  loop${recomputeRow}
-    v_due := nullif(v_result ->> 'dueOn', '')::date;
-    v_missing := coalesce(array(select jsonb_array_elements_text(coalesce(v_result -> 'missing', '[]'::jsonb))), '{}');
-    if v_facts is distinct from v_row.${d("facts")} or v_due is distinct from v_row.${d("dueOn")} or v_missing is distinct from v_row.${d("missing")} then
-      update ${deadlines} x set ${d("facts")} = v_facts,
-        ${d("result")} = case v_result ->> 'status' when 'due' then 'due' else 'unknown' end,
-        ${d("dueOn")} = v_due, ${d("missing")} = v_missing, ${d("computedAt")} = now()
-      where x.${d("id")} = v_row.${d("id")} returning * into v_row;
-      ${record("deadline.computed", "v_row")}
-      v_changed := v_changed + 1;
-    end if;
+    group by 1, 2, 3, 4
+  loop
+    select * into v_version from ${versions} x where x.${v("id")} = v_set.version_id;
+    select y.${d("facts")} || coalesce(deadline_recompute.p_facts, '{}'::jsonb) into v_facts from ${deadlines} y
+    where y.${d("tenant")} = v_set.tenant and y.${d("subjectType")} = deadline_recompute.subject_type
+      and y.${d("subjectId")} = deadline_recompute.subject_id and y.${d("ruleVersion")} = v_set.version_id
+    order by y.${d("computedAt")} desc, y.${d("id")} limit 1;
+    v_groups := array(
+      select distinct y.${d("groupKey")} from ${deadlines} y
+      where y.${d("tenant")} = v_set.tenant and y.${d("subjectType")} = deadline_recompute.subject_type
+        and y.${d("subjectId")} = deadline_recompute.subject_id and y.${d("ruleVersion")} = v_set.version_id
+    );
+    v_results := coalesce((
+      select jsonb_agg(r.value order by r.ord)
+      from jsonb_array_elements(${fn("evaluate_deadlines")}(${content("v_version")}, v_facts, current_date)) with ordinality r(value, ord)
+      where r.value ->> 'group' = any (v_groups)
+    ), '[]'::jsonb);
+    v_changed := v_changed + (${fn("deadline_store")}(v_set.tenant, deadline_recompute.subject_type, deadline_recompute.subject_id,
+      v_set.jurisdiction, v_set.kind, v_set.version_id, v_facts, current_date, v_results, v_groups) ->> 'changed')::integer;
   end loop;
   return v_changed;
 end;
@@ -534,7 +809,9 @@ ${userGrant(`${fn("recompute_deadlines")}(${idType}, text, text, jsonb)`)}
 -- A trigger function for the table that holds a subject's facts, one row per
 -- fact. Attach it with an after insert row trigger and pass the subject type,
 -- then the column names for the organization, subject id, fact name and value.
--- A new row recomputes the pending deadlines of its subject.
+-- A new row recomputes the pending deadlines of its subject. The value arrives
+-- as text, so a condition on a boolean fact needs recompute_deadlines with
+-- typed facts instead.
 create or replace function ${fn("deadline_fact_trigger")}()
 returns trigger
 language plpgsql
@@ -553,7 +830,8 @@ end;
 $$;
 ${triggerGrant(`${fn("deadline_fact_trigger")}()`)}
 
--- Records the action that satisfied a deadline. Needs deadlines.write.
+-- Records the action that satisfied a deadline (one period of a periodic rule
+-- on its own). Needs deadlines.write.
 create or replace function ${fn("satisfy_deadline")}(deadline_id uuid, action text default null)
 returns jsonb
 language plpgsql
@@ -584,7 +862,7 @@ $$;
 ${userGrant(`${fn("satisfy_deadline")}(uuid, text)`)}
 
 -- An organization's deadlines, soonest first. filters is { subjectType,
--- subjectId, state, result, dueBefore, limit }.
+-- subjectId, groupKey, period, state, result, provisional, dueBefore, limit }.
 create or replace function ${fn("list_deadlines")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -606,8 +884,11 @@ begin
       where z.${d("tenant")} = list_deadlines.tenant
         and (not v_filters ? 'subjectType' or z.${d("subjectType")} = v_filters ->> 'subjectType')
         and (not v_filters ? 'subjectId' or z.${d("subjectId")} = v_filters ->> 'subjectId')
+        and (not v_filters ? 'groupKey' or z.${d("groupKey")} = v_filters ->> 'groupKey')
+        and (not v_filters ? 'period' or z.${d("period")} = v_filters ->> 'period')
         and (not v_filters ? 'state' or z.${d("state")} = v_filters ->> 'state')
         and (not v_filters ? 'result' or z.${d("result")} = v_filters ->> 'result')
+        and (not v_filters ? 'provisional' or z.${d("provisional")} = (v_filters ->> 'provisional')::boolean)
         and (not v_filters ? 'dueBefore' or z.${d("dueOn")} < (v_filters ->> 'dueBefore')::date)
       order by z.${d("dueOn")} nulls last, z.${d("createdAt")}
       limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
@@ -622,8 +903,8 @@ ${userGrant(`${fn("list_deadlines")}(${idType}, jsonb)`)}
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "evaluate_deadline_rule",
-      args: ["jsonb", "jsonb"],
+      name: "evaluate_deadlines",
+      args: ["jsonb", "jsonb", "date", "text"],
       returns: "jsonb",
     },
     { name: "validate_deadline_rules", args: ["jsonb"], returns: "text[]" },
@@ -643,8 +924,8 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "compute_deadline",
-      args: ["{id}", "text", "text", "text", "text", "text", "jsonb", "date"],
+      name: "compute_deadlines",
+      args: ["{id}", "text", "text", "text", "text", "jsonb", "date", "text"],
       returns: "jsonb",
     },
     {
@@ -662,11 +943,16 @@ export const DEADLINES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Deadlines",
   description:
-    "Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.",
+    "Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.",
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "approvals"],
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
+  upgrades: [TO_GROUPS],
+  deprecated: DEPRECATED,
+  // The deprecated wrappers get no api entry point; they go in 0.58.
+  internal: ["evaluate_deadline_rule", "compute_deadline"],
   names: NAMES,
   contract,
   build,

@@ -1,0 +1,2648 @@
+{
+  "content": {
+    "rules": [
+      {
+        "key": "preliminary_notice__private_all_claimants",
+        "group": "preliminary_notice",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 20,
+          "unit": "days",
+          "from": "first_furnishing_date"
+        },
+        "exceptions": [
+          {
+            "name": "owner_occupant_dwelling",
+            "when": {
+              "dwelling_units": ["1", "2"],
+              "owner_occupancy": "owner_occupied",
+              "property_use": "residential"
+            },
+            "unless": {
+              "claimant_contract_tier": "direct_with_owner",
+              "contract_is_written": true
+            },
+            "result": "barred",
+            "citation": {
+              "reference": "A.R.S. 33-1002(B)"
+            },
+            "note": "The notice preserves a lien A.R.S. 33-1002(B) forbids ('No lien ... shall be allowed or recorded ... against the dwelling of a person who became an owner-occupant prior to the construction ... except by a person having executed in writing a contract directly with the owner-occupant'); the bar is the lien's, carried here because a notice is sent to be able to lien, so where no lien can exist no notice is owed (SCHEMA.md §8, ruling 2026-10-23; prior record 4, 2026-09-17)."
+          }
+        ],
+        "status": "approved",
+        "citation": {
+          "reference": "A.R.S. 33-992.01"
+        },
+        "meta": {
+          "recipients": [
+            "owner",
+            "general_contractor",
+            "construction_lender",
+            "hiring_party"
+          ],
+          "recipients_if_any": ["construction_lender"],
+          "service": {
+            "methods": [
+              "first_class_mail",
+              "certified_mail",
+              "registered_mail"
+            ],
+            "proof": [
+              {
+                "cite": "A.R.S. 33-992.02(1)",
+                "document": "preliminary_notice",
+                "kind": "acknowledgment_of_receipt",
+                "note": "the recipient's returned acknowledgment of receipt of the notice, the attestation 33-992.01(D) inserts at the foot of the notice itself; rarely returned"
+              },
+              {
+                "after": {
+                  "n": 30,
+                  "unit": "days"
+                },
+                "attach_by_method": {
+                  "certified_mail": "certified_mail_receipt",
+                  "first_class_mail": "certificate_of_mailing",
+                  "registered_mail": "certified_mail_receipt"
+                },
+                "attach_documents": {
+                  "certificate_of_mailing": "certificate_of_mailing"
+                },
+                "cite": "A.R.S. 33-992.02(2)",
+                "document": "affidavit_of_proof_of_service",
+                "kind": "affidavit_of_service",
+                "note": "when the acknowledgment is not returned within thirty days of mailing: the affidavit of the person who mailed, with the certificate of mailing (first class) or the receipt of certification or registration (certified or registered) attached"
+              }
+            ]
+          },
+          "if_missed": {
+            "cite": "A.R.S. 33-992.01(E)",
+            "result": "partial_rights_lost"
+          },
+          "notes": [
+            "A.R.S. 33-992.01(C) (corpus 2026-08-18): the notice 'shall be given not later than twenty days after the claimant has first furnished labor, professional services, materials, machinery, fixtures or tools to the jobsite'; counsel's row (counsel_regs.json, read 2026-10-22) agrees, 'Prelien Date: 20 Days'.",
+            "A.R.S. 33-992.01(B): 'every person who furnishes labor, professional services, materials, machinery, fixtures or tools for which a lien otherwise may be claimed ... shall, as a necessary prerequisite to the validity of any claim of lien, serve the owner or reputed owner, the original contractor or reputed contractor, the construction lender, if any, ... and the person with whom the claimant has contracted'; the lender is served 'if any' (recipients_if_any), so a job known to have none takes no lender letter; the port de-duplicates hiring_party (CON-hiring-party).",
+            "A.R.S. 33-992.01(F): the notice 'may be given by mailing the notice by first class mail sent with a certificate of mailing, registered or certified mail, postage prepaid'; 'Service is complete at the time of the deposit of notice in the mail.'",
+            "Counsel's sub and supplier rows list 'Certified mail, registered mail with proof of delivery' while the prime row and 33-992.01(F) include first class with a certificate; the statute governs here and the narrower list reads as a product preference for counsel to confirm.",
+            "A.R.S. 33-992.02(2): when the acknowledgment of receipt is not returned 'within thirty days from the date of mailing, proof of mailing may be made by affidavit of the person making the mailing'; the certificate of mailing (first class) or 'the receipt of certification or registration' (certified or registered) 'shall be attached to the affidavit'; the proof form is VA 'AZ 2 - AFFIDAVIT OF PROOF OF SERVICE 4-27-26 EMK RV CLEAN'.",
+            "A.R.S. 33-992.02(1)-(2) (corpus 2026-08-18) makes the proof of a mailed notice the recipient's 'acknowledgment of receipt of the notice' or, after thirty days, the mailer's affidavit, with the certificate of mailing attached for first class and 'the receipt of certification or registration' for certified or registered mail; counsel's prime row (counsel_regs.json, read 2026-10-22) lists 'Type of Proof of Service: Certificate of Mailing , Receipt of certification or registration' and 'Affidavit of Proof of Service: Yes - via Certified Mail'; the proof list carries both statutory routes, the acknowledgment and the affidavit, with the attachment chosen by the method used (ruling 2026-10-23).",
+            "A.R.S. 33-992.01(E): a late notice preserves the lien 'only for such labor, professional services, materials, machinery, fixtures or tools furnished within twenty days before the service of the notice and at any time thereafter'; the production table (legal_category.ex AZ) carries this as 'late is prospective only'.",
+            "A.R.S. 33-992.01(G): a new notice is due when the estimated total price 'exceeds by thirty percent or more the total price in any prior original or subsequent preliminary notice'; counsel's row, 'Amendment Value Change: >30% - New Prelim Notice'.",
+            "A.R.S. 33-992.01(K): information received after the notice that shows it inaccurate requires an amended notice 'within thirty days after the receipt of this information'; no registry fact carries the owner's statement, so the port cannot clock this.",
+            "The VA guide (ARIZONA WORKFLOW GUIDE.pdf, forms zip 2026-06-05) sends the notice on residential and commercial jobs alike and routes a home that is not owner-occupied, or any 3+ unit multifamily, to the commercial flow; this cell matches a rented house being re-roofed because owner_occupancy: non_owner_occupied trips no exception.",
+            "Public works fall under the Title 34 payment bond (A.R.S. 34-223), not this article; no cell covers a public project_sector.",
+            "Dane, 2026-10-23: on a bonded private job the notice is served as on any other; A.R.S. 33-1003(A) bars the lien, but 33-992.01(J)(5) makes this notice the request for 'a copy of the bond and the name and address of the surety company and bonding agent', and the claimant 'shall retain lien rights to the extent precluded or prejudiced from asserting a claim against the bond' when the owner does not answer it (33-992.01(K)). No payment-bond carve-out is written here; the lien's bar stays (to ask counsel, below)."
+          ],
+          "approved_by": ["dane"],
+          "approved_at": "2026-10-24"
+        }
+      },
+      {
+        "key": "preliminary_notice__laborer_for_wages",
+        "group": "preliminary_notice",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": ["laborer"],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "required": false,
+        "status": "approved",
+        "citation": {
+          "reference": "A.R.S. 33-992.01"
+        },
+        "meta": {
+          "notes": [
+            "A.R.S. 33-992.01(B) (corpus 2026-08-18) opens 'Except for a person performing actual labor for wages'; the laborer owes no notice, and the laborer's lien is not covered at launch (VOC-claimant-capacity lists laborer as unsupported)."
+          ],
+          "approved_by": ["dane"],
+          "approved_at": "2026-10-23"
+        }
+      },
+      {
+        "key": "notice_and_claim_of_lien__private_all_claimants",
+        "group": "notice_and_claim_of_lien",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "first_of": [
+            {
+              "n": 60,
+              "unit": "days",
+              "from": "notice_of_completion_recording_date"
+            },
+            {
+              "n": 120,
+              "unit": "days",
+              "from": "last_furnishing_date"
+            }
+          ]
+        },
+        "exceptions": [
+          {
+            "name": "owner_occupant_dwelling",
+            "when": {
+              "dwelling_units": ["1", "2"],
+              "owner_occupancy": "owner_occupied",
+              "property_use": "residential"
+            },
+            "unless": {
+              "claimant_contract_tier": "direct_with_owner",
+              "contract_is_written": true
+            },
+            "result": "barred",
+            "citation": {
+              "reference": "A.R.S. 33-1002(B)"
+            },
+            "note": "A.R.S. 33-1002(B) (corpus 2026-08-18): 'No lien provided for in this article shall be allowed or recorded by the person claiming a lien against the dwelling of a person who became an owner-occupant prior to the construction, alteration, repair or improvement, except by a person having executed in writing a contract directly with the owner-occupant'; counsel's row, 'A duplex and single family home would be protected from a material supplier or sub contractor.'"
+          },
+          {
+            "name": "payment_bond_recorded",
+            "when": {
+              "payment_bond_recorded": true
+            },
+            "unless": {
+              "claimant_contract_tier": "direct_with_owner",
+              "contract_is_written": true
+            },
+            "result": "barred",
+            "remedy": "claim_against_bond",
+            "citation": {
+              "reference": "A.R.S. 33-1003(A)"
+            },
+            "note": "A.R.S. 33-1003(A) (corpus 2026-08-18): 'On recordation of the payment bond together with a copy of such contract in the office of the county recorder ... no lien shall thereafter be allowed or recorded by the person claiming a lien against the land ... except by the person who contracts, in writing, directly with the owner'; the bond must be recorded with the contract and in the Title 34 form (33-1003(B)), which payment_bond_recorded: true is taken to mean."
+          }
+        ],
+        "status": "approved",
+        "citation": {
+          "reference": "A.R.S. 33-993"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "A.R.S. 33-993(A)",
+            "methods": ["certified_mail", "registered_mail"],
+            "to": ["owner"],
+            "within": "reasonable_time"
+          },
+          "if_missed": {
+            "cite": "A.R.S. 33-993(A)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "A.R.S. 33-993(A) (corpus 2026-08-18): 'within one hundred twenty days after completion of a building, structure or improvement, or any alteration or repair ..., or if a notice of completion has been recorded, within sixty days after recordation of such notice, shall make duplicate copies of a notice and claim of lien and record one copy with the county recorder of the county in which the property or some part of the property is located'; counsel's row, 'Within 60 days after the Notice of Completion is recorded or within 120 from Completion'.",
+            "The 60-day branch is live: a recorded notice of completion replaces the 120-day count (first_of is replacement, not earliest-of, SCHEMA.md §7), an absent one skips the count, and an unanswered notice_of_completion_recording_date leaves the 120-day date provisional (SCHEMA.md §7); the production table (legal_category.ex AZ, 120 from completion) never had this branch.",
+            "A.R.S. 33-993(I): a claimant who gave a preliminary notice but was not mailed a copy of the notice of completion 'within fifteen days of recording ... shall have one hundred twenty days from completion'; no registry fact records whether the owner mailed the copy, so this cell cannot restore the 120 days by itself.",
+            "DEC-0056 section 2 (Dane, 2026-10-23): the 120 days count from the customer's last furnishing date, the conservative anchor, because a claimant's last furnishing is on or before both 33-993(C) dates except for work done after final acceptance; the caveat states that case to the customer, who attests it.",
+            "A.R.S. 33-993(C): 'completion' is the earliest of '(1) Thirty days after final inspection and written final acceptance by the governmental body which issued the building permit' or '(2) Cessation of labor for a period of sixty consecutive days, except when such cessation of labor is due to a strike, shortage of materials or act of God'; (D): with no permit or no final inspection, 'the last date on which any labor, materials, fixtures or tools were furnished to the property'.",
+            "A.R.S. 33-993(B): on a multibuilding residential project 'each building is a separate work' and the time 'commences to run on the completion of each separate building'; completion_date is per building.",
+            "A.R.S. 33-993(A): the second copy is served 'within a reasonable time thereafter ... upon the owner of the building, structure or improvement, if he can be found within the county'; the statute names no method, counsel's row says 'Registered or Certified Mailing', and prior record 24 cites a case where regular mail without a certificate failed.",
+            "A.R.S. 33-993(A): the claim 'shall be made under oath by the claimant or someone with knowledge of the facts' and shall state 'the date the preliminary twenty day notice required by § 33-992.01 was given. A copy of such preliminary twenty day notice and the proof of mailing required by § 33-992.02 shall be attached'; (A)(3) also requires 'a copy of the contract, if it is written', a customer document rather than a form.",
+            "A.R.S. 33-981(D): a person required to give the notice 'is entitled to enforce the lien rights ... only if he has given such notice and has made proof of service pursuant to section 33-992.02'.",
+            "Dane, 2026-10-24: the packet is the one authority for what travels with the lien. The notice and its proof of mailing that 33-993(A)(6) asks attached are rules/packets/AZ.yaml's Exhibit C (attach: {instrument: preliminary_notice, with_proof: true}), so this cell lists no attachments. What the lien requires is unchanged; Dane decided the change and approved the cell again on this date.",
+            "A.R.S. 33-998(A): the lien 'shall not continue for a longer period than six months after it is recorded, unless action is brought within that period to enforce the lien and a notice of pendency of action is recorded pursuant to § 12-1191'; counsel's row says '180 Days or Less from Recorded Date' and the VA guide 'within 6 months of recording', so expires follows the statute's six months.",
+            "A.R.S. 33-981(C) (no lien for a contractor 'who does not hold a valid license ... issued pursuant to title 32, chapter 10') and 33-981(E)-(F) (design professionals need a title 32, chapter 1 registration and an agreement with the owner or with an architect, engineer or contractor who has one) are eligibility gates with no registry fact; counsel's 'Certification Required: AZCLDP' is the preparer rule, not these.",
+            "Prior record 29 cuts off a supplier whose only customer is another supplier under 33-981 remoteness case law; the hiring party's capacity is a fact the schema does not yet carry (SCHEMA.md §14).",
+            "The VA guide: a GC 'with a written contract directly with the owner-occupant keeps full lien rights'; for subs and suppliers 'Under 3 units and owner-occupied ... This is where your rights die', and 'A home that is NOT owner-occupied, or any 3+ unit multifamily, is not protected - follow the commercial flow'.",
+            "Recording format from counsel's row ('12pt font, minimum .5 inch margin, no larger than 8.5 x 14, original signature') belongs to the form, not this rule."
+          ],
+          "caveat": {
+            "decisions": ["DEC-0056"],
+            "text": "Work done after the building department's final acceptance, including warranty and punch-list work, does not extend this deadline."
+          },
+          "approved_by": ["dane"],
+          "approved_at": "2026-10-24"
+        }
+      },
+      {
+        "key": "notice_and_claim_of_lien_expires",
+        "group": "notice_and_claim_of_lien_expires",
+        "deadline": {
+          "n": 6,
+          "unit": "months",
+          "from": "lien_recording_date"
+        },
+        "citation": {
+          "reference": "A.R.S. 33-998(A)"
+        }
+      },
+      {
+        "key": "release_of_lien__recorded_lien",
+        "group": "release_of_lien",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 20,
+          "unit": "days",
+          "from": "full_payment_date"
+        },
+        "status": "approved",
+        "citation": {
+          "reference": "A.R.S. 33-1006"
+        },
+        "meta": {
+          "if_missed": {
+            "cite": "A.R.S. 33-1006(C)",
+            "result": "penalty"
+          },
+          "notes": [
+            "A.R.S. 33-1006(A) (corpus 2026-08-18): 'When any lien established by the provisions of this article has been satisfied, the lienholder shall, within twenty days after satisfaction, issue a release of the lien'; counsel's row, 'Release Date: 20 Days after payment'; the VA guide, 'Within 20 days of payment or written request'.",
+            "Satisfaction means payment in full of the lien claim; a partial payment does not start this clock (prior record 12, 2026-09-17), and the trigger is the full_payment_date fact.",
+            "A.R.S. 33-1006(B): a lien recorded against an owner-occupant's dwelling in breach of 33-1002 must be released 'within twenty days of the written request of the owner-occupant'; the demand trigger has no registry fact yet (SCHEMA.md §11), so that branch is a note, not a count.",
+            "A.R.S. 33-1006(C): 'Failure to grant such a release shall subject the lienholder or person to liability in the amount of one thousand dollars and also to liability for actual damages'; counsel's row, 'Release Penalties: $1000 plus actual damages'.",
+            "A.R.S. 33-1006(C) requires the release 'in document form as specified in section 11-480' (the recordable-document statute); counsel's row says the release 'Must be notarized' and is recorded, and the statute names no signer, so acknowledgment and claimant-only signing were counsel's row and prior record 12, not statute text; Dane, 2026-10-24, lets the agent sign (decided item below).",
+            "Counsel's row: mailing a copy is 'not required' but 'good practice ... via certified mail for proof of compliance'; no recipients are set because the statute names none.",
+            "Dane, 2026-10-23: the release is signed under an acknowledgment, in the A.R.S. 41-265(2) short form for a representative capacity (Ivalice.Artifacts.Certificates); the question is on rules/documents/AZ/release_of_lien.yaml."
+          ],
+          "approved_by": ["dane"],
+          "approved_at": "2026-10-24"
+        }
+      }
+    ],
+    "groups": [
+      {
+        "key": "preliminary_notice",
+        "title": "Arizona Preliminary Twenty Day Lien Notice",
+        "citation": {
+          "reference": "A.R.S. 33-992.01"
+        },
+        "meta": {
+          "function": "preserve_lien_rights",
+          "forum": "service",
+          "signing": {
+            "notarial_act": "none",
+            "preparer": "certified_legal_document_preparer",
+            "signers": ["claimant", "agent"]
+          }
+        }
+      },
+      {
+        "key": "notice_and_claim_of_lien",
+        "title": "Notice and Claim of Lien",
+        "citation": {
+          "reference": "A.R.S. 33-993"
+        },
+        "requires": ["preliminary_notice"],
+        "meta": {
+          "function": "perfect_lien",
+          "forum": "county_recorder",
+          "signing": {
+            "knowledge_required": true,
+            "notarial_act": "jurat",
+            "preparer": "certified_legal_document_preparer",
+            "signers": ["claimant", "agent"]
+          },
+          "requires": [
+            {
+              "instrument": "preliminary_notice",
+              "cite": "A.R.S. 33-981(D)"
+            }
+          ],
+          "expires": {
+            "cite": "A.R.S. 33-998(A)",
+            "from": "lien_recorded",
+            "n": 6,
+            "unit": "months"
+          }
+        }
+      },
+      {
+        "key": "notice_and_claim_of_lien_expires",
+        "title": "Notice and Claim of Lien expires",
+        "citation": {
+          "reference": "A.R.S. 33-998(A)"
+        },
+        "requires": ["notice_and_claim_of_lien"]
+      },
+      {
+        "key": "release_of_lien",
+        "title": "Release of Lien",
+        "citation": {
+          "reference": "A.R.S. 33-1006"
+        },
+        "requires": ["notice_and_claim_of_lien"],
+        "meta": {
+          "function": "release_lien",
+          "forum": "county_recorder",
+          "signing": {
+            "notarial_act": "acknowledgment",
+            "preparer": "certified_legal_document_preparer",
+            "signers": ["claimant", "agent"]
+          },
+          "requires": [
+            {
+              "instrument": "notice_and_claim_of_lien",
+              "cite": "A.R.S. 33-1006(A)"
+            }
+          ]
+        }
+      }
+    ],
+    "counting": {
+      "roll_to": "next_business_day",
+      "roll_when": ["sunday", "holiday"],
+      "holidays": [
+        {
+          "name": "New Year's Day",
+          "date": {
+            "day": 1,
+            "month": 1
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(2)"
+          },
+          "observed": [
+            {
+              "falls_on": "sunday",
+              "observe": "following_monday",
+              "citation": {
+                "reference": "A.R.S. 1-301(B)"
+              }
+            },
+            {
+              "falls_on": "saturday",
+              "observe": "preceding_friday",
+              "citation": {
+                "reference": "A.R.S. 1-301(C)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Martin Luther King, Jr./Civil Rights Day",
+          "date": {
+            "month": 1,
+            "nth": 3,
+            "weekday": "monday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(3)"
+          }
+        },
+        {
+          "name": "Lincoln/Washington Presidents' Day",
+          "date": {
+            "month": 2,
+            "nth": 3,
+            "weekday": "monday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(4)"
+          }
+        },
+        {
+          "name": "Mothers' Day",
+          "date": {
+            "month": 5,
+            "nth": 2,
+            "weekday": "sunday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(5)"
+          }
+        },
+        {
+          "name": "Memorial Day",
+          "date": {
+            "month": 5,
+            "nth": "last",
+            "weekday": "monday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(6)"
+          }
+        },
+        {
+          "name": "Native American Day",
+          "date": {
+            "day": 2,
+            "month": 6
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(7)"
+          },
+          "observed": [
+            {
+              "falls_on": "other_than_sunday",
+              "observe": "following_sunday",
+              "replaces": true,
+              "citation": {
+                "reference": "A.R.S. 1-301(D)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fathers' Day",
+          "date": {
+            "month": 6,
+            "nth": 3,
+            "weekday": "sunday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(8)"
+          }
+        },
+        {
+          "name": "Independence Day",
+          "date": {
+            "day": 4,
+            "month": 7
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(9)"
+          },
+          "observed": [
+            {
+              "falls_on": "sunday",
+              "observe": "following_monday",
+              "citation": {
+                "reference": "A.R.S. 1-301(B)"
+              }
+            },
+            {
+              "falls_on": "saturday",
+              "observe": "preceding_friday",
+              "citation": {
+                "reference": "A.R.S. 1-301(C)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "American Family Day",
+          "date": {
+            "month": 8,
+            "nth": 1,
+            "weekday": "sunday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(10)"
+          }
+        },
+        {
+          "name": "National Navajo Code Talkers Day",
+          "date": {
+            "day": 14,
+            "month": 8
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(11)"
+          },
+          "observed": [
+            {
+              "falls_on": "other_than_sunday",
+              "observe": "following_sunday",
+              "replaces": true,
+              "citation": {
+                "reference": "A.R.S. 1-301(E)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Labor Day",
+          "date": {
+            "month": 9,
+            "nth": 1,
+            "weekday": "monday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(12)"
+          }
+        },
+        {
+          "name": "Constitution Commemoration Day",
+          "date": {
+            "day": 17,
+            "month": 9
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(13)"
+          },
+          "observed": [
+            {
+              "falls_on": "other_than_sunday",
+              "observe": "preceding_sunday",
+              "replaces": true,
+              "citation": {
+                "reference": "A.R.S. 1-301(F)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Columbus Day",
+          "date": {
+            "month": 10,
+            "nth": 2,
+            "weekday": "monday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(14)"
+          }
+        },
+        {
+          "name": "Veterans' Day",
+          "date": {
+            "day": 11,
+            "month": 11
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(15)"
+          },
+          "observed": [
+            {
+              "falls_on": "sunday",
+              "observe": "following_monday",
+              "citation": {
+                "reference": "A.R.S. 1-301(B)"
+              }
+            },
+            {
+              "falls_on": "saturday",
+              "observe": "preceding_friday",
+              "citation": {
+                "reference": "A.R.S. 1-301(C)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Thanksgiving Day",
+          "date": {
+            "month": 11,
+            "nth": 4,
+            "weekday": "thursday"
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(16)"
+          }
+        },
+        {
+          "name": "Christmas Day",
+          "date": {
+            "day": 25,
+            "month": 12
+          },
+          "citation": {
+            "reference": "A.R.S. 1-301(A)(17)"
+          },
+          "observed": [
+            {
+              "falls_on": "sunday",
+              "observe": "following_monday",
+              "citation": {
+                "reference": "A.R.S. 1-301(B)"
+              }
+            },
+            {
+              "falls_on": "saturday",
+              "observe": "preceding_friday",
+              "citation": {
+                "reference": "A.R.S. 1-301(C)"
+              }
+            }
+          ]
+        }
+      ],
+      "citation": {
+        "reference": "A.R.S. 1-243(A)"
+      },
+      "status": "approved"
+    },
+    "meta": {
+      "bundle_sha256": "549b601abda4aa2a26d75adfd3de2c2db4ea7e489568c1f49d3e26688cc3edf8",
+      "built_at": "2026-11-04T20:43:42Z",
+      "include_draft": true,
+      "statute_edition": "2026-08-18",
+      "offered": [
+        {
+          "at": "2026-10-22",
+          "by": "dane",
+          "instrument": "preliminary_notice",
+          "methods": ["first_class_mail"],
+          "signed_by": "agent",
+          "state": "AZ"
+        },
+        {
+          "at": "2026-10-22",
+          "by": "dane",
+          "instrument": "notice_and_claim_of_lien",
+          "signed_by": "agent",
+          "state": "AZ"
+        },
+        {
+          "at": "2026-10-22",
+          "by": "dane",
+          "instrument": "release_of_lien",
+          "signed_by": "agent",
+          "state": "AZ"
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "a subcontractor on commercial work: notice in 20 days, lien 120 days from last furnishing",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "contract_is_written": true,
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-09-01",
+        "last_furnishing_date": "2026-10-15",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-09-21",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_furnishing_date",
+              "date": "2026-09-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-12",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-15"
+            },
+            "without": ["notice_of_completion_recording_date"]
+          },
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a supplier on an owner-occupied house is barred, and the release falls with the lien",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "material_supplier",
+        "property_use": "residential",
+        "project_sector": "private",
+        "owner_occupancy": "owner_occupied",
+        "dwelling_units": "1",
+        "contract_is_written": true,
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-09-01",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "owner_occupant_dwelling",
+            "citation": {
+              "reference": "A.R.S. 33-1002(B)"
+            },
+            "note": "The notice preserves a lien A.R.S. 33-1002(B) forbids ('No lien ... shall be allowed or recorded ... against the dwelling of a person who became an owner-occupant prior to the construction ... except by a person having executed in writing a contract directly with the owner-occupant'); the bar is the lien's, carried here because a notice is sent to be able to lien, so where no lien can exist no notice is owed (SCHEMA.md §8, ruling 2026-10-23; prior record 4, 2026-09-17)."
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "owner_occupant_dwelling",
+            "citation": {
+              "reference": "A.R.S. 33-1002(B)"
+            },
+            "note": "A.R.S. 33-1002(B) (corpus 2026-08-18): 'No lien provided for in this article shall be allowed or recorded by the person claiming a lien against the dwelling of a person who became an owner-occupant prior to the construction, alteration, repair or improvement, except by a person having executed in writing a contract directly with the owner-occupant'; counsel's row, 'A duplex and single family home would be protected from a material supplier or sub contractor.'"
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "owner_occupant_dwelling",
+            "citation": {
+              "reference": "A.R.S. 33-1002(B)"
+            },
+            "note": "falls with notice_and_claim_of_lien"
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "owner_occupant_dwelling",
+            "citation": {
+              "reference": "A.R.S. 33-1002(B)"
+            },
+            "note": "falls with notice_and_claim_of_lien"
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a subcontractor re-roofing a rented house: day 120 on a Sunday rolls to Monday",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "residential",
+        "project_sector": "private",
+        "owner_occupancy": "non_owner_occupied",
+        "dwelling_units": "1",
+        "contract_is_written": true,
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-10-01",
+        "last_furnishing_date": "2026-10-03",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-10-21",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_furnishing_date",
+              "date": "2026-10-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-01",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-03"
+            },
+            "without": ["notice_of_completion_recording_date"]
+          },
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "an exception whose unless does not hold bars",
+      "facts": {
+        "claimant_contract_tier": "lower_tier",
+        "claimant_capacity": "contractor",
+        "property_use": "residential",
+        "project_sector": "private",
+        "owner_occupancy": "owner_occupied",
+        "dwelling_units": "2",
+        "first_furnishing_date": "2026-10-01",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "owner_occupant_dwelling",
+            "citation": {
+              "reference": "A.R.S. 33-1002(B)"
+            },
+            "note": "The notice preserves a lien A.R.S. 33-1002(B) forbids ('No lien ... shall be allowed or recorded ... against the dwelling of a person who became an owner-occupant prior to the construction ... except by a person having executed in writing a contract directly with the owner-occupant'); the bar is the lien's, carried here because a notice is sent to be able to lien, so where no lien can exist no notice is owed (SCHEMA.md §8, ruling 2026-10-23; prior record 4, 2026-09-17)."
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "owner_occupant_dwelling",
+            "citation": {
+              "reference": "A.R.S. 33-1002(B)"
+            },
+            "note": "A.R.S. 33-1002(B) (corpus 2026-08-18): 'No lien provided for in this article shall be allowed or recorded by the person claiming a lien against the dwelling of a person who became an owner-occupant prior to the construction, alteration, repair or improvement, except by a person having executed in writing a contract directly with the owner-occupant'; counsel's row, 'A duplex and single family home would be protected from a material supplier or sub contractor.'"
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "owner_occupant_dwelling",
+            "citation": {
+              "reference": "A.R.S. 33-1002(B)"
+            },
+            "note": "falls with notice_and_claim_of_lien"
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "owner_occupant_dwelling",
+            "citation": {
+              "reference": "A.R.S. 33-1002(B)"
+            },
+            "note": "falls with notice_and_claim_of_lien"
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "an exception asks its facts while they are open, and the date is provisional",
+      "facts": {
+        "claimant_contract_tier": "lower_tier",
+        "claimant_capacity": "contractor",
+        "property_use": "residential",
+        "project_sector": "private",
+        "dwelling_units": "2",
+        "first_furnishing_date": "2026-10-01",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-10-21",
+          "provisional": true,
+          "missing": ["owner_occupancy"],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_furnishing_date",
+              "date": "2026-10-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [
+            "last_furnishing_date",
+            "owner_occupancy",
+            "payment_bond_recorded"
+          ],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "asks for the facts an open exception or trigger still needs",
+      "facts": {
+        "claimant_contract_tier": "lower_tier",
+        "claimant_capacity": "contractor",
+        "property_use": "residential",
+        "project_sector": "private",
+        "first_furnishing_date": "2026-10-01",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-10-21",
+          "provisional": true,
+          "missing": ["dwelling_units", "owner_occupancy"],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_furnishing_date",
+              "date": "2026-10-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [
+            "dwelling_units",
+            "last_furnishing_date",
+            "owner_occupancy",
+            "payment_bond_recorded"
+          ],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a recorded notice of completion replaces the 120-day count",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-09-01",
+        "completion_date": "2026-10-15",
+        "notice_of_completion_recording_date": "2026-10-20",
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-09-21",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_furnishing_date",
+              "date": "2026-09-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-19",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "notice_of_completion_recording_date",
+              "date": "2026-10-20"
+            },
+            "without": []
+          },
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a notice of completion recorded past day 120 still replaces it, rolled off a Sunday",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-09-01",
+        "completion_date": "2026-10-15",
+        "notice_of_completion_recording_date": "2027-01-13",
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-09-21",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_furnishing_date",
+              "date": "2026-09-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "notice_of_completion_recording_date",
+              "date": "2027-01-13"
+            },
+            "without": []
+          },
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "day 20 on Thanksgiving rolls to Friday",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-11-06",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-27",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_furnishing_date",
+              "date": "2026-11-06"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["last_furnishing_date"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "day 20 on Thanksgiving stays under a draft counting block",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-11-06",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "counting": {
+        "roll_to": "next_business_day",
+        "roll_when": ["sunday", "holiday"],
+        "holidays": [
+          {
+            "name": "New Year's Day",
+            "date": {
+              "day": 1,
+              "month": 1
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(2)"
+            },
+            "observed": [
+              {
+                "falls_on": "sunday",
+                "observe": "following_monday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(B)"
+                }
+              },
+              {
+                "falls_on": "saturday",
+                "observe": "preceding_friday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(C)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Martin Luther King, Jr./Civil Rights Day",
+            "date": {
+              "month": 1,
+              "nth": 3,
+              "weekday": "monday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(3)"
+            }
+          },
+          {
+            "name": "Lincoln/Washington Presidents' Day",
+            "date": {
+              "month": 2,
+              "nth": 3,
+              "weekday": "monday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(4)"
+            }
+          },
+          {
+            "name": "Mothers' Day",
+            "date": {
+              "month": 5,
+              "nth": 2,
+              "weekday": "sunday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(5)"
+            }
+          },
+          {
+            "name": "Memorial Day",
+            "date": {
+              "month": 5,
+              "nth": "last",
+              "weekday": "monday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(6)"
+            }
+          },
+          {
+            "name": "Native American Day",
+            "date": {
+              "day": 2,
+              "month": 6
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(7)"
+            },
+            "observed": [
+              {
+                "falls_on": "other_than_sunday",
+                "observe": "following_sunday",
+                "replaces": true,
+                "citation": {
+                  "reference": "A.R.S. 1-301(D)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Fathers' Day",
+            "date": {
+              "month": 6,
+              "nth": 3,
+              "weekday": "sunday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(8)"
+            }
+          },
+          {
+            "name": "Independence Day",
+            "date": {
+              "day": 4,
+              "month": 7
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(9)"
+            },
+            "observed": [
+              {
+                "falls_on": "sunday",
+                "observe": "following_monday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(B)"
+                }
+              },
+              {
+                "falls_on": "saturday",
+                "observe": "preceding_friday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(C)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "American Family Day",
+            "date": {
+              "month": 8,
+              "nth": 1,
+              "weekday": "sunday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(10)"
+            }
+          },
+          {
+            "name": "National Navajo Code Talkers Day",
+            "date": {
+              "day": 14,
+              "month": 8
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(11)"
+            },
+            "observed": [
+              {
+                "falls_on": "other_than_sunday",
+                "observe": "following_sunday",
+                "replaces": true,
+                "citation": {
+                  "reference": "A.R.S. 1-301(E)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Labor Day",
+            "date": {
+              "month": 9,
+              "nth": 1,
+              "weekday": "monday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(12)"
+            }
+          },
+          {
+            "name": "Constitution Commemoration Day",
+            "date": {
+              "day": 17,
+              "month": 9
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(13)"
+            },
+            "observed": [
+              {
+                "falls_on": "other_than_sunday",
+                "observe": "preceding_sunday",
+                "replaces": true,
+                "citation": {
+                  "reference": "A.R.S. 1-301(F)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Columbus Day",
+            "date": {
+              "month": 10,
+              "nth": 2,
+              "weekday": "monday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(14)"
+            }
+          },
+          {
+            "name": "Veterans' Day",
+            "date": {
+              "day": 11,
+              "month": 11
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(15)"
+            },
+            "observed": [
+              {
+                "falls_on": "sunday",
+                "observe": "following_monday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(B)"
+                }
+              },
+              {
+                "falls_on": "saturday",
+                "observe": "preceding_friday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(C)"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Thanksgiving Day",
+            "date": {
+              "month": 11,
+              "nth": 4,
+              "weekday": "thursday"
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(16)"
+            }
+          },
+          {
+            "name": "Christmas Day",
+            "date": {
+              "day": 25,
+              "month": 12
+            },
+            "citation": {
+              "reference": "A.R.S. 1-301(A)(17)"
+            },
+            "observed": [
+              {
+                "falls_on": "sunday",
+                "observe": "following_monday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(B)"
+                }
+              },
+              {
+                "falls_on": "saturday",
+                "observe": "preceding_friday",
+                "citation": {
+                  "reference": "A.R.S. 1-301(C)"
+                }
+              }
+            ]
+          }
+        ],
+        "citation": {
+          "reference": "A.R.S. 1-243(A)"
+        },
+        "status": "draft"
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-26",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "first_furnishing_date",
+              "date": "2026-11-06"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["last_furnishing_date"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a laborer owes no notice and the lien is not covered",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "laborer",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__laborer_for_wages",
+          "period": null,
+          "result": "not_required",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": null,
+          "period": null,
+          "result": "not_covered",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": null,
+          "period": null,
+          "result": "not_covered",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a public job is not covered",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "public",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": null,
+          "period": null,
+          "result": "not_covered",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": null,
+          "period": null,
+          "result": "not_covered",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": null,
+          "period": null,
+          "result": "not_covered",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a settled bar after an open exception decides",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "material_supplier",
+        "property_use": "residential",
+        "project_sector": "private",
+        "owner_occupancy": "owner_occupied",
+        "dwelling_units": "5_or_more",
+        "contract_is_written": true,
+        "payment_bond_recorded": true,
+        "first_furnishing_date": "2026-09-01",
+        "last_furnishing_date": "2026-10-15",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-09-21",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_furnishing_date",
+              "date": "2026-09-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "payment_bond_recorded",
+            "citation": {
+              "reference": "A.R.S. 33-1003(A)"
+            },
+            "remedy": "claim_against_bond",
+            "note": "A.R.S. 33-1003(A) (corpus 2026-08-18): 'On recordation of the payment bond together with a copy of such contract in the office of the county recorder ... no lien shall thereafter be allowed or recorded by the person claiming a lien against the land ... except by the person who contracts, in writing, directly with the owner'; the bond must be recorded with the contract and in the Title 34 form (33-1003(B)), which payment_bond_recorded: true is taken to mean."
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "payment_bond_recorded",
+            "citation": {
+              "reference": "A.R.S. 33-1003(A)"
+            },
+            "note": "falls with notice_and_claim_of_lien"
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "payment_bond_recorded",
+            "citation": {
+              "reference": "A.R.S. 33-1003(A)"
+            },
+            "note": "falls with notice_and_claim_of_lien"
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a recorded lien dates the expiry and payment dates the release",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "contract_is_written": true,
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-09-01",
+        "last_furnishing_date": "2026-10-15",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": "2027-03-01",
+        "lien_recording_date": "2027-01-15"
+      },
+      "expect": [
+        {
+          "group": "preliminary_notice",
+          "ruleKey": "preliminary_notice__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-09-21",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "first_furnishing_date",
+              "date": "2026-09-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "first_furnishing_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-992.01"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien",
+          "ruleKey": "notice_and_claim_of_lien__private_all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-12",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-15"
+            },
+            "without": ["notice_of_completion_recording_date"]
+          },
+          "deadline": {
+            "first_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "A.R.S. 33-993"
+          }
+        },
+        {
+          "group": "notice_and_claim_of_lien_expires",
+          "ruleKey": "notice_and_claim_of_lien_expires",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-07-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "lien_recording_date",
+              "date": "2027-01-15"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 6,
+            "unit": "months",
+            "from": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-998(A)"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-22",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": {
+              "fact": "full_payment_date",
+              "date": "2027-03-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "one group with what it requires",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "material_supplier",
+        "property_use": "residential",
+        "project_sector": "private",
+        "owner_occupancy": "owner_occupied",
+        "dwelling_units": "1",
+        "contract_is_written": true,
+        "payment_bond_recorded": false,
+        "first_furnishing_date": "2026-09-01",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "group": "release_of_lien",
+      "expect": [
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "barred",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": {
+            "name": "owner_occupant_dwelling",
+            "citation": {
+              "reference": "A.R.S. 33-1002(B)"
+            },
+            "note": "falls with notice_and_claim_of_lien"
+          },
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "n": 20,
+            "unit": "days",
+            "from": "full_payment_date"
+          },
+          "citation": {
+            "reference": "A.R.S. 33-1006"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    }
+  ]
+}

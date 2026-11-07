@@ -1,11 +1,12 @@
 ---
 title: Deadlines
-description: Due dates computed from approved, versioned rule sets with a citation per rule, and an unknown result that names the facts still missing.
+description: Due dates computed from approved, versioned rule sets of groups, conditions, exceptions and counts, with results that name the facts still missing instead of guessing.
 ---
 
-`deadlines` keeps rule sets per jurisdiction and kind, and computes a due date
-for a subject from the facts you know about it. A rule that lacks a fact gives
-`unknown` and lists what is missing, so the app never shows a guessed date.
+`deadlines` keeps rule sets per jurisdiction and kind, and computes a subject's
+deadlines from the facts you know about it. Each group of a version yields one
+deadline: a date, the facts it still waits for, or the reason there is none. The
+app never shows a guessed date.
 
 ```bash
 better-supabase add deadlines
@@ -21,11 +22,11 @@ is approved through an approval request.
 
 ## Tables and permissions
 
-| Table                    | Holds                                                                       |
-| ------------------------ | --------------------------------------------------------------------------- |
-| `deadline_rule_sets`     | One set per jurisdiction and kind, owned by the platform, with no tenant    |
-| `deadline_rule_versions` | A version with its rules, a status, a content hash and an effective date    |
-| `deadlines`              | One row per tenant, subject and rule key: a result, a date or missing facts |
+| Table                    | Holds                                                                                        |
+| ------------------------ | -------------------------------------------------------------------------------------------- |
+| `deadline_rule_sets`     | One set per jurisdiction and kind, owned by the platform, with no tenant                     |
+| `deadline_rule_versions` | A version's rules, groups, counting block and meta, a status, a content hash and a date      |
+| `deadlines`              | One row per tenant, subject, group and month: a result, a date or missing facts, and a basis |
 
 | Permission         | Allows                            | Default roles |
 | ------------------ | --------------------------------- | ------------- |
@@ -38,27 +39,80 @@ version needs the service role.
 
 ## Rules
 
-A rule names an anchor fact, an offset in `days`, `business_days` or `months`
-(at most 3650), an adjustment (`none`, `next_business_day` or
-`previous_business_day`), the facts it requires and a citation.
+A version is one whole: ordered `groups`, ordered `rules`, an optional
+`counting` block and an optional `meta` object. Each rule belongs to a group,
+and the first rule of a group that applies to the subject wins.
 
 ```ts
 const deadlines = createDeadlines({ transport, tenant: organizationId });
 
 const draft = await deadlines
   .saveRules({
-    jurisdiction: "ca",
-    kind: "notice",
-    rules: [
-      {
-        key: "file_notice",
-        anchor: "first_day",
-        offset: { amount: 90, unit: "days" },
-        adjust: "next_business_day",
-        requires: ["state"],
-        citation: { reference: "Section 1" },
+    jurisdiction: "az",
+    kind: "lien",
+    content: {
+      groups: [
+        {
+          key: "preliminary_notice",
+          citation: { reference: "A.R.S. 33-992.01" },
+        },
+        {
+          key: "claim_of_lien",
+          citation: { reference: "A.R.S. 33-993" },
+          requires: ["preliminary_notice"],
+        },
+      ],
+      rules: [
+        {
+          key: "notice_private",
+          group: "preliminary_notice",
+          applies: { project_sector: ["private"] },
+          exceptions: [
+            {
+              name: "owner_occupant_dwelling",
+              when: {
+                property_use: "residential",
+                owner_occupancy: "owner_occupied",
+              },
+              unless: { claimant_contract_tier: "direct_with_owner" },
+              result: "barred",
+              citation: { reference: "A.R.S. 33-1002(B)" },
+            },
+          ],
+          deadline: { from: "first_furnishing_date", n: 20, unit: "days" },
+          citation: { reference: "A.R.S. 33-992.01" },
+        },
+        {
+          key: "lien_private",
+          group: "claim_of_lien",
+          applies: { project_sector: ["private"] },
+          deadline: {
+            first_of: [
+              {
+                from: "notice_of_completion_recording_date",
+                n: 60,
+                unit: "days",
+              },
+              { from: "last_furnishing_date", n: 120, unit: "days" },
+            ],
+          },
+          citation: { reference: "A.R.S. 33-993" },
+          meta: { recipients: ["owner"] },
+        },
+      ],
+      counting: {
+        roll_to: "next_business_day",
+        roll_when: ["sunday", "holiday"],
+        holidays: [
+          {
+            name: "Thanksgiving Day",
+            date: { month: 11, weekday: "thursday", nth: 4 },
+            citation: { reference: "A.R.S. 1-301(A)(16)" },
+          },
+        ],
+        citation: { reference: "A.R.S. 1-243(A)" },
       },
-    ],
+    },
   })
   .orThrow();
 
@@ -67,37 +121,141 @@ await deadlines
   .orThrow();
 ```
 
-Approval stores a SHA-256 of the rules and freezes the version. A later change
-fails with the `DEADLINE_RULE_VERSION_FROZEN` hint, so you publish a new
+Approval stores a SHA-256 of the whole content and freezes the version. A later
+change fails with the `DEADLINE_RULE_VERSION_FROZEN` hint, so you publish a new
 version instead. A deadline keeps the version it was computed with.
-`validateRules` and `evaluateRule` run the same checks and the same arithmetic
-in TypeScript, for a preview before you save.
+`validateRuleVersion` and `evaluateVersion` run the same checks and the same
+evaluation in TypeScript, for a preview before you save.
 
-## Computing a deadline
+### Applies, regimes and exceptions
+
+`applies` selects the subjects a rule covers. Each entry names a fact: a list
+of codes the fact must be one of, `present` or `absent`, or at most one date
+regime `{ from, before }` the fact's date must fall in. A rule without
+`applies` covers every subject. While a regime's date is unknown, the rule
+still applies, the result names the fact in `missing` and carries a `regime`
+review mark. While an earlier rule's facts are unknown, the group asks them
+instead of passing to a later rule.
+
+`exceptions` change the duty when their `when` condition holds and their
+`unless` condition doesn't. A condition is an AND of entries: a string or
+boolean the fact must equal, a list of codes, or `present` or `absent`. The
+first settled exception that holds decides the result: `barred` (with an
+optional `remedy`), `not_applicable` or `not_required`. An exception with the
+result or status `review_required` never decides: it is carried as a review
+mark and the date is counted as if it didn't apply. An exception whose facts
+are unknown asks them and marks the date `provisional`. A rule with
+`required: false` gives `not_required`.
+
+`status` on a rule, an exception or the counting block is `approved` by
+default. `draft` and `review_required` are carried for display and never
+change a date.
+
+### Deadline grammar
+
+| Deadline                                      | Meaning                                                                |
+| --------------------------------------------- | ---------------------------------------------------------------------- |
+| `"none"` or absent                            | a duty without a date (`undated`)                                      |
+| `{ from, n, unit }`                           | `n` days, business days or months after the fact's date (at most 3650) |
+| `{ before, n, unit }`                         | `n` units before the fact's date; without `n`, on or before it         |
+| `{ ..., unit: "months", day_of_month }`       | that day (1 to 28) of the target month                                 |
+| `{ from, n, unit, each: "furnishing_month" }` | one deadline per furnishing month, counted from the first of the month |
+| `{ first_of: [counts] }`                      | the first count whose fact has a date                                  |
+| `{ earlier_of: [counts] }`                    | the earliest date among the counts that have one                       |
+| `{ later_of: [counts] }`                      | the latest date, once every count has one or has not happened          |
+
+Months clamp to the last day of the target month. A monthly count runs from
+the month of `first_furnishing_date` through the month of
+`last_furnishing_date`, or, while furnishing goes on, through the month of the
+evaluation date and one ahead.
+
+### Counting and holidays
+
+An approved `counting` block moves a last day forward while it falls on a day
+in `roll_when` (`saturday`, `sunday`, `holiday`). A deadline counted before a
+fact never rolls. A holiday is a fixed `{ month, day }` or the `nth` (or
+`last`) weekday of a month, and `observed` entries move it when it falls on a
+Saturday, a Sunday or any other day; an entry with `replaces: true` leaves the
+listed date a working day. `business_days` skip weekends and the holidays of an
+approved block. A rule's `adjust` (`next_business_day` or
+`previous_business_day`) applies after the roll. A rule with a `before` count
+can't use `next_business_day`, which could move the last day past the fact.
+A count is at most 3650 days, business days or months.
+
+### Meta
+
+`meta` on the version, a group or a rule is any object up to 32768 bytes. The
+block stores it with the version, includes it in the content hash and never
+reads it, so data the app shows beside a date (who to serve, what missing it
+costs) comes from the same approved version as the date.
+
+## Computing deadlines
 
 ```ts
-const deadline = await deadlines
+const rows = await deadlines
   .compute({
-    subjectType: "case",
-    subjectId: caseId,
-    jurisdiction: "ca",
-    kind: "notice",
-    ruleKey: "file_notice",
-    facts: { first_day: "2026-01-02", state: "ca" },
+    subjectType: "job",
+    subjectId: jobId,
+    jurisdiction: "az",
+    kind: "lien",
+    facts: {
+      project_sector: "private",
+      property_use: "commercial",
+      first_furnishing_date: "2026-09-01",
+      last_furnishing_date: "2026-10-15",
+      notice_of_completion_recording_date: null,
+    },
   })
   .orThrow();
-// deadline.result is "due", deadline.dueOn is 2026-04-02
+// rows[1].result is "due", rows[1].dueOn is 2027-02-12
 ```
 
-With a missing fact, `result` is `unknown` and `missing` lists the fact names.
-`recompute` re-evaluates a subject's pending deadlines with extra facts, and
-`satisfy` records the action that closed one. `list` filters by subject, state,
-result and `dueBefore`.
+`compute` evaluates every group of the version that applies on `asOf` (today by
+default), or only `group` and the groups it requires, and stores one row per
+group, one per month for a monthly count. A satisfied row stays as it is, and
+a pending row whose group or month has no result any more is deleted.
+
+Facts are three-valued:
+
+| Fact value              | Meaning                                                         |
+| ----------------------- | --------------------------------------------------------------- |
+| key absent              | unknown: the fact is asked in `missing`                         |
+| `null`                  | does not exist, or has not happened: a count from it is skipped |
+| `"YYYY-MM-DD"`          | a date; a string that isn't a valid date is unknown             |
+| other string, or number | an enum code                                                    |
+| `true` or `false`       | a boolean; it equals only a boolean in a condition              |
+
+| Result           | When                                                                  |
+| ---------------- | --------------------------------------------------------------------- |
+| `due`            | a date, in `dueOn`                                                    |
+| `unknown`        | the facts in `missing` decide which rule applies or the date          |
+| `pending`        | the facts the count reads have not happened yet                       |
+| `undated`        | the duty has no date                                                  |
+| `not_covered`    | no rule of the group applies                                          |
+| `not_applicable` | an exception says the duty doesn't apply                              |
+| `not_required`   | the rule or an exception says the duty isn't required                 |
+| `barred`         | an exception bars it, or a group it requires is barred ("falls with") |
+
+A `provisional` result has a date or a refusal that a missing answer could
+still change, and lists that fact in `missing`. `review` lists what needs a
+person: an unknown `regime` date, an unsettled `exception`, a `rule` or a
+`counting` block that is not approved. `basis` says what a date rests on: the
+fact and date the count read, and the events counted as not having happened.
+`deadline` is the rule's deadline as written, so the app can show the rule in
+words beside the date.
+
+`recompute` re-evaluates a subject's pending deadlines with extra facts against
+the version each one was computed with, never a newer one, and returns how many
+rows changed. `satisfy` records the action that closed one deadline, one month
+at a time for a monthly count. `list` filters by subject, `groupKey`,
+`period`, state, result, `provisional` and `dueBefore`.
 
 To recompute when your own facts table changes, attach the trigger function
 the module installs. It takes the subject type, then the names of the columns
 that hold the organization, the subject id, the fact name and the fact value. A
-new row recomputes the pending deadlines of its subject.
+new row recomputes the pending deadlines of its subject. The trigger reads the
+value as text, so a condition on a boolean fact needs `recompute` with typed
+facts instead.
 
 ```sql
 create trigger filing_facts_deadlines
@@ -107,8 +265,18 @@ create trigger filing_facts_deadlines
   );
 ```
 
+## Upgrading from version 1
+
+`better-supabase upgrade` converts version 1 rules (`anchor`, `offset`,
+`requires`): each rule becomes a rule of its own group, a negative offset
+becomes a count `before` the anchor, and each required fact must be `present`.
+An approved version keeps its old hash in `meta.previous_content_hash`.
+`compute_deadline` and `evaluate_deadline_rule` remain as deprecated SQL
+wrappers until 0.58.
+
 ## Events
 
-`deadline.computed` and `deadline.satisfied` carry the subject, the rule key,
-the result and the due date. Subscribe with `onBlockEvent`, for example to set
-a [reminder](/docs/blocks/reminders) from `dueOn`.
+`deadline.computed` and `deadline.satisfied` carry the subject, the group, the
+rule key, the month, the result, the due date and `provisional`. Subscribe with
+`onBlockEvent`, for example to set a [reminder](/docs/blocks/reminders) from
+`dueOn`.

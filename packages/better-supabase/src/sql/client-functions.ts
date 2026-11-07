@@ -157,7 +157,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   periods:
     "close_period create_period list_periods lock_period period_close_blockers period_for period_is_open reopen_period",
   deadlines:
-    "approve_rule_version compute_deadline list_deadlines recompute_deadlines rule_version_at satisfy_deadline save_rule_version",
+    "approve_rule_version compute_deadlines list_deadlines recompute_deadlines rule_version_at satisfy_deadline save_rule_version",
   "agent-checkout":
     "complete_checkout_session consume_agent_mandate create_checkout_session get_agent_mandate get_checkout_session list_agent_mandates list_checkout_sessions revoke_agent_mandate store_agent_mandate update_checkout_session",
   tills:
