@@ -4882,3 +4882,70 @@ describe("update policy checks a read permission (BS362)", () => {
     ).toEqual([]);
   });
 });
+
+describe("a block adds a column to a table the app creates (BS622)", () => {
+  let root: string;
+
+  const APP = `create table public.reminders (id uuid primary key, organization_id uuid not null);
+create table public.reminder_rules (id uuid primary key, organization_id uuid not null);
+create table public.reminder_deliveries (id uuid primary key, organization_id uuid not null);`;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "better-supabase-bs622-"));
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(join(root, "supabase/schemas/app.sql"), APP);
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const rooted = (files: readonly TextFile[]): DoctorContext => ({
+    ...context(),
+    config: resolveConfig(
+      {
+        blocks: {
+          reminders: {
+            tables: {
+              rules: "public.reminder_rules",
+              reminders: "public.reminders",
+              deliveries: "public.reminder_deliveries",
+            },
+          },
+        },
+      },
+      root,
+    ),
+    sqlFiles: files,
+  });
+
+  it("warns for a column the app's files don't declare, and not once they do", async () => {
+    const found = await run(
+      "BS622",
+      rooted([{ path: "supabase/schemas/app.sql", text: APP }]),
+    );
+
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        severity: "warning",
+        target: "public.reminders.remind_at",
+        message: expect.stringContaining("codemod owned-columns"),
+      }),
+    );
+
+    const declared = await run(
+      "BS622",
+      rooted([
+        {
+          path: "supabase/schemas/app.sql",
+          text: `${APP}\nalter table public.reminders add column remind_at timestamptz;`,
+        },
+      ]),
+    );
+
+    expect(declared.map((finding) => finding.target)).not.toContain(
+      "public.reminders.remind_at",
+    );
+    expect(declared).toHaveLength(found.length - 1);
+  });
+});

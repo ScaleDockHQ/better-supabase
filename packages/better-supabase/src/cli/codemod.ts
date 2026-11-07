@@ -12,6 +12,7 @@ import { codeRanges } from "./code-ranges.ts";
 import { configCodemod } from "./codemod-config.ts";
 import { extraColumnsCodemod } from "./codemod-extra-columns.ts";
 import { namingCodemod } from "./codemod-naming.ts";
+import { ownedColumnsCodemod } from "./codemod-owned-columns.ts";
 import { reportReadMany } from "./codemod-read-many.ts";
 import { renameSubpaths } from "./codemod-subpaths.ts";
 import { tableModulesCodemod } from "./codemod-table-modules.ts";
@@ -81,6 +82,7 @@ export interface ReviewLine {
 export const CODEMODS: Readonly<Record<string, Codemod>> = {
   naming: namingCodemod(),
   "extra-columns": extraColumnsCodemod(),
+  "owned-columns": ownedColumnsCodemod(),
   config: configCodemod(),
   "table-modules": tableModulesCodemod(),
   "read-many": {

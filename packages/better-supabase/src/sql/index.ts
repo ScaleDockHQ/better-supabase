@@ -132,6 +132,8 @@ export { excludedColumns, resolveExposeColumns } from "./expose-columns.ts";
 
 export { type DeclaredForeignKey, sameTenantLayout } from "./foreign-keys.ts";
 
+export { type OwnedColumn, ownedColumns } from "./owned-columns.ts";
+
 export {
   type DataExportPlan,
   dataExportPlan,
