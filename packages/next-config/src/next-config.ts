@@ -126,6 +126,9 @@ export function createNextConfig(
     },
     experimental: {
       useOffline: true,
+      // Lets createNext taint tokens and server contexts so React refuses to
+      // serialize them to a Client Component.
+      taint: true,
       globalNotFound: true,
       requestInsights: true,
       authInterrupts: true,

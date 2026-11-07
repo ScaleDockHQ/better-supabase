@@ -412,6 +412,18 @@ redirect before rendering; the gate is the second check. A `check` function
 runs before the first `<Suspense>` when the status code must be set there, but
 awaiting a request API in it makes the layout dynamic.
 
+### Taint
+
+With `experimental.taint: true` in `next.config.ts`, `createNext` calls React's
+`experimental_taintUniqueValue` on the access token and the refresh token of
+each request, and `experimental_taintObjectReference` on the auth state, the
+server context and the `bsb.admin()` context. A Server Component that passes
+one of them to a Client Component then fails with React's taint error instead
+of leaking it into the page. `createNextConfig()` from `@better-supabase/next-config`
+turns the flag on. Taint is the second layer: return plain data such as
+`bsb.user()` first. Without the flag, or on a React build without the API,
+the calls do nothing. The Supabase clients a context creates are not tainted.
+
 With `cacheComponents` enabled, see [Cache Components](/docs/frameworks/next-cache-components)
 for instant navigations and role-aware menus, and the
 [island pattern](/docs/frameworks/next-islands) for pages with many private

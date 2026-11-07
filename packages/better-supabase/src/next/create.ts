@@ -92,6 +92,7 @@ import { resourceRoutes } from "./resources.ts";
 import { cacheKeyOf, parkUntilResponseEnds } from "./session-handle.ts";
 import { refreshCallerCache, userSessionTags } from "./session-tags.ts";
 import { authFlows } from "./sign-in.ts";
+import { taintObject, taintResolution, taintedAdmin } from "./taint.ts";
 import { gateUserOf } from "./user.ts";
 import { withContextFactory } from "./with-context.ts";
 
@@ -233,10 +234,14 @@ export function createNext<
       // then answers from the verified-token memo.
       await base.snapshot(request, verify.onVerify);
 
-      return {
-        request,
-        resolution: await base.resolve(request, { refresh: false, ...verify }),
-      };
+      const resolution = await base.resolve(request, {
+        refresh: false,
+        ...verify,
+      });
+
+      taintResolution(resolution, options.auth?.cookie?.name, base.env.url);
+
+      return { request, resolution };
     },
   );
 
@@ -327,6 +332,11 @@ export function createNext<
         tenant,
       );
 
+      taintObject(
+        "better-supabase: the server context never goes to the client.",
+        ctx,
+      );
+
       if (tenant !== undefined) {
         scopedTenants.set(ctx, tenant);
       }
@@ -384,9 +394,11 @@ export function createNext<
 
   const withAccounts = withExtra(base, {
     context,
-    admin: adminForRequest(
-      (adminContext, adminOptions) => base.admin(adminContext, adminOptions),
-      (request) => statsFor(request).stats,
+    admin: taintedAdmin(
+      adminForRequest(
+        (adminContext, adminOptions) => base.admin(adminContext, adminOptions),
+        (request) => statsFor(request).stats,
+      ),
     ),
     contextFromSession,
     evictSession,
